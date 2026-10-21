@@ -6,9 +6,9 @@ nessuno stato del gioco viene acquisito o modificato.
 from __future__ import annotations
 
 from collections import deque
-import math
+from urllib.parse import urlsplit
 
-from .contracts import validate_condition
+from .contracts import is_json_number, validate_condition
 
 
 def _identifiers(items, label, limit):
@@ -29,12 +29,12 @@ def _json_data(value, depth=0):
     """Limiti ai parametri descrittivi; mai interpretarli come codice."""
     if depth > 8:
         raise ValueError('Parametri azione troppo profondi')
-    if value is None or type(value) in (str, bool, int):
+    if value is None or type(value) in (str, bool):
         if type(value) is str and len(value) > 4096:
             raise ValueError('Parametro testuale troppo lungo')
         return
-    if type(value) is float:
-        if not math.isfinite(value):
+    if type(value) in (int, float):
+        if not is_json_number(value):
             raise ValueError('Parametro numerico non finito')
         return
     if isinstance(value, list) and len(value) <= 512:
@@ -50,6 +50,16 @@ def _json_data(value, depth=0):
     raise ValueError('Parametri azione non validi')
 
 
+def _valid_url(value):
+    if not isinstance(value, str) or not value.startswith(('https://', 'http://')) or any(c.isspace() or ord(c) < 32 for c in value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        return bool(parsed.hostname) and (parsed.port is None or 0 <= parsed.port <= 65535)
+    except ValueError:
+        return False
+
+
 def validate_guide_extensions(guide: dict) -> None:
     """Convalida riferimenti e DAG inter-traccia; compatibile con guide legacy.
 
@@ -62,8 +72,7 @@ def validate_guide_extensions(guide: dict) -> None:
     for source in guide.get('sources', []):
         if source.get('type') not in ('youtube', 'web', 'file', 'manual'):
             raise ValueError('Tipo fonte non valido')
-        if 'url' in source and (not isinstance(source['url'], str) or
-                                not source['url'].startswith(('https://', 'http://'))):
+        if 'url' in source and not _valid_url(source['url']):
             raise ValueError('URL fonte non valido')
     for phase in guide.get('phases', []):
         if not isinstance(phase.get('title'), str) or not phase['title']:
@@ -91,8 +100,8 @@ def validate_guide_extensions(guide: dict) -> None:
             raise ValueError(f'Fase sconosciuta: {key}')
         if 'completion' in step:
             validate_condition(step['completion'])
-        params = step['action'].get('params')
-        if params is not None:
+        if 'params' in step['action']:
+            params = step['action']['params']
             if not isinstance(params, dict):
                 raise ValueError(f'Parametri azione non validi: {key}')
             _json_data(params)
@@ -105,8 +114,7 @@ def validate_guide_extensions(guide: dict) -> None:
                     item.get('basis') not in ('explicit', 'visual', 'inferred', 'game_derived', 'unverified')):
                 raise ValueError(f'Provenienza non valida: {key}')
             for field in ('timestamp_seconds', 'end_seconds'):
-                if field in item and (type(item[field]) not in (int, float) or
-                                      not math.isfinite(item[field]) or item[field] < 0):
+                if field in item and (not is_json_number(item[field]) or item[field] < 0):
                     raise ValueError(f'Timestamp non valido: {key}')
             if ('timestamp_seconds' in item and 'end_seconds' in item and
                     item['end_seconds'] < item['timestamp_seconds']):

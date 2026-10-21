@@ -55,20 +55,108 @@
   if(node.test==='gte')return typeof f.value==='number'&&Number.isFinite(f.value)&&typeof node.value==='number'&&Number.isFinite(node.value)?f.value>=node.value:null;
   return null;
  }
+ const record=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
+ const textLength=x=>[...x].length;
+ const jsonNumber=x=>typeof x==='number'&&Number.isFinite(x)&&(!Number.isInteger(x)||Number.isSafeInteger(x));
+ function validateCondition(node,depth=0){
+  if(!record(node)||depth>16)throw Error('Condizione non valida o troppo profonda');
+  if(['all','any'].includes(node.op)){
+   if(!Array.isArray(node.args)||node.args.length<1||node.args.length>64)throw Error('Operandi condizione non validi');
+   node.args.forEach(child=>validateCondition(child,depth+1));
+  }else if(node.op==='not')validateCondition(node.arg,depth+1);
+  else if(['fact','check'].includes(node.op)){
+   if(typeof node.key!=='string'||textLength(node.key)<1||textLength(node.key)>512)throw Error('Chiave condizione non valida');
+   if(node.op==='fact'&&(!['eq','contains','gte'].includes(node.test)||!['string','boolean','number'].includes(typeof node.value)||typeof node.value==='number'&&!jsonNumber(node.value)))throw Error('Confronto condizione non valido');
+  }else throw Error('Operatore condizione non supportato');
+ }
+ function validateAction(action){
+  if(!record(action)||!['select_focus','research','special_project','manual','free'].includes(action.kind))throw Error('Azione non supportata');
+  const expected={select_focus:'focus',research:'technology',special_project:'project'}[action.kind],ref=action.entity;
+  if(expected){
+   if(!record(ref)||ref.kind!==expected||typeof ref.id!=='string'||!ref.id.length||textLength(ref.id)>512||Object.hasOwn(ref,'scope')&&(typeof ref.scope!=='string'||!ref.scope))throw Error('Entità incompatibile con azione');
+  }else if(Object.hasOwn(action,'entity'))throw Error('Azione descrittiva senza entità richiesta');
+ }
+ function identifiers(items,label,limit){
+  if(!Array.isArray(items)||items.length>limit)throw Error(label+': elenco non valido');
+  const ids=new Set();
+  for(const item of items){if(!record(item)||typeof item.id!=='string'||!item.id.length||textLength(item.id)>160||ids.has(item.id))throw Error(label+': identificatore mancante o duplicato');ids.add(item.id);}
+  return ids;
+ }
+ function jsonData(value,depth=0){
+  if(depth>8)throw Error('Parametri azione troppo profondi');
+  if(value===null||typeof value==='boolean')return;
+  if(typeof value==='string'&&textLength(value)<=4096)return;
+  if(jsonNumber(value))return;
+  if(Array.isArray(value)&&value.length<=512){value.forEach(x=>jsonData(x,depth+1));return;}
+  if(record(value)&&Object.prototype.toString.call(value)==='[object Object]'&&Object.keys(value).length<=128){
+   for(const [key,child]of Object.entries(value)){if(!key.length||textLength(key)>128)throw Error('Nome parametro non valido');jsonData(child,depth+1);}return;
+  }
+  throw Error('Parametri azione non validi');
+ }
+ function validUrl(value){
+  if(typeof value!=='string'||!/^https?:\/\/[^/\s?#]+/.test(value)||/[\s\u0000-\u001f]/u.test(value))return false;
+  try{return !!new URL(value).hostname;}catch{return false;}
+ }
+ function validateExtensions(guide){
+  const sourceRows=Object.hasOwn(guide,'sources')?guide.sources:[],phaseRows=Object.hasOwn(guide,'phases')?guide.phases:[];
+  const sources=identifiers(sourceRows,'Fonti',32),phases=identifiers(phaseRows,'Fasi',128);
+  for(const source of sourceRows){if(!['youtube','web','file','manual'].includes(source.type)||Object.hasOwn(source,'url')&&!validUrl(source.url))throw Error('Fonte non valida');}
+  for(const phase of phaseRows){if(typeof phase.title!=='string'||!phase.title)throw Error('Titolo fase mancante');if(Object.hasOwn(phase,'when'))validateCondition(phase.when);}
+  const rows=Object.values(guide.tracks).flat(),keys=new Set(rows.map(x=>x.key)),pending=new Map(),successors=new Map(rows.map(x=>[x.key,[]]));
+  for(const step of rows){
+   const deps=Object.hasOwn(step,'depends_on')?step.depends_on:[];
+   if(!Array.isArray(deps)||deps.length>64||deps.some(dep=>typeof dep!=='string'||!keys.has(dep)||dep===step.key)||new Set(deps).size!==deps.length)throw Error('Dipendenze non valide: '+step.key);
+   pending.set(step.key,deps.length);for(const dep of deps)successors.get(dep).push(step.key);
+   if(Object.hasOwn(step,'phase')&&(typeof step.phase!=='string'||!phases.has(step.phase)))throw Error('Fase sconosciuta: '+step.key);
+   if(Object.hasOwn(step,'completion'))validateCondition(step.completion);
+   if(Object.hasOwn(step.action,'params')){if(!record(step.action.params))throw Error('Parametri azione non validi');jsonData(step.action.params);}
+   const evidence=Object.hasOwn(step,'evidence')?step.evidence:[];
+   if(!Array.isArray(evidence)||evidence.length>32)throw Error('Evidenze non valide');
+   for(const item of evidence){
+    if(!record(item)||typeof item.source_id!=='string'||!sources.has(item.source_id)||!['explicit','visual','inferred','game_derived','unverified'].includes(item.basis))throw Error('Provenienza non valida');
+    for(const field of ['timestamp_seconds','end_seconds'])if(Object.hasOwn(item,field)&&(!jsonNumber(item[field])||item[field]<0))throw Error('Timestamp non valido');
+    if(Object.hasOwn(item,'timestamp_seconds')&&Object.hasOwn(item,'end_seconds')&&item.end_seconds<item.timestamp_seconds)throw Error('Intervallo fonte non valido');
+   }
+  }
+  const queue=rows.filter(x=>pending.get(x.key)===0).map(x=>x.key);
+  for(let cursor=0;cursor<queue.length;cursor++)for(const key of successors.get(queue[cursor])){pending.set(key,pending.get(key)-1);if(pending.get(key)===0)queue.push(key);}
+  if(queue.length!==keys.size)throw Error('Dipendenze della guida cicliche');
+ }
  function guide(input){
+  if(!record(input))throw Error('Guida non valida');
   if(input.schema_version!==undefined&&input.schema_version!==VERSION)throw Error('Versione contratto guida non supportata');
   if(input.schema!==undefined&&input.schema!==1)throw Error('Versione guida legacy non supportata');
-  const result={...input,schema_version:VERSION,applies_to:input.applies_to||Object.fromEntries(['country','tree_id'].filter(k=>input[k]).map(k=>[k,input[k]])),tracks:{}};
+  const scope=Object.hasOwn(input,'applies_to')?input.applies_to:Object.fromEntries(['country','tree_id'].filter(k=>input[k]).map(k=>[k,input[k]]));
+  if(!record(scope)||Object.entries(scope).some(([k,v])=>!['country','tree_id'].includes(k)||typeof v!=='string'||!v))throw Error('Ambito guida non valido');
+  if(!record(input.tracks)||Object.keys(input.tracks).length>32)throw Error('Tracce guida non valide');
+  const result={...input,schema_version:VERSION,applies_to:{...scope},tracks:{}},keys=new Set();
+  for(const field of ['country','tree_id'])if(scope[field]){if(input[field]&&input[field]!==scope[field])throw Error('Ambito guida in conflitto');if(!Object.hasOwn(input,field))result[field]=scope[field];}
   const actions={focus:'select_focus',technology:'research',project:'special_project',gate:'manual',free:'free'},kinds=Object.fromEntries(Object.entries(actions).map(([k,v])=>[v,k]));
-  for(const [track,steps] of Object.entries(input.tracks||{}))result.tracks[track]=steps.map((s,i)=>{
-   const action=s.action||{kind:actions[s.kind],...(['focus','technology','project'].includes(s.kind)?{entity:{kind:s.kind,id:s.target}}:{})};
-   const r={...s,key:s.key||`${track}-${i+1}`,action,kind:kinds[action.kind],target:action.entity?.id||s.target};
-   if(s.gate&&!r.when)r.when={op:'check',key:s.gate};
-   if(s.available_gate&&s.priority_after&&!r.priority_when){r.priority=s.priority??100;r.priority_when={op:'all',args:[{op:'fact',key:'focus.completed',test:'contains',value:s.priority_after},{op:'check',key:s.available_gate}]};}
+  for(const [track,steps] of Object.entries(input.tracks)){
+   if(!Array.isArray(steps)||steps.length>4096)throw Error('Traccia guida non valida');
+   const rows=steps.map((s,i)=>{
+   if(!record(s))throw Error('Passaggio guida non valido');
+   const raw=Object.hasOwn(s,'action')?s.action:{kind:actions[s.kind],...(['focus','technology','project'].includes(s.kind)?{entity:{kind:s.kind,id:s.target}}:{})};
+   validateAction(raw);const action={...raw,...(raw.entity?{entity:{...raw.entity}}:{})};
+   const key=Object.hasOwn(s,'key')?s.key:`${track}-${i+1}`;
+   if(typeof key!=='string'||!key||keys.has(key))throw Error('Chiave passaggio assente o duplicata');keys.add(key);
+   if(action.entity?.kind==='focus'&&scope.tree_id){if(action.entity.scope!==undefined&&action.entity.scope!==scope.tree_id)throw Error('Ambito focus in conflitto');action.entity.scope=scope.tree_id;}
+   const r={...s,key,action,kind:kinds[action.kind]};
+   if(action.entity)r.target=action.entity.id;
+   if(s.gate&&!Object.hasOwn(r,'when'))r.when={op:'check',key:s.gate};
+   if(s.available_gate&&s.priority_after){
+    if(!Object.hasOwn(r,'priority'))r.priority=100;
+    if(!Object.hasOwn(r,'priority_when'))r.priority_when={op:'all',args:[{op:'fact',key:'focus.completed',test:'contains',value:s.priority_after},{op:'check',key:s.available_gate}]};
+   }
    return r;
-  });
+   });
+   Object.defineProperty(result.tracks,track,{value:rows,enumerable:true,writable:true,configurable:true});
+  }
   const steps=Object.values(result.tracks).flat();
-  for(const s of steps)if(s.optional_before&&!s.skip_when)s.skip_when={op:'any',args:[{op:'fact',key:'focus.completed',test:'contains',value:s.optional_before},...steps.filter(p=>p.target===s.optional_before&&p.priority_when).map(p=>p.priority_when)]};
+  for(const s of steps)if(s.optional_before&&!Object.hasOwn(s,'skip_when'))s.skip_when={op:'any',args:[{op:'fact',key:'focus.completed',test:'contains',value:s.optional_before},...steps.filter(p=>p.target===s.optional_before&&p.priority_when).map(p=>p.priority_when)]};
+  for(const step of steps){for(const field of ['when','priority_when','skip_when'])if(Object.hasOwn(step,field))validateCondition(step[field]);if(Object.hasOwn(step,'priority')&&(!Number.isInteger(step.priority)||Math.abs(step.priority)>100000))throw Error('Priorità guida non valida');}
+  for(const [key,value]of Object.entries({milestones:[],assumptions:[],title:input.id??'Guida',subtitle:''}))if(!Object.hasOwn(result,key))result[key]=value;
+  validateExtensions(result);
   return result;
  }
  function checkKeys(node,result=new Set()){

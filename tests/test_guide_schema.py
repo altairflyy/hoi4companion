@@ -1,4 +1,6 @@
 import unittest
+import json
+from pathlib import Path
 
 from hoi4companion.guide import normalise_guide
 
@@ -18,6 +20,18 @@ def sample():
 
 
 class GuideSchemaExtensionTests(unittest.TestCase):
+    def test_shared_schema_acceptance_cases(self):
+        cases = json.loads((Path(__file__).parent / 'fixtures' / 'guide-schema.json').read_text(encoding='utf-8'))
+        for case in cases:
+            with self.subTest(case=case['name']):
+                if case['valid']:
+                    result = normalise_guide(case['guide'])
+                    self.assertEqual(result, case['normalized'])
+                    self.assertEqual(result, normalise_guide(result))
+                else:
+                    with self.assertRaises(ValueError):
+                        normalise_guide(case['guide'])
+
     def test_additive_fields_and_cross_track_dependencies(self):
         data = normalise_guide(sample())
         self.assertEqual(data['schema_version'], 1)
@@ -59,6 +73,14 @@ class GuideSchemaExtensionTests(unittest.TestCase):
         bad['tracks']['focus'][0]['action'] = {'kind': 'manual', 'params': {'bad': float('nan')}}
         with self.assertRaises(ValueError):
             normalise_guide(bad)
+
+    def test_large_dependency_chain_is_iterative_and_cross_track(self):
+        rows = [{'key': str(i), 'kind': 'gate', 'depends_on': [str(i-1)] if i else []} for i in range(2000)]
+        data = {'tracks': {'a': rows[::2], 'b': rows[1::2]}}
+        self.assertEqual(len(normalise_guide(data)['tracks']['a']), 1000)
+        rows[0]['depends_on'] = ['1999']
+        with self.assertRaisesRegex(ValueError, 'cicliche'):
+            normalise_guide(data)
 
     def test_existing_legacy_guide_stays_valid(self):
         from hoi4companion.guide import load_guide

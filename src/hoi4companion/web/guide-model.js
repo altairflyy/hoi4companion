@@ -25,7 +25,7 @@
    else if(step.catalog_match===false)status='unavailable';
    else if(step.when&&c.condition(step.when,context,checks)!==true)status='waiting';
    else status=live?'pending':'planned';
-   return {...step,order:index+1,status,provenance,completion,selection,availability:{status:'unknown',value:null,source:'',reason:'Una priorità o conferma manuale non prova la disponibilità del motore.'}};
+   return {...step,...(step.completion?{completion_condition:step.completion}:{}),order:index+1,status,provenance,completion,selection,availability:{status:'unknown',value:null,source:'',reason:'Una priorità o conferma manuale non prova la disponibilità del motore.'}};
   }
   function ordered(rows){
    const candidates=rows.filter(r=>!settled(r)&&r.status!=='active');

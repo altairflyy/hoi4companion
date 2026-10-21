@@ -1,0 +1,2187 @@
+[
+  {
+    "name": "legacy",
+    "valid": true,
+    "guide": {
+      "tracks": {
+        "focus": [
+          {
+            "kind": "gate"
+          }
+        ]
+      }
+    },
+    "normalized": {
+      "tracks": {
+        "focus": [
+          {
+            "kind": "gate",
+            "key": "focus-1",
+            "action": {
+              "kind": "manual"
+            }
+          }
+        ]
+      },
+      "schema_version": 1,
+      "applies_to": {},
+      "milestones": [],
+      "assumptions": [],
+      "title": "Guida",
+      "subtitle": ""
+    }
+  },
+  {
+    "name": "extensions",
+    "valid": true,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    },
+    "normalized": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ],
+            "action": {
+              "kind": "manual"
+            }
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            },
+            "action": {
+              "kind": "manual"
+            }
+          }
+        ]
+      },
+      "milestones": [],
+      "assumptions": [],
+      "title": "universal",
+      "subtitle": ""
+    }
+  },
+  {
+    "name": "unknown dependency",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "missing"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "duplicate dependency",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first",
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "self dependency",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "second"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "non-string dependency",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              {}
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "cycle across tracks",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ],
+            "depends_on": [
+              "second"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "unknown phase",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "missing",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "bad condition",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "eval",
+              "code": "anything"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "source reference",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": [],
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "unknown source",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "missing",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "bad basis",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "invented",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "negative time",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": -1
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "boolean time",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": true
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "string time",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": "14"
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "unsafe time",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 9007199254740992
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "huge time",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "reversed range",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13,
+                "end_seconds": 2
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "invalid URL",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "URL whitespace",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/\nwatch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "duplicate source",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        },
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "duplicate phase",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        },
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "null params",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ],
+            "action": {
+              "kind": "manual",
+              "params": null
+            }
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "unsafe params",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "amount": 9007199254740992
+              }
+            }
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "deep params",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "child": {
+                  "child": {
+                    "child": {
+                      "child": {
+                        "child": {
+                          "child": {
+                            "child": {
+                              "child": {
+                                "child": {
+                                  "child": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "boolean version",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": true,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "duplicate step keys",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "invalid action",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ],
+            "action": {
+              "kind": "run_command"
+            }
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "invalid phase condition",
+    "valid": false,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "all",
+            "args": []
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "JSON params",
+    "valid": true,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "zero": 0,
+                "no": false,
+                "options": [
+                  null,
+                  1.25,
+                  {
+                    "label": "description"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    },
+    "normalized": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "zero": 0,
+                "no": false,
+                "options": [
+                  null,
+                  1.25,
+                  {
+                    "label": "description"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            },
+            "action": {
+              "kind": "manual"
+            }
+          }
+        ]
+      },
+      "milestones": [],
+      "assumptions": [],
+      "title": "universal",
+      "subtitle": ""
+    }
+  },
+  {
+    "name": "scope normalization",
+    "valid": true,
+    "guide": {
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "kind": "focus",
+            "target": "A"
+          }
+        ]
+      }
+    },
+    "normalized": {
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "kind": "focus",
+            "target": "A",
+            "key": "focus-1",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A",
+                "scope": "g"
+              }
+            }
+          }
+        ]
+      },
+      "schema_version": 1,
+      "country": "GER",
+      "tree_id": "g",
+      "milestones": [],
+      "assumptions": [],
+      "title": "Guida",
+      "subtitle": ""
+    }
+  },
+  {
+    "name": "Unicode identifier limits",
+    "valid": true,
+    "guide": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          }
+        ]
+      }
+    },
+    "normalized": {
+      "id": "universal",
+      "schema_version": 1,
+      "applies_to": {},
+      "sources": [
+        {
+          "id": "🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯",
+          "type": "youtube",
+          "url": "https://example.com/watch"
+        }
+      ],
+      "phases": [
+        {
+          "id": "start",
+          "title": "Start",
+          "when": {
+            "op": "check",
+            "key": "ready"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": [
+          {
+            "key": "first",
+            "kind": "gate",
+            "phase": "start",
+            "evidence": [
+              {
+                "source_id": "🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯",
+                "basis": "explicit",
+                "timestamp_seconds": 13
+              }
+            ],
+            "action": {
+              "kind": "manual"
+            }
+          }
+        ],
+        "research": [
+          {
+            "key": "second",
+            "kind": "gate",
+            "depends_on": [
+              "first"
+            ],
+            "completion": {
+              "op": "check",
+              "key": "done"
+            },
+            "action": {
+              "kind": "manual"
+            }
+          }
+        ]
+      },
+      "milestones": [],
+      "assumptions": [],
+      "title": "universal",
+      "subtitle": ""
+    }
+  },
+  {
+    "name": "manual action entity",
+    "valid": false,
+    "guide": {
+      "tracks": {
+        "focus": [
+          {
+            "action": {
+              "kind": "manual",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "null legacy gate",
+    "valid": false,
+    "guide": {
+      "tracks": {
+        "focus": [
+          {
+            "kind": "gate",
+            "gate": "a",
+            "when": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "null legacy priority",
+    "valid": false,
+    "guide": {
+      "tracks": {
+        "focus": [
+          {
+            "kind": "focus",
+            "target": "A",
+            "available_gate": "ready",
+            "priority_after": "B",
+            "priority": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "legacy policies",
+    "valid": true,
+    "guide": {
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "optional_before": "B"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "available_gate": "ready",
+            "priority_after": "A"
+          }
+        ]
+      }
+    },
+    "normalized": {
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "optional_before": "B",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            },
+            "skip_when": {
+              "op": "any",
+              "args": [
+                {
+                  "op": "fact",
+                  "key": "focus.completed",
+                  "test": "contains",
+                  "value": "B"
+                },
+                {
+                  "op": "all",
+                  "args": [
+                    {
+                      "op": "fact",
+                      "key": "focus.completed",
+                      "test": "contains",
+                      "value": "A"
+                    },
+                    {
+                      "op": "check",
+                      "key": "ready"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "available_gate": "ready",
+            "priority_after": "A",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "B"
+              }
+            },
+            "priority": 100,
+            "priority_when": {
+              "op": "all",
+              "args": [
+                {
+                  "op": "fact",
+                  "key": "focus.completed",
+                  "test": "contains",
+                  "value": "A"
+                },
+                {
+                  "op": "check",
+                  "key": "ready"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "schema_version": 1,
+      "applies_to": {},
+      "milestones": [],
+      "assumptions": [],
+      "title": "Guida",
+      "subtitle": ""
+    }
+  },
+  {
+    "name": "JSON integer representations",
+    "valid": true,
+    "guide": {
+      "schema_version": 1.0,
+      "schema": 1.0,
+      "tracks": {
+        "focus": [
+          {
+            "kind": "gate",
+            "priority": 1.0
+          }
+        ]
+      }
+    },
+    "normalized": {
+      "schema_version": 1,
+      "schema": 1.0,
+      "tracks": {
+        "focus": [
+          {
+            "key": "focus-1",
+            "kind": "gate",
+            "priority": 1,
+            "action": {
+              "kind": "manual"
+            }
+          }
+        ]
+      },
+      "applies_to": {},
+      "milestones": [],
+      "assumptions": [],
+      "title": "Guida",
+      "subtitle": ""
+    }
+  }
+]
