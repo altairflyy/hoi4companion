@@ -46,3 +46,11 @@ test('fresh events can roll progress back after loading an earlier save',()=>{
  assert.equal(model.evaluate(guide,live({researched_technologies:['t1','t2']}),{}).research.next.key,'r3');
  assert.equal(model.evaluate(guide,live(),{}).research.next.key,'r1');
 });
+
+test('explicit project dependencies preserve negative manual checks and separate readiness',()=>{
+ const definition={id:'other',tracks:{research:[{key:'p',kind:'project',target:'p',depends_on:[]}]}};
+ const result=model.evaluate(definition,live(),{checks:{p:false}});
+ assert.equal(result.research.projects[0].runtime_status,'ready');
+ assert.equal(result.research.projects[0].completion.value,false);
+ assert.equal(result.research.next,null);
+});

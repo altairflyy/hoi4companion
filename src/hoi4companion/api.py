@@ -18,7 +18,9 @@ from .technologies import load_technologies
 from .live import LiveMonitor, NativeProvider
 from .stream import LiveEventHub, SubscriberLimitError
 from .technology_visuals import load_technology_visuals
-from .guide import load_guide, list_guides, default_guide_id, enrich_guide, update_checks
+from .guide import load_guide, list_guides, default_guide_id, enrich_guide, update_checks, manual_keys
+from .guide_progress import RunStore
+from .guide_runtime import evaluate as evaluate_guide
 from .contracts import VERSION, normalise_state
 
 BASE = Path(__file__).resolve().parent
@@ -58,6 +60,7 @@ class Store:
         self.guide_checks = {}
         self.guide_revision = 0
         self.guide_states = {}
+        self.guide_runs = RunStore()
         try:
             self.default_guide_id = default_guide_id()
         except (OSError, ValueError):
@@ -242,26 +245,89 @@ class Store:
                 result['transport'] = {'kind': 'change_events', 'memory_probe_seconds': .25,
                                        'integrity_audit_seconds': 5}
                 self.live_cache, self.live_cache_time = result, now
+            self._bind_progress()
             default_id = getattr(self, 'default_guide_id', None)
             checks = getattr(self, 'guide_checks', {}).copy()
             states = {key: dict(value) for key, value in getattr(self, 'guide_states', {}).items()}
             if default_id:
                 states[default_id] = checks
             return {**self.live_cache, 'guide_id': default_id, 'guide_checks': checks,
-                    'guide_states': states, 'guide_revision': getattr(self,'guide_revision',0)}
+                    'guide_states': states, 'guide_runs': self._progress_store().metadata(),
+                    'guide_revision': getattr(self,'guide_revision',0)}
+
+    def _progress_store(self):
+        if not hasattr(self, 'guide_runs'):
+            self.guide_runs = RunStore()
+        return self.guide_runs
+
+    def _sync_progress(self):
+        runs = self._progress_store()
+        if not hasattr(self, 'guide_states'):
+            self.guide_states = {}
+        for guide_id in runs.metadata():
+            checks = runs.get(guide_id)['checks']
+            self.guide_states[guide_id] = checks
+            if guide_id == getattr(self, 'default_guide_id', None):
+                self.guide_checks = checks.copy()
+
+    def _bind_progress(self):
+        # Consumer metadata only: never acquire or infer a native identity here.
+        cached = getattr(self, 'live_cache', None)
+        session = (cached.get('sample') or {}).get('session_id') if cached and cached.get('usable') else None
+        if self._progress_store().bind(session):
+            self._sync_progress()
+            self.guide_revision = getattr(self, 'guide_revision', 0) + 1
+
+    def _ensure_progress(self, guide_id):
+        default_id = getattr(self, 'default_guide_id', None) or default_guide_id()
+        self.default_guide_id = default_id
+        checks = getattr(self, 'guide_checks', {}) if guide_id == default_id else getattr(self, 'guide_states', {}).get(guide_id, {})
+        self._progress_store().ensure(guide_id, checks)
+        self._bind_progress()
+
+    def walkthrough_progress(self, update=None, guide_id=None, run_id=None):
+        with self.lock:
+            guide = load_guide(guide_id or getattr(self, 'default_guide_id', None))
+            self._ensure_progress(guide['id'])
+            runs = self._progress_store()
+            if update is not None:
+                if not isinstance(update, dict):
+                    raise ValueError('Avanzamento della partita non valido')
+                if update == {}:
+                    runs.create(guide['id'], runs.get(guide['id'])['session_id'])
+                elif set(update) == {'run_id'}:
+                    runs.select(guide['id'], update['run_id'])
+                elif set(update) == {'run_id', 'checks'}:
+                    current = runs.get(guide['id'])
+                    if update['run_id'] != current['run_id']:
+                        raise ValueError('Checklist di una partita non attiva')
+                    checks = update['checks']
+                    if not isinstance(checks, dict) or set(checks) - manual_keys(guide):
+                        raise ValueError('Conferme non dichiarate dalla guida')
+                    runs.update(guide['id'], checks)
+                else:
+                    raise ValueError('Operazione sulla partita non riconosciuta')
+                self._sync_progress()
+                self.guide_revision = getattr(self, 'guide_revision', 0) + 1
+            return {**runs.get(guide['id'], run_id), 'revision': getattr(self, 'guide_revision', 0)}
+
+    def walkthrough_runtime(self, guide_id=None, run_id=None):
+        with self.lock:
+            state = self.live_state()
+            guide = self.walkthrough(guide_id)
+            progress = self.walkthrough_progress(guide_id=guide['id'], run_id=run_id)
+            return evaluate_guide(guide, state, progress)
 
     def walkthrough_checks(self, update=None, guide_id=None):
         with self.lock:
             default_id = getattr(self, 'default_guide_id', None) or default_guide_id()
             guide = load_guide(guide_id or default_id)
-            if not hasattr(self, 'guide_states'):
-                self.guide_states = {}
-            current = self.guide_checks if guide['id'] == default_id else self.guide_states.get(guide['id'], {})
+            self._ensure_progress(guide['id'])
+            current = self._progress_store().get(guide['id'])['checks']
             if update is not None:
                 current = update_checks(guide,current,update)
-                if guide['id'] == default_id:
-                    self.guide_checks = current
-                self.guide_states[guide['id']] = current
+                self._progress_store().update(guide['id'], current)
+                self._sync_progress()
                 self.guide_revision += 1
             return {'checks':current.copy(),'revision':self.guide_revision}
 
@@ -422,6 +488,14 @@ def make_handler(store: Store):
                 except (OSError, ValueError) as exc:
                     self.json({'error': str(exc)}, 400)
                 return
+            if url.path in ('/api/guide/progress', '/api/guide/runtime'):
+                try:
+                    query = parse_qs(url.query)
+                    method = store.walkthrough_runtime if url.path.endswith('/runtime') else store.walkthrough_progress
+                    self.json(method(guide_id=query.get('id', [None])[0], run_id=query.get('run', [None])[0]))
+                except (OSError, ValueError) as exc:
+                    self.json({'error': str(exc)}, 400)
+                return
             if url.path == '/api/tree':
                 query = parse_qs(url.query)
                 self.json(store.tree(query.get('id', [None])[0], include_snapshot=query.get('source') != ['live']))
@@ -438,6 +512,7 @@ def make_handler(store: Store):
                       '/country.css': 'country.css', '/country-model.js': 'country-model.js',
                       '/walkthrough': 'guide.html', '/hud': 'guide.html', '/guide-model.js': 'guide-model.js',
                       '/guide.js': 'guide.js', '/guide.css': 'guide.css',
+                      '/guide-runtime.js': 'guide-runtime.js',
                       '/live-state.js': 'live-state.js', '/live-state.css': 'live-state.css', '/live-model.js': 'live-model.js',
                       '/technologies': 'technologies.html', '/technologies.js': 'technologies.js', '/technologies.css': 'technologies.css',
                       '/explorer.js': 'explorer.js', '/style.css': 'style.css', '/game.css': 'game.css'}
@@ -453,7 +528,7 @@ def make_handler(store: Store):
 
         def do_POST(self):
             url = urlparse(self.path)
-            if url.path not in ('/api/config', '/api/refresh', '/api/guide/checks'):
+            if url.path not in ('/api/config', '/api/refresh', '/api/guide/checks', '/api/guide/progress'):
                 self.json({'error': 'Not found'}, 404)
                 return
             # Blocca richieste cross-origin da siti terzi verso il servizio locale.
@@ -473,6 +548,9 @@ def make_handler(store: Store):
                 update = json.loads(self.rfile.read(length))
                 if url.path == '/api/guide/checks':
                     self.json(store.walkthrough_checks(update, parse_qs(url.query).get('id', [None])[0]))
+                    return
+                if url.path == '/api/guide/progress':
+                    self.json(store.walkthrough_progress(update, parse_qs(url.query).get('id', [None])[0]))
                     return
                 if url.path == '/api/refresh':
                     if update != {}:

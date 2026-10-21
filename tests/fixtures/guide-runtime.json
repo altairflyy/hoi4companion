@@ -1,0 +1,3903 @@
+[
+  {
+    "name": "dependencies and parallel lanes",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "waiting",
+        "ready",
+        "waiting"
+      ],
+      "parallel": {
+        "focus": [
+          "a"
+        ],
+        "research": [
+          "t1"
+        ]
+      }
+    }
+  },
+  {
+    "name": "dependency completion unlocks other tracks",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [
+            "A"
+          ],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "completed",
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "parallel": {
+        "focus": [
+          "b"
+        ],
+        "research": [
+          "t1",
+          "t2"
+        ]
+      }
+    }
+  },
+  {
+    "name": "active is not completed",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [
+            "A"
+          ],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "active",
+        "waiting",
+        "ready",
+        "waiting"
+      ],
+      "parallel": {
+        "focus": [],
+        "research": [
+          "t1"
+        ]
+      }
+    }
+  },
+  {
+    "name": "missing completion list is unknown",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "missing selection is unknown",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "stale data cannot prove completion",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": false,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "unverifiable",
+        "unverifiable"
+      ],
+      "mode": "preview",
+      "progress_status": "session_unverified"
+    }
+  },
+  {
+    "name": "wrong country",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "ITA",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable"
+      ],
+      "mode": "wrong_country"
+    }
+  },
+  {
+    "name": "unknown country identity",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "unverifiable",
+        "unverifiable"
+      ],
+      "mode": "preview"
+    }
+  },
+  {
+    "name": "wrong focus tree",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "other",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable"
+      ],
+      "mode": "wrong_tree"
+    }
+  },
+  {
+    "name": "unknown required tree",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "unverifiable",
+        "unverifiable"
+      ],
+      "mode": "preview"
+    }
+  },
+  {
+    "name": "skip does not satisfy a completion dependency",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "skip_when": {
+              "op": "check",
+              "key": "skip"
+            }
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {
+        "skip": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "not_applicable",
+        "waiting",
+        "ready",
+        "waiting"
+      ]
+    }
+  },
+  {
+    "name": "unknown skip cannot imply applicability",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "skip_when": {
+              "op": "check",
+              "key": "skip"
+            }
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "observed completion wins over skip",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "skip_when": {
+              "op": "check",
+              "key": "skip"
+            }
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [
+            "A"
+          ],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {
+        "skip": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "completed",
+        "ready",
+        "ready",
+        "ready"
+      ]
+    }
+  },
+  {
+    "name": "false condition waits",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "when": {
+              "op": "check",
+              "key": "gate"
+            }
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {
+        "gate": false
+      }
+    },
+    "expected": {
+      "statuses": [
+        "waiting",
+        "waiting",
+        "ready",
+        "waiting"
+      ]
+    }
+  },
+  {
+    "name": "unknown condition is unverifiable",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "when": {
+              "op": "check",
+              "key": "gate"
+            }
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "closed phase",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "phase": "p"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      },
+      "phases": [
+        {
+          "id": "p",
+          "title": "Phase",
+          "when": {
+            "op": "check",
+            "key": "open"
+          }
+        }
+      ]
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {
+        "open": false
+      }
+    },
+    "expected": {
+      "statuses": [
+        "waiting",
+        "waiting",
+        "ready",
+        "waiting"
+      ]
+    }
+  },
+  {
+    "name": "unconfirmed checkpoint blocks later steps",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "m",
+            "kind": "gate"
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "manual checkpoint is explicit evidence",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "m",
+            "kind": "gate"
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {
+        "m": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "completed",
+        "ready",
+        "waiting",
+        "ready",
+        "waiting"
+      ]
+    }
+  },
+  {
+    "name": "negative manual confirmation is not missing",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "m",
+            "kind": "gate"
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {
+        "m": false
+      }
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "waiting",
+        "waiting",
+        "ready",
+        "waiting"
+      ]
+    }
+  },
+  {
+    "name": "declared completion true",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {
+        "done": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "completed",
+        "ready",
+        "ready",
+        "ready"
+      ]
+    }
+  },
+  {
+    "name": "declared completion false",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {
+        "done": false
+      }
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "waiting",
+        "ready",
+        "waiting"
+      ]
+    }
+  },
+  {
+    "name": "declared completion unknown",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "completion": {
+              "op": "check",
+              "key": "done"
+            }
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "another guide cannot use run confirmations",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "m",
+            "kind": "gate"
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "other",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {
+        "m": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ],
+      "progress_status": "wrong_guide"
+    }
+  },
+  {
+    "name": "another session cannot use run confirmations",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "m",
+            "kind": "gate"
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "old",
+      "checks": {
+        "m": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ],
+      "progress_status": "wrong_session"
+    }
+  },
+  {
+    "name": "manual offline run remains separate from unknown native state",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "m",
+            "kind": "gate"
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": false,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": null,
+      "checks": {
+        "m": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "completed",
+        "unverifiable",
+        "unverifiable",
+        "unverifiable",
+        "unverifiable"
+      ],
+      "progress_status": "accepted"
+    }
+  },
+  {
+    "name": "declared priorities reorder parallel proposals",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ],
+            "priority": 10,
+            "priority_when": {
+              "op": "check",
+              "key": "boost"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [
+            "A"
+          ],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {
+        "boost": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "completed",
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "parallel": {
+        "focus": [
+          "b"
+        ],
+        "research": [
+          "t2",
+          "t1"
+        ]
+      }
+    }
+  },
+  {
+    "name": "unknown priority never promotes",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ],
+            "priority": 10,
+            "priority_when": {
+              "op": "check",
+              "key": "boost"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [
+            "A"
+          ],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "completed",
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "parallel": {
+        "focus": [
+          "b"
+        ],
+        "research": [
+          "t1",
+          "t2"
+        ]
+      }
+    }
+  },
+  {
+    "name": "busy research slots do not invent capacity",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "technology_id": "OUTSIDE"
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "waiting",
+        "ready",
+        "waiting"
+      ],
+      "parallel": {
+        "focus": [
+          "a"
+        ],
+        "research": []
+      }
+    }
+  },
+  {
+    "name": "unknown slot capacity suppresses proposals",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "waiting",
+        "ready",
+        "waiting"
+      ],
+      "parallel": {
+        "focus": [
+          "a"
+        ],
+        "research": []
+      }
+    }
+  },
+  {
+    "name": "forward dependency does not deadlock ready prerequisite",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "waiting",
+        "ready",
+        "ready",
+        "waiting"
+      ],
+      "parallel": {
+        "focus": [
+          "a"
+        ],
+        "research": [
+          "t1"
+        ]
+      }
+    }
+  },
+  {
+    "name": "entity scope mismatch is known",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A",
+                "scope": "other"
+              }
+            }
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "not_applicable",
+        "waiting",
+        "ready",
+        "waiting"
+      ]
+    }
+  },
+  {
+    "name": "unknown entity scope is not mismatch",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A",
+                "scope": "other"
+              }
+            }
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "canonical track ties include numeric and Unicode identifiers",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "\ud83d\ude00": [
+          {
+            "key": "d",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "d"
+              }
+            }
+          }
+        ],
+        "\ue000": [
+          {
+            "key": "c",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "c"
+              }
+            }
+          }
+        ],
+        "2": [
+          {
+            "key": "b",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "b"
+              }
+            }
+          }
+        ],
+        "1": [
+          {
+            "key": "a",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "a"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "parallel": {
+        "focus": [
+          "a"
+        ],
+        "research": []
+      },
+      "keys": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ]
+    }
+  },
+  {
+    "name": "JSON integer versions are representation independent",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1.0,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1.0,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {}
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "waiting",
+        "ready",
+        "waiting"
+      ],
+      "parallel": {
+        "focus": [
+          "a"
+        ],
+        "research": [
+          "t1"
+        ]
+      }
+    }
+  }
+]

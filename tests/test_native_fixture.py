@@ -2,7 +2,7 @@
 import struct
 import unittest
 from types import SimpleNamespace
-from hoi4companion.live import read_native_state, LiveReadError, WORLD_RVA, ExecutableProfile
+from hoi4companion.live import read_native_state, LiveReadError, LiveMonitor, WORLD_RVA, ExecutableProfile
 
 
 class Fixture:
@@ -95,6 +95,42 @@ class Fixture:
 
 
 class NativeFixtureTest(unittest.TestCase):
+    def test_nonpositive_primary_selector_never_uses_alternate_country(self):
+        # A populated world and a valid alternate selector do not identify the
+        # played country. In particular, menu/observer data must not pass.
+        for primary in (0, -1):
+            with self.subTest(primary=primary):
+                mem = Fixture()
+                mem.put(mem.world + 0x520, '<i', primary)
+                mem.put(mem.world + 0x524, '<i', 1)
+                with self.assertRaisesRegex(LiveReadError, 'Paese giocato non identificato'):
+                    read_native_state(mem)
+
+    def test_primary_selector_must_match_country_object_identity(self):
+        mem = Fixture()
+        mem.put(mem.country + 8, '<i', 2)
+        with self.assertRaisesRegex(LiveReadError, 'Identità nazione incoerente'):
+            read_native_state(mem)
+
+    def test_stale_primary_selector_recovers_only_after_full_valid_sample(self):
+        mem = Fixture()
+        monitor = LiveMonitor(lambda: read_native_state(mem))
+        good = monitor.poll()
+        self.assertTrue(good['usable'])
+        mem.put(mem.world + 0x520, '<i', 0)
+        stale = monitor.poll()
+        self.assertEqual(stale['status'], 'stale')
+        self.assertFalse(stale['usable'])
+        self.assertEqual(stale['sample'], good['sample'])
+        mem.put(mem.world + 0x520, '<i', 1)
+        mem.put(mem.country + 8, '<i', 2)
+        self.assertFalse(monitor.poll()['usable'])
+        mem.put(mem.country + 8, '<i', 1)
+        recovered = monitor.poll()
+        self.assertEqual(recovered['status'], 'observed')
+        self.assertTrue(recovered['usable'])
+        self.assertEqual(recovered['sample']['country'], 'ROM')
+
     def test_current_focus_and_research_are_owned_by_selected_country(self):
         value = read_native_state(Fixture())
         self.assertEqual(value['country'], 'ROM')
@@ -124,6 +160,33 @@ class NativeFixtureTest(unittest.TestCase):
         mem = Fixture()
         mem.array(mem.focus_state + 0x40, [mem.model])
         with self.assertRaises(LiveReadError):
+            read_native_state(mem)
+
+    def test_repeated_completed_pointer_is_one_completion_with_raw_witnesses(self):
+        # Vanilla reload/complete effects can leave the identical owned focus
+        # pointer twice in the completion history. This does not identify two
+        # distinct focuses, and the raw array must remain in the watch plan.
+        mem = Fixture()
+        mem.put(mem.focus_state + 0x10, '<Q', 0)
+        mem.array(mem.focus_state + 0x40, [mem.focus, mem.focus])
+        plan = {}
+        value = read_native_state(mem, watch_plan=plan)
+        self.assertEqual(value['completed_focuses'], ['ROM_test'])
+        self.assertEqual(value['focus_ids'], ['ROM_test'])
+        data = struct.unpack('<Q', mem.read(mem.focus_state + 0x40, 8))[0]
+        self.assertEqual(plan[(data, 16)], struct.pack('<QQ', mem.focus, mem.focus))
+
+    def test_duplicate_foreign_completion_is_still_rejected(self):
+        mem = Fixture()
+        mem.put(mem.focus_state + 0x10, '<Q', 0)
+        mem.array(mem.focus_state + 0x40, [mem.focus, mem.model, mem.model])
+        with self.assertRaisesRegex(LiveReadError, 'Stato focus incoerente'):
+            read_native_state(mem)
+
+    def test_duplicate_current_completed_focus_is_still_rejected(self):
+        mem = Fixture()
+        mem.array(mem.focus_state + 0x40, [mem.focus, mem.focus])
+        with self.assertRaisesRegex(LiveReadError, 'Stato focus incoerente'):
             read_native_state(mem)
 
     def test_research_completion_list_and_level_must_agree(self):

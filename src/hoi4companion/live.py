@@ -272,9 +272,14 @@ def read_native_state(process, *, watch_plan=None):
     if continuous_ptr:
         obj(continuous_ptr, 'CContinuousNationalFocus')
         continuous_id = sample.string(continuous_ptr + 0x18)
-    if (not set(completed_ptrs) <= focus_ids.keys() or len(set(completed_ptrs)) != len(completed_ptrs)
+    if (not set(completed_ptrs) <= focus_ids.keys()
             or current_ptr and current_ptr not in focus_ids or current_ptr and current_ptr in completed_ptrs):
         raise LiveReadError('Stato focus incoerente')
+    # Reload/complete effects can append an already completed, identical owned
+    # pointer. Publish membership once; preserve the raw array for witnessing
+    # and change detection below. Foreign pointers and active completions still
+    # invalidate the entire sample before this interpretation.
+    completed_unique = list(dict.fromkeys(completed_ptrs))
     # +0x18 is a continuous-focus pointer, NOT an elapsed duration.
     tech_state = obj(u(country + 0xF60), 'CTechnologyStatus')
     models = sample.array(tech_state + 0x88, 8, 4096)
@@ -358,7 +363,7 @@ def read_native_state(process, *, watch_plan=None):
             'country': tag, 'native_tick': tick,
             'country_identity_validation': 'primary_selector_and_country_map',
             'focus_complete': True, 'research_complete': True,
-            'focus_ids': sorted(focus_ids.values()), 'completed_focuses': [focus_ids[x] for x in completed_ptrs],
+            'focus_ids': sorted(focus_ids.values()), 'completed_focuses': [focus_ids[x] for x in completed_unique],
             'native_focus_tree_id': tree_id, 'continuous_focus': continuous_id,
             'current_focus': focus_ids.get(current_ptr), 'focus_progress': None,
             'researched_technologies': researched,

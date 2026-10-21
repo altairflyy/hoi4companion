@@ -40,6 +40,14 @@ test('shared checklist events reach subscribers even while gameplay is unchanged
  assert.deepEqual(received.slice(-2),[0,1]);
 });
 
+test('run identity changes reach subscribers with identical gameplay and checks',()=>{
+ const app=boot(),received=[];
+ app.window.hoiLive.subscribe(value=>received.push(value.guide_runs?.g?.run_id));
+ app.streams[0].send('state',{...state,guide_runs:{g:{run_id:'one'}},guide_checks:{}});
+ app.streams[0].send('state',{...state,guide_runs:{g:{run_id:'two'}},guide_checks:{}});
+ assert.deepEqual(received.slice(-2),['one','two']);
+});
+
 test('stream loss invalidates immediately and heartbeat never revives old samples',()=>{
   const app=boot(),stream=app.streams[0];
   assert.equal(stream.url,'/api/state/events');
