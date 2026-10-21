@@ -101,7 +101,7 @@ def validate_guide_extensions(guide: dict) -> None:
         if not isinstance(evidence, list) or len(evidence) > 32:
             raise ValueError(f'Evidenze non valide: {key}')
         for item in evidence:
-            if (not isinstance(item, dict) or item.get('source_id') not in sources or
+            if (not isinstance(item, dict) or not isinstance(item.get('source_id'), str) or item['source_id'] not in sources or
                     item.get('basis') not in ('explicit', 'visual', 'inferred', 'game_derived', 'unverified')):
                 raise ValueError(f'Provenienza non valida: {key}')
             for field in ('timestamp_seconds', 'end_seconds'):
