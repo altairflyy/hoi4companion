@@ -72,6 +72,7 @@ Condition: TypeAlias = GroupCondition | NotCondition | FactCondition | CheckCond
 class Action(TypedDict):
     kind: Literal['select_focus', 'research', 'special_project', 'manual', 'free']
     entity: NotRequired[EntityRef]
+    params: NotRequired[dict[str, Any]]
 
 
 class LiveState(TypedDict):
@@ -91,6 +92,10 @@ class GuideStep(TypedDict):
     title: NotRequired[str]
     note: NotRequired[str]
     confirmation: NotRequired[str]
+    phase: NotRequired[str]
+    depends_on: NotRequired[list[str]]
+    completion: NotRequired[Condition]
+    evidence: NotRequired[list[dict[str, Any]]]
 
 
 class GuideScope(TypedDict, total=False):
