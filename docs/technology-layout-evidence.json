@@ -1,0 +1,376 @@
+{
+  "captured": "2026-10-20",
+  "evidence_type": "installed_resource_static_parse",
+  "country": "ROM",
+  "sources": [
+    {
+      "path": "F:\\SteamLibrary\\steamapps\\common\\Hearts of Iron IV\\interface\\countrytechtreeview.gui",
+      "sha256": "fec641fb738ab59369cac40ae902fdba793bed7cbaa2c807756207a2e1f01045"
+    },
+    {
+      "path": "F:\\SteamLibrary\\steamapps\\common\\Hearts of Iron IV\\common\\technology_tags\\00_technology.txt",
+      "sha256": "fccf0824abcf0d741f740704d92310c430b84d062a5b43e65119dcdb2896eeea"
+    }
+  ],
+  "folders": [
+    {
+      "id": "infantry_folder",
+      "tab_order": 22.0,
+      "tab_sprite": "GFX_infantry_folder_tab",
+      "mapped": 34,
+      "total": 41,
+      "sections": [
+        {
+          "id": "support_weapons",
+          "name": "Armi di supporto di base",
+          "count": 4,
+          "direction": "LEFT"
+        },
+        {
+          "id": "night_vision",
+          "name": "Visione notturna I",
+          "count": 2,
+          "direction": "LEFT"
+        },
+        {
+          "id": "infantry_weapons",
+          "name": "Armi per fanteria",
+          "count": 9,
+          "direction": "LEFT"
+        },
+        {
+          "id": "tech_trucks",
+          "name": "Primo camion",
+          "count": 10,
+          "direction": "LEFT"
+        },
+        {
+          "id": "marines",
+          "name": "Fanteria di marina I",
+          "count": 3,
+          "direction": "LEFT"
+        },
+        {
+          "id": "tech_mountaineers",
+          "name": "Alpini I",
+          "count": 3,
+          "direction": "LEFT"
+        },
+        {
+          "id": "paratroopers",
+          "name": "Paracadutisti I",
+          "count": 3,
+          "direction": "LEFT"
+        }
+      ],
+      "unmapped": [
+        "rangers_tech2",
+        "rangers_tech3",
+        "advanced_special_forces",
+        "improved_special_forces",
+        "extreme_environment_training",
+        "survival_training",
+        "elite_forces"
+      ]
+    },
+    {
+      "id": "support_folder",
+      "tab_order": 111.0,
+      "tab_sprite": "GFX_support_folder_tab",
+      "mapped": 42,
+      "total": 42,
+      "sections": [
+        {
+          "id": "tech_support",
+          "name": "Equipaggiamento di supporto",
+          "count": 36,
+          "direction": "LEFT"
+        },
+        {
+          "id": "radio",
+          "name": "Radio",
+          "count": 1,
+          "direction": "LEFT"
+        },
+        {
+          "id": "motorised_infantry",
+          "name": "Fanteria motorizzata",
+          "count": 1,
+          "direction": "LEFT"
+        },
+        {
+          "id": "basic_train",
+          "name": "Treno civile",
+          "count": 4,
+          "direction": "LEFT"
+        }
+      ],
+      "unmapped": []
+    },
+    {
+      "id": "nsb_armour_folder",
+      "tab_order": 200.0,
+      "tab_sprite": "GFX_armour_folder_tab",
+      "mapped": 28,
+      "total": 28,
+      "sections": [
+        {
+          "id": "gwtank_chassis",
+          "name": "Scafo interguerra",
+          "count": 20,
+          "direction": "UPPER_LEFT"
+        },
+        {
+          "id": "armor_tech_1",
+          "name": "Protezione corazzata di base",
+          "count": 4,
+          "direction": "UPPER_LEFT"
+        },
+        {
+          "id": "engine_tech_1",
+          "name": "Motore di base",
+          "count": 4,
+          "direction": "UPPER_LEFT"
+        }
+      ],
+      "unmapped": []
+    },
+    {
+      "id": "artillery_folder",
+      "tab_order": 289.0,
+      "tab_sprite": "GFX_artillery_folder_tab",
+      "mapped": 27,
+      "total": 27,
+      "sections": [
+        {
+          "id": "gw_artillery",
+          "name": "105mm Schneider M1913",
+          "count": 27,
+          "direction": "UP"
+        }
+      ],
+      "unmapped": []
+    },
+    {
+      "id": "mtgnavalfolder",
+      "tab_order": 378.0,
+      "tab_sprite": "GFX_naval_folder_tab",
+      "mapped": 36,
+      "total": 38,
+      "sections": [
+        {
+          "id": "early_ship_hull_light",
+          "name": "Cacciatorpediniere interguerra",
+          "count": 13,
+          "direction": "LEFT"
+        },
+        {
+          "id": "early_ship_hull_cruiser",
+          "name": "Incrociatore interguerra",
+          "count": 4,
+          "direction": "LEFT"
+        },
+        {
+          "id": "basic_cruiser_armor_scheme",
+          "name": "Corazzatura di base per incrociatore",
+          "count": 1,
+          "direction": "LEFT"
+        },
+        {
+          "id": "early_ship_hull_heavy",
+          "name": "Nave pesante interguerra",
+          "count": 4,
+          "direction": "LEFT"
+        },
+        {
+          "id": "early_ship_hull_carrier",
+          "name": "Conversioni del ponte",
+          "count": 6,
+          "direction": "LEFT"
+        },
+        {
+          "id": "early_ship_hull_submarine",
+          "name": "Sottomarino Iniziale",
+          "count": 8,
+          "direction": "LEFT"
+        }
+      ],
+      "unmapped": [
+        "basic_heavy_armor_scheme",
+        "improved_heavy_armor_scheme"
+      ]
+    },
+    {
+      "id": "mtgnavalsupportfolder",
+      "tab_order": 467.0,
+      "tab_sprite": "GFX_naval_support_tab",
+      "mapped": 39,
+      "total": 39,
+      "sections": [
+        {
+          "id": "basic_battery",
+          "name": "Artiglieria navale",
+          "count": 14,
+          "direction": "LEFT"
+        },
+        {
+          "id": "basic_torpedo",
+          "name": "Siluro di base",
+          "count": 6,
+          "direction": "LEFT"
+        },
+        {
+          "id": "damage_control_1",
+          "name": "Esercitazioni antincendio",
+          "count": 3,
+          "direction": "LEFT"
+        },
+        {
+          "id": "fire_control_methods_1",
+          "name": "Tiro a forcella",
+          "count": 3,
+          "direction": "LEFT"
+        },
+        {
+          "id": "mtg_transport",
+          "name": "Nave da trasporto",
+          "count": 5,
+          "direction": "LEFT"
+        },
+        {
+          "id": "basic_naval_mines",
+          "name": "Mina di contatto",
+          "count": 8,
+          "direction": "LEFT"
+        }
+      ],
+      "unmapped": []
+    },
+    {
+      "id": "bba_air_techs_folder",
+      "tab_order": 556.0,
+      "tab_sprite": "GFX_air_techs_folder_tab",
+      "mapped": 41,
+      "total": 41,
+      "sections": [
+        {
+          "id": "iw_small_airframe",
+          "name": "Telaio piccolo interbellico",
+          "count": 5,
+          "direction": "UP"
+        },
+        {
+          "id": "iw_medium_airframe",
+          "name": "Telaio medio interbellico",
+          "count": 5,
+          "direction": "UP"
+        },
+        {
+          "id": "iw_large_airframe",
+          "name": "Telaio grande interbellico",
+          "count": 8,
+          "direction": "UP"
+        },
+        {
+          "id": "bba_early_transport_plane",
+          "name": "Aereo da trasporto I",
+          "count": 3,
+          "direction": "UP"
+        },
+        {
+          "id": "early_bombs",
+          "name": "Bombe",
+          "count": 3,
+          "direction": "UP"
+        },
+        {
+          "id": "aa_lmg",
+          "name": "Mitragliatrice leggera",
+          "count": 6,
+          "direction": "UP"
+        },
+        {
+          "id": "photo_reconnaisance",
+          "name": "Ricognizione aerea",
+          "count": 1,
+          "direction": "UP"
+        },
+        {
+          "id": "engines_1",
+          "name": "Motori I",
+          "count": 7,
+          "direction": "UP"
+        },
+        {
+          "id": "air_torpedoe_1",
+          "name": "Siluri aviotrasportati",
+          "count": 3,
+          "direction": "UP"
+        }
+      ],
+      "unmapped": []
+    },
+    {
+      "id": "electronics_folder",
+      "tab_order": 645.0,
+      "tab_sprite": "GFX_techtree_engineering_tab",
+      "mapped": 27,
+      "total": 27,
+      "sections": [
+        {
+          "id": "electronic_mechanical_engineering",
+          "name": "Ingegneria elettro-meccanica",
+          "count": 15,
+          "direction": "UP"
+        },
+        {
+          "id": "basic_fortification_tech",
+          "name": "Fortificazione Base",
+          "count": 5,
+          "direction": "UP"
+        },
+        {
+          "id": "experimental_rockets",
+          "name": "Razzi Sperimentali",
+          "count": 6,
+          "direction": "UP"
+        },
+        {
+          "id": "atomic_research",
+          "name": "Ricerca Atomica",
+          "count": 1,
+          "direction": "UP"
+        }
+      ],
+      "unmapped": []
+    },
+    {
+      "id": "industry_folder",
+      "tab_order": 734.0,
+      "tab_sprite": "GFX_industry_folder_tab",
+      "mapped": 43,
+      "total": 43,
+      "sections": [
+        {
+          "id": "basic_machine_tools",
+          "name": "Attrezzature di base",
+          "count": 18,
+          "direction": "UP"
+        },
+        {
+          "id": "fuel_silos",
+          "name": "Stoccaggio carburante",
+          "count": 15,
+          "direction": "UP"
+        },
+        {
+          "id": "construction1",
+          "name": "Costruzione I",
+          "count": 10,
+          "direction": "UP"
+        }
+      ],
+      "unmapped": []
+    }
+  ]
+}
