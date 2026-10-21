@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 
 from .tooltips import localise
 from .contracts import VERSION, entity, validate_action, validate_condition
+from .guide_schema import validate_guide_extensions
 
 
 GUIDES = Path(__file__).parent / 'guides'
@@ -85,6 +86,7 @@ def normalise_guide(guide):
     result.setdefault('assumptions', [])
     result.setdefault('title', result.get('id', 'Guida'))
     result.setdefault('subtitle', '')
+    validate_guide_extensions(result)
     return result
 
 
