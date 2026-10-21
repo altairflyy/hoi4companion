@@ -11,19 +11,32 @@ export type Condition =
   | {op: 'not'; arg: Condition}
   | {op: 'fact'; key: string; test: 'eq'|'contains'|'gte'; value: string|number|boolean}
   | {op: 'check'; key: string};
+export type JsonValue = null|string|number|boolean|JsonValue[]|{[key: string]: JsonValue};
+export type GuideSource = {id: string; type: 'youtube'|'web'|'file'|'manual'; url?: string};
+export type GuidePhase = {id: string; title: string; when?: Condition};
+export type GuideEvidence = {source_id: string; basis: 'explicit'|'visual'|'inferred'|'game_derived'|'unverified'; timestamp_seconds?: number; end_seconds?: number};
 export type Action =
-  | {kind: 'select_focus'; entity: EntityRef & {kind: 'focus'}}
-  | {kind: 'research'; entity: EntityRef & {kind: 'technology'}}
-  | {kind: 'special_project'; entity: EntityRef & {kind: 'project'}}
-  | {kind: 'manual'|'free'};
+  | {kind: 'select_focus'; entity: EntityRef & {kind: 'focus'}; params?: Record<string, JsonValue>}
+  | {kind: 'research'; entity: EntityRef & {kind: 'technology'}; params?: Record<string, JsonValue>}
+  | {kind: 'special_project'; entity: EntityRef & {kind: 'project'}; params?: Record<string, JsonValue>}
+  | {kind: 'manual'|'free'; params?: Record<string, JsonValue>};
 export type GuideStep = {
-  key: string; action: Action; title?: string; note?: string;
+  key: string; action: Action; title?: string; note?: string; confirmation?: string;
   when?: Condition; priority_when?: Condition; priority?: number; skip_when?: Condition;
+  phase?: string; depends_on?: string[]; completion?: Condition;
+  evidence?: GuideEvidence[];
+};
+/** Evaluated rows retain the legacy completion fact; the definition stays separate. */
+export type EvaluatedGuideStep = Omit<GuideStep, 'completion'> & {
+  completion: Fact<boolean>; completion_condition?: Condition;
+  selection: Fact<boolean>; availability: Fact<boolean>;
 };
 export type Guide = {
   schema_version: 1; id: string; title: string; subtitle?: string;
   applies_to: {country?: string; tree_id?: string};
   tracks: Record<string, GuideStep[]>;
+  sources?: GuideSource[];
+  phases?: GuidePhase[];
   milestones?: {key: string; title: string; note?: string; confirmation?: string; seconds?: number}[];
 };
 export function state(value: unknown): LiveState;

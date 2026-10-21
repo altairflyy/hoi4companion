@@ -67,11 +67,32 @@ class CheckCondition(TypedDict):
 
 
 Condition: TypeAlias = GroupCondition | NotCondition | FactCondition | CheckCondition
+JsonValue: TypeAlias = str | int | float | bool | None | list['JsonValue'] | dict[str, 'JsonValue']
+
+
+class GuideSource(TypedDict):
+    id: str
+    type: Literal['youtube', 'web', 'file', 'manual']
+    url: NotRequired[str]
+
+
+class GuidePhase(TypedDict):
+    id: str
+    title: str
+    when: NotRequired[Condition]
+
+
+class GuideEvidence(TypedDict):
+    source_id: str
+    basis: Literal['explicit', 'visual', 'inferred', 'game_derived', 'unverified']
+    timestamp_seconds: NotRequired[int | float]
+    end_seconds: NotRequired[int | float]
 
 
 class Action(TypedDict):
     kind: Literal['select_focus', 'research', 'special_project', 'manual', 'free']
     entity: NotRequired[EntityRef]
+    params: NotRequired[dict[str, JsonValue]]
 
 
 class LiveState(TypedDict):
@@ -91,6 +112,10 @@ class GuideStep(TypedDict):
     title: NotRequired[str]
     note: NotRequired[str]
     confirmation: NotRequired[str]
+    phase: NotRequired[str]
+    depends_on: NotRequired[list[str]]
+    completion: NotRequired[Condition]
+    evidence: NotRequired[list[GuideEvidence]]
 
 
 class GuideScope(TypedDict, total=False):
@@ -105,6 +130,15 @@ class Guide(TypedDict):
     tracks: dict[str, list[GuideStep]]
     title: str
     subtitle: NotRequired[str]
+    sources: NotRequired[list[GuideSource]]
+    phases: NotRequired[list[GuidePhase]]
+
+
+def is_json_number(value) -> bool:
+    """Finite interoperable JSON numbers, with exact integers in both runtimes."""
+    if type(value) is int:
+        return abs(value) <= 2**53 - 1
+    return type(value) is float and math.isfinite(value) and (not value.is_integer() or abs(value) <= 2**53 - 1)
 
 
 def fact(value: Any = None, status: Knowledge = 'unknown', source: str = '', *, reason: str = '') -> Fact:
@@ -145,6 +179,8 @@ def validate_action(action: Action) -> None:
         validate_entity(action.get('entity'))
         if action['entity']['kind'] != expected:
             raise ValueError('Entità incompatibile con azione')
+    elif 'entity' in action:
+        raise ValueError('Azione descrittiva senza entità richiesta')
 
 
 def validate_condition(value: Condition, depth: int = 0) -> None:
@@ -165,7 +201,7 @@ def validate_condition(value: Condition, depth: int = 0) -> None:
         if op == 'fact' and (value.get('test') not in ('eq', 'contains', 'gte') or 'value' not in value):
             raise ValueError('Confronto condizione non valido')
         if op == 'fact' and (type(value['value']) not in (str, int, float, bool) or
-                             isinstance(value['value'], float) and not math.isfinite(value['value'])):
+                             type(value['value']) in (int, float) and not is_json_number(value['value'])):
             raise ValueError('Valore condizione non scalare o non finito')
     else:
         raise ValueError('Operatore condizione non supportato')
