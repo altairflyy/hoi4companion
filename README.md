@@ -42,6 +42,11 @@ Altri argomenti: `--docs-dir`, `--snapshot`, `--country AUS`, `--port 8766`, `--
 
 ## Funzionalità disponibili
 
+- **Guide Runtime universale v1**: interpreta dipendenze, condizioni di
+  completamento, fasi, priorità e azioni parallele senza generare strategie.
+  Checklist separate per partita e stati non verificabili espliciti.
+  Semantica, API e limiti in [docs/guide-runtime.md](docs/guide-runtime.md).
+
 - **Contratti del framework v1**: entità, stato live, condizioni, azioni e guide
   tipizzati; catalogo guide indipendente dalle nazioni, priorità dichiarative e
   checklist isolate. Dati osservati, calcolati e sconosciuti distinti.
@@ -206,7 +211,7 @@ per attribuire ricerche completate. Le dottrine del nuovo sistema restano fuori 
 
 Il repository dispone di una suite completa di test automatizzati per il backend Python e per i modelli frontend:
 
-### Test Python (136 test)
+### Test Python (176 test)
 Tramite lo script batch (Windows):
 ```cmd
 test.bat
@@ -218,7 +223,7 @@ py -3 -m hoi4companion --test
 ```
 (in alternativa: `python -m unittest discover -s tests -p "test_*.py"`).
 
-### Test frontend JavaScript / Node.js (30 test)
+### Test frontend JavaScript / Node.js (107 test)
 I modelli logici del client sono verificati tramite il test runner nativo di Node.js (`node:test`):
 ```powershell
 Get-ChildItem -Path "tests" -Filter "*.cjs" | ForEach-Object { node $_.FullName }

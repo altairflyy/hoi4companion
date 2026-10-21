@@ -134,6 +134,55 @@ class Guide(TypedDict):
     phases: NotRequired[list[GuidePhase]]
 
 
+class GuideProgress(TypedDict):
+    schema_version: Literal[1]
+    guide_id: str
+    run_id: str
+    session_id: NotRequired[str | None]
+    checks: NotRequired[dict[str, bool]]
+
+
+StepStatus = Literal['completed', 'active', 'ready', 'waiting', 'not_applicable', 'unverifiable']
+
+
+class RuntimeStep(TypedDict):
+    key: str
+    track: str
+    status: StepStatus
+    reason: str
+    blocked_by: list[str]
+    completion: Fact
+    selection: Fact
+    availability: Fact
+    completion_basis: Literal['native_membership', 'manual', 'condition', 'free']
+    priority: int
+    priority_known: bool
+
+
+class RuntimeTrack(TypedDict):
+    keys: list[str]
+    order: list[str]
+    next: str | None
+
+
+class RuntimeLane(TypedDict):
+    capacity: int | None
+    steps: list[str]
+
+
+class GuideEvaluation(TypedDict):
+    schema_version: Literal[1]
+    guide_id: str
+    run_id: str | None
+    progress_status: Literal['none', 'accepted', 'wrong_guide', 'wrong_session', 'session_unverified']
+    mode: Literal['live', 'preview', 'wrong_country', 'wrong_tree']
+    country: str | None
+    steps: list[RuntimeStep]
+    tracks: dict[str, RuntimeTrack]
+    ready: list[str]
+    parallel: dict[Literal['focus', 'research'], RuntimeLane]
+
+
 def is_json_number(value) -> bool:
     """Finite interoperable JSON numbers, with exact integers in both runtimes."""
     if type(value) is int:
@@ -227,7 +276,7 @@ def normalise_state(value: dict) -> LiveState:
     """
     value = value if isinstance(value, dict) else {}
     if 'schema_version' in value:
-        if type(value['schema_version']) is not int or value['schema_version'] != VERSION or value.get('usable') is not True or not isinstance(value.get('facts'), dict):
+        if not is_json_number(value['schema_version']) or value['schema_version'] != VERSION or value.get('usable') is not True or not isinstance(value.get('facts'), dict):
             return {'schema_version': VERSION, 'usable': False, 'session_id': None, 'facts': {}}
         facts = {}
         for key, item in value.get('facts', {}).items():

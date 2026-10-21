@@ -39,6 +39,25 @@ export type Guide = {
   phases?: GuidePhase[];
   milestones?: {key: string; title: string; note?: string; confirmation?: string; seconds?: number}[];
 };
+export type GuideProgress = {
+  schema_version: 1; guide_id: string; run_id: string;
+  session_id?: string|null; checks?: Record<string, boolean>;
+};
+export type StepStatus = 'completed'|'active'|'ready'|'waiting'|'not_applicable'|'unverifiable';
+export type RuntimeStep = {
+  key: string; track: string; status: StepStatus; reason: string; blocked_by: string[];
+  completion: Fact<boolean>; selection: Fact<boolean>; availability: Fact<boolean>;
+  completion_basis: 'native_membership'|'manual'|'condition'|'free'; priority: number; priority_known: boolean;
+};
+export type RuntimeTrack = {keys: string[]; order: string[]; next: string|null};
+export type RuntimeLane = {capacity: number|null; steps: string[]};
+export type GuideEvaluation = {
+  schema_version: 1; guide_id: string; run_id: string|null;
+  progress_status: 'none'|'accepted'|'wrong_guide'|'wrong_session'|'session_unverified';
+  mode: 'live'|'preview'|'wrong_country'|'wrong_tree'; country: string|null;
+  steps: RuntimeStep[]; tracks: Record<string, RuntimeTrack>; ready: string[];
+  parallel: {focus: RuntimeLane; research: RuntimeLane};
+};
 export function state(value: unknown): LiveState;
 export function fact(state: LiveState, key: string): Fact;
 export function condition(node: Condition, state: LiveState, checks?: Record<string, boolean>): boolean|null;

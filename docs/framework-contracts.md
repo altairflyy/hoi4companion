@@ -156,6 +156,11 @@ Le checklist restano in memoria nel processo; riavviarlo non le rende persistent
 
 ## Estensioni previste e limiti
 
+Il [Guide Runtime v1](guide-runtime.md) interpreta dipendenze, condizioni,
+completamenti e proposte parallele in Python e JavaScript. `GuideProgress`
+separa checklist della partita, definizione e osservazioni; le API legacy
+restano disponibili. Non è un generatore di strategie.
+
 Un Rules Engine potrà consumare `LiveState` e restituire fatti con provenienza,
 senza conoscere lettore nativo, HTTP o DOM. Un Planning Engine potrà consumare
 azioni, condizioni e cataloghi senza vincoli nazionali incorporati.

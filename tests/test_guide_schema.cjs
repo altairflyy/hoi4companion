@@ -20,8 +20,13 @@ test('evidence and completion declarations survive evaluation without becoming o
  const result=model.evaluate(guide,{usable:true,sample:{country:'GER',researched_technologies:[],research_slots:[]}},{checks:{done:true}});
  const step=result.research.rows[0];
  assert.deepEqual(step.completion_condition,guide.tracks.research[0].completion);
- assert.equal(step.completion.value,false);
- assert.equal(step.status,'pending');
+ assert.equal(step.completion.value,true);
+ assert.equal(step.completion.status,'calculated');
+ assert.equal(step.completion.source,'declared_completion');
+ assert.equal(step.runtime_status,'completed');
  assert.equal(step.availability.status,'unknown');
  assert.deepEqual(step.evidence,guide.tracks.research[0].evidence);
+ const noEvidence=model.evaluate(guide,{usable:true,sample:{country:'GER',researched_technologies:[],research_slots:[]}},{checks:{}}).research.rows[0];
+ assert.equal(noEvidence.completion.status,'unknown');
+ assert.equal(noEvidence.runtime_status,'unverifiable');
 });

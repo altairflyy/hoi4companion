@@ -1,53 +1,48 @@
 'use strict';
+// Presentation adapter: all decisions belong to the pure, shared runtime.
 ((root)=>{
- const c=typeof module!=='undefined'&&module.exports?require('./contracts.js'):root.HoiContracts;
- const settled=r=>['completed','confirmed','skipped'].includes(r.status);
+ const common=typeof module!=='undefined'&&module.exports;
+ const c=common?require('./contracts.js'):root.HoiContracts;
+ const runtime=common?require('./guide-runtime.js'):root.HoiGuideRuntime;
+ const settled=row=>row.runtime_status==='completed'||row.runtime_reason==='skip_condition_true';
  function evaluate(input,value,local={}){
-  const guide=c.guide(input),state=c.state(value),checks=local.checks||{};
-  const country=c.fact(state,'country').value,tree=c.fact(state,'focus.tree').value,scope=guide.applies_to;
-  const mode=!state.usable?'preview':scope.country&&country!==scope.country?'wrong_country':scope.tree_id&&tree!==scope.tree_id?'wrong_tree':'live';
-  const live=mode==='live',context=live?state:{...state,usable:false};
-  const members=key=>{const f=c.fact(context,key);return new Set(Array.isArray(f.value)?f.value:[]);};
-  const completed=members('focus.completed'),researched=members('research.completed'),activeFocus=members('focus.active'),activeTech=members('research.active');
+  const guide=c.guide(input),state=c.state(value);
+  const progress=local.progress||{schema_version:1,guide_id:guide.id||'',run_id:local.run_id||'legacy',session_id:local.session_id||null,checks:local.checks||{}};
+  const result=runtime.evaluate(guide,state,progress),byKey=new Map(result.steps.map(row=>[row.key,row]));
   function row(step,index){
-   const kind=step.action.kind,isFocus=kind==='select_focus',done=isFocus?completed:researched,active=isFocus?activeFocus:activeTech;
-   const scoped=live&&(!isFocus||!step.action.entity.scope||step.action.entity.scope===tree);
-   const membership=(key,set)=>{const f=c.fact(scoped?context:null,key);return f.status==='unknown'?f:{status:'calculated',value:set.has(step.target),source:'membership:'+key};};
-   const completion=['select_focus','research'].includes(kind)?membership(isFocus?'focus.completed':'research.completed',done):{status:'unknown',value:null,source:''};
-   const selection=['select_focus','research'].includes(kind)?membership(isFocus?'focus.active':'research.active',active):{status:'unknown',value:null,source:''};
-   let status,provenance='calculated';
-   if(kind==='manual'||kind==='special_project'){status=checks[step.key]===true?'confirmed':'manual';provenance='manual';}
+   const decision=byKey.get(step.key),kind=step.action.kind;
+   let status;
+   if(['manual','special_project'].includes(kind))status=decision.status==='completed'?'confirmed':'manual';
    else if(kind==='free')status='free';
-   else if(completion.value===true)status='completed';
-   else if(selection.value===true)status='active';
-   else if(live&&!scoped)status='waiting';
-   else if(live&&step.skip_when&&c.condition(step.skip_when,context,checks)===true)status='skipped';
-   else if(step.catalog_match===false)status='unavailable';
-   else if(step.when&&c.condition(step.when,context,checks)!==true)status='waiting';
-   else status=live?'pending':'planned';
-   return {...step,...(step.completion?{completion_condition:step.completion}:{}),order:index+1,status,provenance,completion,selection,availability:{status:'unknown',value:null,source:'',reason:'Una priorità o conferma manuale non prova la disponibilità del motore.'}};
-  }
-  function ordered(rows){
-   const candidates=rows.filter(r=>!settled(r)&&r.status!=='active');
-   const priorities=live?candidates.filter(r=>r.priority_when&&c.condition(r.priority_when,context,checks)===true).sort((a,b)=>(b.priority||0)-(a.priority||0)):[];
-   const promoted=new Set(priorities);
-   return [...priorities,...candidates.filter(r=>!promoted.has(r))];
+   else if(['completed','active'].includes(decision.status))status=decision.status;
+   else if(decision.reason==='skip_condition_true')status='skipped';
+   else if(decision.reason==='catalog_unmatched')status='unavailable';
+   else if(['entity_scope_mismatch','condition_false','condition_unknown','phase_condition_false','phase_condition_unknown'].includes(decision.reason)||Object.hasOwn(step,'depends_on')&&decision.blocked_by.length)status='waiting';
+   else status=result.mode==='live'?'pending':'planned';
+   return {...step,...(step.completion?{completion_condition:step.completion}:{}),...decision,
+    order:index+1,status,runtime_status:decision.status,runtime_reason:decision.reason,
+    provenance:decision.completion_basis==='manual'?'manual':'calculated'};
   }
   const tracks={};
-  for(const [id,steps] of Object.entries(guide.tracks)){
-   const rows=steps.map(row);
-   tracks[id]={rows,next:ordered(rows)[0]||null,active:rows.filter(r=>r.status==='active'),completed:rows.filter(settled).length};
+  for(const [id,steps]of Object.entries(guide.tracks)){
+   const rows=steps.map(row),mapped=new Map(rows.map(r=>[r.key,r]));
+   const next=result.mode.startsWith('wrong_')?rows.find(r=>!settled(r)):mapped.get(result.tracks[id].next);
+   Object.defineProperty(tracks,id,{value:{rows,next:next||null,active:rows.filter(r=>r.runtime_status==='active'),completed:rows.filter(settled).length},enumerable:true});
   }
   const empty=()=>({rows:[],next:null,active:[],completed:0}),focus=tracks.focus||empty(),research=tracks.research||empty();
-  const researchQueue=ordered(research.rows.filter(r=>!['special_project','manual'].includes(r.action.kind)));
-  research.next=researchQueue[0]||null;research.suggestions=[];
-  for(const r of researchQueue){if(['waiting','unavailable','free'].includes(r.status))break;research.suggestions.push(r);if(research.suggestions.length>=5)break;}
-  research.projects=research.rows.filter((r,i)=>r.action.kind==='special_project'&&!settled(r)&&research.rows.slice(0,i).filter(p=>p.action.kind!=='special_project').every(p=>settled(p)||p.status==='active'));
-  const slots=c.fact(context,'research.slots').value;research.slots=Array.isArray(slots)?slots:[];
-  research.free_slots=live&&Array.isArray(slots)?slots.filter(s=>!s.technology_id).length:null;
-  research.outside=[...activeTech].filter(id=>!research.rows.some(r=>r.target===id));
-  focus.outside=[...activeFocus].find(id=>!focus.rows.some(r=>r.target===id))||null;
-  return {schema_version:c.VERSION,mode,country,tracks,focus,research};
+  const mapped=new Map(research.rows.map(row=>[row.key,row]));
+  const queue=(result.tracks.research?.order||[]).map(key=>mapped.get(key)).filter(row=>!settled(row)&&row.runtime_status!=='active'&&!['manual','special_project'].includes(row.action.kind));
+  research.next=queue[0]||null;
+  research.suggestions=result.mode==='live'?result.parallel.research.steps.map(key=>mapped.get(key)).filter(Boolean):[];
+  if(result.mode!=='live')for(const candidate of queue){if(['waiting','unavailable','free'].includes(candidate.status))break;research.suggestions.push(candidate);if(research.suggestions.length>=5)break;}
+  research.projects=research.rows.filter((row,i)=>row.action.kind==='special_project'&&!settled(row)&&
+   (Object.hasOwn(row,'depends_on')?row.runtime_status==='ready'||row.runtime_reason==='manual_confirmation_required':research.rows.slice(0,i).filter(p=>p.action.kind!=='special_project').every(p=>settled(p)||p.runtime_status==='active')));
+  const context=result.mode==='live'?state:null,slots=c.fact(context,'research.slots').value;
+  research.slots=Array.isArray(slots)?slots:[];research.free_slots=result.parallel.research.capacity;
+  const activeTech=c.fact(context,'research.active').value,activeFocus=c.fact(context,'focus.active').value;
+  research.outside=(Array.isArray(activeTech)?activeTech:[]).filter(id=>!research.rows.some(row=>row.target===id));
+  focus.outside=(Array.isArray(activeFocus)?activeFocus:[]).find(id=>!focus.rows.some(row=>row.target===id))||null;
+  return {schema_version:c.VERSION,mode:result.mode,country:result.country,tracks,focus,research,runtime:result};
  }
  const model={evaluate};if(typeof module!=='undefined'&&module.exports)module.exports=model;else root.HoiGuideModel=model;
 })(typeof window!=='undefined'?window:globalThis);

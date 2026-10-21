@@ -18,8 +18,8 @@ del contratto v1. Tutti i nuovi campi sono facoltativi.
 - `phase`: ID di una fase dichiarata.
 - `depends_on`: lista di ID `key` degli step precedenti, anche di altre
   tracce. Sono validate unicità, esistenza e assenza di cicli.
-- `completion`: condizione nel linguaggio v1. La validazione **non**
-  implica che il tracker sappia ancora valutarla per tutti i tipi di azione.
+- `completion`: condizione nel linguaggio v1, valutata dal Guide Runtime.
+  Il risultato è calcolato e mantiene distinta la provenienza dei fatti.
 - `action.params`: parametri descrittivi JSON con limiti di profondità.
   Non sono comandi e non ampliano i tipi di azione disponibili.
 - `evidence[]`: `source_id`, `basis` e timestamp opzionali. `basis`
@@ -69,12 +69,10 @@ Le righe del modello **valutato** mantengono il campo preesistente
 `completion_condition`. Il documento originale non viene modificato. Questo
 evita di confondere una condizione del percorso con una prova di completamento.
 
-## Cosa NON fa ancora
+## Runtime e limiti
 
-Il frontend attuale non risolve `depends_on` o `completion` come criterio
-operativo per nuove azioni: questi campi sono **contratti validati**.
-Le priorità `when`, `priority_when` e `skip_when` mantengono il
-comportamento corrente. Nuovi tipi (costruzione, produzione, consiglieri,
+Il [Guide Runtime](guide-runtime.md) applica `depends_on`, `completion`, fasi e
+condizioni, preservando le guide legacy. Nuovi tipi (costruzione, produzione, consiglieri,
 esercito) richiederanno modelli di azione validati e successivi adapter, senza
 eseguire script delle guide.
 
@@ -107,8 +105,8 @@ eseguire script delle guide.
 }
 ```
 
-La fase successiva sarà validare le azioni specifiche per dominio e applicare
-le dipendenze in un Guide Runtime indipendente dall'interfaccia.
+Le azioni specifiche per nuovi domini richiederanno ulteriori contratti;
+il runtime resta indipendente dall'interfaccia e non genera strategie autonome.
 
 ## Verifica dell'integrazione
 
@@ -127,7 +125,7 @@ guida polacca. Le suite native, SSE e del controller della vista restano
 parte della verifica completa; i test DOM simulati non costituiscono prova
 grafica o prova su una partita reale.
 
-### Risultati del 21 ottobre 2026
+### Risultati dell'incremento Schema (prima del Runtime), 21 ottobre 2026
 
 - 145 test Python e 69 JavaScript superati.
 - Parità esatta di accettazione e normalizzazione verificata su 38 casi,
