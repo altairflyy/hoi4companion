@@ -4,6 +4,8 @@ Il framework separa cataloghi statici, osservazioni della partita e priorità
 delle guide. Il nuovo confine è in `contracts.py` e `web/contracts.js`, con tipi
 Python `TypedDict` e dichiarazioni JavaScript in `web/contracts.d.ts`.
 Non sono state aggiunte dipendenze di esecuzione.
+Le estensioni additive per fonti, fasi, dipendenze ed evidenze sono descritte
+in [Guide Schema v1](guide-schema.md), con gli stessi vincoli sui due runtime.
 
 ## Dipendenze e confini
 
