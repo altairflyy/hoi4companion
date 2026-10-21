@@ -7,12 +7,43 @@ from threading import RLock
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from unittest.mock import patch
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from hoi4companion.api import Store, make_handler
-from hoi4companion.guide import normalise_guide
+from hoi4companion.guide import normalise_guide, load_guide
 
 
 class FrameworkApiTests(unittest.TestCase):
+    def test_schema_metadata_is_preserved_and_invalid_file_returns_json_error(self):
+        cases = json.loads((Path(__file__).parent / 'fixtures' / 'guide-schema.json').read_text(encoding='utf-8'))
+        valid = next(c['guide'] for c in cases if c['name'] == 'extensions')
+        invalid = next(c['guide'] for c in cases if c['name'] == 'huge time')
+        store = Store.__new__(Store)
+        store.lock = RLock(); store.trees = {}; store.labels = {}; store.demo = False
+        store.settings = {'country': 'AUS'}; store.technologies = {'technologies': {}, 'folders': {}}
+        with TemporaryDirectory() as folder:
+            file = Path(folder) / 'guide.json'
+            file.write_text(json.dumps(valid), encoding='utf-8')
+            with patch('hoi4companion.api.load_guide', side_effect=lambda key=None: load_guide(key, directory=Path(folder))):
+                with ThreadingHTTPServer(('127.0.0.1', 0), make_handler(store)) as server:
+                    thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+                    url = f'http://127.0.0.1:{server.server_port}/api/guide?id=universal'
+                    try:
+                        with urlopen(url, timeout=2) as response:
+                            data = json.load(response)
+                        self.assertEqual(data['sources'], valid['sources'])
+                        self.assertEqual(data['phases'], valid['phases'])
+                        self.assertEqual(data['tracks']['research'][0]['completion'], valid['tracks']['research'][0]['completion'])
+                        self.assertEqual(data['tracks']['focus'][0]['evidence'], valid['tracks']['focus'][0]['evidence'])
+                        file.write_text(json.dumps(invalid), encoding='utf-8')
+                        with self.assertRaises(HTTPError) as error:
+                            urlopen(url, timeout=2)
+                        self.assertEqual(error.exception.code, 400)
+                        self.assertIn('error', json.load(error.exception))
+                    finally:
+                        server.shutdown(); thread.join(timeout=2)
+
     def test_versioned_routes_selected_guides_and_isolated_manual_checks(self):
         guides = {key: normalise_guide({'id': key, 'country': country, 'tracks': {
             'focus': [{'key': 'shared', 'kind': 'gate'}], 'research': []}})

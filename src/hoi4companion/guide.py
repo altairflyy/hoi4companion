@@ -9,7 +9,7 @@ import re
 from urllib.parse import urlencode
 
 from .tooltips import localise
-from .contracts import VERSION, entity, validate_action, validate_condition
+from .contracts import VERSION, entity, is_json_number, validate_action, validate_condition
 from .guide_schema import validate_guide_extensions
 
 
@@ -21,7 +21,8 @@ def normalise_guide(guide):
     if not isinstance(guide, dict):
         raise ValueError('Guida non valida')
     result = deepcopy(guide)
-    if type(result.get('schema_version', VERSION)) is not int or result.get('schema_version', VERSION) != VERSION or type(result.get('schema', 1)) is not int or result.get('schema', 1) != 1:
+    if any(not is_json_number(result.get(field, default)) or result.get(field, default) != default
+           for field, default in (('schema_version', VERSION), ('schema', 1))):
         raise ValueError('Versione contratto guida non supportata')
     result['schema_version'] = VERSION
     result.setdefault('applies_to', {k: result[k] for k in ('country', 'tree_id') if result.get(k)})
@@ -80,8 +81,10 @@ def normalise_guide(guide):
         for field in ('when', 'priority_when', 'skip_when'):
             if field in step:
                 validate_condition(step[field])
-        if 'priority' in step and (type(step['priority']) is not int or not -100000 <= step['priority'] <= 100000):
-            raise ValueError('Priorità guida non valida')
+        if 'priority' in step:
+            if not is_json_number(step['priority']) or step['priority'] != int(step['priority']) or not -100000 <= step['priority'] <= 100000:
+                raise ValueError('Priorità guida non valida')
+            step['priority'] = int(step['priority'])
     result.setdefault('milestones', [])
     result.setdefault('assumptions', [])
     result.setdefault('title', result.get('id', 'Guida'))
