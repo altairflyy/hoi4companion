@@ -1,38 +1,53 @@
 'use strict';
 ((root)=>{
- function evaluate(guide,value,local={}){
-  const raw=value?.usable?value.sample:null;
-  const mode=!raw?'preview':raw.country!==guide.country?'wrong_country':raw.focus_tree_id!==guide.tree_id?'wrong_tree':'live';
-  const sample=mode==='live'?raw:null,checks=local.checks||{};
-  const completed=new Set(sample?.completed_focuses||[]),researched=new Set(sample?.researched_technologies||[]);
-  const activeTech=new Set((sample?.research_slots||[]).map(s=>s.technology_id).filter(Boolean));
-  const unity=guide.tracks.focus.find(s=>s.available_gate);
-  const prioritize=!!sample&&unity&&completed.has(unity.priority_after)&&!completed.has(unity.target)&&checks[unity.available_gate]===true;
-  function status(step){
-   if(step.kind==='gate'||step.kind==='project')return checks[step.key]?'confirmed':'manual';
-   if(step.kind==='free')return 'free';
-   const isFocus=step.kind==='focus',done=isFocus?completed:researched;
-   if(sample&&done.has(step.target))return 'completed';
-   if(sample&&(isFocus?sample.current_focus===step.target:activeTech.has(step.target)))return 'active';
-   if(isFocus&&step.optional_before&&sample&&(prioritize||completed.has(step.optional_before)))return 'skipped';
-   if(step.catalog_match===false)return 'unavailable';
-   if(step.gate&&!checks[step.gate])return 'waiting';
-   return sample?'pending':'planned';
+ const c=typeof module!=='undefined'&&module.exports?require('./contracts.js'):root.HoiContracts;
+ const settled=r=>['completed','confirmed','skipped'].includes(r.status);
+ function evaluate(input,value,local={}){
+  const guide=c.guide(input),state=c.state(value),checks=local.checks||{};
+  const country=c.fact(state,'country').value,tree=c.fact(state,'focus.tree').value,scope=guide.applies_to;
+  const mode=!state.usable?'preview':scope.country&&country!==scope.country?'wrong_country':scope.tree_id&&tree!==scope.tree_id?'wrong_tree':'live';
+  const live=mode==='live',context=live?state:{...state,usable:false};
+  const members=key=>{const f=c.fact(context,key);return new Set(Array.isArray(f.value)?f.value:[]);};
+  const completed=members('focus.completed'),researched=members('research.completed'),activeFocus=members('focus.active'),activeTech=members('research.active');
+  function row(step,index){
+   const kind=step.action.kind,isFocus=kind==='select_focus',done=isFocus?completed:researched,active=isFocus?activeFocus:activeTech;
+   const scoped=live&&(!isFocus||!step.action.entity.scope||step.action.entity.scope===tree);
+   const membership=(key,set)=>{const f=c.fact(scoped?context:null,key);return f.status==='unknown'?f:{status:'calculated',value:set.has(step.target),source:'membership:'+key};};
+   const completion=['select_focus','research'].includes(kind)?membership(isFocus?'focus.completed':'research.completed',done):{status:'unknown',value:null,source:''};
+   const selection=['select_focus','research'].includes(kind)?membership(isFocus?'focus.active':'research.active',active):{status:'unknown',value:null,source:''};
+   let status,provenance='calculated';
+   if(kind==='manual'||kind==='special_project'){status=checks[step.key]===true?'confirmed':'manual';provenance='manual';}
+   else if(kind==='free')status='free';
+   else if(completion.value===true)status='completed';
+   else if(selection.value===true)status='active';
+   else if(live&&!scoped)status='waiting';
+   else if(live&&step.skip_when&&c.condition(step.skip_when,context,checks)===true)status='skipped';
+   else if(step.catalog_match===false)status='unavailable';
+   else if(step.when&&c.condition(step.when,context,checks)!==true)status='waiting';
+   else status=live?'pending':'planned';
+   return {...step,order:index+1,status,provenance,completion,selection,availability:{status:'unknown',value:null,source:'',reason:'Una priorità o conferma manuale non prova la disponibilità del motore.'}};
   }
-  const rows={};for(const [track,steps]of Object.entries(guide.tracks))rows[track]=steps.map((s,i)=>({...s,order:i+1,status:status(s)}));
-  const settled=r=>['completed','confirmed','skipped'].includes(r.status);
-  let focusNext=rows.focus.find(r=>!settled(r)&&r.status!=='active')||null;
-  if(prioritize)focusNext=rows.focus.find(r=>r.key===unity.key);
-  const researchQueue=rows.research.filter(r=>!['project','gate'].includes(r.kind)&&!settled(r)&&r.status!=='active');
-  const first=researchQueue[0]||null,suggestions=[];
-  for(const row of researchQueue){if(['waiting','unavailable','free'].includes(row.status))break;suggestions.push(row);if(suggestions.length>=5)break;}
-  const projects=rows.research.filter((r,i)=>r.kind==='project'&&!settled(r)&&rows.research.slice(0,i).filter(p=>p.kind!=='project').every(p=>settled(p)||p.status==='active'));
-  const slots=sample?.research_slots||[];
-  return {mode,country:raw?.country||null,focus:{rows:rows.focus,next:focusNext,active:rows.focus.filter(r=>r.status==='active'),completed:rows.focus.filter(settled).length,
-   outside:sample?.current_focus&&!guide.tracks.focus.some(r=>r.target===sample.current_focus)?sample.current_focus:null},
-   research:{rows:rows.research,next:first,suggestions,projects,active:rows.research.filter(r=>r.status==='active'),completed:rows.research.filter(settled).length,
-    free_slots:sample?slots.filter(s=>!s.technology_id).length:null,slots,
-    outside:[...activeTech].filter(id=>!guide.tracks.research.some(r=>r.target===id))}};
+  function ordered(rows){
+   const candidates=rows.filter(r=>!settled(r)&&r.status!=='active');
+   const priorities=live?candidates.filter(r=>r.priority_when&&c.condition(r.priority_when,context,checks)===true).sort((a,b)=>(b.priority||0)-(a.priority||0)):[];
+   const promoted=new Set(priorities);
+   return [...priorities,...candidates.filter(r=>!promoted.has(r))];
+  }
+  const tracks={};
+  for(const [id,steps] of Object.entries(guide.tracks)){
+   const rows=steps.map(row);
+   tracks[id]={rows,next:ordered(rows)[0]||null,active:rows.filter(r=>r.status==='active'),completed:rows.filter(settled).length};
+  }
+  const empty=()=>({rows:[],next:null,active:[],completed:0}),focus=tracks.focus||empty(),research=tracks.research||empty();
+  const researchQueue=ordered(research.rows.filter(r=>!['special_project','manual'].includes(r.action.kind)));
+  research.next=researchQueue[0]||null;research.suggestions=[];
+  for(const r of researchQueue){if(['waiting','unavailable','free'].includes(r.status))break;research.suggestions.push(r);if(research.suggestions.length>=5)break;}
+  research.projects=research.rows.filter((r,i)=>r.action.kind==='special_project'&&!settled(r)&&research.rows.slice(0,i).filter(p=>p.action.kind!=='special_project').every(p=>settled(p)||p.status==='active'));
+  const slots=c.fact(context,'research.slots').value;research.slots=Array.isArray(slots)?slots:[];
+  research.free_slots=live&&Array.isArray(slots)?slots.filter(s=>!s.technology_id).length:null;
+  research.outside=[...activeTech].filter(id=>!research.rows.some(r=>r.target===id));
+  focus.outside=[...activeFocus].find(id=>!focus.rows.some(r=>r.target===id))||null;
+  return {schema_version:c.VERSION,mode,country,tracks,focus,research};
  }
  const model={evaluate};if(typeof module!=='undefined'&&module.exports)module.exports=model;else root.HoiGuideModel=model;
 })(typeof window!=='undefined'?window:globalThis);

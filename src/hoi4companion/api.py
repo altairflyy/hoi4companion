@@ -7,7 +7,7 @@ import mimetypes
 import time
 from pathlib import Path
 from threading import RLock
-from urllib.parse import urlparse, unquote
+from urllib.parse import urlparse, unquote, parse_qs
 from .focus import evaluate, load_trees
 from .installation import collect_files, active_mods, load_localisation
 from .state import read_snapshot
@@ -18,7 +18,8 @@ from .technologies import load_technologies
 from .live import LiveMonitor, NativeProvider
 from .stream import LiveEventHub, SubscriberLimitError
 from .technology_visuals import load_technology_visuals
-from .guide import load_guide, enrich_guide, update_checks
+from .guide import load_guide, list_guides, default_guide_id, enrich_guide, update_checks
+from .contracts import VERSION, normalise_state
 
 BASE = Path(__file__).resolve().parent
 PROJECT = BASE.parent.parent
@@ -56,6 +57,12 @@ class Store:
         self.live_cache_time = 0
         self.guide_checks = {}
         self.guide_revision = 0
+        self.guide_states = {}
+        try:
+            self.default_guide_id = default_guide_id()
+        except (OSError, ValueError):
+            # Optional content must never prevent the live framework starting.
+            self.default_guide_id = None
         self.live_hub = LiveEventHub(lambda: self.live_state(force=True), interval=.25,
                                      on_idle=self.live_idle)
         self.refresh()
@@ -118,8 +125,7 @@ class Store:
             self.trees = trees
             self.import_error = ''
             if self.settings['tree_id'] not in trees:
-                austria = next((key for key in trees if 'austria' in key.lower() or 'aus_' in key.lower()), None)
-                self.settings['tree_id'] = austria or next(iter(trees), '')
+                self.settings['tree_id'] = next(iter(trees), '')
 
     def set_settings(self, update: dict):
         valid = {'game_dir', 'docs_dir', 'tree_id', 'snapshot_path', 'country', 'language', 'mods'}
@@ -236,18 +242,32 @@ class Store:
                 result['transport'] = {'kind': 'change_events', 'memory_probe_seconds': .25,
                                        'integrity_audit_seconds': 5}
                 self.live_cache, self.live_cache_time = result, now
-            return {**self.live_cache, 'guide_checks': getattr(self,'guide_checks',{}).copy(), 'guide_revision': getattr(self,'guide_revision',0)}
+            default_id = getattr(self, 'default_guide_id', None)
+            checks = getattr(self, 'guide_checks', {}).copy()
+            states = {key: dict(value) for key, value in getattr(self, 'guide_states', {}).items()}
+            if default_id:
+                states[default_id] = checks
+            return {**self.live_cache, 'guide_id': default_id, 'guide_checks': checks,
+                    'guide_states': states, 'guide_revision': getattr(self,'guide_revision',0)}
 
-    def walkthrough_checks(self, update=None):
+    def walkthrough_checks(self, update=None, guide_id=None):
         with self.lock:
+            default_id = getattr(self, 'default_guide_id', None) or default_guide_id()
+            guide = load_guide(guide_id or default_id)
+            if not hasattr(self, 'guide_states'):
+                self.guide_states = {}
+            current = self.guide_checks if guide['id'] == default_id else self.guide_states.get(guide['id'], {})
             if update is not None:
-                self.guide_checks = update_checks(load_guide(),self.guide_checks,update)
+                current = update_checks(guide,current,update)
+                if guide['id'] == default_id:
+                    self.guide_checks = current
+                self.guide_states[guide['id']] = current
                 self.guide_revision += 1
-            return {'checks':self.guide_checks.copy(),'revision':self.guide_revision}
+            return {'checks':current.copy(),'revision':self.guide_revision}
 
-    def walkthrough(self):
+    def walkthrough(self, guide_id=None):
         with self.lock:
-            result = enrich_guide(load_guide(), self.trees, self.technologies['technologies'],
+            result = enrich_guide(load_guide(guide_id or getattr(self, 'default_guide_id', None)), self.trees, self.technologies['technologies'],
                                   self.labels, self.technologies['folders'])
             result['catalog_country'] = self.settings['country'].upper()
             result['demo'] = self.demo
@@ -381,14 +401,28 @@ def make_handler(store: Store):
             if url.path == '/api/state':
                 self.json(store.live_state())
                 return
+            if url.path == '/api/framework/state':
+                self.json(normalise_state(store.live_state()))
+                return
+            if url.path == '/api/guides':
+                try:
+                    self.json({'schema_version': VERSION, 'guides': list_guides()})
+                except (OSError, ValueError) as exc:
+                    self.json({'error': str(exc)}, 400)
+                return
             if url.path == '/api/guide':
-                self.json(store.walkthrough())
+                try:
+                    self.json(store.walkthrough(parse_qs(url.query).get('id', [None])[0]))
+                except (OSError, ValueError) as exc:
+                    self.json({'error': str(exc)}, 400)
                 return
             if url.path == '/api/guide/checks':
-                self.json(store.walkthrough_checks())
+                try:
+                    self.json(store.walkthrough_checks(guide_id=parse_qs(url.query).get('id', [None])[0]))
+                except (OSError, ValueError) as exc:
+                    self.json({'error': str(exc)}, 400)
                 return
             if url.path == '/api/tree':
-                from urllib.parse import parse_qs
                 query = parse_qs(url.query)
                 self.json(store.tree(query.get('id', [None])[0], include_snapshot=query.get('source') != ['live']))
                 return
@@ -396,10 +430,10 @@ def make_handler(store: Store):
                 self.json(store.technology_catalog())
                 return
             if url.path == '/api/technology-tree':
-                from urllib.parse import parse_qs
                 self.json(store.technology_tree(parse_qs(url.query).get('id', [''])[0]))
                 return
             static = {'/': 'index.html', '/index.html': 'index.html',
+                      '/contracts.js': 'contracts.js',
                       '/country': 'country.html', '/country.js': 'country.js',
                       '/country.css': 'country.css', '/country-model.js': 'country-model.js',
                       '/walkthrough': 'guide.html', '/hud': 'guide.html', '/guide-model.js': 'guide-model.js',
@@ -418,7 +452,8 @@ def make_handler(store: Store):
                 self.json({'error': 'Not found'}, 404)
 
         def do_POST(self):
-            if self.path not in ('/api/config', '/api/refresh', '/api/guide/checks'):
+            url = urlparse(self.path)
+            if url.path not in ('/api/config', '/api/refresh', '/api/guide/checks'):
                 self.json({'error': 'Not found'}, 404)
                 return
             # Blocca richieste cross-origin da siti terzi verso il servizio locale.
@@ -436,10 +471,10 @@ def make_handler(store: Store):
                 return
             try:
                 update = json.loads(self.rfile.read(length))
-                if self.path == '/api/guide/checks':
-                    self.json(store.walkthrough_checks(update))
+                if url.path == '/api/guide/checks':
+                    self.json(store.walkthrough_checks(update, parse_qs(url.query).get('id', [None])[0]))
                     return
-                if self.path == '/api/refresh':
+                if url.path == '/api/refresh':
                     if update != {}:
                         raise ValueError('Il ricaricamento richiede un oggetto vuoto')
                     store.refresh()
