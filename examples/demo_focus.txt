@@ -1,0 +1,15 @@
+# SOLO ESEMPIO INVENTATO: NON SONO I FOCUS ORIGINALI AUSTRIACI.
+focus_tree = {
+    id = DEMO_AUS_focus_tree
+    country = { factor = 0 modifier = { add = 10 tag = AUS } }
+    focus = { id = DEMO_foundations x = 6 y = 0 cost = 5 icon = GFX_goal_generic_construct_civ_factory }
+    focus = { id = DEMO_administration relative_position_id = DEMO_foundations x = 0 y = 1 cost = 8 prerequisite = { focus = DEMO_foundations } }
+    focus = { id = DEMO_industry relative_position_id = DEMO_administration x = -2 y = 1 cost = 10 prerequisite = { focus = DEMO_administration } }
+    focus = { id = DEMO_army relative_position_id = DEMO_administration x = 2 y = 1 cost = 10 prerequisite = { focus = DEMO_administration } }
+    focus = { id = DEMO_economy relative_position_id = DEMO_industry x = 0 y = 1 cost = 10 prerequisite = { focus = DEMO_industry } }
+    focus = { id = DEMO_mobilization relative_position_id = DEMO_army x = 0 y = 1 cost = 10 prerequisite = { focus = DEMO_army } }
+    focus = { id = DEMO_diplomacy relative_position_id = DEMO_industry x = 2 y = 2 cost = 10 prerequisite = { focus = DEMO_economy focus = DEMO_mobilization } }
+    focus = { id = DEMO_independence relative_position_id = DEMO_diplomacy x = -1 y = 1 cost = 10 prerequisite = { focus = DEMO_diplomacy } mutually_exclusive = { focus = DEMO_compromise } }
+    focus = { id = DEMO_compromise relative_position_id = DEMO_diplomacy x = 1 y = 1 cost = 10 prerequisite = { focus = DEMO_diplomacy } mutually_exclusive = { focus = DEMO_independence } }
+    focus = { id = DEMO_reform relative_position_id = DEMO_diplomacy x = 0 y = 3 cost = 10 prerequisite = { focus = DEMO_independence } prerequisite = { focus = DEMO_economy } available = { has_war = no } }
+}

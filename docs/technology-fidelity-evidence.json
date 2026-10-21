@@ -1,0 +1,361 @@
+{
+  "captured": "2026-10-20",
+  "reference_viewport": {
+    "width": 2560,
+    "height": 1360,
+    "content_origin_approx": [
+      10,
+      60
+    ]
+  },
+  "gui": {
+    "path": "interface\\countrytechtreeview.gui",
+    "sha256": "fec641fb738ab59369cac40ae902fdba793bed7cbaa2c807756207a2e1f01045"
+  },
+  "landmarks": [
+    {
+      "folder": "industry_folder",
+      "technology": "basic_machine_tools",
+      "screenshot": "Screenshots\\Screenshot 2026-10-20 185644.png",
+      "sha256": "ca0bf718b15453befa50657eb46f315f83c52a8607fe3988a54509a82c997e35",
+      "image_size": [
+        2559,
+        1361
+      ],
+      "observed_center_approx": [
+        269.89,
+        272.39
+      ],
+      "predicted_center": [
+        271.0,
+        273.0
+      ],
+      "error_pixels_approx": 1.27,
+      "layout": {
+        "x": 225.0,
+        "y": 177.0,
+        "width": 72,
+        "height": 72,
+        "center_x": 261.0,
+        "center_y": 213.0,
+        "anchor_x": 225.0,
+        "anchor_y": 172.0,
+        "template": "techtree_industry_folder_item",
+        "template_declared_width": 204.0,
+        "template_declared_height": 72.0,
+        "variant": "small",
+        "direction": "UP",
+        "tree_id": "basic_machine_tools_tree",
+        "section_id": "basic_machine_tools",
+        "basis": "gui_alignment_item_template_and_path"
+      }
+    },
+    {
+      "folder": "industry_folder",
+      "technology": "concentrated_industry",
+      "screenshot": "Screenshots\\Screenshot 2026-10-20 185644.png",
+      "sha256": "ca0bf718b15453befa50657eb46f315f83c52a8607fe3988a54509a82c997e35",
+      "image_size": [
+        2559,
+        1361
+      ],
+      "observed_center_approx": [
+        549.79,
+        412.34
+      ],
+      "predicted_center": [
+        551.0,
+        413.0
+      ],
+      "error_pixels_approx": 1.38,
+      "layout": {
+        "x": 505.0,
+        "y": 317.0,
+        "width": 72,
+        "height": 72,
+        "center_x": 541.0,
+        "center_y": 353.0,
+        "anchor_x": 505.0,
+        "anchor_y": 312.0,
+        "template": "techtree_industry_folder_item",
+        "template_declared_width": 204.0,
+        "template_declared_height": 72.0,
+        "variant": "small",
+        "direction": "UP",
+        "tree_id": "basic_machine_tools_tree",
+        "section_id": "basic_machine_tools",
+        "basis": "gui_alignment_item_template_and_path"
+      }
+    },
+    {
+      "folder": "industry_folder",
+      "technology": "construction1",
+      "screenshot": "Screenshots\\Screenshot 2026-10-20 185644.png",
+      "sha256": "ca0bf718b15453befa50657eb46f315f83c52a8607fe3988a54509a82c997e35",
+      "image_size": [
+        2559,
+        1361
+      ],
+      "observed_center_approx": [
+        839.67,
+        412.34
+      ],
+      "predicted_center": [
+        841.0,
+        413.0
+      ],
+      "error_pixels_approx": 1.48,
+      "layout": {
+        "x": 795.0,
+        "y": 317.0,
+        "width": 72,
+        "height": 72,
+        "center_x": 831.0,
+        "center_y": 353.0,
+        "anchor_x": 795.0,
+        "anchor_y": 312.0,
+        "template": "techtree_industry_folder_item",
+        "template_declared_width": 204.0,
+        "template_declared_height": 72.0,
+        "variant": "small",
+        "direction": "UP",
+        "tree_id": "construction1_tree",
+        "section_id": "construction1",
+        "basis": "gui_alignment_item_template_and_path"
+      }
+    },
+    {
+      "folder": "infantry_folder",
+      "technology": "infantry_weapons",
+      "screenshot": "Screenshots\\Screenshot 2026-10-20 185555.png",
+      "sha256": "92e1945b5f5aba4d63a7645b714f852d755be640354ba0694ccaa17a42e60c10",
+      "image_size": [
+        2559,
+        1359
+      ],
+      "observed_center_approx": [
+        117.45,
+        382.35
+      ],
+      "predicted_center": [
+        115.5,
+        385.0
+      ],
+      "error_pixels_approx": 3.29,
+      "layout": {
+        "x": 14.0,
+        "y": 283.0,
+        "width": 183,
+        "height": 84,
+        "center_x": 105.5,
+        "center_y": 325.0,
+        "anchor_x": 70.0,
+        "anchor_y": 290.0,
+        "template": "techtree_infantry_folder_item",
+        "template_declared_width": 183.0,
+        "template_declared_height": 84.0,
+        "variant": "equipment",
+        "direction": "LEFT",
+        "tree_id": "infantry_weapons_tree",
+        "section_id": "infantry_weapons",
+        "basis": "gui_alignment_item_template_and_path"
+      }
+    },
+    {
+      "folder": "infantry_folder",
+      "technology": "marines",
+      "screenshot": "Screenshots\\Screenshot 2026-10-20 185555.png",
+      "sha256": "92e1945b5f5aba4d63a7645b714f852d755be640354ba0694ccaa17a42e60c10",
+      "image_size": [
+        2559,
+        1359
+      ],
+      "observed_center_approx": [
+        324.87,
+        1093.32
+      ],
+      "predicted_center": [
+        326.0,
+        1096.0
+      ],
+      "error_pixels_approx": 2.91,
+      "layout": {
+        "x": 280.0,
+        "y": 1000.0,
+        "width": 72,
+        "height": 72,
+        "center_x": 316.0,
+        "center_y": 1036.0,
+        "anchor_x": 280.0,
+        "anchor_y": 1000.0,
+        "template": "techtree_infantry_folder_small_item",
+        "template_declared_width": 72.0,
+        "template_declared_height": 72.0,
+        "variant": "small",
+        "direction": "LEFT",
+        "tree_id": "marines_tree",
+        "section_id": "marines",
+        "basis": "gui_alignment_item_template_and_path"
+      }
+    },
+    {
+      "folder": "nsb_armour_folder",
+      "technology": "gwtank_chassis",
+      "screenshot": "Screenshots\\Screenshot 2026-10-20 185611.png",
+      "sha256": "29c9c82abb840999cf542d30f5b9e38efc7fcb8ec393bc2e8d408533d9c82585",
+      "image_size": [
+        2559,
+        1357
+      ],
+      "observed_center_approx": [
+        935.88,
+        137.45
+      ],
+      "predicted_center": [
+        936.5,
+        142.0
+      ],
+      "error_pixels_approx": 4.59,
+      "layout": {
+        "x": 835.0,
+        "y": 40.0,
+        "width": 183,
+        "height": 84,
+        "center_x": 926.5,
+        "center_y": 82.0,
+        "anchor_x": 890.0,
+        "anchor_y": 40.0,
+        "template": "techtree_nsb_armour_folder_item",
+        "template_declared_width": 183.0,
+        "template_declared_height": 84.0,
+        "variant": "equipment",
+        "direction": "UPPER_LEFT",
+        "tree_id": "gwtank_chassis_tree",
+        "section_id": "gwtank_chassis",
+        "basis": "gui_alignment_item_template_and_path"
+      }
+    },
+    {
+      "folder": "artillery_folder",
+      "technology": "gw_artillery",
+      "screenshot": "Screenshots\\Screenshot 2026-10-20 185617.png",
+      "sha256": "d86fb7f4386fcdc21669cd508dead56a69e17c1fa3186c56ae6b6c37d6389277",
+      "image_size": [
+        2559,
+        1356
+      ],
+      "observed_center_approx": [
+        1319.48,
+        268.65
+      ],
+      "predicted_center": [
+        1320.3,
+        274.0
+      ],
+      "error_pixels_approx": 5.41,
+      "layout": {
+        "x": 1218.8,
+        "y": 172.0,
+        "width": 183,
+        "height": 84,
+        "center_x": 1310.3,
+        "center_y": 214.0,
+        "anchor_x": 1273.8,
+        "anchor_y": 172.0,
+        "template": "techtree_artillery_folder_item",
+        "template_declared_width": 204.0,
+        "template_declared_height": 72.0,
+        "variant": "equipment",
+        "direction": "UP",
+        "tree_id": "gw_artillery_tree",
+        "section_id": "gw_artillery",
+        "basis": "gui_alignment_item_template_and_path"
+      }
+    }
+  ],
+  "folders": [
+    {
+      "id": "infantry_folder",
+      "mapped": 34,
+      "total": 41,
+      "hidden": [
+        {
+          "id": "advanced_special_forces",
+          "reason": "Radice tech_special_forces esclusa dalle condizioni DLC; il discendente rimane nei dati locali."
+        },
+        {
+          "id": "elite_forces",
+          "reason": "Radice tech_special_forces esclusa dalle condizioni DLC; il discendente rimane nei dati locali."
+        },
+        {
+          "id": "extreme_environment_training",
+          "reason": "Radice tech_special_forces esclusa dalle condizioni DLC; il discendente rimane nei dati locali."
+        },
+        {
+          "id": "improved_special_forces",
+          "reason": "Radice tech_special_forces esclusa dalle condizioni DLC; il discendente rimane nei dati locali."
+        },
+        {
+          "id": "rangers_tech2",
+          "reason": "Radice rangers_tech esclusa dalle condizioni DLC; il discendente rimane nei dati locali."
+        },
+        {
+          "id": "rangers_tech3",
+          "reason": "Radice rangers_tech esclusa dalle condizioni DLC; il discendente rimane nei dati locali."
+        },
+        {
+          "id": "survival_training",
+          "reason": "Radice tech_special_forces esclusa dalle condizioni DLC; il discendente rimane nei dati locali."
+        }
+      ]
+    },
+    {
+      "id": "support_folder",
+      "mapped": 42,
+      "total": 42,
+      "hidden": []
+    },
+    {
+      "id": "nsb_armour_folder",
+      "mapped": 28,
+      "total": 28,
+      "hidden": []
+    },
+    {
+      "id": "artillery_folder",
+      "mapped": 27,
+      "total": 27,
+      "hidden": []
+    },
+    {
+      "id": "bba_air_techs_folder",
+      "mapped": 41,
+      "total": 41,
+      "hidden": []
+    },
+    {
+      "id": "mtgnavalfolder",
+      "mapped": 38,
+      "total": 38,
+      "hidden": []
+    },
+    {
+      "id": "mtgnavalsupportfolder",
+      "mapped": 39,
+      "total": 39,
+      "hidden": []
+    },
+    {
+      "id": "industry_folder",
+      "mapped": 43,
+      "total": 43,
+      "hidden": []
+    },
+    {
+      "id": "electronics_folder",
+      "mapped": 27,
+      "total": 27,
+      "hidden": []
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+shared_focus = { id = SHARED_seed x = 1 y = 0 }
+focus_tree = {
+ id = AUS_test_tree
+ country = { factor = 0 modifier = { add = 10 tag = AUS } }
+ shared_focus = SHARED_seed
+ focus = { id = AUS_start x = 3 y = 0 cost = 5 }
+ focus = { id = AUS_one relative_position_id = AUS_start x = 1 y = 1 prerequisite = { focus = AUS_start } }
+ focus = { id = AUS_two relative_position_id = AUS_start x = -1 y = 1 prerequisite = { focus = AUS_start } mutually_exclusive = { focus = AUS_one } }
+ focus = { id = AUS_goal x = 3 y = 2 prerequisite = { focus = AUS_one focus = AUS_two } prerequisite = { focus = SHARED_seed } available = { has_war = no } }
+}

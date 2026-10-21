@@ -1,0 +1,969 @@
+{
+  "schema": 1,
+  "id": "poland-wojtek-FBPdhlwqMwM",
+  "country": "POL",
+  "tree_id": "polish_focus",
+  "title": "Polonia 1936 · da Anastasia a Wojtek",
+  "subtitle": "Percorso guidato da MachiavellianStrategist: focus, ricerche e checkpoint della strada Romanov.",
+  "source": {
+    "video_id": "FBPdhlwqMwM",
+    "url": "https://www.youtube.com/watch?v=FBPdhlwqMwM",
+    "title": "🇵🇱 SECRET POLAND Guide: Wojtek Conquers The World! 🐻 | HOI4 Country Guides",
+    "author": "MachiavellianStrategist",
+    "published": "2026-04-18",
+    "duration": 2574,
+    "basis": "Priorità dalla descrizione originale; note dai sottotitoli automatici inglesi. Identificatori confrontati con gli script locali. Non è un’ispezione visiva completa di ogni fotogramma.",
+    "chapters": [
+      {
+        "start_time": 0,
+        "title": "Intro & Setup",
+        "end_time": 212
+      },
+      {
+        "start_time": 212,
+        "title": "The Secret Romanov Path, Danzig & RNG",
+        "end_time": 693
+      },
+      {
+        "start_time": 693,
+        "title": "Yugoslavia & The Balkan Wars",
+        "end_time": 1020
+      },
+      {
+        "start_time": 1020,
+        "title": "USSR Setup",
+        "end_time": 1379
+      },
+      {
+        "start_time": 1379,
+        "title": "A Polish Barbarossa",
+        "end_time": 1781
+      },
+      {
+        "start_time": 1781,
+        "title": "Axis Or Bear?",
+        "end_time": 2017
+      },
+      {
+        "start_time": 2017,
+        "title": "Germany & Italy",
+        "end_time": 2308
+      },
+      {
+        "start_time": 2308,
+        "title": "The Epic Bear Is Ours! (& Forgotten Bulgaria)",
+        "end_time": 2574
+      }
+    ]
+  },
+  "assumptions": [
+    "Partenza Polonia, 1936, percorso monarchico Romanov del video. Nazioni o alberi differenti non applicano completamenti a questa guida.",
+    "L’ordine delle priorità è quello della descrizione, non una cronologia con date garantite. Più slot di ricerca lavorano in parallelo.",
+    "UP non specifica sempre un nome o un livello. Qui è espanso seguendo la catena di tecnologie locali dalla base polacca 1936: è una scelta del companion da confrontare nel gioco, non un dettaglio esplicito dell’autore.",
+    "Il lettore conferma focus completati/saltati, focus attivo, tecnologie ricercate e slot. Non osserva bonus, eventi, candidati, territori, progetti speciali o disponibilità dinamica.",
+    "Le conferme manuali sono condivise tra pagina e HUD durante l’esecuzione del companion, separate dalle osservazioni del gioco. Riavviando il server si azzerano; caricando un’altra campagna usa Nuova checklist.",
+    "Se i dati live non sono freschi, il prossimo passo torna a essere un’anteprima dal 1936: i vecchi completamenti non vengono applicati."
+  ],
+  "tracks": {
+    "focus": [
+      {
+        "key": "f01",
+        "title": "Clamp Down On Danzig",
+        "kind": "focus",
+        "note": "Avvia questo focus per primo. La gestione della rivolta di Danzica è parte essenziale della strategia: vedi il checkpoint dedicato, non basta completare il focus.",
+        "source": "description",
+        "source_order": 1,
+        "target": "POL_clamp_down_on_danzig"
+      },
+      {
+        "key": "f02",
+        "title": "Assemble The Regency Council",
+        "kind": "focus",
+        "note": "Apre la reggenza. Il video mira alla candidata segreta Romanov: rifiuta i primi otto candidati e scegli la nona proposta, Anastasia. Gli eventi richiedono controllo manuale.",
+        "source": "description",
+        "source_order": 2,
+        "target": "POL_assemble_the_regency_council"
+      },
+      {
+        "key": "f03",
+        "title": "Fulfill The 5th of November Act",
+        "kind": "focus",
+        "note": "Prosegui sul percorso monarchico. Non scegliere un altro sovrano soltanto per accelerare la sequenza.",
+        "source": "description",
+        "source_order": 3,
+        "target": "POL_fulfil_fifth_of_november"
+      },
+      {
+        "key": "f04",
+        "title": "The Four Year Plan",
+        "kind": "focus",
+        "note": "Inizia la sequenza industriale mentre attendi gli eventi della reggenza.",
+        "source": "description",
+        "source_order": 4,
+        "target": "POL_the_four_year_plan"
+      },
+      {
+        "key": "f05",
+        "title": "Central Region Strategy",
+        "kind": "focus",
+        "note": "Continua gli investimenti nel centro industriale; completa le condizioni mostrate nel gioco.",
+        "source": "description",
+        "source_order": 5,
+        "target": "POL_central_region_strategy"
+      },
+      {
+        "key": "f06",
+        "title": "Integrate Gdansk Industries",
+        "kind": "focus",
+        "note": "Integra l’industria di Danzica nella sequenza indicata. La risoluzione della rivolta e la sistemazione di Kashubia restano separate dal completamento del focus.",
+        "source": "description",
+        "source_order": 6,
+        "target": "POL_integrate_gdansk_industries"
+      },
+      {
+        "key": "f07",
+        "title": "The New Polish Industry",
+        "kind": "focus",
+        "note": "Prosegui con la nuova industria polacca. Mantieni l’ordine della descrizione.",
+        "source": "description",
+        "source_order": 7,
+        "target": "POL_expansion_of_new_towns"
+      },
+      {
+        "key": "f08",
+        "title": "Fill The Railways Gaps",
+        "kind": "focus",
+        "note": "Collega la rete ferroviaria: nel video gli investimenti industriali precedono l’espansione nei Balcani.",
+        "source": "description",
+        "source_order": 8,
+        "target": "POL_fill_the_railways_gaps"
+      },
+      {
+        "key": "f09",
+        "title": "Agrarian Reform",
+        "kind": "focus",
+        "note": "Porta avanti la riforma agraria prima del passaggio alla nobiltà in esilio.",
+        "source": "description",
+        "source_order": 9,
+        "target": "POL_agrarian_reform"
+      },
+      {
+        "key": "f10",
+        "title": "Invite Exiled Nobility (Wait a few days if needed)",
+        "kind": "focus",
+        "note": "Se non è ancora selezionabile, attendi qualche giorno come indica l’autore; verifica di aver scelto Anastasia. Il reader non osserva gli eventi dei pretendenti.",
+        "source": "description",
+        "source_order": 10,
+        "target": "POL_invite_exiled_nobility"
+      },
+      {
+        "key": "f11",
+        "title": "Demand Lithuania (Force Deploy)",
+        "kind": "focus",
+        "note": "Usa la variante del ramo Romanov, non l’omonimo focus falangista. Il video suggerisce il dispiegamento anticipato delle divisioni necessarie. Controlla i requisiti nel gioco.",
+        "source": "description",
+        "source_order": 11,
+        "target": "POL_demand_LIT_pavel"
+      },
+      {
+        "key": "f12",
+        "title": "No Focus until LIT annexed",
+        "kind": "gate",
+        "note": "Non selezionare un nuovo focus finché la Lituania non è annessa. Se rifiuta, il video raccomanda una guerra rapida; il solo completamento della richiesta non prova l’annessione. Conferma qui soltanto dopo aver verificato.",
+        "source": "description",
+        "source_order": 12,
+        "name": "Attendi l’annessione della Lituania",
+        "confirmation": "Ho verificato: la Lituania è annessa"
+      },
+      {
+        "key": "f13",
+        "title": "Restore The Commonwealth",
+        "kind": "focus",
+        "note": "Nel video serve conformità superiore all’80% oppure la soluzione tramite rilascio della Lituania come fantoccio e successiva riannessione con il focus (07:45). Verifica le condizioni effettive della tua build.",
+        "source": "description",
+        "source_order": 13,
+        "target": "POL_LIT_union"
+      },
+      {
+        "key": "f14",
+        "title": "Demand Slovakia",
+        "kind": "focus",
+        "note": "Usa il focus collegato a Demand Lithuania nel ramo della nobiltà in esilio. Prepara l’esercito al confine cecoslovacco prima della risposta: l’accettazione non è garantita.",
+        "source": "description",
+        "source_order": 14,
+        "target": "POL_demand_slovakia_pavel"
+      },
+      {
+        "key": "f15",
+        "title": "Pan-Slavic Revanchism",
+        "kind": "focus",
+        "note": "Usa POL_pan_slavism, il ramo monarchico. L’altro Pan-Slavic Revanchism è un omonimo di un percorso differente.",
+        "source": "description",
+        "source_order": 15,
+        "target": "POL_pan_slavism"
+      },
+      {
+        "key": "f16",
+        "title": "Demand Yugoslav Subjugation",
+        "kind": "focus",
+        "note": "La risposta può cambiare la run: se la Jugoslavia rifiuta, nel video la Romania entra nella guerra; se accetta, la preparazione delle leggi economiche e di leva cambia (11:33).",
+        "source": "description",
+        "source_order": 16,
+        "target": "POL_demand_yugoslav_subjugation"
+      },
+      {
+        "key": "f17",
+        "title": "Governorate Of Livonia",
+        "kind": "focus",
+        "note": "Prepara anche il fronte di Lettonia ed Estonia. La sequenza diplomatica va seguita senza trattare l’esito degli ultimatum come certo.",
+        "source": "description",
+        "source_order": 17,
+        "target": "POL_governorate_livonia"
+      },
+      {
+        "key": "f18",
+        "title": "Claim Russia",
+        "kind": "focus",
+        "note": "Prepara la successiva guerra contro l’URSS. La guerra, i rifornimenti e le collaborazioni non vengono gestiti automaticamente da questa guida.",
+        "source": "description",
+        "source_order": 18,
+        "target": "POL_claim_russia"
+      },
+      {
+        "key": "f19",
+        "title": "Demand Pomerania",
+        "kind": "focus",
+        "note": "Completa la seconda premessa politica di Proclamare l’unità slava. Più avanti quel focus avrà priorità appena risulterà disponibile nel gioco.",
+        "source": "description",
+        "source_order": 19,
+        "target": "POL_demand_pomerania"
+      },
+      {
+        "key": "f20",
+        "title": "National Defense Fund",
+        "kind": "focus",
+        "note": "Riprendi gli investimenti dell’industria militare seguendo l’ordine della lista.",
+        "source": "description",
+        "source_order": 20,
+        "target": "POL_national_defence_fund"
+      },
+      {
+        "key": "f21",
+        "title": "Invest In The Old Polish Region",
+        "kind": "focus",
+        "note": "Sviluppa la vecchia regione industriale polacca prima del progetto tra i mari.",
+        "source": "description",
+        "source_order": 21,
+        "target": "POL_invest_in_the_old_polish_region"
+      },
+      {
+        "key": "f22",
+        "title": "The Between the Seas Concept (Force deploy only the needed division)",
+        "kind": "focus",
+        "note": "Il video avverte di dispiegare soltanto le divisioni necessarie per la soglia di uomini richiesta (18:55), evitando di svuotare inutilmente le riserve. La soglia non è letta dal companion.",
+        "source": "description",
+        "source_order": 22,
+        "target": "POL_the_between_the_seas_concept"
+      },
+      {
+        "key": "f23",
+        "title": "Invest in Eastern Poland",
+        "kind": "focus",
+        "note": "Continua l’industria orientale. La nuova fazione e la politica estera richiedono scelte manuali nel gioco.",
+        "source": "description",
+        "source_order": 23,
+        "target": "POL_invest_in_eastern_poland"
+      },
+      {
+        "key": "f24",
+        "title": "Modernize Congressional Factories",
+        "kind": "focus",
+        "note": "Modernizza le fabbriche prima dei focus che ampliano la ricerca.",
+        "source": "description",
+        "source_order": 24,
+        "target": "POL_modernize_congressional_factories"
+      },
+      {
+        "key": "f25",
+        "title": "Prepare for the Next War",
+        "kind": "focus",
+        "note": "Prepara la prossima guerra. Mantieni la sequenza mentre sistemi eserciti, logistica e produzione.",
+        "source": "description",
+        "source_order": 25,
+        "target": "POL_prepare_for_the_next_war"
+      },
+      {
+        "key": "f26",
+        "title": "Expand The University of Warsaw",
+        "kind": "focus",
+        "note": "Aggiunge capacità di ricerca secondo gli effetti del focus. Il numero di slot liberi verrà ricontrollato dal reader, senza assumere che sia già cambiato.",
+        "source": "description",
+        "source_order": 26,
+        "target": "POL_additional_research_slot2"
+      },
+      {
+        "key": "f27",
+        "title": "Polish School Of Mathematics",
+        "kind": "focus",
+        "note": "Continua l’espansione della ricerca con la scuola matematica. Usa poi le priorità tecnologiche nei nuovi slot.",
+        "source": "description",
+        "source_order": 27,
+        "target": "POL_additional_research_slot1"
+      },
+      {
+        "key": "f28",
+        "title": "New Military Academy",
+        "kind": "focus",
+        "note": "Checkpoint dopo il quale controllare spesso Proclamare l’unità slava. Il video passa ai focus militari solo finché quel focus non è disponibile.",
+        "source": "description",
+        "source_order": 28,
+        "target": "POL_new_military_academy"
+      },
+      {
+        "key": "f29",
+        "title": "Standardization of Equipment (Skip if Proclaim Slavic Unity available)",
+        "kind": "focus",
+        "note": "Riempitivo condizionale: saltalo nella guida se Proclamare l’unità slava diventa disponibile. Conferma la disponibilità nel controllo dedicato; non viene dedotta dai soli prerequisiti.",
+        "source": "description",
+        "source_order": 29,
+        "target": "POL_standardisation_of_equipment",
+        "optional_before": "POL_proclaim_slavic_unity"
+      },
+      {
+        "key": "f30",
+        "title": "Army Modernization (Skip if Proclaim Slavic Unity available)",
+        "kind": "focus",
+        "note": "Stessa regola: completa questo focus solo se il passaggio all’unità slava non è ancora possibile.",
+        "source": "description",
+        "source_order": 30,
+        "target": "POL_army_modernisation",
+        "optional_before": "POL_proclaim_slavic_unity"
+      },
+      {
+        "key": "f31",
+        "title": "Artillery Modernization (Skip if Proclaim Slavic Unity available)",
+        "kind": "focus",
+        "note": "Stessa regola. Se lo salti adesso, la guida lo ripropone dopo l’unità slava: serve per la strada verso Wojtek.",
+        "source": "description",
+        "source_order": 31,
+        "target": "POL_artillery_modernisation",
+        "optional_before": "POL_proclaim_slavic_unity"
+      },
+      {
+        "key": "f32",
+        "title": "Proclaim Slavic Unity (Prioritize this over previous focuses)",
+        "kind": "focus",
+        "note": "Priorità assoluta rispetto ai tre riempitivi precedenti appena il gioco lo consente. Il reader non osserva il controllo dei territori, quindi la disponibilità richiede la tua conferma. Nel video la svolta arriva attorno a 31:17.",
+        "source": "description",
+        "source_order": 32,
+        "target": "POL_proclaim_slavic_unity",
+        "priority_after": "POL_new_military_academy",
+        "available_gate": "unity_available"
+      },
+      {
+        "key": "f33",
+        "title": "Artillery Modernization (if not taken earlier)",
+        "kind": "focus",
+        "note": "Completa Modernizzazione dell’artiglieria se non è già stato completato prima. Le due righe della descrizione puntano allo stesso ID e non richiedono due completamenti.",
+        "source": "description",
+        "source_order": 33,
+        "target": "POL_artillery_modernisation"
+      },
+      {
+        "key": "f34",
+        "title": "Air Production/Free",
+        "kind": "free",
+        "note": "La lista ordinata dell’autore termina qui: produzione aerea / scelta libera. Nessun focus unico è indicato; scegli in base alla tua campagna, senza inventare un seguito obbligatorio.",
+        "source": "description",
+        "source_order": 34,
+        "name": "Produzione aerea / scelta libera"
+      }
+    ],
+    "research": [
+      {
+        "key": "r01",
+        "title": "Electronic Mechanical Engineering",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 1,
+        "mapping_basis": "local_id_match",
+        "target": "electronic_mechanical_engineering"
+      },
+      {
+        "key": "r02",
+        "title": "Basic Machine Tools",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 2,
+        "mapping_basis": "local_id_match",
+        "target": "basic_machine_tools"
+      },
+      {
+        "key": "r03",
+        "title": "Artillery UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 3,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "interwar_artillery"
+      },
+      {
+        "key": "r04",
+        "title": "Construction 1",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 4,
+        "mapping_basis": "local_id_match",
+        "target": "construction1"
+      },
+      {
+        "key": "r05",
+        "title": "Radio",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 5,
+        "mapping_basis": "local_id_match",
+        "target": "radio"
+      },
+      {
+        "key": "r06",
+        "title": "Concentrated 1",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 6,
+        "mapping_basis": "local_id_match",
+        "target": "concentrated_industry"
+      },
+      {
+        "key": "r07",
+        "title": "Construction UP (discount)",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot. L’autore richiede lo sconto: attendi e confermalo manualmente. Non saltare automaticamente a una ricerca più in basso per riempire lo slot.",
+        "source": "description",
+        "source_order": 7,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "construction2",
+        "gate": "discount_7",
+        "confirmation": "Ho verificato lo sconto e posso iniziare questa ricerca"
+      },
+      {
+        "key": "r08",
+        "title": "Concentrated UP (wait for discount)",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot. L’autore richiede lo sconto: attendi e confermalo manualmente. Non saltare automaticamente a una ricerca più in basso per riempire lo slot.",
+        "source": "description",
+        "source_order": 8,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "concentrated_industry2",
+        "gate": "discount_8",
+        "confirmation": "Ho verificato lo sconto e posso iniziare questa ricerca"
+      },
+      {
+        "key": "r09",
+        "title": "Tools UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 9,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "improved_machine_tools"
+      },
+      {
+        "key": "r10",
+        "title": "Artillery UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 10,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "artillery1"
+      },
+      {
+        "key": "r11",
+        "title": "Medium Tank",
+        "kind": "technology",
+        "note": "Mappato al telaio medio di base del sistema No Step Back. L’obiettivo del video è produrre SPG medi, ma designer e produzione vanno configurati nel gioco.",
+        "source": "description",
+        "source_order": 11,
+        "mapping_basis": "local_id_match",
+        "target": "basic_medium_tank_chassis"
+      },
+      {
+        "key": "r12",
+        "title": "Truck",
+        "kind": "technology",
+        "note": "Truck è mappato a Fanteria motorizzata (motorised_infantry); tech_trucks, il camion iniziale, è già parte della base polacca 1936.",
+        "source": "description",
+        "source_order": 12,
+        "mapping_basis": "local_id_match",
+        "target": "motorised_infantry"
+      },
+      {
+        "key": "r13",
+        "title": "Flame Tank (Special Project)",
+        "kind": "project",
+        "note": "Progetto speciale nel centro di ricerca terrestre, non una normale ricerca di slot. Verifica impianto, scienziato, svolte e requisiti nel gioco. La checklist non legge il suo avanzamento; puoi continuare le ricerche normali in parallelo.",
+        "source": "description",
+        "source_order": 13,
+        "mapping_basis": "local_id_match",
+        "target": "sp_land_flamethrower_tank",
+        "confirmation": "Ho verificato il completamento del progetto speciale"
+      },
+      {
+        "key": "r14",
+        "title": "Support Weapons UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 14,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "support_weapons"
+      },
+      {
+        "key": "r15",
+        "title": "Infantry Equip UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 15,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "infantry_weapons2"
+      },
+      {
+        "key": "r16",
+        "title": "Logistics Company",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 16,
+        "mapping_basis": "local_id_match",
+        "target": "tech_logistics_company"
+      },
+      {
+        "key": "r17",
+        "title": "Support Weapons UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 17,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "support_weapons2"
+      },
+      {
+        "key": "r18",
+        "title": "Engineer Company UP",
+        "kind": "technology",
+        "note": "La Polonia parte con Genieri I: qui UP è interpretato come Genieri II. Nel sistema locale questa ricerca contribuisce ai progetti terrestri, che restano distinti.",
+        "source": "description",
+        "source_order": 18,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "tech_engineers2"
+      },
+      {
+        "key": "r19",
+        "title": "Infantry Equip UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 19,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "improved_infantry_weapons"
+      },
+      {
+        "key": "r20",
+        "title": "Concentrated UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 20,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "concentrated_industry3"
+      },
+      {
+        "key": "r21",
+        "title": "Tools UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 21,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "advanced_machine_tools"
+      },
+      {
+        "key": "r22",
+        "title": "Construction UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 22,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "construction3"
+      },
+      {
+        "key": "r23",
+        "title": "Military Engineering Vehicles (Special Project)",
+        "kind": "project",
+        "note": "Progetto speciale nel centro di ricerca terrestre, non una normale ricerca di slot. Verifica impianto, scienziato, svolte e requisiti nel gioco. La checklist non legge il suo avanzamento; puoi continuare le ricerche normali in parallelo.",
+        "source": "description",
+        "source_order": 23,
+        "mapping_basis": "local_id_match",
+        "target": "sp_land_military_engineering_vehicles",
+        "confirmation": "Ho verificato il completamento del progetto speciale"
+      },
+      {
+        "key": "r24",
+        "title": "AA UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 24,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "antiair1"
+      },
+      {
+        "key": "r25",
+        "title": "Artillery UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 25,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "artillery2"
+      },
+      {
+        "key": "r26",
+        "title": "Support Weapons UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 26,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "support_weapons3"
+      },
+      {
+        "key": "r27",
+        "title": "Infantry Equip UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 27,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "improved_infantry_weapons_2"
+      },
+      {
+        "key": "r28",
+        "title": "Logistics Company UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 28,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "tech_logistics_company2"
+      },
+      {
+        "key": "r29",
+        "title": "Radio UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 29,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "improved_radio"
+      },
+      {
+        "key": "r30",
+        "title": "Artillery UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 30,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "artillery3"
+      },
+      {
+        "key": "r31",
+        "title": "Improved Small Airframe",
+        "kind": "technology",
+        "note": "Telaio piccolo migliorato, non quello di base. La Polonia con By Blood Alone parte già dal telaio piccolo di base.",
+        "source": "description",
+        "source_order": 31,
+        "mapping_basis": "local_id_match",
+        "target": "improved_small_airframe"
+      },
+      {
+        "key": "r32",
+        "title": "Engines 2",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 32,
+        "mapping_basis": "local_id_match",
+        "target": "engines_2"
+      },
+      {
+        "key": "r33",
+        "title": "Heavy MG",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 33,
+        "mapping_basis": "local_id_match",
+        "target": "aa_hmg"
+      },
+      {
+        "key": "r34",
+        "title": "Survivability Studies",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 34,
+        "mapping_basis": "local_id_match",
+        "target": "survivability_studies"
+      },
+      {
+        "key": "r35",
+        "title": "Engines 3",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 35,
+        "mapping_basis": "local_id_match",
+        "target": "engines_3"
+      },
+      {
+        "key": "r36",
+        "title": "Heavy Bombs",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 36,
+        "mapping_basis": "local_id_match",
+        "target": "heavy_bombs"
+      },
+      {
+        "key": "r37",
+        "title": "Range Improvements",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 37,
+        "mapping_basis": "local_id_match",
+        "target": "range_improvements"
+      },
+      {
+        "key": "r38",
+        "title": "Aircraft Construction",
+        "kind": "technology",
+        "note": "Seleziona questa tecnologia nel prossimo slot libero, rispettando le priorità precedenti. Controlla anno e penalità nel gioco.",
+        "source": "description",
+        "source_order": 38,
+        "mapping_basis": "local_id_match",
+        "target": "aircraft_construction"
+      },
+      {
+        "key": "r39",
+        "title": "Concentrated UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 39,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "concentrated_industry4"
+      },
+      {
+        "key": "r40",
+        "title": "Tools UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 40,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "assembly_line_production"
+      },
+      {
+        "key": "r41",
+        "title": "Infantry Equip UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 41,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "advanced_infantry_weapons"
+      },
+      {
+        "key": "r42",
+        "title": "Construction UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 42,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "construction4"
+      },
+      {
+        "key": "r43",
+        "title": "Advanced Flamethrower",
+        "kind": "technology",
+        "note": "Tecnologia avanzata collegata al progetto lanciafiamme: si osserva come ricerca normale, ma i requisiti del progetto e le condizioni dinamiche vanno verificati nel gioco.",
+        "source": "description",
+        "source_order": 43,
+        "mapping_basis": "local_id_match",
+        "target": "sp_armored_advanced_flamethrower_tech"
+      },
+      {
+        "key": "r44",
+        "title": "Transport Ship",
+        "kind": "technology",
+        "note": "Nave da trasporto nella scheda Supporto navale; serve al trasporto/invasioni secondo il sistema del gioco. Non è l’aereo da trasporto.",
+        "source": "description",
+        "source_order": 44,
+        "mapping_basis": "local_id_match",
+        "target": "mtg_transport"
+      },
+      {
+        "key": "r45",
+        "title": "Kb PPanc",
+        "kind": "technology",
+        "note": "Kb Ppanc wz. 35 Ur è la denominazione polacca di infantry_at, non il cannone anticarro trainato. La scelta è verificata nella localizzazione nazionale inglese.",
+        "source": "description",
+        "source_order": 45,
+        "mapping_basis": "local_id_match",
+        "target": "infantry_at"
+      },
+      {
+        "key": "r46",
+        "title": "Support Weapons UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 46,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "support_weapons4"
+      },
+      {
+        "key": "r47",
+        "title": "Radio UP",
+        "kind": "technology",
+        "note": "UP interpretato come il successore della catena locale dalla base del 1936. Il livello è una ricostruzione: confronta il nome e i prerequisiti nel gioco prima di assegnare lo slot.",
+        "source": "description",
+        "source_order": 47,
+        "mapping_basis": "interpreted_upgrade",
+        "target": "advanced_radio"
+      },
+      {
+        "key": "r48",
+        "title": "Free",
+        "kind": "free",
+        "note": "La priorità prescritta termina qui. Continua secondo la situazione della campagna: il video non indica una successiva tecnologia obbligatoria.",
+        "source": "description",
+        "source_order": 48,
+        "mapping_basis": "local_id_match",
+        "name": "Ricerca libera"
+      }
+    ]
+  },
+  "milestones": [
+    {
+      "key": "m_setup",
+      "seconds": 0,
+      "title": "Preparazione iniziale",
+      "note": "Costruisci un impianto di ricerca terrestre, poi infrastrutture e fabbriche militari a Katowice. Crea l’agenzia; assegna i MIO ai progetti. Il video mette in addestramento esercito, marina e aerei. Designer, produzione e costruzioni richiedono controllo nel gioco.",
+      "confirmation": "Verificato nel gioco",
+      "basis": "automatic_captions"
+    },
+    {
+      "key": "m_danzig",
+      "seconds": 212,
+      "title": "Danzica e primi eventi",
+      "note": "Il video imposta Nessuna guarnigione per provocare la rivolta; attende che i difensori escano e prende rapidamente Danzica. Nella pace crea Kashubia come fantoccio, anziché Città libera di Danzica. È una strategia del video con rischio RNG, non una garanzia della tua run.",
+      "confirmation": "Verificato nel gioco",
+      "basis": "automatic_captions"
+    },
+    {
+      "key": "m_romanov",
+      "seconds": 213,
+      "title": "Nona candidata: Anastasia",
+      "note": "Rifiuta i primi otto pretendenti e accetta Anastasia come nona candidata. Conferma solo dopo aver verificato il sovrano nel gioco. Il reader attuale non legge candidati o leader.",
+      "confirmation": "Verificato nel gioco",
+      "basis": "automatic_captions"
+    },
+    {
+      "key": "m_lithuania",
+      "seconds": 380,
+      "title": "Lituania: risposta e annessione",
+      "note": "Prepara l’esercito prima della richiesta. Se la Lituania rifiuta, il video suggerisce una guerra rapida e nessun nuovo focus fino all’annessione; senza le sue divisioni, addestra rinforzi. Per Ripristinare il Commonwealth controlla la condizione della conformità o la soluzione del fantoccio descritta a 07:45.",
+      "confirmation": "Verificato nel gioco",
+      "basis": "automatic_captions"
+    },
+    {
+      "key": "m_doctrines",
+      "seconds": 533,
+      "title": "Dottrine del video",
+      "note": "La sequenza narrata è Grand Assault → Assault Infantry → Self-Propelled Support → Logistical Focus → Streamlined Deployment. Sono scelte del nuovo sistema dottrine: non fanno parte dei 48 slot tecnologici monitorati e vanno verificate manualmente.",
+      "confirmation": "Verificato nel gioco",
+      "basis": "automatic_captions"
+    },
+    {
+      "key": "m_balkans",
+      "seconds": 693,
+      "title": "Due risposte jugoslave",
+      "note": "Prepara eserciti per Lettonia/Estonia e Ungheria/Jugoslavia, con difesa sul fronte rumeno. Il video distingue accettazione e rifiuto jugoslavo; economia di guerra e leva estesa vanno ottenute prima di terminare le guerre. Queste condizioni non sono lette dal companion.",
+      "confirmation": "Verificato nel gioco",
+      "basis": "automatic_captions"
+    },
+    {
+      "key": "m_spg",
+      "seconds": 613,
+      "title": "SPG offensivi",
+      "note": "Il video sostituisce un battaglione di fanteria con un battaglione SPG per conservare larghezza 18 e aumentare attacco morbido/corazza; successivamente amplia l’uso delle divisioni offensive. Il progetto esatto dei moduli non è stato ricostruito fotogramma per fotogramma.",
+      "confirmation": "Verificato nel gioco",
+      "basis": "automatic_captions"
+    },
+    {
+      "key": "m_ussr",
+      "seconds": 1020,
+      "title": "Preparazione contro l’URSS",
+      "note": "Organizza i due eserciti offensivi, i rifornimenti, le collaborazioni e le compagnie logistiche/lanciafiamme (circa 19:34). Prima di Tra i due mari dispiega soltanto gli uomini necessari per la soglia del focus.",
+      "confirmation": "Verificato nel gioco",
+      "basis": "automatic_captions"
+    },
+    {
+      "key": "m_unity",
+      "seconds": 1663,
+      "title": "Priorità all’unità slava",
+      "note": "Quando Proclamare l’unità slava è effettivamente disponibile, passa a quel focus prima dei tre riempitivi militari. Dopo, recupera Modernizzazione dell’artiglieria se manca.",
+      "confirmation": "Verificato nel gioco",
+      "basis": "automatic_captions"
+    },
+    {
+      "key": "m_iran",
+      "seconds": 1800,
+      "title": "Requisiti del comandante Wojtek",
+      "note": "Il video elenca: controllare Hamadan in Iran, essere non allineati, aver completato Modernizzazione dell’artiglieria, essere in guerra con l’Italia e avere divisioni in Lazio o Abruzzo. Conferma gli eventi nel gioco; non vengono dedotti dai soli focus/tecnologie.",
+      "confirmation": "Verificato nel gioco",
+      "basis": "automatic_captions"
+    },
+    {
+      "key": "m_italy",
+      "seconds": 2017,
+      "title": "Raggiungere Lazio o Abruzzo prima che sia tardi",
+      "note": "Il video avverte del rischio che l’Italia crolli o inizi la guerra civile prima dell’evento. Raggiungi la zona richiesta e verifica l’evento di Wojtek prima di concludere la guerra italiana. Non basta spuntare Artiglieria.",
+      "confirmation": "Verificato nel gioco",
+      "basis": "automatic_captions"
+    },
+    {
+      "key": "m_bear",
+      "seconds": 2308,
+      "title": "Wojtek comandante e poi re",
+      "note": "Attorno a 38:28 arriva l’evento del comandante. Successivamente, nell’evento sul destino di Anastasia (40:36), l’autore sceglie l’opzione che cede la corona all’orso. Sono due momenti distinti, da verificare entrambi nel gioco.",
+      "confirmation": "Verificato nel gioco",
+      "basis": "automatic_captions"
+    }
+  ]
+}

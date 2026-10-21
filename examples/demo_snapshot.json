@@ -1,0 +1,6 @@
+{
+  "tag": "AUS",
+  "completed_focuses": ["DEMO_foundations", "DEMO_administration", "DEMO_industry"],
+  "current_focus": "DEMO_economy",
+  "focus_progress": 0.35
+}

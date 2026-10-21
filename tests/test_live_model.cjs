@@ -1,0 +1,6 @@
+const test=require('node:test');const assert=require('node:assert/strict');
+const model=require('../src/hoi4companion/web/live-model.js');
+const sample={country:'ROM',focus_tree_id:'romanian_focus',focus_ids:['a','b','c'],completed_focuses:['a'],current_focus:'b',researched_technologies:['radio'],technology_ids:['radio','construction1','tools'],research_slots:[{technology_id:'construction1'}]};
+test('native focus facts do not derive availability',()=>assert.deepEqual(model.focusStates({usable:true,sample},'romanian_focus',['a','b','c']),{a:'completed',b:'active',c:'unknown'}));
+test('wrong tree or stale data never colors a different country',()=>{assert.deepEqual(model.focusStates({usable:true,sample},'austria_focus_tree',['a']),{a:'unknown'});assert.deepEqual(model.focusStates({usable:false,sample},'romanian_focus',['a']),{a:'unknown'});});
+test('research membership and completeness remain distinct',()=>{assert.equal(model.technologyState({usable:true,sample},'radio'),'completed');assert.equal(model.technologyState({usable:true,sample},'construction1'),'active');assert.equal(model.technologyState({usable:true,sample},'tools'),'unresearched');assert.equal(model.technologyState({usable:true,sample},'mod_tech'),'unknown');assert.equal(model.technologyState({usable:false,sample},'radio'),'unknown');});
