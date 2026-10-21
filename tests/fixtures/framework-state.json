@@ -1,0 +1,209 @@
+[
+  {
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "AUS",
+        "session_id": "example",
+        "focus_tree_id": "tree",
+        "focus_complete": false,
+        "completed_focuses": [
+          "A"
+        ],
+        "current_focus": null,
+        "research_complete": true,
+        "researched_technologies": [],
+        "research_slots": [],
+        "country_overview": {
+          "country": "AUS",
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 7,
+                "infrastructure": 3,
+                "name": "Example"
+              }
+            ]
+          },
+          "manpower": {
+            "status": "partial",
+            "available": 0,
+            "training": null
+          },
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "assigned_factories": 2,
+                "active_factories": 2,
+                "output_per_day": 1.5
+              }
+            ]
+          },
+          "resources": {
+            "status": "observed",
+            "items": [
+              {
+                "id": "steel",
+                "available": 0,
+                "used": 2,
+                "balance": -2
+              }
+            ]
+          },
+          "equipment": {
+            "status": "partial",
+            "items": [
+              {
+                "id": "gun",
+                "stockpile": 5,
+                "needed": null
+              }
+            ],
+            "variants": [
+              {
+                "stockpile": 3
+              }
+            ]
+          }
+        },
+        "continuous_focus": "continuous_example"
+      }
+    },
+    "expected": {
+      "country": {
+        "status": "observed",
+        "value": "AUS"
+      },
+      "focus.tree": {
+        "status": "calculated",
+        "value": "tree"
+      },
+      "focus.completed": {
+        "status": "unknown",
+        "value": null
+      },
+      "focus.active": {
+        "status": "observed",
+        "value": []
+      },
+      "research.completed": {
+        "status": "observed",
+        "value": []
+      },
+      "country.states.items.7.infrastructure": {
+        "status": "observed",
+        "value": 3
+      },
+      "country.states.items.7.name": {
+        "status": "calculated",
+        "value": "Example"
+      },
+      "country.manpower.available": {
+        "status": "calculated",
+        "value": 0
+      },
+      "country.manpower.training": {
+        "status": "unknown",
+        "value": null
+      },
+      "country.production.lines.1.assigned_factories": {
+        "status": "calculated",
+        "value": 2
+      },
+      "country.production.lines.1.active_factories": {
+        "status": "observed",
+        "value": 2
+      },
+      "country.resources.items.steel.available": {
+        "status": "observed",
+        "value": 0
+      },
+      "country.resources.items.steel.used": {
+        "status": "calculated",
+        "value": 2
+      },
+      "country.resources.items.steel.balance": {
+        "status": "calculated",
+        "value": -2
+      },
+      "country.equipment.items.gun.stockpile": {
+        "status": "calculated",
+        "value": 5
+      },
+      "country.equipment.variants.0.stockpile": {
+        "status": "observed",
+        "value": 3
+      },
+      "country.equipment.items.gun.needed": {
+        "status": "unknown",
+        "value": null
+      },
+      "focus.continuous": {
+        "status": "observed",
+        "value": [
+          "continuous_example"
+        ]
+      }
+    }
+  },
+  {
+    "input": {
+      "usable": false,
+      "sample": {
+        "country": "AUS",
+        "completed_focuses": [
+          "A"
+        ]
+      }
+    },
+    "expected": {
+      "country": {
+        "status": "unknown",
+        "value": null
+      },
+      "focus.completed": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": 42,
+        "current_focus": 1,
+        "completed_focuses": "A",
+        "research_slots": [
+          null
+        ]
+      }
+    },
+    "expected": {
+      "country": {
+        "status": "unknown",
+        "value": null
+      },
+      "focus.completed": {
+        "status": "unknown",
+        "value": null
+      },
+      "focus.active": {
+        "status": "unknown",
+        "value": null
+      },
+      "research.slots": {
+        "status": "unknown",
+        "value": null
+      },
+      "research.active": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  }
+]

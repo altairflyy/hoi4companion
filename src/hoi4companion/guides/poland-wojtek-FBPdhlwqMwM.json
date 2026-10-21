@@ -73,7 +73,14 @@
         "note": "Avvia questo focus per primo. La gestione della rivolta di Danzica è parte essenziale della strategia: vedi il checkpoint dedicato, non basta completare il focus.",
         "source": "description",
         "source_order": 1,
-        "target": "POL_clamp_down_on_danzig"
+        "target": "POL_clamp_down_on_danzig",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_clamp_down_on_danzig"
+          }
+        }
       },
       {
         "key": "f02",
@@ -82,7 +89,14 @@
         "note": "Apre la reggenza. Il video mira alla candidata segreta Romanov: rifiuta i primi otto candidati e scegli la nona proposta, Anastasia. Gli eventi richiedono controllo manuale.",
         "source": "description",
         "source_order": 2,
-        "target": "POL_assemble_the_regency_council"
+        "target": "POL_assemble_the_regency_council",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_assemble_the_regency_council"
+          }
+        }
       },
       {
         "key": "f03",
@@ -91,7 +105,14 @@
         "note": "Prosegui sul percorso monarchico. Non scegliere un altro sovrano soltanto per accelerare la sequenza.",
         "source": "description",
         "source_order": 3,
-        "target": "POL_fulfil_fifth_of_november"
+        "target": "POL_fulfil_fifth_of_november",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_fulfil_fifth_of_november"
+          }
+        }
       },
       {
         "key": "f04",
@@ -100,7 +121,14 @@
         "note": "Inizia la sequenza industriale mentre attendi gli eventi della reggenza.",
         "source": "description",
         "source_order": 4,
-        "target": "POL_the_four_year_plan"
+        "target": "POL_the_four_year_plan",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_the_four_year_plan"
+          }
+        }
       },
       {
         "key": "f05",
@@ -109,7 +137,14 @@
         "note": "Continua gli investimenti nel centro industriale; completa le condizioni mostrate nel gioco.",
         "source": "description",
         "source_order": 5,
-        "target": "POL_central_region_strategy"
+        "target": "POL_central_region_strategy",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_central_region_strategy"
+          }
+        }
       },
       {
         "key": "f06",
@@ -118,7 +153,14 @@
         "note": "Integra l’industria di Danzica nella sequenza indicata. La risoluzione della rivolta e la sistemazione di Kashubia restano separate dal completamento del focus.",
         "source": "description",
         "source_order": 6,
-        "target": "POL_integrate_gdansk_industries"
+        "target": "POL_integrate_gdansk_industries",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_integrate_gdansk_industries"
+          }
+        }
       },
       {
         "key": "f07",
@@ -127,7 +169,14 @@
         "note": "Prosegui con la nuova industria polacca. Mantieni l’ordine della descrizione.",
         "source": "description",
         "source_order": 7,
-        "target": "POL_expansion_of_new_towns"
+        "target": "POL_expansion_of_new_towns",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_expansion_of_new_towns"
+          }
+        }
       },
       {
         "key": "f08",
@@ -136,7 +185,14 @@
         "note": "Collega la rete ferroviaria: nel video gli investimenti industriali precedono l’espansione nei Balcani.",
         "source": "description",
         "source_order": 8,
-        "target": "POL_fill_the_railways_gaps"
+        "target": "POL_fill_the_railways_gaps",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_fill_the_railways_gaps"
+          }
+        }
       },
       {
         "key": "f09",
@@ -145,7 +201,14 @@
         "note": "Porta avanti la riforma agraria prima del passaggio alla nobiltà in esilio.",
         "source": "description",
         "source_order": 9,
-        "target": "POL_agrarian_reform"
+        "target": "POL_agrarian_reform",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_agrarian_reform"
+          }
+        }
       },
       {
         "key": "f10",
@@ -154,7 +217,14 @@
         "note": "Se non è ancora selezionabile, attendi qualche giorno come indica l’autore; verifica di aver scelto Anastasia. Il reader non osserva gli eventi dei pretendenti.",
         "source": "description",
         "source_order": 10,
-        "target": "POL_invite_exiled_nobility"
+        "target": "POL_invite_exiled_nobility",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_invite_exiled_nobility"
+          }
+        }
       },
       {
         "key": "f11",
@@ -163,7 +233,14 @@
         "note": "Usa la variante del ramo Romanov, non l’omonimo focus falangista. Il video suggerisce il dispiegamento anticipato delle divisioni necessarie. Controlla i requisiti nel gioco.",
         "source": "description",
         "source_order": 11,
-        "target": "POL_demand_LIT_pavel"
+        "target": "POL_demand_LIT_pavel",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_demand_LIT_pavel"
+          }
+        }
       },
       {
         "key": "f12",
@@ -173,7 +250,10 @@
         "source": "description",
         "source_order": 12,
         "name": "Attendi l’annessione della Lituania",
-        "confirmation": "Ho verificato: la Lituania è annessa"
+        "confirmation": "Ho verificato: la Lituania è annessa",
+        "action": {
+          "kind": "manual"
+        }
       },
       {
         "key": "f13",
@@ -182,7 +262,14 @@
         "note": "Nel video serve conformità superiore all’80% oppure la soluzione tramite rilascio della Lituania come fantoccio e successiva riannessione con il focus (07:45). Verifica le condizioni effettive della tua build.",
         "source": "description",
         "source_order": 13,
-        "target": "POL_LIT_union"
+        "target": "POL_LIT_union",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_LIT_union"
+          }
+        }
       },
       {
         "key": "f14",
@@ -191,7 +278,14 @@
         "note": "Usa il focus collegato a Demand Lithuania nel ramo della nobiltà in esilio. Prepara l’esercito al confine cecoslovacco prima della risposta: l’accettazione non è garantita.",
         "source": "description",
         "source_order": 14,
-        "target": "POL_demand_slovakia_pavel"
+        "target": "POL_demand_slovakia_pavel",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_demand_slovakia_pavel"
+          }
+        }
       },
       {
         "key": "f15",
@@ -200,7 +294,14 @@
         "note": "Usa POL_pan_slavism, il ramo monarchico. L’altro Pan-Slavic Revanchism è un omonimo di un percorso differente.",
         "source": "description",
         "source_order": 15,
-        "target": "POL_pan_slavism"
+        "target": "POL_pan_slavism",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_pan_slavism"
+          }
+        }
       },
       {
         "key": "f16",
@@ -209,7 +310,14 @@
         "note": "La risposta può cambiare la run: se la Jugoslavia rifiuta, nel video la Romania entra nella guerra; se accetta, la preparazione delle leggi economiche e di leva cambia (11:33).",
         "source": "description",
         "source_order": 16,
-        "target": "POL_demand_yugoslav_subjugation"
+        "target": "POL_demand_yugoslav_subjugation",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_demand_yugoslav_subjugation"
+          }
+        }
       },
       {
         "key": "f17",
@@ -218,7 +326,14 @@
         "note": "Prepara anche il fronte di Lettonia ed Estonia. La sequenza diplomatica va seguita senza trattare l’esito degli ultimatum come certo.",
         "source": "description",
         "source_order": 17,
-        "target": "POL_governorate_livonia"
+        "target": "POL_governorate_livonia",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_governorate_livonia"
+          }
+        }
       },
       {
         "key": "f18",
@@ -227,7 +342,14 @@
         "note": "Prepara la successiva guerra contro l’URSS. La guerra, i rifornimenti e le collaborazioni non vengono gestiti automaticamente da questa guida.",
         "source": "description",
         "source_order": 18,
-        "target": "POL_claim_russia"
+        "target": "POL_claim_russia",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_claim_russia"
+          }
+        }
       },
       {
         "key": "f19",
@@ -236,7 +358,14 @@
         "note": "Completa la seconda premessa politica di Proclamare l’unità slava. Più avanti quel focus avrà priorità appena risulterà disponibile nel gioco.",
         "source": "description",
         "source_order": 19,
-        "target": "POL_demand_pomerania"
+        "target": "POL_demand_pomerania",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_demand_pomerania"
+          }
+        }
       },
       {
         "key": "f20",
@@ -245,7 +374,14 @@
         "note": "Riprendi gli investimenti dell’industria militare seguendo l’ordine della lista.",
         "source": "description",
         "source_order": 20,
-        "target": "POL_national_defence_fund"
+        "target": "POL_national_defence_fund",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_national_defence_fund"
+          }
+        }
       },
       {
         "key": "f21",
@@ -254,7 +390,14 @@
         "note": "Sviluppa la vecchia regione industriale polacca prima del progetto tra i mari.",
         "source": "description",
         "source_order": 21,
-        "target": "POL_invest_in_the_old_polish_region"
+        "target": "POL_invest_in_the_old_polish_region",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_invest_in_the_old_polish_region"
+          }
+        }
       },
       {
         "key": "f22",
@@ -263,7 +406,14 @@
         "note": "Il video avverte di dispiegare soltanto le divisioni necessarie per la soglia di uomini richiesta (18:55), evitando di svuotare inutilmente le riserve. La soglia non è letta dal companion.",
         "source": "description",
         "source_order": 22,
-        "target": "POL_the_between_the_seas_concept"
+        "target": "POL_the_between_the_seas_concept",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_the_between_the_seas_concept"
+          }
+        }
       },
       {
         "key": "f23",
@@ -272,7 +422,14 @@
         "note": "Continua l’industria orientale. La nuova fazione e la politica estera richiedono scelte manuali nel gioco.",
         "source": "description",
         "source_order": 23,
-        "target": "POL_invest_in_eastern_poland"
+        "target": "POL_invest_in_eastern_poland",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_invest_in_eastern_poland"
+          }
+        }
       },
       {
         "key": "f24",
@@ -281,7 +438,14 @@
         "note": "Modernizza le fabbriche prima dei focus che ampliano la ricerca.",
         "source": "description",
         "source_order": 24,
-        "target": "POL_modernize_congressional_factories"
+        "target": "POL_modernize_congressional_factories",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_modernize_congressional_factories"
+          }
+        }
       },
       {
         "key": "f25",
@@ -290,7 +454,14 @@
         "note": "Prepara la prossima guerra. Mantieni la sequenza mentre sistemi eserciti, logistica e produzione.",
         "source": "description",
         "source_order": 25,
-        "target": "POL_prepare_for_the_next_war"
+        "target": "POL_prepare_for_the_next_war",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_prepare_for_the_next_war"
+          }
+        }
       },
       {
         "key": "f26",
@@ -299,7 +470,14 @@
         "note": "Aggiunge capacità di ricerca secondo gli effetti del focus. Il numero di slot liberi verrà ricontrollato dal reader, senza assumere che sia già cambiato.",
         "source": "description",
         "source_order": 26,
-        "target": "POL_additional_research_slot2"
+        "target": "POL_additional_research_slot2",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_additional_research_slot2"
+          }
+        }
       },
       {
         "key": "f27",
@@ -308,7 +486,14 @@
         "note": "Continua l’espansione della ricerca con la scuola matematica. Usa poi le priorità tecnologiche nei nuovi slot.",
         "source": "description",
         "source_order": 27,
-        "target": "POL_additional_research_slot1"
+        "target": "POL_additional_research_slot1",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_additional_research_slot1"
+          }
+        }
       },
       {
         "key": "f28",
@@ -317,7 +502,14 @@
         "note": "Checkpoint dopo il quale controllare spesso Proclamare l’unità slava. Il video passa ai focus militari solo finché quel focus non è disponibile.",
         "source": "description",
         "source_order": 28,
-        "target": "POL_new_military_academy"
+        "target": "POL_new_military_academy",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_new_military_academy"
+          }
+        }
       },
       {
         "key": "f29",
@@ -327,7 +519,39 @@
         "source": "description",
         "source_order": 29,
         "target": "POL_standardisation_of_equipment",
-        "optional_before": "POL_proclaim_slavic_unity"
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_standardisation_of_equipment"
+          }
+        },
+        "skip_when": {
+          "op": "any",
+          "args": [
+            {
+              "op": "fact",
+              "key": "focus.completed",
+              "test": "contains",
+              "value": "POL_proclaim_slavic_unity"
+            },
+            {
+              "op": "all",
+              "args": [
+                {
+                  "op": "fact",
+                  "key": "focus.completed",
+                  "test": "contains",
+                  "value": "POL_new_military_academy"
+                },
+                {
+                  "op": "check",
+                  "key": "unity_available"
+                }
+              ]
+            }
+          ]
+        }
       },
       {
         "key": "f30",
@@ -337,7 +561,39 @@
         "source": "description",
         "source_order": 30,
         "target": "POL_army_modernisation",
-        "optional_before": "POL_proclaim_slavic_unity"
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_army_modernisation"
+          }
+        },
+        "skip_when": {
+          "op": "any",
+          "args": [
+            {
+              "op": "fact",
+              "key": "focus.completed",
+              "test": "contains",
+              "value": "POL_proclaim_slavic_unity"
+            },
+            {
+              "op": "all",
+              "args": [
+                {
+                  "op": "fact",
+                  "key": "focus.completed",
+                  "test": "contains",
+                  "value": "POL_new_military_academy"
+                },
+                {
+                  "op": "check",
+                  "key": "unity_available"
+                }
+              ]
+            }
+          ]
+        }
       },
       {
         "key": "f31",
@@ -347,7 +603,39 @@
         "source": "description",
         "source_order": 31,
         "target": "POL_artillery_modernisation",
-        "optional_before": "POL_proclaim_slavic_unity"
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_artillery_modernisation"
+          }
+        },
+        "skip_when": {
+          "op": "any",
+          "args": [
+            {
+              "op": "fact",
+              "key": "focus.completed",
+              "test": "contains",
+              "value": "POL_proclaim_slavic_unity"
+            },
+            {
+              "op": "all",
+              "args": [
+                {
+                  "op": "fact",
+                  "key": "focus.completed",
+                  "test": "contains",
+                  "value": "POL_new_military_academy"
+                },
+                {
+                  "op": "check",
+                  "key": "unity_available"
+                }
+              ]
+            }
+          ]
+        }
       },
       {
         "key": "f32",
@@ -357,8 +645,29 @@
         "source": "description",
         "source_order": 32,
         "target": "POL_proclaim_slavic_unity",
-        "priority_after": "POL_new_military_academy",
-        "available_gate": "unity_available"
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_proclaim_slavic_unity"
+          }
+        },
+        "priority": 100,
+        "priority_when": {
+          "op": "all",
+          "args": [
+            {
+              "op": "fact",
+              "key": "focus.completed",
+              "test": "contains",
+              "value": "POL_new_military_academy"
+            },
+            {
+              "op": "check",
+              "key": "unity_available"
+            }
+          ]
+        }
       },
       {
         "key": "f33",
@@ -367,7 +676,14 @@
         "note": "Completa Modernizzazione dell’artiglieria se non è già stato completato prima. Le due righe della descrizione puntano allo stesso ID e non richiedono due completamenti.",
         "source": "description",
         "source_order": 33,
-        "target": "POL_artillery_modernisation"
+        "target": "POL_artillery_modernisation",
+        "action": {
+          "kind": "select_focus",
+          "entity": {
+            "kind": "focus",
+            "id": "POL_artillery_modernisation"
+          }
+        }
       },
       {
         "key": "f34",
@@ -376,7 +692,10 @@
         "note": "La lista ordinata dell’autore termina qui: produzione aerea / scelta libera. Nessun focus unico è indicato; scegli in base alla tua campagna, senza inventare un seguito obbligatorio.",
         "source": "description",
         "source_order": 34,
-        "name": "Produzione aerea / scelta libera"
+        "name": "Produzione aerea / scelta libera",
+        "action": {
+          "kind": "free"
+        }
       }
     ],
     "research": [
@@ -388,7 +707,14 @@
         "source": "description",
         "source_order": 1,
         "mapping_basis": "local_id_match",
-        "target": "electronic_mechanical_engineering"
+        "target": "electronic_mechanical_engineering",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "electronic_mechanical_engineering"
+          }
+        }
       },
       {
         "key": "r02",
@@ -398,7 +724,14 @@
         "source": "description",
         "source_order": 2,
         "mapping_basis": "local_id_match",
-        "target": "basic_machine_tools"
+        "target": "basic_machine_tools",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "basic_machine_tools"
+          }
+        }
       },
       {
         "key": "r03",
@@ -408,7 +741,14 @@
         "source": "description",
         "source_order": 3,
         "mapping_basis": "interpreted_upgrade",
-        "target": "interwar_artillery"
+        "target": "interwar_artillery",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "interwar_artillery"
+          }
+        }
       },
       {
         "key": "r04",
@@ -418,7 +758,14 @@
         "source": "description",
         "source_order": 4,
         "mapping_basis": "local_id_match",
-        "target": "construction1"
+        "target": "construction1",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "construction1"
+          }
+        }
       },
       {
         "key": "r05",
@@ -428,7 +775,14 @@
         "source": "description",
         "source_order": 5,
         "mapping_basis": "local_id_match",
-        "target": "radio"
+        "target": "radio",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "radio"
+          }
+        }
       },
       {
         "key": "r06",
@@ -438,7 +792,14 @@
         "source": "description",
         "source_order": 6,
         "mapping_basis": "local_id_match",
-        "target": "concentrated_industry"
+        "target": "concentrated_industry",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "concentrated_industry"
+          }
+        }
       },
       {
         "key": "r07",
@@ -449,8 +810,18 @@
         "source_order": 7,
         "mapping_basis": "interpreted_upgrade",
         "target": "construction2",
-        "gate": "discount_7",
-        "confirmation": "Ho verificato lo sconto e posso iniziare questa ricerca"
+        "confirmation": "Ho verificato lo sconto e posso iniziare questa ricerca",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "construction2"
+          }
+        },
+        "when": {
+          "op": "check",
+          "key": "discount_7"
+        }
       },
       {
         "key": "r08",
@@ -461,8 +832,18 @@
         "source_order": 8,
         "mapping_basis": "interpreted_upgrade",
         "target": "concentrated_industry2",
-        "gate": "discount_8",
-        "confirmation": "Ho verificato lo sconto e posso iniziare questa ricerca"
+        "confirmation": "Ho verificato lo sconto e posso iniziare questa ricerca",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "concentrated_industry2"
+          }
+        },
+        "when": {
+          "op": "check",
+          "key": "discount_8"
+        }
       },
       {
         "key": "r09",
@@ -472,7 +853,14 @@
         "source": "description",
         "source_order": 9,
         "mapping_basis": "interpreted_upgrade",
-        "target": "improved_machine_tools"
+        "target": "improved_machine_tools",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "improved_machine_tools"
+          }
+        }
       },
       {
         "key": "r10",
@@ -482,7 +870,14 @@
         "source": "description",
         "source_order": 10,
         "mapping_basis": "interpreted_upgrade",
-        "target": "artillery1"
+        "target": "artillery1",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "artillery1"
+          }
+        }
       },
       {
         "key": "r11",
@@ -492,7 +887,14 @@
         "source": "description",
         "source_order": 11,
         "mapping_basis": "local_id_match",
-        "target": "basic_medium_tank_chassis"
+        "target": "basic_medium_tank_chassis",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "basic_medium_tank_chassis"
+          }
+        }
       },
       {
         "key": "r12",
@@ -502,7 +904,14 @@
         "source": "description",
         "source_order": 12,
         "mapping_basis": "local_id_match",
-        "target": "motorised_infantry"
+        "target": "motorised_infantry",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "motorised_infantry"
+          }
+        }
       },
       {
         "key": "r13",
@@ -513,7 +922,14 @@
         "source_order": 13,
         "mapping_basis": "local_id_match",
         "target": "sp_land_flamethrower_tank",
-        "confirmation": "Ho verificato il completamento del progetto speciale"
+        "confirmation": "Ho verificato il completamento del progetto speciale",
+        "action": {
+          "kind": "special_project",
+          "entity": {
+            "kind": "project",
+            "id": "sp_land_flamethrower_tank"
+          }
+        }
       },
       {
         "key": "r14",
@@ -523,7 +939,14 @@
         "source": "description",
         "source_order": 14,
         "mapping_basis": "interpreted_upgrade",
-        "target": "support_weapons"
+        "target": "support_weapons",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "support_weapons"
+          }
+        }
       },
       {
         "key": "r15",
@@ -533,7 +956,14 @@
         "source": "description",
         "source_order": 15,
         "mapping_basis": "interpreted_upgrade",
-        "target": "infantry_weapons2"
+        "target": "infantry_weapons2",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "infantry_weapons2"
+          }
+        }
       },
       {
         "key": "r16",
@@ -543,7 +973,14 @@
         "source": "description",
         "source_order": 16,
         "mapping_basis": "local_id_match",
-        "target": "tech_logistics_company"
+        "target": "tech_logistics_company",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "tech_logistics_company"
+          }
+        }
       },
       {
         "key": "r17",
@@ -553,7 +990,14 @@
         "source": "description",
         "source_order": 17,
         "mapping_basis": "interpreted_upgrade",
-        "target": "support_weapons2"
+        "target": "support_weapons2",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "support_weapons2"
+          }
+        }
       },
       {
         "key": "r18",
@@ -563,7 +1007,14 @@
         "source": "description",
         "source_order": 18,
         "mapping_basis": "interpreted_upgrade",
-        "target": "tech_engineers2"
+        "target": "tech_engineers2",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "tech_engineers2"
+          }
+        }
       },
       {
         "key": "r19",
@@ -573,7 +1024,14 @@
         "source": "description",
         "source_order": 19,
         "mapping_basis": "interpreted_upgrade",
-        "target": "improved_infantry_weapons"
+        "target": "improved_infantry_weapons",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "improved_infantry_weapons"
+          }
+        }
       },
       {
         "key": "r20",
@@ -583,7 +1041,14 @@
         "source": "description",
         "source_order": 20,
         "mapping_basis": "interpreted_upgrade",
-        "target": "concentrated_industry3"
+        "target": "concentrated_industry3",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "concentrated_industry3"
+          }
+        }
       },
       {
         "key": "r21",
@@ -593,7 +1058,14 @@
         "source": "description",
         "source_order": 21,
         "mapping_basis": "interpreted_upgrade",
-        "target": "advanced_machine_tools"
+        "target": "advanced_machine_tools",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "advanced_machine_tools"
+          }
+        }
       },
       {
         "key": "r22",
@@ -603,7 +1075,14 @@
         "source": "description",
         "source_order": 22,
         "mapping_basis": "interpreted_upgrade",
-        "target": "construction3"
+        "target": "construction3",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "construction3"
+          }
+        }
       },
       {
         "key": "r23",
@@ -614,7 +1093,14 @@
         "source_order": 23,
         "mapping_basis": "local_id_match",
         "target": "sp_land_military_engineering_vehicles",
-        "confirmation": "Ho verificato il completamento del progetto speciale"
+        "confirmation": "Ho verificato il completamento del progetto speciale",
+        "action": {
+          "kind": "special_project",
+          "entity": {
+            "kind": "project",
+            "id": "sp_land_military_engineering_vehicles"
+          }
+        }
       },
       {
         "key": "r24",
@@ -624,7 +1110,14 @@
         "source": "description",
         "source_order": 24,
         "mapping_basis": "interpreted_upgrade",
-        "target": "antiair1"
+        "target": "antiair1",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "antiair1"
+          }
+        }
       },
       {
         "key": "r25",
@@ -634,7 +1127,14 @@
         "source": "description",
         "source_order": 25,
         "mapping_basis": "interpreted_upgrade",
-        "target": "artillery2"
+        "target": "artillery2",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "artillery2"
+          }
+        }
       },
       {
         "key": "r26",
@@ -644,7 +1144,14 @@
         "source": "description",
         "source_order": 26,
         "mapping_basis": "interpreted_upgrade",
-        "target": "support_weapons3"
+        "target": "support_weapons3",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "support_weapons3"
+          }
+        }
       },
       {
         "key": "r27",
@@ -654,7 +1161,14 @@
         "source": "description",
         "source_order": 27,
         "mapping_basis": "interpreted_upgrade",
-        "target": "improved_infantry_weapons_2"
+        "target": "improved_infantry_weapons_2",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "improved_infantry_weapons_2"
+          }
+        }
       },
       {
         "key": "r28",
@@ -664,7 +1178,14 @@
         "source": "description",
         "source_order": 28,
         "mapping_basis": "interpreted_upgrade",
-        "target": "tech_logistics_company2"
+        "target": "tech_logistics_company2",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "tech_logistics_company2"
+          }
+        }
       },
       {
         "key": "r29",
@@ -674,7 +1195,14 @@
         "source": "description",
         "source_order": 29,
         "mapping_basis": "interpreted_upgrade",
-        "target": "improved_radio"
+        "target": "improved_radio",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "improved_radio"
+          }
+        }
       },
       {
         "key": "r30",
@@ -684,7 +1212,14 @@
         "source": "description",
         "source_order": 30,
         "mapping_basis": "interpreted_upgrade",
-        "target": "artillery3"
+        "target": "artillery3",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "artillery3"
+          }
+        }
       },
       {
         "key": "r31",
@@ -694,7 +1229,14 @@
         "source": "description",
         "source_order": 31,
         "mapping_basis": "local_id_match",
-        "target": "improved_small_airframe"
+        "target": "improved_small_airframe",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "improved_small_airframe"
+          }
+        }
       },
       {
         "key": "r32",
@@ -704,7 +1246,14 @@
         "source": "description",
         "source_order": 32,
         "mapping_basis": "local_id_match",
-        "target": "engines_2"
+        "target": "engines_2",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "engines_2"
+          }
+        }
       },
       {
         "key": "r33",
@@ -714,7 +1263,14 @@
         "source": "description",
         "source_order": 33,
         "mapping_basis": "local_id_match",
-        "target": "aa_hmg"
+        "target": "aa_hmg",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "aa_hmg"
+          }
+        }
       },
       {
         "key": "r34",
@@ -724,7 +1280,14 @@
         "source": "description",
         "source_order": 34,
         "mapping_basis": "local_id_match",
-        "target": "survivability_studies"
+        "target": "survivability_studies",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "survivability_studies"
+          }
+        }
       },
       {
         "key": "r35",
@@ -734,7 +1297,14 @@
         "source": "description",
         "source_order": 35,
         "mapping_basis": "local_id_match",
-        "target": "engines_3"
+        "target": "engines_3",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "engines_3"
+          }
+        }
       },
       {
         "key": "r36",
@@ -744,7 +1314,14 @@
         "source": "description",
         "source_order": 36,
         "mapping_basis": "local_id_match",
-        "target": "heavy_bombs"
+        "target": "heavy_bombs",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "heavy_bombs"
+          }
+        }
       },
       {
         "key": "r37",
@@ -754,7 +1331,14 @@
         "source": "description",
         "source_order": 37,
         "mapping_basis": "local_id_match",
-        "target": "range_improvements"
+        "target": "range_improvements",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "range_improvements"
+          }
+        }
       },
       {
         "key": "r38",
@@ -764,7 +1348,14 @@
         "source": "description",
         "source_order": 38,
         "mapping_basis": "local_id_match",
-        "target": "aircraft_construction"
+        "target": "aircraft_construction",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "aircraft_construction"
+          }
+        }
       },
       {
         "key": "r39",
@@ -774,7 +1365,14 @@
         "source": "description",
         "source_order": 39,
         "mapping_basis": "interpreted_upgrade",
-        "target": "concentrated_industry4"
+        "target": "concentrated_industry4",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "concentrated_industry4"
+          }
+        }
       },
       {
         "key": "r40",
@@ -784,7 +1382,14 @@
         "source": "description",
         "source_order": 40,
         "mapping_basis": "interpreted_upgrade",
-        "target": "assembly_line_production"
+        "target": "assembly_line_production",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "assembly_line_production"
+          }
+        }
       },
       {
         "key": "r41",
@@ -794,7 +1399,14 @@
         "source": "description",
         "source_order": 41,
         "mapping_basis": "interpreted_upgrade",
-        "target": "advanced_infantry_weapons"
+        "target": "advanced_infantry_weapons",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "advanced_infantry_weapons"
+          }
+        }
       },
       {
         "key": "r42",
@@ -804,7 +1416,14 @@
         "source": "description",
         "source_order": 42,
         "mapping_basis": "interpreted_upgrade",
-        "target": "construction4"
+        "target": "construction4",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "construction4"
+          }
+        }
       },
       {
         "key": "r43",
@@ -814,7 +1433,14 @@
         "source": "description",
         "source_order": 43,
         "mapping_basis": "local_id_match",
-        "target": "sp_armored_advanced_flamethrower_tech"
+        "target": "sp_armored_advanced_flamethrower_tech",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "sp_armored_advanced_flamethrower_tech"
+          }
+        }
       },
       {
         "key": "r44",
@@ -824,7 +1450,14 @@
         "source": "description",
         "source_order": 44,
         "mapping_basis": "local_id_match",
-        "target": "mtg_transport"
+        "target": "mtg_transport",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "mtg_transport"
+          }
+        }
       },
       {
         "key": "r45",
@@ -834,7 +1467,14 @@
         "source": "description",
         "source_order": 45,
         "mapping_basis": "local_id_match",
-        "target": "infantry_at"
+        "target": "infantry_at",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "infantry_at"
+          }
+        }
       },
       {
         "key": "r46",
@@ -844,7 +1484,14 @@
         "source": "description",
         "source_order": 46,
         "mapping_basis": "interpreted_upgrade",
-        "target": "support_weapons4"
+        "target": "support_weapons4",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "support_weapons4"
+          }
+        }
       },
       {
         "key": "r47",
@@ -854,7 +1501,14 @@
         "source": "description",
         "source_order": 47,
         "mapping_basis": "interpreted_upgrade",
-        "target": "advanced_radio"
+        "target": "advanced_radio",
+        "action": {
+          "kind": "research",
+          "entity": {
+            "kind": "technology",
+            "id": "advanced_radio"
+          }
+        }
       },
       {
         "key": "r48",
@@ -864,7 +1518,10 @@
         "source": "description",
         "source_order": 48,
         "mapping_basis": "local_id_match",
-        "name": "Ricerca libera"
+        "name": "Ricerca libera",
+        "action": {
+          "kind": "free"
+        }
       }
     ]
   },
@@ -965,5 +1622,11 @@
       "confirmation": "Verificato nel gioco",
       "basis": "automatic_captions"
     }
-  ]
+  ],
+  "schema_version": 1,
+  "applies_to": {
+    "country": "POL",
+    "tree_id": "polish_focus"
+  },
+  "default": true
 }

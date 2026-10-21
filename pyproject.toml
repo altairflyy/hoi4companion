@@ -15,7 +15,7 @@ license = "MIT"
 hoi4companion = "hoi4companion.__main__:main"
 
 [tool.setuptools.package-data]
-hoi4companion = ["web/*.html", "web/*.css", "web/*.js", "guides/*.json"]
+hoi4companion = ["web/*.html", "web/*.css", "web/*.js", "web/*.d.ts", "guides/*.json"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

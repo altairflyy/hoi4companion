@@ -42,6 +42,11 @@ Altri argomenti: `--docs-dir`, `--snapshot`, `--country AUS`, `--port 8766`, `--
 
 ## Funzionalità disponibili
 
+- **Contratti del framework v1**: entità, stato live, condizioni, azioni e guide
+  tipizzati; catalogo guide indipendente dalle nazioni, priorità dichiarative e
+  checklist isolate. Dati osservati, calcolati e sconosciuti distinti.
+  Architettura, compatibilità e limiti in [docs/framework-contracts.md](docs/framework-contracts.md).
+
 - **Stato della nazione** su `/country`: divisioni totali/per tipo e modello,
   manpower, fabbriche e infrastrutture dei territori, produzioni con fabbriche
   richieste/assegnate, magazzini e saldi delle materie prime. Lettura live della
@@ -201,7 +206,7 @@ per attribuire ricerche completate. Le dottrine del nuovo sistema restano fuori 
 
 Il repository dispone di una suite completa di test automatizzati per il backend Python e per i modelli frontend:
 
-### Test Python (122 test)
+### Test Python (136 test)
 Tramite lo script batch (Windows):
 ```cmd
 test.bat
@@ -213,7 +218,7 @@ py -3 -m hoi4companion --test
 ```
 (in alternativa: `python -m unittest discover -s tests -p "test_*.py"`).
 
-### Test frontend JavaScript / Node.js (22 test)
+### Test frontend JavaScript / Node.js (30 test)
 I modelli logici del client sono verificati tramite il test runner nativo di Node.js (`node:test`):
 ```powershell
 Get-ChildItem -Path "tests" -Filter "*.cjs" | ForEach-Object { node $_.FullName }
