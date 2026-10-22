@@ -16,7 +16,8 @@ class RuntimeApiTests(unittest.TestCase):
     def test_runs_runtime_legacy_checks_and_http_guards(self):
         guides = {key: normalise_guide({'id': key, 'tracks': {'focus': [
             {'key': 'a', 'action': {'kind': 'manual'}, 'completion': {'op': 'check', 'key': 'done'}},
-            {'key': 'b', 'action': {'kind': 'manual'}, 'depends_on': ['a']}], 'research': []}})
+            {'key': 'b', 'action': {'kind': 'manual'}, 'depends_on': ['a']}],
+            'research': [{'key': 'tech', 'action': {'kind': 'research', 'entity': {'kind': 'technology', 'id': 'generic_tech'}}}]}})
             for key in ['one', 'two']}
         store = Store.__new__(Store)
         store.lock = RLock(); store.default_guide_id = 'one'
@@ -38,18 +39,32 @@ class RuntimeApiTests(unittest.TestCase):
                     first = call('/api/guide/progress')
                     self.assertEqual(first['session_id'], 's1')
                     first_id = first['run_id']
+                    saved = call('/api/guide/progress', {'run_id': first_id, 'started': {'a': True}})
+                    self.assertEqual(saved['checks'], {})
+                    self.assertEqual(saved['started'], {'a': True})
+                    value = call('/api/guide/runtime')
+                    self.assertEqual(value['steps'][0]['status'], 'active')
+                    self.assertNotEqual(value['steps'][1]['status'], 'completed')
+                    for invalid in ({'done': True}, {'unknown': True}, {'tech': True}, {'a': 1}, None, []):
+                        with self.subTest(started=invalid), self.assertRaises(HTTPError) as error:
+                            call('/api/guide/progress', {'run_id': first_id, 'checks': {'done': True}, 'started': invalid})
+                        self.assertEqual(error.exception.code, 400)
+                        self.assertEqual(call('/api/guide/progress')['checks'], {})
                     saved = call('/api/guide/progress', {'run_id': first_id, 'checks': {'done': False}})
                     self.assertEqual(saved['checks'], {'done': False})
+                    self.assertEqual(saved['started'], {'a': True})
                     value = call('/api/guide/runtime')
                     self.assertEqual(value['steps'][0]['completion']['value'], False)
                     self.assertEqual(value['steps'][1]['status'], 'waiting')
                     self.assertEqual(call('/api/guide/checks')['checks'], {'done': False})
                     call('/api/guide/checks', {'key': 'done', 'checked': True})
                     self.assertEqual(call('/api/guide/runtime')['steps'][0]['status'], 'completed')
+                    self.assertEqual(call('/api/guide/progress')['started'], {'a': True})
                     self.assertEqual(call('/api/guide/progress?id=two')['checks'], {})
                     second = call('/api/guide/progress', {})
                     self.assertNotEqual(second['run_id'], first_id)
                     self.assertEqual(second['checks'], {})
+                    self.assertEqual(second['started'], {})
                     self.assertEqual(call('/api/guide/progress?run=' + first_id)['checks'], {'done': True})
                     self.assertEqual(call('/api/guide/runtime?run=' + first_id)['steps'][0]['status'], 'completed')
                     self.assertEqual(call('/api/guide/progress')['run_id'], second['run_id'])
@@ -58,6 +73,9 @@ class RuntimeApiTests(unittest.TestCase):
                             call('/api/guide/progress', body)
                         self.assertEqual(error.exception.code, 400)
                     self.assertEqual(call('/api/guide/progress', {'run_id': first_id})['checks'], {'done': True})
+                    self.assertEqual(call('/api/guide/progress')['started'], {'a': True})
+                    call('/api/guide/checks', {'reset': True})
+                    self.assertEqual(call('/api/guide/progress')['started'], {})
                     for path in ['/api/guide/progress', '/api/guide/checks']:
                         with self.assertRaises(HTTPError) as error:
                             call(path, {}, {'Content-Type': 'application/json', 'Origin': 'https://example.invalid'})

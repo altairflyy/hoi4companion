@@ -23,7 +23,7 @@ export type Action =
 export type GuideStep = {
   key: string; action: Action; title?: string; note?: string; confirmation?: string;
   when?: Condition; priority_when?: Condition; priority?: number; skip_when?: Condition;
-  phase?: string; depends_on?: string[]; completion?: Condition;
+  phase?: string; depends_on?: string[]; completion?: Condition; started_when?: Condition;
   evidence?: GuideEvidence[];
 };
 /** Evaluated rows retain the legacy completion fact; the definition stays separate. */
@@ -41,7 +41,7 @@ export type Guide = {
 };
 export type GuideProgress = {
   schema_version: 1; guide_id: string; run_id: string;
-  session_id?: string|null; checks?: Record<string, boolean>;
+  session_id?: string|null; checks?: Record<string, boolean>; started?: Record<string, boolean>;
 };
 export type StepStatus = 'completed'|'active'|'ready'|'waiting'|'not_applicable'|'unverifiable';
 export type RuntimeStep = {

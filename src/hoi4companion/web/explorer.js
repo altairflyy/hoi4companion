@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const state = {overview:null,tree:null,selected:null,goal:null,search:'',zoom:.78,manual:new Set(),poll:false,coords:new Map()};
+const state = {overview:null,tree:null,selected:null,goal:null,search:'',zoom:.78,manual:new Set(),poll:false,coords:new Map(),treeRequest:0};
 const NODE_W=174, NODE_H=154, UNIT_X=100, UNIT_Y=190, GAP=74;
 const statusLabels={completed:'Completato',active:'In corso',ready:'Prerequisiti soddisfatti',locked:'Prerequisiti mancanti',excluded:'Percorso escluso',verify:'Condizioni da verificare',unknown:'Non verificato'};
 async function getJson(url,options){const response=await fetch(url,options),data=await response.json();if(!response.ok)throw new Error(data.error||response.statusText);return data;}
@@ -76,6 +76,7 @@ function showTooltip(focus,node){
   if(focus.description)tip.append(richText(focus.description.length>480?focus.description.slice(0,480)+'…':focus.description));
   const effects=focus.tooltip_sections?.find(x=>x.heading==='Effetti');
   if(effects){tip.append(el('strong','tooltip-subheading','Effetti dai file'),richText(effects.text.length>220?effects.text.slice(0,220)+'…':effects.text));}
+  const guidance=window.hoiGuideTree?.marker(focus.id,state.tree.id);if(guidance)tip.append(el('strong','tooltip-subheading','Guida: '+({next:'Prossimo focus',upcoming:'Dopo il focus in corso',active:'In corso',waiting:'In attesa',preview:'Anteprima del prossimo focus'}[guidance.tone])));
   tip.append(el('p','tooltip-note','Clicca per tutti i dettagli. Condizioni e valori della partita non valutati.'));
   tip.hidden=false;node.setAttribute('aria-describedby','focusTooltip');
   const rect=node.getBoundingClientRect(),width=tip.offsetWidth,height=tip.offsetHeight;
@@ -131,12 +132,14 @@ function render(){
     node.addEventListener('click',()=>selectFocus(focus.id));node.addEventListener('pointerenter',()=>showTooltip(focus,node));node.addEventListener('pointerleave',hideTooltip);node.addEventListener('focus',()=>showTooltip(focus,node));node.addEventListener('blur',hideTooltip);nodes.append(node);
   }
   renderInspector(byId,status);
+  window.hoiGuideTree?.paint(document.querySelectorAll('.focus-node'),tree.id);
   $('snapshotInfo').textContent=window.hoiLive?.enabled?'Stati dalla memoria del processo. Nessuna disponibilità dinamica dedotta; i segni manuali sono separati.':tree.snapshot?`Snapshot ${tree.snapshot.source} · ${tree.snapshot.tag}${tree.snapshot.note?' · '+tree.snapshot.note:''}`:tree.snapshot_error?`Snapshot non caricato: ${tree.snapshot_error}`:'Senza snapshot: progressi manuali salvati soltanto nel browser (non nel gioco).';
 }
 function renderInspector(byId,status){
   const container=$('inspectorContent');clear(container);const focus=byId.get(state.selected);$('focusIndex').textContent=focus?`${[...byId.keys()].indexOf(focus.id)+1} / ${byId.size}`:'—';
   if(!focus){container.append(el('div','empty-icon','◈'),el('p','','Seleziona un focus per visualizzarne prerequisiti e percorso.'));return;}
   container.append(spriteImage(focus.sprite||focus.variant_sprites?.[0],'inspector-icon'),el('div','eyebrow','FOCUS NAZIONALE'),richText(focus.name,'focus-title','h2'),el('div','focus-code',focus.id),el('div','status-chip '+status[focus.id],statusLabels[status[focus.id]]||'Non verificato'));
+  const guidance=window.hoiGuideTree?.details(focus.id,state.tree.id);if(guidance)container.append(guidance);
   if(focus.description)container.append(richText(focus.description));
   container.append(el('div','tooltip-note','Testi dai file del gioco; condizioni e valori dinamici non valutati.'));
   if(focus.icon_variants?.length){container.append(el('div','minor-heading','VARIANTI DELL’ICONA'),el('p','muted','La variante corrente dipende dalla partita.'));const gallery=el('div','variant-gallery');for(const sprite of focus.variant_sprites||[]){const image=spriteImage(sprite);image.title=sprite.name;gallery.append(image);}container.append(gallery);}
@@ -153,10 +156,11 @@ function renderInspector(byId,status){
   if(focus.sprite?.override)source.append(el('div','muted','Texture da DLC o mod configurata.'));container.append(source);
 }
 async function loadTree(id){
+  const request=++state.treeRequest;
   if(!id){state.tree={id:'Nessun albero compatibile',focuses:[]};state.selected=null;state.goal=null;render();$('snapshotInfo').textContent='Controlla i percorsi e i motivi di esclusione nel pannello DLC.';return;}
-  const old=state.tree?.id;state.tree=await getJson('/api/tree?id='+encodeURIComponent(id)+(window.hoiLive?.enabled?'&source=live':''));if(state.tree.error)throw new Error(state.tree.error);setManual();if(state.selected&&!currentFocus(state.selected))state.selected=null;const requestedFocus=!old?new URLSearchParams(location.search).get('focus'):null;if(requestedFocus&&currentFocus(requestedFocus))state.selected=requestedFocus;if(!state.selected)state.selected=state.tree.focuses[0]?.id||null;render();if(old!==id)requestAnimationFrame(()=>centerFocus(state.selected));
+  const old=state.tree?.id,tree=await getJson('/api/tree?id='+encodeURIComponent(id)+(window.hoiLive?.enabled?'&source=live':''));if(request!==state.treeRequest)return;if(tree.error)throw new Error(tree.error);state.tree=tree;setManual();if(state.selected&&!currentFocus(state.selected))state.selected=null;const requestedFocus=!old?new URLSearchParams(location.search).get('focus'):null;if(requestedFocus&&currentFocus(requestedFocus))state.selected=requestedFocus;if(!state.selected)state.selected=state.tree.focuses[0]?.id||null;render();if(old!==id)requestAnimationFrame(()=>centerFocus(state.selected));
 }
-async function reload(all=true){try{if(all){state.overview=await getJson('/api/config');updateOverview();if(!state.tree){const requested=new URLSearchParams(location.search).get('tree');if(state.overview.trees.some(t=>t.id===requested))$('treeSelect').value=requested;}}await loadTree($('treeSelect').value||state.overview.settings.tree_id);$('connection').textContent='● Server locale';}catch(error){$('connection').textContent='● Errore di connessione';$('warnings').hidden=false;$('warnings').textContent=error.message;}}
+async function reload(all=true){try{if(all){state.overview=await getJson('/api/config');updateOverview();if(!state.tree){const requested=new URLSearchParams(location.search).get('tree')||window.hoiGuide?.value?.guide?.applies_to?.tree_id;if(state.overview.trees.some(t=>t.id===requested))$('treeSelect').value=requested;}}await loadTree($('treeSelect').value||state.overview.settings.tree_id);$('connection').textContent='● Server locale';}catch(error){$('connection').textContent='● Errore di connessione';$('warnings').hidden=false;$('warnings').textContent=error.message;}}
 function modal(show){hideTooltip();$('settingsModal').classList.toggle('hidden',!show);if(show){for(const [key,value] of Object.entries(state.overview.settings)){const field=$('settingsForm').elements.namedItem(key);if(field)field.value=value;}$('formError').hidden=true;}}
 function init(){
   $('navSettings').addEventListener('click',()=>modal(true));$('closeSettings').addEventListener('click',()=>modal(false));$('cancelSettings').addEventListener('click',()=>modal(false));$('settingsModal').addEventListener('click',event=>{if(event.target===$('settingsModal'))modal(false);});
@@ -171,8 +175,15 @@ function init(){
   viewport.addEventListener('pointerdown',event=>{if(event.button!==0||event.target.closest('button'))return;drag={x:event.clientX,y:event.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};viewport.setPointerCapture(event.pointerId);viewport.classList.add('dragging');});
   viewport.addEventListener('pointermove',event=>{if(drag){viewport.scrollLeft=drag.left-(event.clientX-drag.x);viewport.scrollTop=drag.top-(event.clientY-drag.y);}});
   const endDrag=()=>{drag=null;viewport.classList.remove('dragging');};viewport.addEventListener('pointerup',endDrag);viewport.addEventListener('pointercancel',endDrag);
+  window.hoiGuideTree?.connect(async row=>{const id=row.action.entity.scope||window.hoiGuide.value.guide.applies_to.tree_id;if(!state.overview?.trees.some(t=>t.id===id))throw Error('Albero della guida non disponibile nel catalogo');$('treeSelect').value=id;state.selected=row.target;state.search='';$('search').value='';state.goal=null;await loadTree(id);centerFocus(row.target);});
+  let guideTreeInitialised=false;
+  window.addEventListener('hoi-guide-change',()=>{
+    const guided=window.hoiGuide?.value?.guide?.applies_to?.tree_id;
+    if(!guideTreeInitialised&&state.overview&&guided){guideTreeInitialised=true;if(!new URLSearchParams(location.search).has('tree')&&state.overview.trees.some(t=>t.id===guided)&&state.tree?.id!==guided){$('treeSelect').value=guided;loadTree(guided).catch(error=>{$('snapshotInfo').textContent=error.message;});return;}}
+    if(state.tree)render();
+  });
   let lastLiveEnabled=window.hoiLive?.enabled;
-  window.hoiLive?.subscribe(()=>{const switched=lastLiveEnabled!==window.hoiLive.enabled;lastLiveEnabled=window.hoiLive.enabled;if(state.tree){if(switched)loadTree(state.tree.id).catch(error=>{$('snapshotInfo').textContent=error.message;});else render();}});
+  window.hoiLive?.subscribe(()=>{const switched=lastLiveEnabled!==window.hoiLive.enabled;lastLiveEnabled=window.hoiLive.enabled;if(state.tree){if(switched)loadTree(state.tree.id).catch(error=>{$('snapshotInfo').textContent=error.message;});else if(!window.hoiGuide)render();}});
   window.addEventListener('hoi-live-follow',async event=>{const id=event.detail.focus_tree_id;if(!state.overview?.trees.some(t=>t.id===id))return;$('treeSelect').value=id;state.selected=event.detail.current_focus||null;await loadTree(id);});
   setInterval(()=>{if(!window.hoiLive?.enabled&&state.poll&&state.overview?.settings.snapshot_path)reload(false);},15000);reload();
 }

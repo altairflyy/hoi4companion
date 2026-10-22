@@ -48,6 +48,15 @@ test('run identity changes reach subscribers with identical gameplay and checks'
  assert.deepEqual(received.slice(-2),['one','two']);
 });
 
+test('manual starts reach subscribers without completing checks or changing gameplay',()=>{
+ const app=boot(),received=[];
+ app.window.hoiLive.subscribe(value=>received.push(value.guide_started?.g?.build));
+ app.streams[0].send('state',{...state,guide_started:{g:{build:false}},guide_checks:{}});
+ app.streams[0].send('state',{...state,guide_started:{g:{build:true}},guide_checks:{}});
+ assert.deepEqual(received.slice(-2),[false,true]);
+ assert.equal(Object.keys(app.window.hoiLive.value.guide_checks).length,0);
+});
+
 test('stream loss invalidates immediately and heartbeat never revives old samples',()=>{
   const app=boot(),stream=app.streams[0];
   assert.equal(stream.url,'/api/state/events');

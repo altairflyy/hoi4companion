@@ -10,20 +10,23 @@
   return left.length-right.length;
  }
  function progressFor(guide,state,input){
-  if(input===null||input===undefined)return {status:'none',run_id:null,checks:{}};
+  if(input===null||input===undefined)return {status:'none',run_id:null,checks:{},started:{}};
   if(typeof input!=='object'||Array.isArray(input)||input.schema_version!==1||typeof input.guide_id!=='string'||typeof input.run_id!=='string'||!input.run_id.trim()||[...input.run_id].length>160||input.session_id!==undefined&&input.session_id!==null&&(typeof input.session_id!=='string'||!input.session_id.trim()))throw Error('Avanzamento guida non valido');
   const provided=Object.hasOwn(input,'checks')?input.checks:{};
   if(!provided||typeof provided!=='object'||Array.isArray(provided)||Object.values(provided).some(x=>typeof x!=='boolean'))throw Error('Conferme della partita non valide');
-  if(input.guide_id!==(guide.id||''))return {status:'wrong_guide',run_id:null,checks:{}};
-  if(input.session_id&&!state.usable)return {status:'session_unverified',run_id:null,checks:{}};
-  if(input.session_id&&input.session_id!==state.session_id)return {status:'wrong_session',run_id:null,checks:{}};
+  const started=Object.hasOwn(input,'started')?input.started:{};
+  if(!started||typeof started!=='object'||Array.isArray(started)||Object.values(started).some(x=>typeof x!=='boolean'))throw Error('Avvii della partita non validi');
+  if(input.guide_id!==(guide.id||''))return {status:'wrong_guide',run_id:null,checks:{},started:{}};
+  if(input.session_id&&!state.usable)return {status:'session_unverified',run_id:null,checks:{},started:{}};
+  if(input.session_id&&input.session_id!==state.session_id)return {status:'wrong_session',run_id:null,checks:{},started:{}};
+  const operations=new Set(Object.values(guide.tracks).flat().filter(step=>['manual','special_project'].includes(step.action.kind)).map(step=>step.key));
   const allowed=new Set((guide.milestones||[]).map(x=>x.key));
   for(const rows of Object.values(guide.tracks))for(const step of rows){
    if(['manual','special_project'].includes(step.action.kind))allowed.add(step.key);
-   for(const field of ['when','priority_when','skip_when','completion'])for(const key of c.checkKeys(step[field]))allowed.add(key);
+   for(const field of ['when','priority_when','skip_when','completion','started_when'])for(const key of c.checkKeys(step[field]))allowed.add(key);
   }
   for(const phase of guide.phases||[])for(const key of c.checkKeys(phase.when))allowed.add(key);
-  return {status:'accepted',run_id:input.run_id,checks:Object.fromEntries(Object.entries(provided).filter(([key])=>allowed.has(key)))};
+  return {status:'accepted',run_id:input.run_id,checks:Object.fromEntries(Object.entries(provided).filter(([key])=>allowed.has(key))),started:Object.fromEntries(Object.entries(started).filter(([key])=>operations.has(key)))};
  }
  function evaluate(input,value,progress=null){
   const guide=c.guide(input),state=c.state(value),scope=guide.applies_to;
@@ -45,7 +48,7 @@
     if(Object.hasOwn(step,'completion')){completion=calculated(condition(step.completion),'declared_completion');basis='condition';}
     else if(['manual','special_project'].includes(kind)){completion=calculated(Object.hasOwn(checks,step.key)?checks[step.key]:null,'check:'+step.key);basis='manual';}
     else if(isNative){completion=membership(isFocus?'focus.completed':'research.completed',step.target);basis='native_membership';}
-    const selection=isNative?membership(isFocus?'focus.active':'research.active',step.target):unknown();
+    const selection=isNative?membership(isFocus?'focus.active':'research.active',step.target):Object.hasOwn(step,'started_when')?calculated(condition(step.started_when),'declared_start'):['manual','special_project'].includes(kind)&&Object.hasOwn(run.started,step.key)?calculated(run.started[step.key],'manual_started:'+step.key):unknown();
     const priorityValue=step.priority_when?condition(step.priority_when):true;
     results.set(step.key,{key:step.key,track,status:'unverifiable',reason:'not_evaluated',blocked_by:[],completion,selection,completion_basis:basis,priority:priorityValue===true?(step.priority||0):0,priority_known:priorityValue!==null,availability:unknown('dynamic_availability_not_evaluated')});
     if(kind==='manual')manual.push(step.key);

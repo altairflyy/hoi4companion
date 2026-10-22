@@ -47,6 +47,15 @@ Altri argomenti: `--docs-dir`, `--snapshot`, `--country AUS`, `--port 8766`, `--
   Checklist separate per partita e stati non verificabili espliciti.
   Semantica, API e limiti in [docs/guide-runtime.md](docs/guide-runtime.md).
 
+- **Avvio automatico delle costruzioni**: ordini letti live anche in pausa,
+  con edificio, regione, quantità in coda e fabbriche attive. La guida usa
+  condizioni dichiarative `started_when`; l'avvio resta distinto dal
+  completamento. Copertura e prove in [docs/construction-live.md](docs/construction-live.md).
+
+- **Agenzia di intelligence live**: creazione avviata e agenzia operativa
+  sono rilevate separatamente, anche in pausa; completamento automatico
+  soltanto quando l’agenzia è creata. [Copertura e prove](docs/intelligence-live.md).
+
 - **Contratti del framework v1**: entità, stato live, condizioni, azioni e guide
   tipizzati; catalogo guide indipendente dalle nazioni, priorità dichiarative e
   checklist isolate. Dati osservati, calcolati e sconosciuti distinti.
@@ -158,9 +167,17 @@ hoi4companion/
 
 ### Walkthrough e HUD
 
-Apri `http://127.0.0.1:8766/walkthrough`: contiene i 34 passaggi dei focus e le 48
-priorità di ricerca della descrizione del video di MachiavellianStrategist,
-con nomi locali, collegamenti agli alberi e 12 checkpoint con tempi del video.
+Focus nazionali e ricerche vengono **evidenziati direttamente nei rispettivi
+alberi**, mantenendo icone, coordinate e schede del gioco. La barra della guida
+offre **Mostra focus / Mostra ricerca**; anche la scheda tecnologica che contiene
+il prossimo elemento è contrassegnata. Oro significa prossimo passo, azzurro
+in corso, tratteggio attesa o anteprima.
+
+Apri `http://127.0.0.1:8766/walkthrough` per le **istruzioni operative**:
+fabbriche e infrastrutture, produzione, politica, personaggi, eserciti, template
+e progetti speciali, con indicazione di quando intervenire e riferimenti alla
+fonte. I 34 passaggi focus e le 48 priorità ricerca sono conservati nei dati
+della guida, senza riproporre le loro liste nella pagina operativa.
 Dal 1936 il primo focus è **Bloccare Danzica**; le prime tre priorità di ricerca
 sono **Ingegneria elettro-meccanica**, **Attrezzature di base** e **Artiglieria Interguerra**.
 
@@ -174,7 +191,8 @@ dei collegamenti locali, distinti dalle voci esplicite dell’autore.
 
 Per l’HUD avvia **`avvia-hud.vbs`** (senza finestra console) oppure `avvia-hud.bat`.
 Avvia il companion se necessario e crea un piccolo pannello Edge separato, sempre
-in primo piano sopra HOI4, con i prossimi nomi evidenziati. Si nasconde quando passi
+in primo piano sopra HOI4, con l'istruzione operativa da verificare e i collegamenti
+agli alberi guidati. Si nasconde quando passi
 a un’altra applicazione. Usa un profilo locale dedicato `.local/hud-browser`, nessun
 accesso all’account del browser, mod o codice iniettato. Chiudi la finestra HUD con X.
 Richiede modalità finestra o finestra senza bordi per una sovrapposizione affidabile:
@@ -211,7 +229,7 @@ per attribuire ricerche completate. Le dottrine del nuovo sistema restano fuori 
 
 Il repository dispone di una suite completa di test automatizzati per il backend Python e per i modelli frontend:
 
-### Test Python (176 test)
+### Test Python (200 test)
 Tramite lo script batch (Windows):
 ```cmd
 test.bat
@@ -223,7 +241,7 @@ py -3 -m hoi4companion --test
 ```
 (in alternativa: `python -m unittest discover -s tests -p "test_*.py"`).
 
-### Test frontend JavaScript / Node.js (107 test)
+### Test frontend JavaScript / Node.js (145 test)
 I modelli logici del client sono verificati tramite il test runner nativo di Node.js (`node:test`):
 ```powershell
 Get-ChildItem -Path "tests" -Filter "*.cjs" | ForEach-Object { node $_.FullName }

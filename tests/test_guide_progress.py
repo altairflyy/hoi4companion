@@ -12,7 +12,7 @@ class GuideProgressTests(unittest.TestCase):
     def test_ensure_imports_legacy_once_and_preserves_false(self):
         first = self.store.ensure('one', {'done': True, 'pending': False, 'invalid': 1})
         self.assertEqual(first, {'schema_version': 1, 'guide_id': 'one', 'run_id': 'run-1',
-                                 'session_id': None, 'checks': {'done': True, 'pending': False}})
+                                 'session_id': None, 'checks': {'done': True, 'pending': False}, 'started': {}})
         self.assertNotIn('unknown', first['checks'])
         self.assertEqual(self.store.ensure('one', {'replacement': True}), first)
 
@@ -64,6 +64,18 @@ class GuideProgressTests(unittest.TestCase):
                 self.store.update('one', invalid)
             self.assertEqual(self.store.get('one')['checks'], {'a': True})
         self.assertEqual(self.store.update('one', {'b': False})['checks'], {'b': False})
+
+    def test_started_is_independent_preserved_by_old_writes_and_isolated_per_run(self):
+        first = self.store.ensure('one')
+        self.store.update('one', {}, started={'build': True})
+        self.assertEqual(self.store.update('one', {'done': False})['started'], {'build': True})
+        self.assertNotIn('started', self.store.metadata()['one'])
+        with self.assertRaises(ValueError):
+            self.store.update('one', {'done': True}, started={'build': 'yes'})
+        self.assertEqual(self.store.get('one')['checks'], {'done': False})
+        self.store.create('one')
+        self.assertEqual(self.store.get('one')['started'], {})
+        self.assertEqual(self.store.get('one', first['run_id'])['started'], {'build': True})
 
     def test_id_collisions_do_not_overwrite_existing_runs(self):
         store = RunStore(id_factory=lambda: 'same')

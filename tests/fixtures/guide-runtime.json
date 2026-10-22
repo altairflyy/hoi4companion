@@ -3654,7 +3654,7 @@
         "tree_id": "g"
       },
       "tracks": {
-        "\ud83d\ude00": [
+        "😀": [
           {
             "key": "d",
             "action": {
@@ -3666,7 +3666,7 @@
             }
           }
         ],
-        "\ue000": [
+        "": [
           {
             "key": "c",
             "action": {
@@ -3898,6 +3898,2448 @@
           "t1"
         ]
       }
+    }
+  },
+  {
+    "name": "manually started activity is active without completing its dependent",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "m",
+            "kind": "gate"
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {},
+      "started": {
+        "m": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "active",
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "completion overrides a manual start",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "m",
+            "kind": "gate"
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {
+        "m": true
+      },
+      "started": {
+        "m": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "completed",
+        "ready",
+        "waiting",
+        "ready",
+        "waiting"
+      ]
+    }
+  },
+  {
+    "name": "wrong run session cannot apply a manual start",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "m",
+            "kind": "gate"
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "other",
+      "checks": {},
+      "started": {
+        "m": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ],
+      "progress_status": "wrong_session"
+    }
+  },
+  {
+    "name": "cancelled manual start is not completed",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "m",
+            "kind": "gate"
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {},
+      "started": {
+        "m": false
+      }
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "manual starts cannot select native focuses or research",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "m",
+            "kind": "gate"
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {},
+      "started": {
+        "a": true,
+        "t1": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "unverifiable",
+        "unverifiable",
+        "ready",
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "wrong country suppresses a manual start",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "m",
+            "kind": "gate"
+          },
+          {
+            "key": "a",
+            "kind": "focus",
+            "target": "A"
+          },
+          {
+            "key": "b",
+            "kind": "focus",
+            "target": "B",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ],
+        "research": [
+          {
+            "key": "t1",
+            "kind": "technology",
+            "target": "T1"
+          },
+          {
+            "key": "t2",
+            "kind": "technology",
+            "target": "T2",
+            "depends_on": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "POL",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {},
+      "started": {
+        "m": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable"
+      ]
+    }
+  },
+  {
+    "name": "started project with declared completion False",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "m",
+            "action": {
+              "kind": "special_project",
+              "entity": {
+                "kind": "project",
+                "id": "generic_project"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "project.finished",
+              "test": "eq",
+              "value": true
+            }
+          },
+          {
+            "key": "after",
+            "action": {
+              "kind": "manual"
+            },
+            "depends_on": [
+              "m"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        },
+        "project.finished": {
+          "status": "observed",
+          "value": false,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {},
+      "started": {
+        "m": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "active",
+        "waiting"
+      ]
+    }
+  },
+  {
+    "name": "started project with declared completion True",
+    "guide": {
+      "schema_version": 1,
+      "id": "fixture",
+      "applies_to": {
+        "country": "GER",
+        "tree_id": "g"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "m",
+            "action": {
+              "kind": "special_project",
+              "entity": {
+                "kind": "project",
+                "id": "generic_project"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "project.finished",
+              "test": "eq",
+              "value": true
+            }
+          },
+          {
+            "key": "after",
+            "action": {
+              "kind": "manual"
+            },
+            "depends_on": [
+              "m"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "s1",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "g",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "slot": 1,
+              "technology_id": null
+            },
+            {
+              "slot": 2,
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        },
+        "project.finished": {
+          "status": "observed",
+          "value": true,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "fixture",
+      "run_id": "r1",
+      "session_id": "s1",
+      "checks": {},
+      "started": {
+        "m": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "completed",
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "declared start true does not complete dependencies",
+    "guide": {
+      "schema_version": 1,
+      "id": "generic-start",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "build",
+            "action": {
+              "kind": "manual"
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "queue.has_order",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "building.level",
+              "test": "gte",
+              "value": 2
+            },
+            "depends_on": []
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "manual"
+            },
+            "depends_on": [
+              "build"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "building.level": {
+          "status": "observed",
+          "value": 1,
+          "source": "fixture"
+        },
+        "queue.has_order": {
+          "status": "observed",
+          "value": true,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "generic-start",
+      "run_id": "run",
+      "session_id": "session",
+      "checks": {},
+      "started": {
+        "build": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "active",
+        "waiting"
+      ],
+      "selection_values": [
+        true,
+        null
+      ],
+      "selection_sources": [
+        "declared_start",
+        ""
+      ]
+    }
+  },
+  {
+    "name": "declared start false does not fall back to manual start",
+    "guide": {
+      "schema_version": 1,
+      "id": "generic-start",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "build",
+            "action": {
+              "kind": "manual"
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "queue.has_order",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "building.level",
+              "test": "gte",
+              "value": 2
+            },
+            "depends_on": []
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "manual"
+            },
+            "depends_on": [
+              "build"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "building.level": {
+          "status": "observed",
+          "value": 1,
+          "source": "fixture"
+        },
+        "queue.has_order": {
+          "status": "observed",
+          "value": false,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "generic-start",
+      "run_id": "run",
+      "session_id": "session",
+      "checks": {},
+      "started": {
+        "build": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "waiting"
+      ],
+      "selection_values": [
+        false,
+        null
+      ],
+      "selection_sources": [
+        "declared_start",
+        ""
+      ]
+    }
+  },
+  {
+    "name": "declared start unknown does not fall back to manual start",
+    "guide": {
+      "schema_version": 1,
+      "id": "generic-start",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "build",
+            "action": {
+              "kind": "manual"
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "queue.has_order",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "building.level",
+              "test": "gte",
+              "value": 2
+            },
+            "depends_on": []
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "manual"
+            },
+            "depends_on": [
+              "build"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "building.level": {
+          "status": "observed",
+          "value": 1,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "generic-start",
+      "run_id": "run",
+      "session_id": "session",
+      "checks": {},
+      "started": {
+        "build": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "waiting"
+      ],
+      "selection_values": [
+        null,
+        null
+      ],
+      "selection_sources": [
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "name": "declared completion wins over declared start",
+    "guide": {
+      "schema_version": 1,
+      "id": "generic-start",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "build",
+            "action": {
+              "kind": "manual"
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "queue.has_order",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "building.level",
+              "test": "gte",
+              "value": 2
+            },
+            "depends_on": []
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "manual"
+            },
+            "depends_on": [
+              "build"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "building.level": {
+          "status": "observed",
+          "value": 2,
+          "source": "fixture"
+        },
+        "queue.has_order": {
+          "status": "observed",
+          "value": true,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "generic-start",
+      "run_id": "run",
+      "session_id": "session",
+      "checks": {},
+      "started": {
+        "build": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "completed",
+        "unverifiable"
+      ],
+      "selection_values": [
+        true,
+        null
+      ],
+      "selection_sources": [
+        "declared_start",
+        ""
+      ]
+    }
+  },
+  {
+    "name": "scope mismatch suppresses declared start",
+    "guide": {
+      "schema_version": 1,
+      "id": "generic-start",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "build",
+            "action": {
+              "kind": "manual"
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "queue.has_order",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "building.level",
+              "test": "gte",
+              "value": 2
+            },
+            "depends_on": []
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "manual"
+            },
+            "depends_on": [
+              "build"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "POL",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "building.level": {
+          "status": "observed",
+          "value": 1,
+          "source": "fixture"
+        },
+        "queue.has_order": {
+          "status": "observed",
+          "value": true,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "generic-start",
+      "run_id": "run",
+      "session_id": "session",
+      "checks": {},
+      "started": {
+        "build": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "not_applicable",
+        "not_applicable"
+      ],
+      "selection_values": [
+        null,
+        null
+      ],
+      "selection_sources": [
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "name": "project declared start works without a manual run",
+    "guide": {
+      "schema_version": 1,
+      "id": "generic-start",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "build",
+            "action": {
+              "kind": "special_project",
+              "entity": {
+                "kind": "project",
+                "id": "example"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "queue.has_order",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "building.level",
+              "test": "gte",
+              "value": 2
+            },
+            "depends_on": []
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "manual"
+            },
+            "depends_on": [
+              "build"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "queue.has_order": {
+          "status": "observed",
+          "value": true,
+          "source": "fixture"
+        },
+        "building.level": {
+          "status": "observed",
+          "value": 1,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": {
+      "statuses": [
+        "active",
+        "waiting"
+      ],
+      "selection_values": [
+        true,
+        null
+      ],
+      "selection_sources": [
+        "declared_start",
+        ""
+      ]
+    }
+  },
+  {
+    "name": "start check keys are admitted without implying completion",
+    "guide": {
+      "schema_version": 1,
+      "id": "generic-start",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "build",
+            "action": {
+              "kind": "manual"
+            },
+            "started_when": {
+              "op": "check",
+              "key": "ordered"
+            },
+            "depends_on": []
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "manual"
+            },
+            "depends_on": [
+              "build"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "generic-start",
+      "run_id": "run",
+      "session_id": "session",
+      "checks": {
+        "ordered": true,
+        "build": false
+      },
+      "started": {
+        "build": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "active",
+        "waiting"
+      ],
+      "selection_values": [
+        true,
+        null
+      ],
+      "selection_sources": [
+        "declared_start",
+        ""
+      ]
+    }
+  },
+  {
+    "name": "agency live observation absent resists manual override",
+    "guide": {
+      "schema_version": 1,
+      "id": "agency-observation",
+      "applies_to": {
+        "country": "POL",
+        "tree_id": "polish_focus"
+      },
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://www.youtube.com/watch?v=FBPdhlwqMwM"
+        }
+      ],
+      "tracks": {
+        "operations": [
+          {
+            "key": "setup_agency",
+            "title": "Crea l’agenzia",
+            "name": "Crea l’agenzia",
+            "note": "Crea l’agenzia di intelligence nella preparazione iniziale mostrata dal video. L’avvio viene rilevato automaticamente anche in pausa; il passaggio si completa soltanto quando il gioco indica che l’agenzia è stata creata. I successivi progetti di collaborazione sono richiamati nella preparazione contro l’URSS.",
+            "confirmation": "Verificato nel gioco",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "timing": "Preparazione iniziale della campagna, 1936.",
+                "source_seconds": 0,
+                "legacy_key": "m_setup"
+              }
+            },
+            "started_when": {
+              "op": "any",
+              "args": [
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.in_creation",
+                  "test": "eq",
+                  "value": true
+                },
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.is_created",
+                  "test": "eq",
+                  "value": true
+                }
+              ]
+            },
+            "completion": {
+              "op": "fact",
+              "key": "country.intelligence.is_created",
+              "test": "eq",
+              "value": true
+            },
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "inferred",
+                "timestamp_seconds": 0
+              }
+            ],
+            "kind": "gate"
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "POL",
+        "focus_tree_id": "polish_focus",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "observed"
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "agency-observation",
+      "run_id": "old-manual",
+      "checks": {
+        "setup_agency": true,
+        "m_setup": true
+      },
+      "started": {
+        "setup_agency": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "agency live observation not started resists manual override",
+    "guide": {
+      "schema_version": 1,
+      "id": "agency-observation",
+      "applies_to": {
+        "country": "POL",
+        "tree_id": "polish_focus"
+      },
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://www.youtube.com/watch?v=FBPdhlwqMwM"
+        }
+      ],
+      "tracks": {
+        "operations": [
+          {
+            "key": "setup_agency",
+            "title": "Crea l’agenzia",
+            "name": "Crea l’agenzia",
+            "note": "Crea l’agenzia di intelligence nella preparazione iniziale mostrata dal video. L’avvio viene rilevato automaticamente anche in pausa; il passaggio si completa soltanto quando il gioco indica che l’agenzia è stata creata. I successivi progetti di collaborazione sono richiamati nella preparazione contro l’URSS.",
+            "confirmation": "Verificato nel gioco",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "timing": "Preparazione iniziale della campagna, 1936.",
+                "source_seconds": 0,
+                "legacy_key": "m_setup"
+              }
+            },
+            "started_when": {
+              "op": "any",
+              "args": [
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.in_creation",
+                  "test": "eq",
+                  "value": true
+                },
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.is_created",
+                  "test": "eq",
+                  "value": true
+                }
+              ]
+            },
+            "completion": {
+              "op": "fact",
+              "key": "country.intelligence.is_created",
+              "test": "eq",
+              "value": true
+            },
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "inferred",
+                "timestamp_seconds": 0
+              }
+            ],
+            "kind": "gate"
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "POL",
+        "focus_tree_id": "polish_focus",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "observed",
+            "is_created": false,
+            "in_creation": false
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "agency-observation",
+      "run_id": "old-manual",
+      "checks": {
+        "setup_agency": true,
+        "m_setup": true
+      },
+      "started": {
+        "setup_agency": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "ready"
+      ]
+    }
+  },
+  {
+    "name": "agency live observation in creation resists manual override",
+    "guide": {
+      "schema_version": 1,
+      "id": "agency-observation",
+      "applies_to": {
+        "country": "POL",
+        "tree_id": "polish_focus"
+      },
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://www.youtube.com/watch?v=FBPdhlwqMwM"
+        }
+      ],
+      "tracks": {
+        "operations": [
+          {
+            "key": "setup_agency",
+            "title": "Crea l’agenzia",
+            "name": "Crea l’agenzia",
+            "note": "Crea l’agenzia di intelligence nella preparazione iniziale mostrata dal video. L’avvio viene rilevato automaticamente anche in pausa; il passaggio si completa soltanto quando il gioco indica che l’agenzia è stata creata. I successivi progetti di collaborazione sono richiamati nella preparazione contro l’URSS.",
+            "confirmation": "Verificato nel gioco",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "timing": "Preparazione iniziale della campagna, 1936.",
+                "source_seconds": 0,
+                "legacy_key": "m_setup"
+              }
+            },
+            "started_when": {
+              "op": "any",
+              "args": [
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.in_creation",
+                  "test": "eq",
+                  "value": true
+                },
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.is_created",
+                  "test": "eq",
+                  "value": true
+                }
+              ]
+            },
+            "completion": {
+              "op": "fact",
+              "key": "country.intelligence.is_created",
+              "test": "eq",
+              "value": true
+            },
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "inferred",
+                "timestamp_seconds": 0
+              }
+            ],
+            "kind": "gate"
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "POL",
+        "focus_tree_id": "polish_focus",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "observed",
+            "is_created": false,
+            "in_creation": true
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "agency-observation",
+      "run_id": "old-manual",
+      "checks": {
+        "setup_agency": true,
+        "m_setup": true
+      },
+      "started": {
+        "setup_agency": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "active"
+      ]
+    }
+  },
+  {
+    "name": "agency live observation created resists manual override",
+    "guide": {
+      "schema_version": 1,
+      "id": "agency-observation",
+      "applies_to": {
+        "country": "POL",
+        "tree_id": "polish_focus"
+      },
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://www.youtube.com/watch?v=FBPdhlwqMwM"
+        }
+      ],
+      "tracks": {
+        "operations": [
+          {
+            "key": "setup_agency",
+            "title": "Crea l’agenzia",
+            "name": "Crea l’agenzia",
+            "note": "Crea l’agenzia di intelligence nella preparazione iniziale mostrata dal video. L’avvio viene rilevato automaticamente anche in pausa; il passaggio si completa soltanto quando il gioco indica che l’agenzia è stata creata. I successivi progetti di collaborazione sono richiamati nella preparazione contro l’URSS.",
+            "confirmation": "Verificato nel gioco",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "timing": "Preparazione iniziale della campagna, 1936.",
+                "source_seconds": 0,
+                "legacy_key": "m_setup"
+              }
+            },
+            "started_when": {
+              "op": "any",
+              "args": [
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.in_creation",
+                  "test": "eq",
+                  "value": true
+                },
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.is_created",
+                  "test": "eq",
+                  "value": true
+                }
+              ]
+            },
+            "completion": {
+              "op": "fact",
+              "key": "country.intelligence.is_created",
+              "test": "eq",
+              "value": true
+            },
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "inferred",
+                "timestamp_seconds": 0
+              }
+            ],
+            "kind": "gate"
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "POL",
+        "focus_tree_id": "polish_focus",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "observed",
+            "is_created": true,
+            "in_creation": false
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "agency-observation",
+      "run_id": "old-manual",
+      "checks": {
+        "setup_agency": true,
+        "m_setup": true
+      },
+      "started": {
+        "setup_agency": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "completed"
+      ]
+    }
+  },
+  {
+    "name": "agency live observation created overrides creation flag resists manual override",
+    "guide": {
+      "schema_version": 1,
+      "id": "agency-observation",
+      "applies_to": {
+        "country": "POL",
+        "tree_id": "polish_focus"
+      },
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://www.youtube.com/watch?v=FBPdhlwqMwM"
+        }
+      ],
+      "tracks": {
+        "operations": [
+          {
+            "key": "setup_agency",
+            "title": "Crea l’agenzia",
+            "name": "Crea l’agenzia",
+            "note": "Crea l’agenzia di intelligence nella preparazione iniziale mostrata dal video. L’avvio viene rilevato automaticamente anche in pausa; il passaggio si completa soltanto quando il gioco indica che l’agenzia è stata creata. I successivi progetti di collaborazione sono richiamati nella preparazione contro l’URSS.",
+            "confirmation": "Verificato nel gioco",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "timing": "Preparazione iniziale della campagna, 1936.",
+                "source_seconds": 0,
+                "legacy_key": "m_setup"
+              }
+            },
+            "started_when": {
+              "op": "any",
+              "args": [
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.in_creation",
+                  "test": "eq",
+                  "value": true
+                },
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.is_created",
+                  "test": "eq",
+                  "value": true
+                }
+              ]
+            },
+            "completion": {
+              "op": "fact",
+              "key": "country.intelligence.is_created",
+              "test": "eq",
+              "value": true
+            },
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "inferred",
+                "timestamp_seconds": 0
+              }
+            ],
+            "kind": "gate"
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "POL",
+        "focus_tree_id": "polish_focus",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "observed",
+            "is_created": true,
+            "in_creation": true
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "agency-observation",
+      "run_id": "old-manual",
+      "checks": {
+        "setup_agency": true,
+        "m_setup": true
+      },
+      "started": {
+        "setup_agency": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "completed"
+      ]
+    }
+  },
+  {
+    "name": "agency live observation stale resists manual override",
+    "guide": {
+      "schema_version": 1,
+      "id": "agency-observation",
+      "applies_to": {
+        "country": "POL",
+        "tree_id": "polish_focus"
+      },
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://www.youtube.com/watch?v=FBPdhlwqMwM"
+        }
+      ],
+      "tracks": {
+        "operations": [
+          {
+            "key": "setup_agency",
+            "title": "Crea l’agenzia",
+            "name": "Crea l’agenzia",
+            "note": "Crea l’agenzia di intelligence nella preparazione iniziale mostrata dal video. L’avvio viene rilevato automaticamente anche in pausa; il passaggio si completa soltanto quando il gioco indica che l’agenzia è stata creata. I successivi progetti di collaborazione sono richiamati nella preparazione contro l’URSS.",
+            "confirmation": "Verificato nel gioco",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "timing": "Preparazione iniziale della campagna, 1936.",
+                "source_seconds": 0,
+                "legacy_key": "m_setup"
+              }
+            },
+            "started_when": {
+              "op": "any",
+              "args": [
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.in_creation",
+                  "test": "eq",
+                  "value": true
+                },
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.is_created",
+                  "test": "eq",
+                  "value": true
+                }
+              ]
+            },
+            "completion": {
+              "op": "fact",
+              "key": "country.intelligence.is_created",
+              "test": "eq",
+              "value": true
+            },
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "inferred",
+                "timestamp_seconds": 0
+              }
+            ],
+            "kind": "gate"
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": false,
+      "sample": {
+        "country": "POL",
+        "focus_tree_id": "polish_focus",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "observed",
+            "is_created": true,
+            "in_creation": true
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "agency-observation",
+      "run_id": "old-manual",
+      "checks": {
+        "setup_agency": true,
+        "m_setup": true
+      },
+      "started": {
+        "setup_agency": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable"
+      ]
+    }
+  },
+  {
+    "name": "agency live observation wrong nation resists manual override",
+    "guide": {
+      "schema_version": 1,
+      "id": "agency-observation",
+      "applies_to": {
+        "country": "POL",
+        "tree_id": "polish_focus"
+      },
+      "sources": [
+        {
+          "id": "video",
+          "type": "youtube",
+          "url": "https://www.youtube.com/watch?v=FBPdhlwqMwM"
+        }
+      ],
+      "tracks": {
+        "operations": [
+          {
+            "key": "setup_agency",
+            "title": "Crea l’agenzia",
+            "name": "Crea l’agenzia",
+            "note": "Crea l’agenzia di intelligence nella preparazione iniziale mostrata dal video. L’avvio viene rilevato automaticamente anche in pausa; il passaggio si completa soltanto quando il gioco indica che l’agenzia è stata creata. I successivi progetti di collaborazione sono richiamati nella preparazione contro l’URSS.",
+            "confirmation": "Verificato nel gioco",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "timing": "Preparazione iniziale della campagna, 1936.",
+                "source_seconds": 0,
+                "legacy_key": "m_setup"
+              }
+            },
+            "started_when": {
+              "op": "any",
+              "args": [
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.in_creation",
+                  "test": "eq",
+                  "value": true
+                },
+                {
+                  "op": "fact",
+                  "key": "country.intelligence.is_created",
+                  "test": "eq",
+                  "value": true
+                }
+              ]
+            },
+            "completion": {
+              "op": "fact",
+              "key": "country.intelligence.is_created",
+              "test": "eq",
+              "value": true
+            },
+            "evidence": [
+              {
+                "source_id": "video",
+                "basis": "inferred",
+                "timestamp_seconds": 0
+              }
+            ],
+            "kind": "gate"
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "ROM",
+        "focus_tree_id": "polish_focus",
+        "country_overview": {
+          "country": "ROM",
+          "intelligence": {
+            "status": "observed",
+            "is_created": true,
+            "in_creation": true
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "agency-observation",
+      "run_id": "old-manual",
+      "checks": {
+        "setup_agency": true,
+        "m_setup": true
+      },
+      "started": {
+        "setup_agency": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "not_applicable"
+      ]
     }
   }
 ]

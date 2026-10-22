@@ -33,7 +33,7 @@ test('country-neutral guides support empty and additional tracks without crashin
  assert.equal(r.focus.next,null);assert.equal(r.tracks.construction.rows[0].status,'free');
 });
 test('Python and JavaScript consume the same versioned wire examples',()=>{
- for(const example of wireExamples){const result=contracts.state(example.input);for(const [key,expected]of Object.entries(example.expected))assert.deepEqual({status:result.facts[key].status,value:result.facts[key].value},expected,key);}
+ for(const example of wireExamples){const result=contracts.state(example.input);for(const [key,expected]of Object.entries(example.expected))assert.deepEqual(Object.fromEntries(Object.keys(expected).map(field=>[field,result.facts[key][field]])),expected,example.name||key);for(const key of example.absent||[])assert.equal(Object.hasOwn(result.facts,key),false,example.name||key);}
 });
 test('research uses the same priorities and unknown membership stays unknown',()=>{
  const guide={tracks:{research:[{kind:'technology',target:'a'},{kind:'technology',target:'b',priority:5,priority_when:{op:'check',key:'ready'}}]}};

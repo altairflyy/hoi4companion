@@ -94,12 +94,15 @@ class ContractTests(unittest.TestCase):
         self.assertFalse(normalise_state(canonical)['facts'])
 
     def test_shared_wire_examples_preserve_per_field_provenance(self):
-        cases = json.loads((Path(__file__).parent / 'fixtures' / 'framework-state.json').read_text())
+        cases = json.loads((Path(__file__).parent / 'fixtures' / 'framework-state.json').read_text(encoding='utf-8'))
         for case in cases:
             result = normalise_state(case['input'])
             for key, expected in case['expected'].items():
                 with self.subTest(key=key):
                     self.assertEqual({k: result['facts'][key][k] for k in expected}, expected)
+            for key in case.get('absent', []):
+                with self.subTest(absent=key):
+                    self.assertNotIn(key, result['facts'])
 
     def test_unscoped_guide_resolves_unique_focus_and_requires_ambiguous_scope(self):
         from hoi4companion.guide import enrich_guide
