@@ -15,3 +15,4 @@ main{max-width:1240px;margin:auto;padding:28px 32px 60px}.hero{display:flex;just
 .operation-observations{font-size:12px;color:var(--blue);padding-left:18px}.operation-observations li{margin:5px 0}
 
 .operation-card.reminder{border-style:dashed;background:#18211d}.reminder .badge{color:#bdc9bb}.operation-card.event-visible{border:2px solid #dbc075;background:#302b1b}.event-choice{padding:12px;background:#4b4122;color:#ffe5a1;font-weight:600}
+.guide-tools{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}.hud-view .guide-tools{display:none}

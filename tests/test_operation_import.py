@@ -34,6 +34,26 @@ def state(level=3,queued=(),creating=False,created=False,usable=True,country='TS
 
 
 class OperationImportTests(unittest.TestCase):
+    def test_corrected_construction_rebinds_region_and_target_without_completing_from_old_state(self):
+        guide,sources=document({'category':'construction','building_id':'infrastructure','state_id':77,
+                                'quantity':1,'quantity_mode':'additional'})
+        catalog=CATALOG+[{'kind':'state','id':'88','name':'Correct State'}]
+        first=preview(guide,sources,catalog)['guide'];corrected=copy.deepcopy(first)
+        row=corrected['tracks']['operations'][0]
+        row['action']['params'].update(state_id=88,state_name='Correct State',quantity=2,quantity_mode='target_total')
+        # The construction editor removes the old generated conditions before revalidation.
+        row.pop('started_when');row.pop('completion')
+        report=preview(corrected,sources,catalog);self.assertTrue(report['valid'],report['errors'])
+        step=report['guide']['tracks']['operations'][0]
+        self.assertEqual(step['started_when']['value'],'state:88:infrastructure')
+        self.assertEqual(step['completion']['key'],'country.states.items.88.infrastructure')
+        self.assertEqual(step['completion']['value'],2)
+        progress={'schema_version':1,'guide_id':guide['id'],'run_id':'r','checks':{}}
+        self.assertNotEqual(evaluate(report['guide'],state(level=5),progress)['steps'][0]['status'],'completed')
+        live=state();live['facts']['country.states.items.88.infrastructure']={'status':'observed','value':2,'source':'fixture'}
+        self.assertEqual(evaluate(report['guide'],live,progress)['steps'][0]['status'],'completed')
+        self.assertEqual(first['tracks']['operations'][0]['action']['params']['state_id'],77)
+
     def test_agency_upgrade_request_is_not_completed_by_existing_agency(self):
         guide,sources=document({'category':'projects','project_name':'Intelligence Agency','target_quantity':5})
         report=preview(guide,sources,CATALOG)

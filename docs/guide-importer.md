@@ -407,3 +407,55 @@ avvio e completamento non ancora qualificati. Dettagli e limiti in
 provano una scelta passata: lo stato attuale non è una cronologia persistente.
 Il runtime non ricostruisce retroattivamente le azioni compiute prima della
 lettura, e non deduce una risposta dalla chiusura dell'evento.
+
+### Associazioni risolte e correzioni facoltative
+
+L'anteprima raccoglie le associazioni risolte in una sezione chiusa con la
+dicitura «nessuna azione richiesta». I dettagli della singola associazione
+si aprono soltanto su richiesta; le corrispondenze dubbie restano visibili.
+La revisione delle istruzioni e delle fonti resta distinta dalla risoluzione
+tecnica degli ID.
+
+Il pulsante «Correggi associazioni» nel walkthrough e negli alberi apre
+`/associations`, mantenendo la guida selezionata. Permette di cercare un
+passaggio, trovare un focus, una tecnologia o un progetto speciale nel
+catalogo locale, salvare la correzione e ripristinare l'associazione originale.
+La ricerca accetta ID, nomi inglesi e alias della localizzazione installata.
+
+Le correzioni sono versionate e scritte atomicamente in
+`.local/guide-associations`, separate dalla definizione originale, dalle fonti
+e dall'avanzamento della partita. L'API controlla identità, tipo, albero,
+nazione e conflitti del percorso; rifiuta una modifica concorrente basata su
+un'associazione ormai cambiata. Una correzione diventa inapplicabile, con
+avviso, se cambia il riferimento originale del passaggio nella guida sorgente.
+Tornando alla guida si carica la definizione corretta; altre schede già aperte
+devono essere ricaricate per acquisire la nuova definizione.
+
+Verifiche della modifica: **314 test Python e 211 JavaScript superati**.
+Test HTTP su fixture per salvataggio/ripristino, integrità del file originale,
+conservazione della partita attiva e rifiuto di richieste cross-origin o
+obsolete. Nel browser sono state verificate l'anteprima compatta sul file
+reale e la ricerca inglese/localizzata nell'editor con il catalogo installato.
+Non sono state salvate associazioni di prova sulla guida dell'utente.
+
+### Correggere una costruzione nell'anteprima
+
+«Correggi costruzione» espone ricerca della regione nel catalogo locale,
+edificio, quantità, obiettivo (aumento oppure totale/livello) e istruzione.
+Il titolo resta modificabile nel campo della scheda. «Applica correzione e
+verifica» aggiorna la copia in memoria, rimuove i vecchi collegamenti standard
+di costruzione e richiede nuovamente la validazione, che li ricrea sui parametri
+corretti. I criteri personalizzati non riconosciuti bloccano questa modifica:
+richiedono la revisione nell'editor JSON, evitando controlli sulla vecchia regione.
+Un obiettivo corretto richiede un nuovo conteggio iniziale live; non si conserva
+un `baseline_level` o un totale precedente come se valesse per la nuova regione.
+
+Note e citazioni originali restano consultabili separatamente dall'istruzione
+corretta. Il file caricato non viene sovrascritto. Per conservare la modifica
+occorre salvare la bozza o aggiungere/esportare la guida con il normale flusso
+dell'importer; la sola applicazione non installa una guida.
+
+Verificati 315 test Python e 213 JavaScript. Prova reale nel browser sulla
+bozza caricata: regione 91 → 762, ricalcolo del criterio di coda, nuova
+validazione riuscita. Nessuna installazione della bozza di prova, né modifica
+ai file o alla memoria di HOI4.

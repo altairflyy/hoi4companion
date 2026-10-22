@@ -367,6 +367,21 @@ class Store:
             result['demo'] = self.demo
             return result
 
+    def associations(self,guide_id=None,update=None):
+        from .guide_associations import read_associations,change_association
+        with self.lock:
+            if update is not None:
+                if not isinstance(update,dict) or set(update)!={'guide_id','key','expected','entity'}:
+                    raise ValueError('Correzione associazione non valida')
+                guide_id=update['guide_id']
+            source=load_guide(guide_id or getattr(self,'default_guide_id',None),associations=False)
+            if update is not None:
+                change_association(source,update['key'],update['expected'],update['entity'],self.importer().catalog())
+                self.guide_revision=getattr(self,'guide_revision',0)+1
+            return {'guide':self.walkthrough(source['id']),
+                    'changes':read_associations(source['id'])['changes'],
+                    'revision':getattr(self,'guide_revision',0)}
+
     def importer(self):
         with self.lock:
             if not hasattr(self, '_importer'):
@@ -543,6 +558,10 @@ def make_handler(store: Store):
                 except (OSError, ValueError) as exc:
                     self.json({'error': str(exc)}, 400)
                 return
+            if url.path == '/api/guide/associations':
+                try:self.json(store.associations(parse_qs(url.query).get('id',[None])[0]))
+                except (OSError,ValueError) as exc:self.json({'error':str(exc)},400)
+                return
             if url.path == '/api/guide/checks':
                 try:
                     self.json(store.walkthrough_checks(guide_id=parse_qs(url.query).get('id', [None])[0]))
@@ -568,6 +587,7 @@ def make_handler(store: Store):
                 self.json(store.technology_tree(parse_qs(url.query).get('id', [''])[0]))
                 return
             static = {'/': 'index.html', '/index.html': 'index.html',
+                      '/associations':'associations.html','/associations.js':'associations.js',
                       '/importer': 'importer.html', '/importer.js': 'importer.js',
                       '/importer-model.js': 'importer-model.js', '/importer.css': 'importer.css',
                       '/contracts.js': 'contracts.js',
@@ -595,7 +615,7 @@ def make_handler(store: Store):
         def do_POST(self):
             url = urlparse(self.path)
             import_paths = {'/api/import/source', '/api/import/packet', '/api/import/extract', '/api/import/preview', '/api/import/install', '/api/import/document'}
-            if url.path not in ('/api/config', '/api/refresh', '/api/guide/checks', '/api/guide/progress') and url.path not in import_paths:
+            if url.path not in ('/api/config', '/api/refresh', '/api/guide/checks', '/api/guide/progress','/api/guide/associations') and url.path not in import_paths:
                 self.json({'error': 'Not found'}, 404)
                 return
             # Blocca richieste cross-origin da siti terzi verso il servizio locale.
@@ -616,6 +636,9 @@ def make_handler(store: Store):
                 return
             try:
                 update = json.loads(self.rfile.read(length))
+                if url.path=='/api/guide/associations':
+                    self.json(store.associations(update=update))
+                    return
                 if url.path in import_paths:
                     if not isinstance(update, dict):
                         raise ValueError('Richiesta importazione non valida')
