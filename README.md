@@ -42,6 +42,12 @@ Altri argomenti: `--docs-dir`, `--snapshot`, `--country AUS`, `--port 8766`, `--
 
 ## Funzionalità disponibili
 
+- **Guide Importer MVP** (`/importer`): prompt completo da dare alla propria
+  IA insieme alla guida; importazione diretta del file restituito, risoluzione ID, citazioni,
+  anteprima modificabile ed esportazione/installazione di guide v1.
+  Acquisizione YouTube/web e API restano opzioni aggiuntive.
+  [Istruzioni e limiti](docs/guide-importer.md).
+
 - **Guide Runtime universale v1**: interpreta dipendenze, condizioni di
   completamento, fasi, priorità e azioni parallele senza generare strategie.
   Checklist separate per partita e stati non verificabili espliciti.
@@ -229,7 +235,7 @@ per attribuire ricerche completate. Le dottrine del nuovo sistema restano fuori 
 
 Il repository dispone di una suite completa di test automatizzati per il backend Python e per i modelli frontend:
 
-### Test Python (200 test)
+### Test Python (287 test)
 Tramite lo script batch (Windows):
 ```cmd
 test.bat
@@ -241,7 +247,7 @@ py -3 -m hoi4companion --test
 ```
 (in alternativa: `python -m unittest discover -s tests -p "test_*.py"`).
 
-### Test frontend JavaScript / Node.js (145 test)
+### Test frontend JavaScript / Node.js (198 test)
 I modelli logici del client sono verificati tramite il test runner nativo di Node.js (`node:test`):
 ```powershell
 Get-ChildItem -Path "tests" -Filter "*.cjs" | ForEach-Object { node $_.FullName }

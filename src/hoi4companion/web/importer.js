@@ -1,0 +1,91 @@
+'use strict';
+(()=>{
+ const $=id=>document.getElementById(id),m=HoiImporter;
+ const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
+ let sources=[],report=null,busy=false,aiConfigured=false,generation=0,entities=[];
+ const buttons=['acquire','packet','extract','validate','saveDraft','exportGuide','install','copyPrompt','downloadPrompt','downloadCatalog'];
+ function controls(){for(const id of buttons)$(id).disabled=busy;
+  $('packet').disabled=busy||!sources.length;$('extract').disabled=busy||!sources.length||!aiConfigured;
+  $('copyPrompt').disabled=$('downloadPrompt').disabled=busy||!$('importPrompt').value;
+  $('downloadCatalog').disabled=busy||!entities.length;
+  for(const id of ['exportGuide','install'])$(id).disabled=!m.canPublish(report,$('reviewed').checked,busy);
+  $('draftFile').disabled=busy;
+ }
+ function invalidate(){generation++;report=null;$('reviewed').checked=false;$('validation').textContent='Bozza modificata: risolvi gli ID e valida di nuovo.';$('openGuide').hidden=true;controls();}
+ function error(e){$('error').hidden=false;$('error').textContent=e.message||String(e);}
+ async function request(path,body){const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const value=await response.json();if(!response.ok)throw Error(value.error||'Richiesta fallita');return value;}
+ async function run(task){if(busy)return;busy=true;$('error').hidden=true;controls();try{await task();}catch(e){error(e);}finally{busy=false;controls();}}
+ function download(name,value,text=false){const url=URL.createObjectURL(new Blob([text?value:JSON.stringify(value,null,2)+'\n'],{type:text?'text/plain;charset=utf-8':'application/json'})),a=node('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+ function readGuide(){return m.readDraft($('guideJson').value).guide;}
+ function sourceList(){
+  $('sourceCount').textContent=sources.length+' fonti acquisite';$('sources').replaceChildren();
+  for(const src of sources){const details=node('details');details.className='source-card';details.append(node('summary',src.title+' · '+src.type+' · '+src.text.length+' caratteri'));
+   details.append(node('p',src.url||'Testo locale'),node('p',(src.warnings||[]).join(' ')),node('pre',src.text));const remove=node('button','Rimuovi fonte');remove.type='button';remove.onclick=()=>{sources=sources.filter(item=>item.id!==src.id);invalidate();sourceList();};details.append(remove);$('sources').append(details);
+  }
+ }
+ function writeGuide(value){$('guideJson').value=JSON.stringify(value,null,2);}
+ function showReport(value){report=value;$('issues').replaceChildren();$('sourceWarnings').replaceChildren();$('preview').replaceChildren();
+  $('validation').textContent=value.valid?'Validazione superata: guida pronta per essere aggiunta. Controlla i dettagli estratti dalla fonte indicati sotto.':'Revisione necessaria: '+value.errors.length+' problemi bloccanti.';
+  for(const message of value.errors)$('issues').append(node('li',message));
+  for(const message of new Set(value.warnings))$('sourceWarnings').append(node('li',message));
+  const operations=value.operations||[],count=mode=>operations.filter(row=>row.monitoring===mode).length;
+  $('monitoringSummary').textContent=operations.length?count('automatic')+' automatiche · '+count('start_only')+' con solo avvio automatico · '+count('manual')+' da confermare. Il monitoraggio si attiva nel walkthrough con lo stato live disponibile.':'';
+  const visual=value.warnings.filter(text=>text.includes('osservazione visiva dichiarata')).length;
+  $('reviewSummary').textContent=visual?visual+' istruzioni contengono dettagli ricavati dalle immagini del video: controlla quantità, regioni e composizioni. I dettagli degli avvisi sono espandibili.':'La revisione riguarda il contenuto della guida; gli ID e i collegamenti live vengono controllati dal programma.';
+  if(!value.guide){if(value.draft)writeGuide(value.draft);return;}
+  writeGuide(value.guide);
+  for(const [lane,rows]of Object.entries(value.guide.tracks))for(const row of rows){
+   const resolution=value.resolutions.find(item=>item.key===row.key),operation=operations.find(item=>item.key===row.key),card=node('article');card.className='preview-card'+(resolution&&resolution.status!=='resolved'?' unresolved':'');
+   const monitoring={automatic:'completamento automatico',start_only:'avvio automatico · completamento da confermare',manual:'conferma richiesta'};
+   card.append(node('p',lane+' · '+row.key+' · '+(operation?monitoring[operation.monitoring]:resolution?.status==='unresolved_route'?'percorso non verificabile':resolution?.status||'verifica manuale')));
+   const reasons={additional_baseline_missing:'Per contare le costruzioni aggiuntive serve il numero di edifici prima dell’ordine oppure il totale da raggiungere.',building_completion_not_observed:'Il lettore rileva la coda; il livello finale di questo edificio non è ancora esposto.',target_not_defined:'La guida non specifica un totale o un livello da raggiungere.',building_or_state_not_resolved:'Edificio o regione non identificati univocamente.',declared_manual_completion:'Il criterio dichiarato nella guida richiede una conferma.'};
+   Object.assign(reasons,{production_equipment_unresolved:'Tipo di equipaggiamento non associato a un ID del gioco. Specifica equipment_id o un nome inglese/localizzato univoco.',production_equipment_ambiguous:'Il nome corrisponde a più tipi di equipaggiamento: serve un ID univoco.',production_variant_ambiguous:'Modello ambiguo o più modelli nella stessa istruzione: separa le assegnazioni.',production_variant_incompatible:'Il modello indicato appartiene a un tipo diverso dall’equipaggiamento richiesto.',production_target_missing:'Linea identificata: avvio automatico disponibile, ma manca il numero di fabbriche da assegnare.',production_category_invalid:'Specifica military oppure naval per il tipo di linea.',production_mio_not_observed:'L’assegnazione del MIO non è esposta dal lettore di produzione.'});
+   if(operation?.reason==='production_live_assignment')card.append(node('p','Controllo live sulle fabbriche effettivamente assegnate al tipo/modello richiesto; il solo numero richiesto non completa l’istruzione.'));
+   if(operation?.reason==='production_relative_assignment')card.append(node('p','Il programma registra le fabbriche già assegnate quando l’istruzione diventa disponibile e verifica l’aumento richiesto.'));
+   if(operation?.reason==='baseline_from_live')card.append(node('p','Il conteggio iniziale viene registrato automaticamente dalla partita quando l’istruzione è disponibile, prima dell’ordine. Il completamento richiede quel conteggio più la quantità richiesta.'));
+   if(operation?.monitoring!=='automatic'&&reasons[operation?.reason])card.append(node('p',reasons[operation.reason]));
+   if(resolution?.supporting_focus_ids?.length)card.append(node('p','Percorso della guida: '+resolution.supporting_focus_ids.join(', ')));
+   for(const excluded of resolution?.excluded_candidates||[]){const entry=excluded.entity;card.append(node('p','Escluso dal percorso: '+(entry.localized_name||entry.name||entry.id)+' ('+entry.id+') · incompatibile con '+excluded.conflicting_focus_ids.join(', ')));}
+   const upgrade=row.research_upgrade;
+   if(upgrade)card.append(node('p','Prossimo livello del ramo: '+(upgrade.from_id||'inizio del ramo')+' → '+row.action.entity.id));
+   const label=node('label','Titolo'),title=node('input');title.value=row.title||row.name||row.key;label.append(title);card.append(label);
+   title.onchange=()=>{writeGuide(m.editStep(readGuide(),row.key,{title:title.value}));invalidate();};
+   if(row.action.entity){card.append(node('p',row.action.entity.kind+': '+row.action.entity.id+(row.action.entity.scope?' · '+row.action.entity.scope:'')));
+    const selectLabel=node('label','Corrispondenza nel catalogo'),select=node('select'),placeholder=node('option','Scegli / conferma un ID…');placeholder.value='';select.append(placeholder);
+    function options(candidates){select.replaceChildren(placeholder);for(const candidate of candidates){const option=node('option',(candidate.localized_name||candidate.name)+' · '+candidate.id+(candidate.scope?' · '+candidate.scope:''));option.value=JSON.stringify({kind:candidate.kind,id:candidate.id,...(candidate.scope?{scope:candidate.scope}:{})});select.append(option);}}
+    options(resolution?.candidates||[]);
+    const searchLabel=node('label','Cerca nome o ID nel catalogo'),search=node('input');search.type='search';searchLabel.append(search);card.append(searchLabel);
+    search.oninput=()=>{const query=search.value.toLocaleLowerCase();options(entities.filter(item=>item.kind===row.action.entity.kind&&(!row.action.entity.scope||item.scope===row.action.entity.scope)&&[item.id,item.name,item.localized_name,...item.aliases||[]].some(text=>typeof text==='string'&&text.toLocaleLowerCase().includes(query))).slice(0,50));};
+    select.onchange=()=>{if(select.value){writeGuide(m.editStep(readGuide(),row.key,{entity:JSON.parse(select.value)}));invalidate();}};selectLabel.append(select);card.append(selectLabel);
+   }
+   if(row.note)card.append(node('p',row.note));
+   if(row.depends_on?.length)card.append(node('p','Dipende da: '+row.depends_on.join(', ')));
+   for(const evidence of row.evidence||[])card.append(node('blockquote',(evidence.quote||'Citazione assente')+'\n— '+evidence.source_id+(evidence.timestamp_seconds!==undefined?' · '+evidence.timestamp_seconds+'s':'')));
+   if(row.action.params){const p=node('pre',JSON.stringify(row.action.params,null,2));p.className='params';card.append(p);}
+   $('preview').append(card);
+  }
+ }
+ async function loadDocument(text){const parsed=m.readDraft(text);if(parsed.sources)return request('/api/import/document',{document:JSON.parse(text)});return parsed;}
+ async function validate(){const version=generation;const parsed=await loadDocument($('guideJson').value);if(version!==generation)return;
+  const guide=parsed.guide;if(parsed.sources){sources=parsed.sources;sourceList();}m.normalise(guide);
+  const value=await request('/api/import/preview',{guide,sources});if(version===generation)showReport(value);}
+ $('copyPrompt').onclick=()=>run(async()=>{if(!navigator.clipboard?.writeText)throw Error('Copia dagli appunti non disponibile: usa Scarica prompt .txt');await navigator.clipboard.writeText($('importPrompt').value);$('notice').textContent='Prompt copiato: incollalo nella tua IA e aggiungi la guida da convertire.';});
+ $('downloadPrompt').onclick=()=>download('hoi4-companion-prompt.txt',$('importPrompt').value,true);
+ $('downloadCatalog').onclick=()=>download('hoi4-companion-catalogo-id.json',{catalog:entities.filter(item=>item.kind!=='focus'||!$('treeScope').value||item.scope===$('treeScope').value)});
+ $('sourceText').maxLength=180000;
+ $('acquire').onclick=()=>run(async()=>{const source=await request('/api/import/source',{url:$('sourceUrl').value.trim(),text:$('sourceText').value});if(sources.some(src=>src.id===source.id))throw Error('Questa fonte è già acquisita');if(sources.length>=8)throw Error('Massimo 8 fonti');sources.push(source);invalidate();sourceList();$('sourceText').value='';$('sourceUrl').value='';});
+ $('packet').onclick=()=>run(async()=>{download('guide-import.packet.json',await request('/api/import/packet',{sources,tree_id:$('treeScope').value||null}));$('notice').textContent='Pacchetto pronto: forniscilo alla tua IA e carica qui il JSON della guida restituito.';});
+ $('extract').onclick=()=>run(async()=>{const version=generation;const value=await request('/api/import/extract',{sources,tree_id:$('treeScope').value||null});if(version===generation){$('reviewed').checked=false;showReport(value);}});
+ $('guideJson').oninput=invalidate;$('reviewed').onchange=controls;
+ $('validate').onclick=()=>run(validate);
+ $('saveDraft').onclick=()=>run(async()=>download('guide-import.draft.json',{import_schema_version:1,guide:$('guideJson').value.trim()?readGuide():null,sources}));
+ $('draftFile').onchange=()=>run(async()=>{const file=$('draftFile').files[0];if(!file)return;if(file.size>2000000)throw Error('File oltre 2 MB');invalidate();const version=generation,draft=await loadDocument(await file.text());if(version!==generation)return;if(draft.sources)sources=draft.sources;if(draft.guide)writeGuide(draft.guide);sourceList();if(draft.guide)await validate();});
+ $('exportGuide').onclick=()=>{if(m.canPublish(report,$('reviewed').checked,busy))download(report.guide.id+'.json',report.guide);};
+ $('install').onclick=()=>run(async()=>{if(!report?.valid||!$('reviewed').checked)throw Error('Validazione e revisione necessarie');const result=await request('/api/import/install',{guide:report.guide,sources,reviewed:true});$('notice').textContent='Guida aggiunta alle guide locali: '+result.id;$('openGuide').href=result.href;$('openGuide').hidden=false;});
+ (async()=>{try{const [status,catalog,prompt]=await Promise.all([request('/api/import/status'),request('/api/import/catalog'),request('/api/import/prompt')]);aiConfigured=status.ai_configured;
+  $('importPrompt').value=prompt.prompt||'';
+  entities=catalog.entities;$('notice').textContent=catalog.demo?'Catalogo dimostrativo: configura HOI4 per risolvere gli ID reali.':'Catalogo locale caricato · '+catalog.entities.length+' entità disponibili.';
+  $('aiStatus').textContent=aiConfigured?'API OpenAI configurata · modello '+status.model:'API non configurata. Il percorso con pacchetto esterno è disponibile. Per l’API imposta OPENAI_API_KEY e HOI4_IMPORT_MODEL nell’ambiente locale del server.';
+  for(const scope of [...new Set(catalog.entities.map(item=>item.scope).filter(Boolean))].sort()){const option=node('option',scope);option.value=scope;$('treeScope').append(option);}
+ }catch(e){error(e);}finally{controls();}})();
+})();

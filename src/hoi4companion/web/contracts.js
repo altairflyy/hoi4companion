@@ -4,10 +4,20 @@
  const unknown=(reason='Campo non osservato')=>({status:'unknown',value:null,source:'',reason});
  const known=(value,source='process_memory',calculated=false)=>value===null||value===undefined?unknown():({status:calculated?'calculated':'observed',value,source});
  function validType(key,value){
+  if(key==='production.lines')return validProductionLines(value);
   if(['country.intelligence.is_created','country.intelligence.in_creation'].includes(key))return typeof value==='boolean';
   if(['country','focus.tree'].includes(key))return typeof value==='string'&&value.length>0;
   if(['focus.completed','focus.active','focus.continuous','focus.ids','research.completed','research.active','research.ids','construction.queued'].includes(key))return Array.isArray(value)&&value.every(x=>typeof x==='string'&&x.length>0);
   if(key==='research.slots')return Array.isArray(value)&&value.every(x=>x&&typeof x==='object'&&Object.hasOwn(x,'technology_id')&&(x.technology_id===null||typeof x.technology_id==='string'&&x.technology_id.length>0));
+  return true;
+ }
+ function validProductionLines(lines){
+  if(!Array.isArray(lines)||lines.length>4096)return false;
+  const ids=new Set();
+  for(const row of lines){
+   if(!row||typeof row!=='object'||Array.isArray(row)||['id','equipment','name'].some(key=>typeof row[key]!=='string'||!row[key])||ids.has(row.id)||!['military','naval'].includes(row.category)||['requested_factories','assigned_factories','active_factories','damaged_factories'].some(key=>!Number.isSafeInteger(row[key])||row[key]<0)||row.assigned_factories!==row.active_factories+row.damaged_factories||row.assigned_factories>row.requested_factories)return false;
+   ids.add(row.id);
+  }
   return true;
  }
  function validateFacts(value,invalidReason='Dato contratto non valido'){return {...value,facts:Object.fromEntries(Object.entries(value.facts).map(([k,f])=>{
@@ -41,6 +51,8 @@
   const overview=s.country_overview||{},derived=new Set(['by_type','by_template','total','effective_factories','output_per_day','assigned_factories','category','balance','used','owned','controlled','name']);
   const queued=typeof s.country==='string'&&s.country&&overview.country===s.country?queuedConstruction(overview.construction):null;
   f['construction.queued']=queued===null?unknown('Coda costruzioni non qualificata'):known(queued,'construction_adapter',true);
+  const production=overview.production,productionKnown=typeof s.country==='string'&&s.country&&overview.country===s.country&&production?.status==='observed'&&validProductionLines(production.lines);
+  f['production.lines']=productionKnown?known(production.lines.map(row=>({...row})),'production_adapter',true):unknown('Linee di produzione non qualificate');
   function put(path,data,present,calculated){f[path]=present?known(data,calculated?'legacy_adapter':source,calculated):unknown();}
   function flatten(path,data,present,calculated=false){
    if(Array.isArray(data)){put(path+'.count',data.length,present,true);data.forEach((child,i)=>flatten(path+'.'+(child&&typeof child==='object'?child.id??String(i):String(i)),child,present,calculated));}
@@ -118,10 +130,13 @@
   const sources=identifiers(sourceRows,'Fonti',32),phases=identifiers(phaseRows,'Fasi',128);
   for(const source of sourceRows){if(!['youtube','web','file','manual'].includes(source.type)||Object.hasOwn(source,'url')&&!validUrl(source.url))throw Error('Fonte non valida');}
   for(const phase of phaseRows){if(typeof phase.title!=='string'||!phase.title)throw Error('Titolo fase mancante');if(Object.hasOwn(phase,'when'))validateCondition(phase.when);}
-  const rows=Object.values(guide.tracks).flat(),keys=new Set(rows.map(x=>x.key)),pending=new Map(),successors=new Map(rows.map(x=>[x.key,[]]));
+  const rows=Object.values(guide.tracks).flat(),keys=new Set(rows.map(x=>x.key)),reminders=new Set(rows.filter(x=>x.tracking==='reminder').map(x=>x.key)),pending=new Map(),successors=new Map(rows.map(x=>[x.key,[]]));
   for(const step of rows){
+   if(Object.hasOwn(step,'tracking')&&!['action','reminder'].includes(step.tracking))throw Error('Modalità monitoraggio non valida: '+step.key);
+   if(step.tracking==='reminder'&&(step.action.kind!=='manual'||Object.hasOwn(step,'completion')||Object.hasOwn(step,'started_when')))throw Error('Promemoria incompatibile con azione o completamento: '+step.key);
    const deps=Object.hasOwn(step,'depends_on')?step.depends_on:[];
    if(!Array.isArray(deps)||deps.length>64||deps.some(dep=>typeof dep!=='string'||!keys.has(dep)||dep===step.key)||new Set(deps).size!==deps.length)throw Error('Dipendenze non valide: '+step.key);
+   if(deps.some(dep=>reminders.has(dep)))throw Error('Dipendenza da promemoria non completabile: '+step.key);
    pending.set(step.key,deps.length);for(const dep of deps)successors.get(dep).push(step.key);
    if(Object.hasOwn(step,'phase')&&(typeof step.phase!=='string'||!phases.has(step.phase)))throw Error('Fase sconosciuta: '+step.key);
    if(Object.hasOwn(step,'completion'))validateCondition(step.completion);

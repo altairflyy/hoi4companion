@@ -1,0 +1,81 @@
+{
+  "import_schema_version": 1,
+  "sources": [
+    {
+      "id": "source-1",
+      "type": "manual",
+      "title": "Esempio inventato per provare Guide Importer",
+      "text": "ESEMPIO INVENTATO PER TESTARE IL FORMATO, NON UNA STRATEGIA. Research Basic Machine Tools. Build 2 military factories in Berlin.",
+      "segments": [],
+      "warnings": [
+        "Testo fornito manualmente, non verificato contro la pagina remota."
+      ]
+    }
+  ],
+  "guide": {
+    "schema_version": 1,
+    "id": "example-importer-opening",
+    "title": "Esempio Importer — non è una strategia",
+    "subtitle": "Fixture modificabile: verifica il formato con il catalogo locale.",
+    "applies_to": {},
+    "sources": [
+      {
+        "id": "source-1",
+        "type": "manual"
+      }
+    ],
+    "assumptions": [
+      "Testo inventato esclusivamente per dimostrare il formato. Nessuna strategia reale verificata.",
+      "L’ID numerico della regione non è risolto: l’istruzione resta manuale."
+    ],
+    "tracks": {
+      "research": [
+        {
+          "key": "tools",
+          "title": "Macchine utensili di base",
+          "action": {
+            "kind": "research",
+            "entity": {
+              "kind": "technology",
+              "id": "Basic Machine Tools"
+            }
+          },
+          "evidence": [
+            {
+              "source_id": "source-1",
+              "basis": "explicit",
+              "quote": "Research Basic Machine Tools."
+            }
+          ]
+        }
+      ],
+      "operations": [
+        {
+          "key": "factories",
+          "title": "Esempio di costruzione",
+          "action": {
+            "kind": "manual",
+            "params": {
+              "category": "construction",
+              "quantity": 2,
+              "building_id": "arms_factory",
+              "state_name": "Berlin",
+              "state_id": null,
+              "instructions": [
+                "Build 2 military factories in Berlin."
+              ]
+            }
+          },
+          "evidence": [
+            {
+              "source_id": "source-1",
+              "basis": "explicit",
+              "quote": "Build 2 military factories in Berlin."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "format": "hoi4-guide-import"
+}

@@ -132,6 +132,46 @@ rollback osservabili, ma nessuna euristica certifica tutti i caricamenti.
 
 ## Verifica e limiti
 
+### Conteggi iniziali per costruzioni aggiuntive
+
+L'importatore compila un ordine strutturato `quantity_mode: additional` con
+edificio e regione risolti in una condizione v1 sul fatto calcolato riservato
+`guide.construction.<step>.added`. Il runtime ricava quel fatto dal contatore
+costruito osservato meno il conteggio iniziale della singola partita; ignora
+eventuali valori esterni dello stesso fatto. Le condizioni già esplicite della
+guida sono conservate. Nessuna nuova lettura nativa viene introdotta.
+
+`RunStore.observe` registra una sola volta il contatore prima dell'ordine, quando
+dipendenze e condizioni permettono l'istruzione e la coda qualificata non contiene
+già quell'edificio nella regione. Non acquisisce dati autonomamente. Il conteggio
+deve essere osservato, con nazione e sessione compatibili; dati mancanti, stale o
+calcolati non fissano una baseline. Ordini successivi sullo stesso contatore non
+condividono lo stesso incremento: il secondo parte dopo il completamento del primo.
+
+`GuideProgress.baselines` è un'estensione opzionale v1, con voci
+`{fact_key,value,country,quantity,source}` per step. La genera solo il server:
+non è scrivibile dall'API delle checklist. È separata dalla definizione della guida
+e dai fatti live. SSE la trasporta in `guide_baselines`; Python e JavaScript
+calcolano lo stesso risultato. La vista mostra conteggio corrente, iniziale e target.
+
+Esempio: 5 iniziali + 2 richieste → target 7. Coda presente: in corso; coda
+annullata e totale 5 o 6: incompleta; totale osservato almeno 7: completata.
+La baseline non cambia quando l'ordine viene annullato e ripreso. La creazione di
+una nuova checklist o il cambio sessione la separa dalla partita precedente.
+Il criterio misura il totale netto nella regione, non la provenienza causale
+di ogni nuovo edificio.
+
+Limiti: se il primo campione arriva dopo l'avvio della costruzione, il conteggio
+originario resta sconosciuto; non viene ricostruito dai lavori rimasti in coda.
+Come gli altri progressi, le baseline sono in memoria e si perdono al riavvio
+del server. Restano applicabili i limiti sull'identità della campagna descritti sopra.
+
+Verifica 22 ottobre 2026: fixture condivise Python/JavaScript, API HTTP reali con
+acquisizione simulata e browser reale su server fixture isolato hanno verificato
+5→coda→annullamento, completamento parziale, 7→completata, rilettura pagina,
+isolamento tra run e assenza di pulsanti manuali. Queste prove non certificano
+una nuova transizione di costruzione nella partita reale.
+
 Fixture condivise coprono stati, dati mancanti, scope, dipendenze incrociate e
 in avanti, priorità, checkpoint, fasi, condizioni esplicite, sessioni e slot.
 Test dedicati coprono catene di 2000 step, rollback, isolamento delle checklist,

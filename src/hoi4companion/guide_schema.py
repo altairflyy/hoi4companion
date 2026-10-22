@@ -82,16 +82,24 @@ def validate_guide_extensions(guide: dict) -> None:
 
     rows = [step for steps in guide['tracks'].values() for step in steps]
     keys = {step['key'] for step in rows}
+    reminders = {step['key'] for step in rows if step.get('tracking') == 'reminder'}
     pending = {key: 0 for key in keys}
     successors = {key: [] for key in keys}
 
     for step in rows:
         key = step['key']
+        if step.get('tracking', 'action') not in ('action', 'reminder'):
+            raise ValueError(f'Modalità monitoraggio non valida: {key}')
+        if step.get('tracking') == 'reminder' and (step['action']['kind'] != 'manual'
+                or 'completion' in step or 'started_when' in step):
+            raise ValueError(f'Promemoria incompatibile con azione o completamento: {key}')
         deps = step.get('depends_on', [])
         if not isinstance(deps, list) or len(deps) > 64 or any(
                 not isinstance(dep, str) or dep not in keys or dep == key for dep in deps
         ) or len(deps) != len(set(deps)):
             raise ValueError(f'Dipendenze non valide: {key}')
+        if any(dep in reminders for dep in deps):
+            raise ValueError(f'Dipendenza da promemoria non completabile: {key}')
         pending[key] = len(deps)
         for dep in deps:
             successors[dep].append(key)

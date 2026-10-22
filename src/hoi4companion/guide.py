@@ -14,6 +14,7 @@ from .guide_schema import validate_guide_extensions
 
 
 GUIDES = Path(__file__).parent / 'guides'
+LOCAL_GUIDES = Path(__file__).resolve().parents[2] / '.local' / 'guides'
 
 
 def normalise_guide(guide):
@@ -98,9 +99,11 @@ def _load_file(path, mtime_ns, size):
     return normalise_guide(json.loads(Path(path).read_text(encoding='utf-8')))
 
 
-def _catalog(directory):
+def _catalog(directory=None):
     catalog = {}
-    for path in sorted(Path(directory).glob('*.json')):
+    paths = sorted(Path(directory).glob('*.json')) if directory is not None else [
+        *sorted(GUIDES.glob('*.json')), *sorted(LOCAL_GUIDES.glob('*.json'))]
+    for path in paths:
         stat = path.stat()
         guide = _load_file(str(path.resolve()), stat.st_mtime_ns, stat.st_size)
         key = guide.get('id')
@@ -110,7 +113,7 @@ def _catalog(directory):
     return catalog
 
 
-def list_guides(directory=GUIDES):
+def list_guides(directory=None):
     return [{'id': g['id'], 'title': g['title'], 'schema_version': VERSION, 'applies_to': deepcopy(g['applies_to'])}
             for g in _catalog(directory).values()]
 
@@ -122,11 +125,11 @@ def _default(catalog):
     return defaults[0] if defaults else next(iter(catalog), None)
 
 
-def default_guide_id(directory=GUIDES):
+def default_guide_id(directory=None):
     return _default(_catalog(directory))
 
 
-def load_guide(guide_id=None, *, directory=GUIDES):
+def load_guide(guide_id=None, *, directory=None):
     catalog = _catalog(directory)
     if guide_id is None:
         guide_id = _default(catalog)
@@ -136,7 +139,8 @@ def load_guide(guide_id=None, *, directory=GUIDES):
 
 
 def manual_keys(guide):
-    allowed = {s['key'] for rows in guide['tracks'].values() for s in rows if s['kind'] in ('gate', 'project')}
+    allowed = {s['key'] for rows in guide['tracks'].values() for s in rows
+               if s['kind'] in ('gate', 'project') and s.get('tracking') != 'reminder'}
     allowed.update(s['key'] for s in guide.get('milestones', []))
     def visit(node):
         if node.get('op') == 'check':

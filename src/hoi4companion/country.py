@@ -416,6 +416,8 @@ def localise_country(value, labels):
     for section, container in [('production', 'lines'), ('equipment', 'items')]:
         for item in result.get(section, {}).get(container, []):
             key = item.get('equipment', item.get('id'))
+            if section == 'production':
+                item['equipment_name'] = labels.get(key, key)
             if not item.get('name') or item['name'] == key:
                 item['name'] = labels.get(f'{country}_{key}', labels.get(key, key))
     for item in result.get('resources', {}).get('items', []):

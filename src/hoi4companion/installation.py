@@ -90,14 +90,21 @@ def collect_files(game: Path, mod_dirs: list[Path], subdir: str, extension: str)
     return list(result.values()), warnings
 
 
-def load_localisation(game: Path, mods: list[Path], language: str) -> dict[str, str]:
-    """Lettura minimamente invasiva dei valori testuali standard HOI4."""
+def load_localisations(game: Path, mods: list[Path], language: str) -> tuple[dict[str, str], dict[str, str]]:
+    """Read display overlays and an independent English reference in one pass.
+
+    Translation mods can replace even *_l_english.yml. Preserve the game's
+    English labels for existing IDs; accept mod English for newly added IDs.
+    Display text retains the usual language and active-mod precedence.
+    """
     import re
     languages = ['english'] if language == 'english' else ['english', language]
     result: dict[str, str] = {}
+    reference: dict[str, str] = {}
     regex = re.compile(r'^\s*([^:#\s]+):\d*\s+"((?:\\.|[^"\\])*)"')
     for lang in languages:
         for root in [game, *mods]:
+            english: dict[str, str] = {}
             local = root / 'localisation'
             if not local.exists():
                 continue
@@ -107,7 +114,21 @@ def load_localisation(game: Path, mods: list[Path], language: str) -> dict[str, 
                         for line in src:
                             hit = regex.match(line)
                             if hit:
-                                result[hit.group(1)] = hit.group(2).replace('\\n', '\n').replace('\\"', '"')
+                                key = hit.group(1)
+                                text = hit.group(2).replace('\\n', '\n').replace('\\"', '"')
+                                result[key] = text
+                                if lang == 'english':
+                                    # Last file wins within each root, as for display.
+                                    english[key] = text
                 except OSError:
                     continue
-    return result
+            if lang == 'english':
+                for key, text in english.items():
+                    if root == game or key not in reference:
+                        reference[key] = text
+    return result, reference
+
+
+def load_localisation(game: Path, mods: list[Path], language: str) -> dict[str, str]:
+    """Compatibility API for callers that only need installed display text."""
+    return load_localisations(game, mods, language)[0]

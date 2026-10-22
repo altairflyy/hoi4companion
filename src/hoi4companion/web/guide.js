@@ -30,6 +30,13 @@
   node.append(el('p','operation-timing','Quando: '+row.timing));
   if(row.instructions?.length){const list=el('ol','operation-instructions');for(const line of row.instructions)list.append(el('li','',line));node.append(list);}
   if(row.note)node.append(el('p','operation-copy',row.note));
+  if(row.construction){const c=row.construction;node.append(el('p','operation-observations',c.target===null?'Conteggio iniziale non ancora registrato: apri la guida prima di impartire l’ordine.':`Edifici nella regione: ${c.current??'non verificabile'} / ${c.target} · iniziali: ${c.baseline}`));}
+  if(row.production){const p=row.production,target=p.target===null?'obiettivo non determinato':p.target;
+   node.append(el('p','operation-observations',`Produzione · fabbriche assegnate: ${p.assigned??'non verificabile'} / ${target} · richieste: ${p.requested??'—'} · attive: ${p.active??'—'} · danneggiate: ${p.damaged??'—'}`));
+   if(p.baseline!==null)node.append(el('p','operation-copy','Assegnate inizialmente: '+p.baseline));
+   if(p.reason==='baseline_missing')node.append(el('p','operation-copy','Il conteggio iniziale deve essere registrato prima di aumentare la richiesta di fabbriche.'));
+   if(p.lines.length){const list=el('ul','operation-observations');for(const line of p.lines)list.append(el('li','',`${line.name} · ${line.equipment_name||line.equipment} · ${line.category==='naval'?'cantieri navali':'fabbriche militari'}: ${line.assigned_factories} assegnate`));node.append(list);}
+  }
   if(row.construction_observations?.length){const list=el('ul','operation-observations');for(const line of row.construction_observations)list.append(el('li','',`${line.name||line.building_id} · ${line.state_name||'regione '+line.state_id}: ${line.amount} in coda · ${line.active_factories} fabbriche attive`));node.append(el('p','eyebrow','ORDINI LETTI LIVE'),list);}
   if(row.blocked_by?.length){const rows=value.view.operations;node.append(el('p','operation-wait','Prima: '+row.blocked_by.map(key=>name(rows.find(r=>r.key===key)||{key})).join(', ')));}
   controls(row,node);const href=sourceLink(row.source_seconds);if(href){const a=el('a','operation-source','Fonte'+(Number.isFinite(row.source_seconds)?' · video '+clock(row.source_seconds):'')+' ↗');a.href=href;a.target='_blank';a.rel='noopener noreferrer';node.append(a);}return node;
@@ -49,7 +56,7 @@
   }
   $('guideSelect').disabled=value.pending>0;$('reset').disabled=value.pending>0;links();
   $('mode').textContent={live:'Percorso collegato · '+(view.country||'partita corrente'),preview:'Anteprima della guida',wrong_country:'Guida sospesa · nazione diversa',wrong_tree:'Guida sospesa · albero diverso'}[view.mode];
-  $('modeNote').textContent=view.mode==='live'?'Focus e ricerche si aggiornano nei rispettivi alberi. Qui conferma soltanto le attività che hai verificato nel gioco.':'Le istruzioni restano consultabili. Senza una partita compatibile non viene dedotto alcun avanzamento.';
+  $('modeNote').textContent=view.mode==='live'?'Focus e ricerche si aggiornano nei rispettivi alberi. Le operazioni con criteri live avanzano automaticamente; conferma solo quelle che richiedono una verifica manuale.':'Le istruzioni restano consultabili. Senza una partita compatibile non viene dedotto alcun avanzamento.';
   const rows=value.view.operations,done=rows.filter(r=>r.runtime_status==='completed').length,active=rows.filter(r=>r.runtime_status==='active').length;$('operationProgress').textContent=done+'/'+rows.length;$('operationActive').textContent=active?active+' in corso':'';
   const eligible=rows.filter(row=>!['completed','not_applicable','waiting','active'].includes(row.runtime_status));
   const upcoming=eligible.find(row=>!['dependency_unknown','phase_condition_unknown','condition_unknown','live_state_unavailable'].includes(row.runtime_reason))||eligible[0];

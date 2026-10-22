@@ -51,10 +51,10 @@
  window.hoiLive?.subscribe(value=>{
   live=value;
   if(guide&&value?.guide_revision!==undefined&&value.guide_revision>=revision&&!pending){
-   revision=value.guide_revision;progress={...progress,...value.guide_runs?.[guide.id],checks:value.guide_states?.[guide.id]||(value.guide_id===guide.id?value.guide_checks:{} )||{},started:value.guide_started?.[guide.id]||{}};
+   revision=value.guide_revision;progress={...progress,...value.guide_runs?.[guide.id],checks:value.guide_states?.[guide.id]||(value.guide_id===guide.id?value.guide_checks:{} )||{},started:value.guide_started?.[guide.id]||{},baselines:value.guide_baselines?.[guide.id]||{}};
   }
   const sample=value?.usable?value.sample:null;
-  if(guide&&sample&&previous&&!pending&&(Object.keys(progress.checks).length||Object.keys(progress.started||{}).length)){
+  if(guide&&sample&&previous&&!pending&&(Object.keys(progress.checks).length||Object.keys(progress.started||{}).length||Object.keys(progress.baselines||{}).length)){
    const rollback=sample.country===previous.country&&['completed_focuses','researched_technologies'].some(key=>Array.isArray(sample[key])&&Array.isArray(previous[key])&&previous[key].some(id=>!sample[key].includes(id)));
    if(sample.country!==previous.country||rollback)write({}).catch(()=>{});
   }

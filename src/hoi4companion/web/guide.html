@@ -2,12 +2,13 @@
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
 <title>HOI4 Companion — Piano operativo</title>
 <link rel="stylesheet" href="/guide.css"><link rel="stylesheet" href="/live-state.css">
-<script defer src="/contracts.js"></script><script defer src="/guide-runtime.js"></script><script defer src="/guide-model.js"></script><script defer src="/guide-presentation.js"></script><script defer src="/live-state.js"></script><script defer src="/guide-session.js"></script><script defer src="/guide.js"></script>
+<script defer src="/contracts.js"></script><script defer src="/production-progress.js"></script><script defer src="/guide-runtime.js"></script><script defer src="/guide-model.js"></script><script defer src="/guide-presentation.js"></script><script defer src="/live-state.js"></script><script defer src="/guide-session.js"></script><script defer src="/guide.js"></script>
 </head><body>
 <header class="topbar"><nav aria-label="Viste"><a href="/">Focus nazionali</a><a href="/technologies">Tecnologie</a><a href="/country">Nazione</a><a href="/walkthrough" aria-current="page">Walkthrough</a></nav><span>HOI4 COMPANION</span></header>
 <main>
 <div id="hudControls"><strong>HOI4 · Piano operativo</strong><a id="hudLink" href="/walkthrough" target="_blank" rel="noopener">Guida completa ↗</a></div>
 <section class="hero"><div><p class="eyebrow">IL PIANO OPERATIVO DELLA CAMPAGNA</p><label>Guida <select id="guideSelect" aria-label="Guida"></select></label><h1 id="guideTitle">Walkthrough</h1><p id="subtitle">Caricamento delle istruzioni…</p></div><a id="sourceLink" target="_blank" rel="noopener noreferrer" hidden>Fonte originale ↗</a></section>
+<p><a href="/importer">Importa una guida da YouTube, web o file JSON →</a></p>
 <p id="error" role="alert" hidden></p>
 <section class="run-bar" aria-label="Modalità della guida"><div><strong id="mode">Anteprima della guida</strong><p id="modeNote">Collega una partita valida per aggiornare il percorso.</p></div><button id="reset" type="button">Nuova checklist</button></section>
 <p id="resetNotice" role="status" hidden></p>
@@ -17,7 +18,7 @@
 </nav>
 <section id="nextOperation" class="next-operation" aria-label="Prossima istruzione operativa"></section>
 <section id="operationsPlan"><div class="section-head"><div><p class="eyebrow">COSA FARE E QUANDO</p><h2>Istruzioni operative <span id="operationProgress"></span> <span id="operationActive" role="status"></span></h2></div><label class="filter"><input type="checkbox" id="hideDone" checked>Nascondi completate</label></div>
-<p class="section-note">Gli avvii verificabili si rilevano automaticamente dallo stato live, anche in pausa. Il pulsante manuale resta per le attività senza un criterio osservabile. L’avvio non equivale al completamento: conferma il criterio finale solo quando è rispettato nel gioco. Il minutaggio dei riferimenti è quello del video.</p>
+<p class="section-note">Avvio e completamento si rilevano automaticamente quando esistono criteri live, anche in pausa. Per le costruzioni aggiuntive il programma registra il conteggio iniziale e segue il totale da raggiungere. Annullare la coda senza raggiungere quel totale non completa l’istruzione. Le conferme manuali restano solo per i criteri non osservabili. Il minutaggio dei riferimenti è quello del video.</p>
 <nav id="operationFilters" class="operation-filters" aria-label="Tipo di istruzione"></nav><div id="operationCards" class="operation-cards"></div></section>
 <details id="sourceDetails"><summary>Fonti, corrispondenze e limiti della guida</summary><p id="sourceBasis"></p><ul id="assumptions"></ul><div id="catalogWarnings"></div><h3>Capitoli del video</h3><ul id="chapters"></ul></details>
 </main><footer>Locale · sola lettura del gioco · le istruzioni non impartiscono comandi a HOI4</footer>
