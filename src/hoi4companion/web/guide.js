@@ -45,6 +45,7 @@
  }
  function links(){const {guide,view}=value;const focus=view.lanes.focus.next,tech=view.lanes.research.next;
   const scope=guide.applies_to?.tree_id;const baseFocus=scope?'/?tree='+encodeURIComponent(scope):'/';
+  $('editAssociations').href=window.hoiGuide.withGuide('/associations');
   $('focusTreeLink').href=window.hoiGuide.withGuide(focus?.href||baseFocus);$('researchTreeLink').href=window.hoiGuide.withGuide(tech?.href||'/technologies');$('hudLink').href=window.hoiGuide.withGuide('/walkthrough');
   for(const a of document.querySelectorAll('.topbar a'))a.href=window.hoiGuide.withGuide(a.getAttribute('href'));
  }

@@ -38,3 +38,15 @@ test('explicit conversion to a reminder removes obsolete manual tracking only on
  assert.equal(m.normalise(edited).tracks.operations[0].tracking,'reminder');
  assert.throws(()=>m.editStep(guide,'tools',{tracking:'reminder'}));
 });
+
+test('construction editor changes structured location and target without changing source or evidence',()=>{
+ const value={schema_version:1,id:'build',tracks:{operations:[{key:'infra',note:'Original uncertainty',action:{kind:'manual',params:{category:'construction',building_id:'infrastructure',state_id:91,state_name:'Lwow',quantity:1,quantity_mode:'additional',instructions:['Build in Lwow']}},evidence:[{source_id:'s',quote:'Original source'}],started_when:{op:'fact',key:'construction.queued',test:'contains',value:'state:91:infrastructure'},completion:{op:'fact',key:'guide.construction.infra.added',test:'gte',value:1}}]}};
+ const patch={state:{kind:'state',id:'762',name:'Katowice'},building:{kind:'building',id:'arms_factory',name:'Military Factory'},quantity:2,quantity_mode:'additional',instruction:'Build two factories in Katowice'};
+ const before=JSON.stringify(value),next=m.editConstruction(value,'infra',patch),step=next.tracks.operations[0];
+ assert.equal(step.action.params.state_id,762);assert.equal(step.action.params.state_name,'Katowice');assert.equal(step.action.params.building_id,'arms_factory');assert.equal(step.action.params.quantity,2);
+ assert.equal(step.started_when,undefined);assert.equal(step.completion,undefined);assert.deepEqual(step.evidence,value.tracks.operations[0].evidence);assert.equal(step.note,'Original uncertainty');assert.equal(JSON.stringify(value),before);
+ for(const bad of [{state:null},{quantity:0},{quantity:1.5},{state:{kind:'state',id:'NaN'}},{building:null},{instruction:''},{quantity_mode:'guess'}])assert.throws(()=>m.editConstruction(value,'infra',{...patch,...bad}));
+ const absolute=structuredClone(value),row=absolute.tracks.operations[0];Object.assign(row.action.params,{target_level:5,baseline_level:3});row.completion={op:'fact',key:'country.states.items.91.infrastructure',test:'gte',value:5};
+ const edited=m.editConstruction(absolute,'infra',{...patch,quantity_mode:'target_total',quantity:4}).tracks.operations[0];assert.equal(edited.completion,undefined);assert.equal(edited.action.params.target_level,undefined);assert.equal(edited.action.params.baseline_level,undefined);
+ row.completion={op:'all',args:[row.completion,{op:'check',key:'custom'}]};const custom=JSON.stringify(absolute);assert.throws(()=>m.editConstruction(absolute,'infra',patch),/criteri personalizzati/);assert.equal(JSON.stringify(absolute),custom);
+});

@@ -24,6 +24,32 @@
   }
  }
  function writeGuide(value){$('guideJson').value=JSON.stringify(value,null,2);}
+ function constructionEditor(row){
+  const params=row.action.params,details=node('details');details.className='construction-editor';details.append(node('summary','Correggi costruzione'));
+  details.append(node('p','Correggi l’istruzione nella copia caricata. Le citazioni e il file originale restano invariati. Dopo l’applicazione i collegamenti live vengono ricalcolati.'));
+  function field(text,control){const label=node('label',text);control.setAttribute?.('aria-label',text+' · '+row.key);label.append(control);details.append(label);return control;}
+  const stateSearch=field('Cerca regione',node('input'));stateSearch.type='search';stateSearch.placeholder='Nome inglese, italiano oppure ID';
+  const stateSelect=field('Regione',node('select')),buildingSelect=field('Edificio',node('select'));
+  const states=entities.filter(item=>item.kind==='state'),buildings=entities.filter(item=>item.kind==='building');
+  const label=item=>(item.localized_name||item.name)+' · '+item.id;
+  function stateOptions(){const current=stateSelect.value||String(params.state_id??''),query=stateSearch.value.trim().toLocaleLowerCase();stateSelect.replaceChildren();
+   const empty=node('option','Scegli una regione…');empty.value='';stateSelect.append(empty);
+   for(const item of states.filter(item=>[item.id,item.name,item.localized_name,...item.aliases||[]].some(text=>typeof text==='string'&&text.toLocaleLowerCase().includes(query)))){const option=node('option',label(item));option.value=item.id;stateSelect.append(option);}
+   stateSelect.value=current;
+  }
+  stateOptions();stateSearch.oninput=stateOptions;
+  const empty=node('option','Scegli un edificio…');empty.value='';buildingSelect.append(empty);
+  for(const item of buildings){const option=node('option',label(item));option.value=item.id;buildingSelect.append(option);}buildingSelect.value=params.building_id||'';
+  const mode=field('Obiettivo',node('select'));
+  for(const [value,text]of [['additional','Aggiungi rispetto al conteggio iniziale'],['target_total','Raggiungi il totale / livello']]){const option=node('option',text);option.value=value;mode.append(option);}
+  mode.value=params.target_level||params.target_quantity?'target_total':params.quantity_mode||'additional';
+  const quantity=field('Quantità / livello',node('input'));quantity.type='number';quantity.min='1';quantity.step='1';quantity.value=params.target_level??params.target_quantity??params.quantity??'';
+  const instruction=field('Istruzione corretta',node('textarea'));instruction.rows=3;instruction.value=(params.instructions||[]).join('\n');
+  const apply=node('button','Applica correzione e verifica');apply.type='button';apply.onclick=()=>run(async()=>{
+   const next=m.editConstruction(readGuide(),row.key,{state:states.find(item=>item.id===stateSelect.value),building:buildings.find(item=>item.id===buildingSelect.value),quantity:Number(quantity.value),quantity_mode:mode.value,instruction:instruction.value});
+   writeGuide(next);invalidate();await validate();
+  });details.append(apply);return details;
+ }
  function showReport(value){report=value;$('issues').replaceChildren();$('sourceWarnings').replaceChildren();$('preview').replaceChildren();
   $('validation').textContent=value.valid?'Validazione superata: guida pronta per essere aggiunta. Controlla i dettagli estratti dalla fonte indicati sotto.':'Revisione necessaria: '+value.errors.length+' problemi bloccanti.';
   for(const message of value.errors)$('issues').append(node('li',message));
@@ -34,6 +60,7 @@
   $('reviewSummary').textContent=visual?visual+' istruzioni contengono dettagli ricavati dalle immagini del video: controlla quantità, regioni e composizioni. I dettagli degli avvisi sono espandibili.':'La revisione riguarda il contenuto della guida; gli ID e i collegamenti live vengono controllati dal programma.';
   if(!value.guide){if(value.draft)writeGuide(value.draft);return;}
   writeGuide(value.guide);
+  const resolvedGroup=node('details'),resolvedItems=node('div');resolvedGroup.className='resolved-associations';resolvedItems.className='preview-cards';let resolvedCount=0;
   for(const [lane,rows]of Object.entries(value.guide.tracks))for(const row of rows){
    const resolution=value.resolutions.find(item=>item.key===row.key),operation=operations.find(item=>item.key===row.key),card=node('article');card.className='preview-card'+(resolution&&resolution.status!=='resolved'?' unresolved':'');
    const monitoring={automatic:'completamento automatico',start_only:'avvio automatico · esito da verificare',manual:'criterio ancora manuale',reminder:'promemoria · nessuna conferma'};
@@ -54,23 +81,34 @@
     const label=node('label','Monitoraggio'),select=node('select');select.setAttribute?.('aria-label','Monitoraggio '+row.key);
     for(const [key,text] of [['action','Azione da verificare'],['reminder','Promemoria sul metodo · senza completamento']]){const option=node('option',text);option.value=key;select.append(option);}
     select.value=row.tracking||'action';select.onchange=()=>{try{writeGuide(m.editStep(readGuide(),row.key,{tracking:select.value}));invalidate();}catch(e){error(e);}};label.append(select);card.append(label);
+    if(row.action.params?.category==='construction')card.append(constructionEditor(row));
    }
    const politicalReasons={politics_identity_unresolved:'Nome politico, legge o incarico non associato univocamente al catalogo locale. Specifica nome inglese, tratto o ID.',politics_identity_ambiguous:'Più identità corrispondono: indica personaggio e ruolo precisi.',event_identity_unresolved:'Evento/opzione non identificati: specifica event_name e testo inglese della scelta.',event_identity_ambiguous:'Evento o opzione ambigui: serve event_id e una scelta univoca.',event_visible_option:'La finestra e la scelta vengono riconosciute live. La chiusura dell’evento non prova la risposta scelta.',decision_identity_resolved:'Decisione associata al catalogo. Disponibilità, avvio ed esito non ancora qualificati dal lettore: nessun avanzamento automatico.',method_reminder:'Indicazione sul metodo: resta consultabile, senza conferme e senza bloccare la sequenza.'};
    if(politicalReasons[operation?.reason])card.append(node('p',politicalReasons[operation.reason]));
    if(row.action.entity){card.append(node('p',row.action.entity.kind+': '+row.action.entity.id+(row.action.entity.scope?' · '+row.action.entity.scope:'')));
-    const selectLabel=node('label','Corrispondenza nel catalogo'),select=node('select'),placeholder=node('option','Scegli / conferma un ID…');placeholder.value='';select.append(placeholder);
+    const selectLabel=node('label','Corrispondenza nel catalogo'),select=node('select'),placeholder=node('option','Cerca un’altra associazione…');placeholder.value='';select.append(placeholder);
     function options(candidates){select.replaceChildren(placeholder);for(const candidate of candidates){const option=node('option',(candidate.localized_name||candidate.name)+' · '+candidate.id+(candidate.scope?' · '+candidate.scope:''));option.value=JSON.stringify({kind:candidate.kind,id:candidate.id,...(candidate.scope?{scope:candidate.scope}:{})});select.append(option);}}
     options(resolution?.candidates||[]);
+    if(resolution?.status==='resolved'){const ref=row.action.entity;select.value=JSON.stringify({kind:ref.kind,id:ref.id,...(ref.scope?{scope:ref.scope}:{})});}
     const searchLabel=node('label','Cerca nome o ID nel catalogo'),search=node('input');search.type='search';searchLabel.append(search);card.append(searchLabel);
     search.oninput=()=>{const query=search.value.toLocaleLowerCase();options(entities.filter(item=>item.kind===row.action.entity.kind&&(!row.action.entity.scope||item.scope===row.action.entity.scope)&&[item.id,item.name,item.localized_name,...item.aliases||[]].some(text=>typeof text==='string'&&text.toLocaleLowerCase().includes(query))).slice(0,50));};
     select.onchange=()=>{if(select.value){writeGuide(m.editStep(readGuide(),row.key,{entity:JSON.parse(select.value)}));invalidate();}};selectLabel.append(select);card.append(selectLabel);
    }
-   if(row.note)card.append(node('p',row.note));
+   const construction=row.action.kind==='manual'&&row.action.params?.category==='construction';
+   const sourceDetails=construction?node('details'):card;
+   if(construction){sourceDetails.append(node('summary','Note e citazioni originali (non cambiano con la correzione)'));for(const text of row.action.params.instructions||[])card.append(node('p',text));}
+   if(row.note)sourceDetails.append(node('p',row.note));
    if(row.depends_on?.length)card.append(node('p','Dipende da: '+row.depends_on.join(', ')));
-   for(const evidence of row.evidence||[])card.append(node('blockquote',(evidence.quote||'Citazione assente')+'\n— '+evidence.source_id+(evidence.timestamp_seconds!==undefined?' · '+evidence.timestamp_seconds+'s':'')));
-   if(row.action.params){const p=node('pre',JSON.stringify(row.action.params,null,2));p.className='params';card.append(p);}
-   $('preview').append(card);
+   for(const evidence of row.evidence||[])sourceDetails.append(node('blockquote',(evidence.quote||'Citazione assente')+'\n— '+evidence.source_id+(evidence.timestamp_seconds!==undefined?' · '+evidence.timestamp_seconds+'s':'')));
+   if(construction)card.append(sourceDetails);
+   if(row.action.params){const p=node('pre',JSON.stringify(row.action.params,null,2));p.className='params';if(construction){const technical=node('details');technical.append(node('summary','Parametri tecnici'),p);card.append(technical);}else card.append(p);}
+   if(resolution?.status==='resolved'){
+    resolvedCount++;const compact=node('article'),editor=node('details');compact.className='preview-card resolved';editor.className='association-editor';editor.append(node('summary','Correggi associazione'),card);
+    const match=resolution.entity||row.action.entity,candidate=resolution.candidates?.find(item=>item.id===match.id&&(!match.scope||item.scope===match.scope));
+    compact.append(node('h3',candidate?.localized_name||candidate?.name||row.name||row.title||row.key),node('p','Associazione trovata automaticamente'),editor);resolvedItems.append(compact);
+   }else $('preview').append(card);
   }
+  if(resolvedCount){resolvedGroup.append(node('summary',resolvedCount+' associazioni risolte · nessuna azione richiesta'),resolvedItems);$('preview').replaceChildren(resolvedGroup,...$('preview').children);}
  }
  async function loadDocument(text){const parsed=m.readDraft(text);if(parsed.sources)return request('/api/import/document',{document:JSON.parse(text)});return parsed;}
  async function validate(){const version=generation;const parsed=await loadDocument($('guideJson').value);if(version!==generation)return;

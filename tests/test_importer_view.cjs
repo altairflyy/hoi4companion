@@ -2,6 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const model=require('../src/hoi4companion/web/importer-model.js');
 const tick=()=>new Promise(setImmediate);
+const descendants=n=>[n,...(n.children||[]).flatMap(descendants)];
 const definition={schema_version:1,id:'opening',title:'Opening',sources:[{id:'src',type:'manual'}],tracks:{research:[{key:'tools',title:'Tools',action:{kind:'research',entity:{kind:'technology',id:'tools'}},evidence:[{source_id:'src',basis:'explicit',quote:'Research tools.'}]}]}};
 function harness(){
  class Node{
@@ -11,20 +12,50 @@ function harness(){
   click(){this.onclick?.();}remove(){}
  }
  const nodes=new Map(),get=id=>{if(!nodes.has(id))nodes.set(id,new Node());return nodes.get(id);};
- const requests=[],downloads=[],clipboard=[];let release;
+ const requests=[],downloads=[],clipboard=[],catalog=[];let release;
  const source={id:'src',type:'manual',title:'Fixture',text:'Research tools.',warnings:[]};
  const report={valid:true,guide:definition,errors:[],warnings:[],resolutions:[{key:'tools',status:'resolved',candidates:[{kind:'technology',id:'tools',name:'Tools'}]}]};
  const fetch=async(path,options)=>{
   const body=options?.body?JSON.parse(options.body):null;requests.push({path,body});
   if(path.endsWith('/preview')&&release)await new Promise(resolve=>release(resolve));
-  const value=path.endsWith('/prompt')?{prompt:fs.readFileSync('src/hoi4companion/guide-import-prompt.md','utf8')}:path.endsWith('/document')?{guide:body.document.guide,sources:body.document.sources}:path.endsWith('/status')?{ai_configured:false}:path.endsWith('/catalog')?{entities:[],demo:false}:path.endsWith('/source')?source:path.endsWith('/preview')?report:path.endsWith('/install')?{id:'opening',href:'/walkthrough?guide=opening'}:{};
+  const value=path.endsWith('/prompt')?{prompt:fs.readFileSync('src/hoi4companion/guide-import-prompt.md','utf8')}:path.endsWith('/document')?{guide:body.document.guide,sources:body.document.sources}:path.endsWith('/status')?{ai_configured:false}:path.endsWith('/catalog')?{entities:catalog,demo:false}:path.endsWith('/source')?source:path.endsWith('/preview')?report:path.endsWith('/install')?{id:'opening',href:'/walkthrough?guide=opening'}:{};
   return {ok:true,json:async()=>value};
  };
  const document={getElementById:get,createElement:tag=>new Node(tag),body:new Node('body')};
  vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/importer.js','utf8'),{HoiImporter:model,document,fetch,
   navigator:{clipboard:{async writeText(text){clipboard.push(text);}}},Blob,URL:{createObjectURL(blob){downloads.push(blob);return 'blob:fixture';},revokeObjectURL(){}},setTimeout:fn=>fn()});
- return {get,requests,downloads,clipboard,source,report,document,setRelease:fn=>release=fn};
+ return {get,requests,downloads,clipboard,source,report,catalog,document,setRelease:fn=>release=fn};
 }
+
+test('construction correction uses catalog selectors and revalidates the in-memory draft',async()=>{
+ const h=harness();h.catalog.push({kind:'state',id:'91',name:'Lwow'},{kind:'state',id:'762',name:'Katowice'},{kind:'building',id:'infrastructure',name:'Infrastructure'});await tick();
+ const row={key:'infra',action:{kind:'manual',params:{category:'construction',state_id:91,building_id:'infrastructure',quantity:1,quantity_mode:'additional',instructions:['Build in Lwow']}},completion:{op:'fact',key:'guide.construction.infra.added',test:'gte',value:1},note:'Original note',evidence:[]};
+ h.report.guide={schema_version:1,id:'build',tracks:{operations:[row]}};h.report.resolutions=[];h.report.operations=[{key:'infra',monitoring:'automatic',reason:'baseline_from_live'}];
+ h.get('guideJson').value=JSON.stringify(h.report.guide);await h.get('validate').onclick();
+ const card=h.get('preview').children[0],editor=descendants(card).find(n=>n.className==='construction-editor');assert.ok(editor);assert.notEqual(editor.open,true);
+ const selects=descendants(editor).filter(n=>n.tag==='select');assert.equal(selects[0].value,'91');selects[0].value='762';
+ const instruction=descendants(editor).find(n=>n.tag==='textarea');instruction.value='Build in Katowice';
+ await descendants(editor).find(n=>n.tag==='button').onclick();
+ const sent=h.requests.filter(r=>r.path.endsWith('/preview')).at(-1).body.guide.tracks.operations[0];assert.equal(sent.action.params.state_id,762);assert.equal(sent.action.params.state_name,'Katowice');assert.equal(sent.completion,undefined);assert.deepEqual(sent.action.params.instructions,['Build in Katowice']);
+ assert.equal(h.get('reviewed').checked,false);assert.equal(h.requests.some(r=>r.path.endsWith('/install')),false);
+});
+
+test('resolved associations are grouped closed and editors appear only on demand',async()=>{
+ const h=harness();await tick();h.get('sourceText').value='Research tools.';await h.get('acquire').onclick();
+ h.get('guideJson').value=JSON.stringify(definition);await h.get('validate').onclick();
+ const group=h.get('preview').children.find(n=>n.tag==='details');assert.ok(group);assert.notEqual(group.open,true);
+ assert.match(group.children[0].textContent,/1 associazion.*risolt.*nessuna azione richiesta/i);
+ const editor=descendants(group).find(n=>n.tag==='details'&&n!==group);assert.ok(editor);assert.notEqual(editor.open,true);
+ assert.match(editor.children[0].textContent,/Correggi associazione/);
+ assert.doesNotMatch(h.get('preview').textContent,/Scegli \/ conferma/);
+ const current=descendants(editor).find(n=>n.tag==='select');assert.ok(current.value.includes('tools'));
+});
+
+test('unresolved mappings remain visible with an actionable search',async()=>{
+ const h=harness();await tick();h.report.resolutions[0].status='ambiguous';h.report.valid=false;h.report.errors=['ID ambiguo'];
+ h.get('sourceText').value='Research tools.';await h.get('acquire').onclick();h.get('guideJson').value=JSON.stringify(definition);await h.get('validate').onclick();
+ assert.equal(h.get('preview').children[0].tag,'article');assert.ok(descendants(h.get('preview').children[0]).some(n=>n.tag==='input'&&n.type==='search'));
+});
 test('controller acquires, previews, edits, reviews and installs without auto AI or auto install',async()=>{
  const h=harness();await tick();assert.equal(h.get('extract').disabled,true);
  h.get('sourceText').value='Research tools.';await h.get('acquire').onclick();

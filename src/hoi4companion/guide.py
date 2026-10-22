@@ -129,13 +129,17 @@ def default_guide_id(directory=None):
     return _default(_catalog(directory))
 
 
-def load_guide(guide_id=None, *, directory=None):
+def load_guide(guide_id=None, *, directory=None, associations=True):
     catalog = _catalog(directory)
     if guide_id is None:
         guide_id = _default(catalog)
     if not isinstance(guide_id, str) or guide_id not in catalog:
         raise ValueError('Guida non trovata')
-    return deepcopy(catalog[guide_id])
+    result=deepcopy(catalog[guide_id])
+    if associations:
+        from .guide_associations import apply_associations
+        result=apply_associations(result)
+    return result
 
 
 def manual_keys(guide):
@@ -184,7 +188,7 @@ def update_checks(guide, current, update):
 
 def enrich_guide(guide, trees, technologies, labels, folders):
     result = normalise_guide(guide)
-    warnings = []
+    warnings = list(result.get('association_warnings',[]))
     for track in result['tracks'].values():
         for step in track:
             kind, target = step['kind'], step.get('target')

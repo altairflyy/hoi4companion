@@ -24,12 +24,14 @@
    const label=el('label','guide-check'),input=el('input');input.type='checkbox';input.checked=value.progress.checks[key]===true;input.disabled=value.pending>0;
    input.addEventListener('change',()=>window.hoiGuide.confirm(key,input.checked).catch(()=>{}));label.append(input,el('span','',row.confirmation||'Ho verificato questa condizione nel gioco'));box.append(label);
   }
-  const a=el('a','','Istruzioni operative ↗');a.href=window.hoiGuide.withGuide('/walkthrough');box.append(a);return box;
+  const a=el('a','','Istruzioni operative ↗');a.href=window.hoiGuide.withGuide('/walkthrough');box.append(a);
+  const edit=el('a','','Correggi questa associazione');edit.href=window.hoiGuide.withGuide('/associations?step='+encodeURIComponent(row.key));box.append(edit);return box;
  }
  function render(){host.replaceChildren();if(!value?.guide){host.append(el('p','',value?.error||'Caricamento guida…'));return;}
   const header=el('div','guide-assist-heading'),label=el('label','','Guida '),select=el('select');select.setAttribute('aria-label','Guida da evidenziare');
   for(const item of value.catalog){const opt=el('option','',item.title);opt.value=item.id;opt.selected=item.id===value.guide.id;select.append(opt);}select.disabled=value.pending>0;select.addEventListener('change',()=>window.hoiGuide.select(select.value));label.append(select);header.append(label);
-  const a=el('a','','Istruzioni operative ↗');a.href=window.hoiGuide.withGuide('/walkthrough');header.append(a);host.append(header);
+  const a=el('a','','Istruzioni operative ↗');a.href=window.hoiGuide.withGuide('/walkthrough');header.append(a);
+  const edit=el('a','','Correggi associazioni');edit.href=window.hoiGuide.withGuide('/associations');header.append(edit);host.append(header);
   for(const link of document.querySelectorAll('.view-tabs a, .side a.nav')){const href=link.getAttribute('href');if(href?.startsWith('/'))link.href=window.hoiGuide.withGuide(href);}
   const view=value.view,plan=view.lanes[lane],summary=el('div','guide-assist-summary'),status=el('strong');
   const marked=plan.markers.filter(m=>m.tone!=='active'),first=marked[0];
