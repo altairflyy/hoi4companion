@@ -378,3 +378,32 @@ acquisizione preliminare, copia/download del prompt nel controller simulato e
 osservazioni visive dichiarate con avvisi e timestamp. La prova grafica nel
 browser e una risposta generata da un’altra IA non sono state eseguite.
 Evidenze: `.local/importer-prompt-verification.json` e log delle suite.
+
+### Politica, eventi e metodi operativi (22 ottobre)
+
+Il catalogo ora comprende leggi, idee, ruoli dei personaggi, eventi con opzioni
+e decisioni. La risoluzione usa riferimento inglese e alias della localizzazione
+installata. I tratti sono alias dei ruoli, non nomi di persone inventati.
+ID espliciti sconosciuti non ricadono su un nome diverso. Nomi ambigui rimangono
+da chiarire; uno scienziato non specificato non viene scelto automaticamente.
+
+Il prompt scaricabile contiene questi parametri e `tracking:"reminder"` per i
+consigli sul metodo. L'anteprima permette anche la conversione esplicita in
+promemoria; quella scelta rimuove i vecchi criteri dalla copia modificabile,
+senza toccare il file originale. I promemoria non sono azioni completate e non
+richiedono checkbox. I criteri espliciti di una vera azione vengono preservati.
+
+Il pacchetto IA opzionale include candidati politici menzionati nelle fonti e
+opzioni dei relativi eventi, evitando di allegare tutti gli eventi mondiali.
+Questa selezione riduce solo il contesto inviato: la validazione finale usa
+sempre l'intero catalogo locale. Il flusso con prompt e file esterno resta
+indipendente da Codex e dalle API IA.
+
+Leggi/idee selezionate e incarichi attivi hanno membership qualificate live;
+eventi mostrati e scelte consigliate hanno rilevamento distinto dall'esito.
+Decisioni: identità associata, appartenenza al manager osservata; disponibilità,
+avvio e completamento non ancora qualificati. Dettagli e limiti in
+[events-live.md](events-live.md). Una legge rimossa o un incarico cambiato non
+provano una scelta passata: lo stato attuale non è una cronologia persistente.
+Il runtime non ricostruisce retroattivamente le azioni compiute prima della
+lettura, e non deduce una risposta dalla chiusura dell'evento.

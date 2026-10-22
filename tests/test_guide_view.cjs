@@ -60,4 +60,13 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  subscriber(live([{...line,amount:4}]));assert.match(get('operationCards').textContent,/4 in coda/);
  subscriber(live([]));assert.equal(get('operationActive').textContent,'');assert.equal(get('operationProgress').textContent,'0/1');assert.match(get('operationCards').textContent,/Nessun ordine rilevato/);
  subscriber({...live([line]),usable:false});assert.equal(get('operationActive').textContent,'');assert.match(get('operationCards').textContent,/Avvio non verificabile/);assert.equal(get('operationCards').textContent.includes('ORDINI LETTI LIVE'),false);
+ guide.tracks.operations.push({key:'method',tracking:'reminder',title:'Follow supply hubs',action:{kind:'manual',params:{category:'army',instructions:['Keep railways connected']}}});
+ subscriber(live([]));
+ const reminder=descendants(get('operationCards')).find(node=>node.dataset?.step==='method');
+ assert.match(reminder.textContent,/Promemoria/);assert.equal(descendants(reminder).some(node=>node['data-check']||node['data-start']),false);
+ assert.equal(get('operationProgress').textContent,'0/1');assert.equal(get('nextOperation').textContent.includes('Follow supply hubs'),false);
+ guide.tracks.operations.push({key:'event',depends_on:[],title:'Choose event answer',started_when:{op:'fact',key:'events.visible_options',test:'contains',value:'example.1:example.1.a'},action:{kind:'manual',params:{event_id:'example.1',event_option_id:'example.1.a',event_option_name:'Recommended answer'}}});
+ const eventLive=live([]);eventLive.sample.country_overview.events={status:'observed',visible:[{instance_id:'1',event_id:'example.1',option_ids:['example.1.a']}]};
+ subscriber(eventLive);assert.match(get('operationCards').textContent,/EVENTO APERTO.*Scelta consigliata: Recommended answer · disponibile nella finestra/);
+ assert.match(get('nextOperation').textContent,/Choose event answer/);assert.equal(get('operationProgress').textContent,'0/2');
 });

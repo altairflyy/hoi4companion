@@ -4,9 +4,18 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hoi4companion.political_import import political_catalog, bind_political
+from hoi4companion.guide_importer import Importer
+from hoi4companion.import_sources import acquire_source
 
 
 class PoliticalBindingTests(unittest.TestCase):
+    def test_ai_packet_keeps_relevant_politics_without_all_world_events(self):
+        catalog=[{'kind':'event','id':'e.'+str(n),'name':'Unique Unmentioned Event '+str(n)} for n in range(4000)]
+        catalog += [{'kind':'law','id':'war_economy','name':'War Economy'},
+                    {'kind':'event','id':'example.1','name':'A New Sovereign'},
+                    {'kind':'event_option','id':'example.1.a','event_id':'example.1','name':'Yes, accept!'}]
+        packet=Importer(lambda:catalog).packet([acquire_source(text='Choose War Economy and await A New Sovereign.')])
+        self.assertEqual({x['id'] for x in packet['catalog']},{'war_economy','example.1','example.1.a'})
     def catalog(self, root):
         files = {
             'common/ideas/laws.txt': 'ideas={economy={law=yes war_economy={cost=150}} designer={electronic_concern={traits={electronics}}}}',
@@ -66,10 +75,29 @@ class PoliticalBindingTests(unittest.TestCase):
             step={'key':'s','action':{'kind':'manual','params':params}}
             self.assertIn('unresolved',bind_political(step,rows,'TST')); self.assertNotIn('completion',step)
 
-    def test_decision_presence_is_not_completion_and_manual_criterion_preserved(self):
+    def test_combined_project_is_not_completed_just_by_naming_its_advisor(self):
+        with TemporaryDirectory() as folder:rows,_=self.catalog(Path(folder))
+        step={'key':'s','action':{'kind':'manual','params':{'category':'projects','project_name':'Lead Intelligence','person_name':'Test Person'}}}
+        self.assertIsNone(bind_political(step,rows,'TST'));self.assertNotIn('completion',step)
+
+    def test_legacy_concern_named_by_identity_uses_selected_ideas(self):
+        rows=[{'kind':'idea','id':'TEST_concern','name':'Example Industries','group':'industrial_concern'}]
+        step={'key':'s','action':{'kind':'manual','params':{'category':'characters','person_name':'Example Industries'}}}
+        self.assertEqual(bind_political(step,rows,'TST'),'politics_live_idea')
+        self.assertEqual(step['completion']['key'],'politics.ideas')
+
+    def test_decision_identity_is_not_availability_and_manual_criterion_preserved(self):
         with TemporaryDirectory() as folder: rows,_=self.catalog(Path(folder))
         manual={'op':'check','key':'explicit-source-outcome'}
         step={'key':'s','action':{'kind':'manual','params':{'decision_name':'War Bonds'}},'completion':manual.copy()}
-        self.assertEqual(bind_political(step,rows,'TST'),'decision_live_active')
-        self.assertEqual(step['started_when']['key'],'decisions.active')
+        self.assertEqual(bind_political(step,rows,'TST'),'decision_identity_resolved')
+        self.assertNotIn('started_when',step)
         self.assertEqual(step['completion'],manual)
+
+    def test_revalidation_replaces_only_generated_political_conditions(self):
+        rows=[{'kind':'law','id':key,'group':'economy','name':key} for key in ('one','two')]
+        step={'key':'s','action':{'kind':'manual','params':{'law_name':'one'}}}
+        bind_political(step,rows,'TST'); step['action']['params']['law_id']='two'
+        bind_political(step,rows,'TST'); self.assertEqual(step['completion']['value'],'two')
+        step['completion']={'op':'check','key':'custom'};bind_political(step,rows,'TST')
+        self.assertEqual(step['completion'],{'op':'check','key':'custom'})

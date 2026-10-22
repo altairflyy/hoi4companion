@@ -30,3 +30,11 @@ test('normalisation and dependencies reuse the same JavaScript schema contract',
  assert.equal(m.readDraft(JSON.stringify(cycle)).guide.id,'opening'); // invalid drafts remain editable
  assert.throws(()=>m.normalise(cycle));
 });
+
+test('explicit conversion to a reminder removes obsolete manual tracking only on the editable copy',()=>{
+ const value={schema_version:1,id:'x',tracks:{operations:[{key:'method',action:{kind:'manual',params:{instructions:['Rush victory points']}},when:{op:'check',key:'branch'},completion:{op:'check',key:'old'},started_when:{op:'check',key:'old-start'}}]}};
+ const edited=m.editStep(value,'method',{tracking:'reminder'}),step=edited.tracks.operations[0];
+ assert.equal(step.tracking,'reminder');assert.equal(step.completion,undefined);assert.equal(step.started_when,undefined);assert.deepEqual(step.when,value.tracks.operations[0].when);assert.ok(value.tracks.operations[0].completion);
+ assert.equal(m.normalise(edited).tracks.operations[0].tracking,'reminder');
+ assert.throws(()=>m.editStep(guide,'tools',{tracking:'reminder'}));
+});

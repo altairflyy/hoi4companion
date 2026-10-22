@@ -328,7 +328,7 @@ class Store:
                         raise ValueError('Conferme non dichiarate dalla guida')
                     started = update.get('started', current['started'])
                     operations = {step['key'] for rows in guide['tracks'].values() for step in rows
-                                  if step['action']['kind'] in ('manual', 'special_project')}
+                                  if step['action']['kind'] in ('manual', 'special_project') and step.get('tracking') != 'reminder'}
                     if not isinstance(started, dict) or set(started) - operations:
                         raise ValueError('Avvii non dichiarati dalla guida')
                     runs.update(guide['id'], checks, started=started)

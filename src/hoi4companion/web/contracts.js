@@ -4,6 +4,7 @@
  const unknown=(reason='Campo non osservato')=>({status:'unknown',value:null,source:'',reason});
  const known=(value,source='process_memory',calculated=false)=>value===null||value===undefined?unknown():({status:calculated?'calculated':'observed',value,source});
  function validType(key,value){
+  if(['politics.ideas','politics.advisors','events.visible','events.visible_options','decisions.listed','decisions.executed'].includes(key))return Array.isArray(value)&&value.length<=4096&&value.every(x=>typeof x==='string'&&x.length>0&&x.length<=512)&&new Set(value).size===value.length;
   if(key==='production.lines')return validProductionLines(value);
   if(['country.intelligence.is_created','country.intelligence.in_creation'].includes(key))return typeof value==='boolean';
   if(['country','focus.tree'].includes(key))return typeof value==='string'&&value.length>0;
@@ -53,6 +54,7 @@
   f['construction.queued']=queued===null?unknown('Coda costruzioni non qualificata'):known(queued,'construction_adapter',true);
   const production=overview.production,productionKnown=typeof s.country==='string'&&s.country&&overview.country===s.country&&production?.status==='observed'&&validProductionLines(production.lines);
   f['production.lines']=productionKnown?known(production.lines.map(row=>({...row})),'production_adapter',true):unknown('Linee di produzione non qualificate');
+  Object.assign(f,politicalFacts(typeof s.country==='string'&&s.country&&overview.country===s.country?overview:{}));
   function put(path,data,present,calculated){f[path]=present?known(data,calculated?'legacy_adapter':source,calculated):unknown();}
   function flatten(path,data,present,calculated=false){
    if(Array.isArray(data)){put(path+'.count',data.length,present,true);data.forEach((child,i)=>flatten(path+'.'+(child&&typeof child==='object'?child.id??String(i):String(i)),child,present,calculated));}
@@ -65,6 +67,28 @@
    else flatten('country.'+section,data,present);
   }
   return validateFacts({schema_version:VERSION,usable:Object.keys(s).length>0,session_id:s.session_id||null,facts:f},'Campo non osservato');
+ }
+ function politicalFacts(overview){
+  const result=Object.fromEntries(['politics.ideas','politics.advisors','events.visible','events.visible_options','decisions.listed','decisions.executed'].map(key=>[key,unknown('Sezione politica non qualificata')]));
+  const id=value=>typeof value==='string'&&value.length>0&&value.length<=160&&/^[A-Za-z0-9_.-]+$/.test(value);
+  const publish=(key,values)=>result[key]=known([...new Set(values)].sort(),'politics_adapter',true),p=overview.politics;
+  if(p&&['observed','partial'].includes(p.status))for(const part of ['ideas','advisors']){
+   const section=p[part],rows=section?.status==='observed'?section.items:null;
+   if(!Array.isArray(rows)||rows.length>4096)continue;
+   if(!rows.every(row=>row&&id(row.id)&&(part==='ideas'?id(row.group)&&id(row.category)&&typeof row.is_law==='boolean':id(row.character_id)&&Number.isSafeInteger(row.slot)&&row.slot>=0&&row.slot<=2000000000)))continue;
+   const ids=rows.map(row=>row.id);if(new Set(ids).size===ids.length)publish('politics.'+part,ids);
+  }
+  const events=overview.events,rows=events?.status==='observed'?events.visible:null;
+  if(Array.isArray(rows)&&rows.length<=256){
+   const instances=rows.map(row=>row?.instance_id);
+   if(rows.every(row=>row&&id(row.instance_id)&&id(row.event_id))&&new Set(instances).size===instances.length){
+    publish('events.visible',rows.map(row=>row.event_id));
+    if(rows.every(row=>Array.isArray(row.option_ids)&&row.option_ids.length<=256&&row.option_ids.every(id)&&new Set(row.option_ids).size===row.option_ids.length))publish('events.visible_options',rows.flatMap(row=>row.option_ids.map(choice=>row.event_id+':'+choice)));
+   }
+  }
+  const listed=overview.decisions?.status==='observed'?overview.decisions.listed_ids:null;
+  if(Array.isArray(listed)&&listed.length<=4096&&listed.every(id)&&new Set(listed).size===listed.length)publish('decisions.listed',listed);
+  return result;
  }
  function fact(state,key){const f=state?.schema_version===VERSION&&state?.usable===true?state.facts?.[key]:null;return f&&['observed','calculated'].includes(f.status)&&typeof f.source==='string'&&f.source&&f.value!==null&&f.value!==undefined&&validType(key,f.value)&&!(typeof f.value==='number'&&!Number.isFinite(f.value))?f:unknown(f?.status==='unknown'&&f.value===null&&f.source===''&&typeof f.reason==='string'?f.reason:undefined);}
  function condition(node,s,checks={},depth=0){

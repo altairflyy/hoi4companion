@@ -8,6 +8,7 @@ from .installation import collect_files
 from .research_upgrades import exact_matches, normal_name
 from .tooltips import localise
 from .construction_progress import BUILDING_FACTS
+from .political_import import political_catalog, bind_political
 
 
 def operation_catalog(game, mods, labels, reference):
@@ -76,6 +77,8 @@ def operation_catalog(game, mods, labels, reference):
                        'equipment_ids':sorted(members.get(root,[])) if node.scalar('is_archetype')=='yes' else [key],
                        'is_archetype':node.scalar('is_archetype')=='yes',
                        'country_aliases':{country:list(dict.fromkeys(items)) for country,items in country_aliases.get(key,{}).items()}})
+    political,issues=political_catalog(game,mods,labels,reference)
+    result.extend(political); warnings.extend(issues)
     return result,warnings
 
 
@@ -120,9 +123,14 @@ def bind_operations(guide,catalog):
     for rows in guide['tracks'].values():
         for step in rows:
             if step['action']['kind'] not in ('manual','special_project'): continue
+            if step.get('tracking')=='reminder':
+                reports.append({'key':step['key'],'title':step.get('title',step['key']),
+                                'monitoring':'reminder','automatic_start':False,'automatic_completion':False,
+                                'reason':'method_reminder'})
+                continue
             params=step['action'].get('params',{})
             reason='no_supported_live_binding'
-            agency=params.get('operation_id')=='create_intelligence_agency' or normal_name(str(params.get('project_name',''))) in ('intelligenceagency','agenziadiintelligence')
+            agency=params.get('operation_id')=='create_intelligence_agency' or (normal_name(str(params.get('project_name',''))) in ('intelligenceagency','agenziadiintelligence') and params.get('target_quantity') in (None,1) and not params.get('upgrade_count'))
             if agency:
                 params['operation_id']='create_intelligence_agency'
                 created=_fact('country.intelligence.is_created','eq',True)
@@ -153,6 +161,8 @@ def bind_operations(guide,catalog):
                         reason='baseline_from_live'
             elif params.get('category')=='production':
                 reason = _bind_production(step,catalog,country,variants)
+            else:
+                reason=bind_political(step,catalog,country) or reason
             started,completed=_automatic(step.get('started_when')),_automatic(step.get('completion'))
             if started and not completed and 'completion' in step: reason='declared_manual_completion'
             reports.append({'key':step['key'],'title':step.get('title',step['key']),

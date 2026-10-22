@@ -87,6 +87,15 @@ def _fact(key,value):
 def bind_political(step,catalog,country):
     """Compile explicit IDs/names to qualified memberships. No prose strategy."""
     params=step['action'].get('params',{})
+    if params.get('category')=='projects':return None
+    previous=params.pop('political_binding',{})
+    if isinstance(previous,dict):
+        for field in ('completion','started_when'):
+            if field in previous and step.get(field)==previous[field]:step.pop(field)
+    def attach(field,condition):
+        if field not in step:
+            step[field]=condition
+            params.setdefault('political_binding',{})[field]=condition.copy()
     def matches(kinds,identifier,name):
         entries=[row for row in catalog if row['kind'] in kinds and
                  (not country or not row.get('countries') or country in row['countries'])]
@@ -99,17 +108,22 @@ def bind_political(step,catalog,country):
         item,reason=identity(('law',),'law_id','law_name')
         if not item: return reason
         params['law_id']=item['id']; params['law_group']=item['group']
-        step.setdefault('completion',_fact('politics.ideas',item['id']))
+        attach('completion',_fact('politics.ideas',item['id']))
         return 'politics_live_law'
-    if any(params.get(key) is not None for key in ('advisor_id','person_id','person_name','trait_name')):
-        identifier=params.get('advisor_id'); query=params.get('person_id') or params.get('person_name') or params.get('trait_name')
+    if any(params.get(key) is not None for key in ('advisor_id','person_id','person_name','trait_name','role')):
+        identifier=params.get('advisor_id'); query=params.get('person_id') or params.get('person_name') or params.get('trait_name') or params.get('role')
         found=matches(('advisor',),identifier,query)
+        concerns=matches(('idea',),None,query) if identifier is None and params.get('person_id') is None else []
+        concerns=[row for row in concerns if row.get('group') in ('industrial_concern','theorist','political_advisor','army_chief','navy_chief','air_chief','high_command')]
+        if not found and len(concerns)==1:
+            item=concerns[0];params['idea_id']=item['id'];attach('completion',_fact('politics.ideas',item['id']))
+            return 'politics_live_idea'
         slot=params.get('role')
         slots={normal_name(row['slot']):row['slot'] for row in catalog if row['kind']=='advisor'}
         if isinstance(slot,str) and normal_name(slot) in slots: found=[r for r in found if r['slot']==slots[normal_name(slot)]]
         if len(found)!=1: return 'politics_identity_ambiguous' if found else 'politics_identity_unresolved'
         item=found[0]; params['advisor_id']=item['id']; params['person_id']=item['character_id']; params['role']=item['slot']
-        step.setdefault('completion',_fact('politics.advisors',item['id']))
+        attach('completion',_fact('politics.advisors',item['id']))
         return 'politics_live_advisor'
     if any(params.get(key) is not None for key in ('event_id','event_name','event_option','event_option_id')):
         events=matches(('event',),params.get('event_id'),params.get('event_name'))
@@ -120,19 +134,18 @@ def bind_political(step,catalog,country):
         if len(options)==1:
             option=options[0]; params['event_id']=option['event_id']; params['event_option_id']=option['id']
             params['event_option_name']=option.get('localized_name',option['name'])
-            step.setdefault('started_when',_fact('events.visible_options',option['event_id']+':'+option['id']))
+            attach('started_when',_fact('events.visible_options',option['event_id']+':'+option['id']))
             return 'event_visible_option'
         return 'event_identity_ambiguous' if options else 'event_identity_unresolved'
     if params.get('decision_id') is not None or params.get('decision_name') is not None:
         item,reason=identity(('decision',),'decision_id','decision_name')
         if not item: return reason
         params['decision_id']=item['id']
-        step.setdefault('started_when',_fact('decisions.active',item['id']))
-        # Being offered is not being taken; active timed actions are still pending.
-        return 'decision_live_active'
+        # Membership/counters have not been proved to mean active or taken.
+        return 'decision_identity_resolved'
     if params.get('idea_id') is not None or params.get('idea_name') is not None:
         item,reason=identity(('idea',),'idea_id','idea_name')
         if not item: return reason
-        params['idea_id']=item['id']; step.setdefault('completion',_fact('politics.ideas',item['id']))
+        params['idea_id']=item['id']; attach('completion',_fact('politics.ideas',item['id']))
         return 'politics_live_idea'
     return None

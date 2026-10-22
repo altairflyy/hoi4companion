@@ -41,6 +41,9 @@ export type Guide = {
   milestones?: {key: string; title: string; note?: string; confirmation?: string; seconds?: number}[];
 };
 export type ProductionLine = {id: string; equipment: string; equipment_name?: string; name: string; category: 'military'|'naval'; requested_factories: number; assigned_factories: number; active_factories: number; damaged_factories: number; output_per_day?: number};
+export type PoliticalIdea = {id: string; group: string; category: string; is_law: boolean; name?: string};
+export type PoliticalAppointment = {id: string; character_id: string; slot: number; name?: string};
+export type VisibleEvent = {instance_id: string; event_id: string; option_ids?: string[]; name?: string};
 export type ProductionProgress = {assigned: number|null; requested: number|null; active: number|null; damaged: number|null; baseline: number|null; target: number|null; lines: ProductionLine[]; reason: string};
 export type OperationBaseline = {fact_key: string; value: number; country: string; quantity: number; source: string};
 export type ConstructionBaseline = OperationBaseline;

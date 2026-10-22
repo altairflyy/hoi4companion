@@ -18,6 +18,14 @@
   if(!step)throw Error('Passaggio sconosciuto');
   if(patch.entity)step.action.entity=patch.entity;
   if(patch.title!==undefined)step.title=patch.title;
+  if(patch.tracking!==undefined){
+   if(!['action','reminder'].includes(patch.tracking)||step.action.kind!=='manual')throw Error('Modalità monitoraggio non valida');
+   if(patch.tracking==='reminder'){
+    if(Object.values(result.tracks).flat().some(row=>row.depends_on?.includes(key)))throw Error('Altri passaggi dipendono da questa istruzione: rivedi prima le dipendenze.');
+    delete step.completion;delete step.started_when;
+   }
+   step.tracking=patch.tracking;
+  }
   return result;
  }
  const api={readDraft,editStep,normalise:c.guide,canPublish:(report,reviewed,busy)=>report?.valid===true&&reviewed===true&&!busy};

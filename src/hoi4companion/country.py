@@ -10,6 +10,18 @@ from .live import NativeSample, LiveReadError, WORLD_RVA
 
 
 class CountryReader:
+    def politics(self):
+        from .politics_native import read_politics
+        return read_politics(self)
+
+    def events(self):
+        from .events_native import read_events
+        return read_events(self)
+
+    def decisions(self):
+        from .events_native import read_decisions
+        return read_decisions(self)
+
     def __init__(self, process, world, country, tag):
         self.process, self.world, self.country, self.tag = process, world, country, tag
         self.s = NativeSample(process, budget=2 * 1024 * 1024)
@@ -377,7 +389,7 @@ class CountryReader:
 def collect_country(process, world, country, native_tag, country_tag, watch_plan=None):
     result = {'country': country_tag}
     witnesses = {}
-    for section in ('divisions', 'manpower', 'states', 'production', 'equipment', 'resources', 'construction', 'intelligence'):
+    for section in ('divisions', 'manpower', 'states', 'production', 'equipment', 'resources', 'construction', 'intelligence', 'politics', 'events', 'decisions'):
         reader = CountryReader(process, world, country, native_tag)
         try:
             reader.typed(country, 'CCountry')
@@ -407,6 +419,14 @@ def localise_country(value, labels):
     """Labels change names, never the native values or identity keys."""
     from copy import deepcopy
     result = deepcopy(value)
+    from .tooltips import localise
+    for part in ('ideas','advisors'):
+        for item in result.get('politics',{}).get(part,{}).get('items',[]):
+            item['name']=localise(labels.get(item['id'],labels.get(item.get('character_id'),item['id'])),labels)
+            if part=='ideas':item['group_name']=localise(labels.get(item['group'],item['group']),labels)
+    for item in result.get('events',{}).get('visible',[]):
+        item['name']=localise(labels.get(item['event_id']+'.t',item['event_id']),labels)
+        item['options']=[{'id':key,'name':localise(labels.get(key,key),labels)} for key in item.get('option_ids',[])]
     country = result['country']
     for item in result.get('divisions', {}).get('by_type', []):
         item['name'] = labels.get(item['type'], item['type'])
