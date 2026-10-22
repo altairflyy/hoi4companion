@@ -1,6 +1,6 @@
 'use strict';
 ((root)=>{
- const sections=['divisions','manpower','states','production','equipment','resources'];
+ const sections=['divisions','manpower','states','production','equipment','resources','politics','events','decisions'];
  function evaluate(value,enabled=true){
   const sample=enabled&&value?.usable===true?value.sample:null;
   const overview=sample?.country_overview;

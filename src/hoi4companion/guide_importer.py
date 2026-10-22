@@ -61,6 +61,14 @@ observable condition is explicitly justified. Do not add started_when heuristics
 Do not invent dependencies merely because two actions are narrated consecutively.
 Video timestamps are source references, NEVER in-game dates. Native focus/research
 completion is evaluated by the runtime, not by evidence or the AI. No default:true.
+Methods and general advice are manual steps with tracking:"reminder" at step level:
+keep evidence/timing/conditions but omit completion/started_when. Never make another
+step depend on a reminder. Missing data does not turn a concrete action into advice.
+Political params: law_name/law_id; person_name/person_id/advisor_id, role, trait_name;
+idea_name/idea_id for spirits; event_name/event_id, event_option/event_option_id;
+decision_name/decision_id. Names should be English reference or exact source names.
+Do not invent IDs or infer option selection from an event disappearing. Preserve
+sequences/rejection counts as explicit requirements, not a single final choice.
 '''
 
 
@@ -274,6 +282,17 @@ class Importer:
             if not any(entry.get('scope') == tree_id for entry in catalog):
                 raise ValueError('Albero nazionale non presente nel catalogo')
             catalog = [entry for entry in catalog if entry['kind'] != 'focus' or entry.get('scope') == tree_id]
+        # World event/advisor dictionaries dwarf the original trees. Include
+        # source-mentioned political candidates in optional AI context only;
+        # final import resolution still uses the complete installed catalog.
+        political={'law','idea','advisor','event','event_option','decision'}
+        text=normal_name(' '.join(source['text'] for source in sources))
+        mentioned=lambda row:any(len(needle)>=5 and needle in text for needle in
+                                (normal_name(name) for name in [row['id'],row['name'],*row.get('aliases',[])]))
+        selected=[row for row in catalog if row['kind'] in political and mentioned(row)]
+        events={row.get('event_id',row['id']) for row in selected if row['kind'] in ('event','event_option')}
+        catalog=[row for row in catalog if row['kind'] not in political or row in selected
+                 or row['kind']=='event_option' and row.get('event_id') in events]
         packet = {'import_schema_version': 1, 'instructions': self.prompt(), 'sources': deepcopy(sources), 'catalog': catalog}
         if tree_id:
             packet['context'] = {'tree_id': tree_id}

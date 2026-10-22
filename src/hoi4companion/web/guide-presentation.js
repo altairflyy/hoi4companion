@@ -27,7 +27,9 @@
    function visit(node){if(!node)return;if(node.op==='fact'&&node.key==='construction.queued'&&node.test==='contains')targets.add(node.value);for(const child of node.args||[])visit(child);if(node.arg)visit(node.arg);}
    visit(row.started_when);
    const construction=scopeOK&&result.mode==='live'&&queued.status!=='unknown'?(state?.sample?.country_overview?.construction?.lines||[]).filter(line=>line.amount>0&&!line.repair_levels&&!line.conversion&&(targets.has('building:'+line.building_id)||targets.has('state:'+line.state_id+':'+line.building_id))):[];
+   const membership=(key,value)=>{const item=contracts.fact(scopeOK&&result.mode==='live'?normalised:null,key);return item.status==='unknown'?null:item.value.includes(value);};
    return {...row,category:params.category||(row.action.kind==='special_project'?'projects':'checkpoints'),
+    ...(params.event_id?{event_observation:{visible:membership('events.visible',params.event_id),option_available:params.event_option_id?membership('events.visible_options',params.event_id+':'+params.event_option_id):null}}:{}),
     start_basis:row.started_when?(contracts.checkKeys(row.started_when).length?'condition':'live'):'manual',construction_observations:construction,
     timing:params.timing||'Al punto indicato dalla guida; verifica le condizioni nel gioco.',
     instructions:Array.isArray(params.instructions)?params.instructions.filter(x=>typeof x==='string'):[],

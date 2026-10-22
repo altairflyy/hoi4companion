@@ -93,6 +93,39 @@ Non tutte queste categorie devono esistere nella fonte. Non aggiungerle solo
 per riempire il formato. Un gruppo può diventare più step se le azioni hanno
 tempi o criteri diversi; non duplicare la stessa istruzione in più tracce.
 
+### Promemoria e azioni osservabili
+
+Per consigli sul **metodo** (come condurre un attacco, gestire il commercio,
+salvare prima di un evento casuale, suggerimenti generali) usa uno step
+`action.kind:"manual"` con **`tracking:"reminder"` al livello dello step**.
+Conserva istruzioni, evidenze, momento e condizioni; non aggiungere `completion`
+né `started_when`. Un promemoria non richiede conferme e non blocca la guida.
+Nessun altro step può dipendere dal suo completamento. Una costruzione, una
+legge, una nomina o una scelta specifica restano azioni: dati mancanti non
+giustificano trasformarle in promemoria. Dividi un metodo e un traguardo
+osservabile se la fonte contiene entrambi.
+
+Per la politica conserva in `action.params` campi separati, senza inventare fatti:
+
+- Leggi: `law_name` inglese, `law_id` solo se noto; `law_group` se fornito dal
+  catalogo. Le leggi di occupazione territoriali non sono leggi nazionali.
+- Nomine: `person_name`, `person_id` se noto, `advisor_id` se nel catalogo,
+  `role` e **`trait_name`** se la fonte indica soltanto un tratto (per esempio
+  `Noble Bureaucrat`). Non sostituire un tratto con un nome proprio inventato.
+- Idee/spiriti: `idea_name` oppure `idea_id`; non chiamarli decisioni.
+- Eventi: **`event_name`**, `event_id` se noto, **`event_option`** con il testo
+  inglese della scelta, `event_option_id` se noto. Un conteggio di rifiuti o
+  una sequenza di eventi va conservato come requisito esplicito; non basta
+  identificare l'ultima opzione per considerare completata tutta la sequenza.
+- Decisioni: `decision_name` e `decision_id` quando noto. Non inventare
+  condizioni di disponibilità, avvio o completamento.
+
+Il programma associa nomi/alias agli ID locali. Leggi selezionate e incarichi
+attivi sono verificabili live. Il lettore riconosce evento aperto e scelte
+mostrate: queste osservazioni non provano quale risposta sia stata scelta.
+Per l'esito serve una condizione dichiarata supportata oppure una conferma.
+La sola scomparsa di un evento o decisione non dimostra completamento.
+
 ## 3. Risolvi le identità con prudenza
 
 Se è allegato il catalogo, usa gli ID esatti e lo `scope` dei focus. I nomi

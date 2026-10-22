@@ -53,6 +53,14 @@
   for(const key of ['civilian','military','dockyards'])$('effective'+key[0].toUpperCase()+key.slice(1)).textContent=number(production.effective_factories?.[key],{integer:true});
   empty('production',rows('productionRows',production.lines,(r,x)=>{nameCell(r,x);cell(r,({military:'Militare',naval:'Navale'})[x.category]||x.category);nameCell(r,{id:x.equipment,name:x.equipment_name});cell(r,x.requested_factories,{numeric:true,integer:true});cell(r,x.assigned_factories,{numeric:true,integer:true});cell(r,x.active_factories,{numeric:true,integer:true});cell(r,x.damaged_factories,{numeric:true,integer:true});const output=model.productionOutput(x.output_per_day,x.category);cell(r,output?productionFormats[output.digits].format(output.value):null);}));
   const equipment=header('equipment');empty('equipment',rows('equipmentRows',equipment.items,(r,x)=>{nameCell(r,x);cell(r,x.stockpile,{numeric:true});cell(r,x.needed,{numeric:true});cell(r,x.balance_per_day,{numeric:true,signed:true});}));
+  const politics=header('politics'),ideas=politics.ideas,advisors=politics.advisors;
+  $('politicsIdeasCoverage').textContent=ideas?.status==='observed'?'Appartenenza completa nel campione corrente.':'Idee e leggi non disponibili.';
+  $('politicsAdvisorsCoverage').textContent=advisors?.status==='observed'?(advisors.items.length?'Incarichi effettivamente nominati.':'Nessun incarico attivo rilevato.'):'Incarichi non disponibili.';
+  rows('politicsIdeaRows',ideas?.status==='observed'?ideas.items:[],(r,x)=>{nameCell(r,x);cell(r,x.group_name||x.group);cell(r,x.is_law?'Legge':'Idea');});
+  rows('politicsAdvisorRows',advisors?.status==='observed'?advisors.items:[],(r,x)=>{nameCell(r,x);cell(r,x.character_id);});
+  const events=header('events');$('visibleEvents').replaceChildren();
+  for(const event of list(events.visible)){const article=document.createElement('article'),title=document.createElement('h3');title.textContent=event.name||event.event_id;article.append(title);const id=document.createElement('p');id.textContent=event.event_id;article.append(id);for(const option of list(event.options)){const p=document.createElement('p');p.textContent=(option.name||option.id)+' · '+option.id;article.append(p);}$('visibleEvents').append(article);}empty('events',list(events.visible).length);
+  const decisions=header('decisions');$('decisionMembership').textContent=Array.isArray(decisions.listed_ids)?decisions.listed_ids.length+' voci nel manager nativo.':'Elenco non disponibile.';
   const resources=header('resources');empty('resources',rows('resourceRows',resources.items,(r,x)=>{nameCell(r,x);cell(r,x.produced,{numeric:true});cell(r,x.imported,{numeric:true});cell(r,x.exported,{numeric:true});cell(r,x.available,{numeric:true,signed:true});cell(r,x.used,{numeric:true});cell(r,x.balance,{numeric:true,signed:true});}));
  }
  $('stateSearch').addEventListener('input',renderStates);

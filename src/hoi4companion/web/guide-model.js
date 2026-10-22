@@ -26,7 +26,7 @@
   const tracks={};
   for(const [id,steps]of Object.entries(guide.tracks)){
    const rows=steps.map(row),mapped=new Map(rows.map(r=>[r.key,r]));
-   const next=result.mode.startsWith('wrong_')?rows.find(r=>!settled(r)):mapped.get(result.tracks[id].next);
+   const next=result.mode.startsWith('wrong_')?rows.find(r=>r.tracking!=='reminder'&&!settled(r)):mapped.get(result.tracks[id].next);
    Object.defineProperty(tracks,id,{value:{rows,next:next||null,active:rows.filter(r=>r.runtime_status==='active'),completed:rows.filter(settled).length},enumerable:true});
   }
   const empty=()=>({rows:[],next:null,active:[],completed:0}),focus=tracks.focus||empty(),research=tracks.research||empty();
@@ -36,7 +36,7 @@
   research.suggestions=result.mode==='live'?result.parallel.research.steps.map(key=>mapped.get(key)).filter(Boolean):[];
   if(result.mode!=='live')for(const candidate of queue){if(['waiting','unavailable','free'].includes(candidate.status))break;research.suggestions.push(candidate);if(research.suggestions.length>=5)break;}
   research.projects=research.rows.filter((row,i)=>row.action.kind==='special_project'&&!settled(row)&&
-   (Object.hasOwn(row,'depends_on')?row.runtime_status==='ready'||row.runtime_reason==='manual_confirmation_required':research.rows.slice(0,i).filter(p=>p.action.kind!=='special_project').every(p=>settled(p)||p.runtime_status==='active')));
+   (Object.hasOwn(row,'depends_on')?row.runtime_status==='ready'||row.runtime_reason==='manual_confirmation_required':research.rows.slice(0,i).filter(p=>p.action.kind!=='special_project'&&p.tracking!=='reminder').every(p=>settled(p)||p.runtime_status==='active')));
   const context=result.mode==='live'?state:null,slots=c.fact(context,'research.slots').value;
   research.slots=Array.isArray(slots)?slots:[];research.free_slots=result.parallel.research.capacity;
   const activeTech=c.fact(context,'research.active').value,activeFocus=c.fact(context,'focus.active').value;

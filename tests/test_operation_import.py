@@ -34,6 +34,11 @@ def state(level=3,queued=(),creating=False,created=False,usable=True,country='TS
 
 
 class OperationImportTests(unittest.TestCase):
+    def test_agency_upgrade_request_is_not_completed_by_existing_agency(self):
+        guide,sources=document({'category':'projects','project_name':'Intelligence Agency','target_quantity':5})
+        report=preview(guide,sources,CATALOG)
+        self.assertEqual(report['operations'][0]['monitoring'],'manual')
+        self.assertNotIn('completion',report['guide']['tracks']['operations'][0])
     def test_state_names_include_native_country_names_without_hardcoded_regions(self):
         with TemporaryDirectory() as directory:
             game=Path(directory); (game/'history'/'states').mkdir(parents=True)

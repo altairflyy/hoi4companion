@@ -149,6 +149,28 @@ class ProductionLine(TypedDict):
     output_per_day: NotRequired[float]
 
 
+class PoliticalIdea(TypedDict):
+    id: str
+    group: str
+    category: str
+    is_law: bool
+    name: NotRequired[str]
+
+
+class PoliticalAppointment(TypedDict):
+    id: str
+    character_id: str
+    slot: int  # Native code; catalog supplies role names, not an enum guess.
+    name: NotRequired[str]
+
+
+class VisibleEvent(TypedDict):
+    instance_id: str
+    event_id: str
+    option_ids: NotRequired[list[str]]
+    name: NotRequired[str]
+
+
 class ProductionProgress(TypedDict):
     assigned: int | None
     requested: int | None
@@ -299,6 +321,9 @@ def validate_condition(value: Condition, depth: int = 0) -> None:
 
 
 def _valid_fact_type(key, value):
+    if key in ('politics.ideas','politics.advisors','events.visible','events.visible_options','decisions.listed','decisions.executed'):
+        return (isinstance(value,list) and len(value)<=4096 and all(isinstance(x,str) and 0<len(x)<=512 for x in value)
+                and len(set(value))==len(value))
     if key == 'production.lines':
         return _valid_production_lines(value)
     if key in ('country.intelligence.is_created', 'country.intelligence.in_creation'):
@@ -402,6 +427,7 @@ def normalise_state(value: dict) -> LiveState:
                         and overview.get('country') == sample['country'] and isinstance(production, dict)
                         and production.get('status') == 'observed' and _valid_production_lines(lines))
     facts['production.lines'] = fact(deepcopy(lines), 'calculated', 'production_adapter') if production_known else fact(reason='Linee di produzione non qualificate')
+    facts.update(_political_facts(overview if isinstance(sample.get('country'),str) and sample['country'] and overview.get('country')==sample['country'] else {}))
     if overview.get('country') == sample.get('country'):
         # These fields are derivations in country.py, not direct observations.
         derived = {'by_type', 'by_template', 'total', 'effective_factories', 'output_per_day',
@@ -431,6 +457,49 @@ def normalise_state(value: dict) -> LiveState:
                 else:
                     flatten('country.' + section, data, data.get('status') in ('observed', 'partial'))
     return {'schema_version': VERSION, 'usable': usable, 'session_id': sample.get('session_id'), 'facts': facts}
+
+
+def _political_facts(overview):
+    """Only complete identity lists can prove membership or known absence."""
+    result={key:fact(reason='Sezione politica non qualificata') for key in
+            ('politics.ideas','politics.advisors','events.visible','events.visible_options','decisions.listed','decisions.executed')}
+    def identifier(value):
+        import re
+        return isinstance(value,str) and 0<len(value)<=160 and re.fullmatch(r'[A-Za-z0-9_.-]+',value) is not None
+    def publish(key,values): result[key]=fact(sorted(set(values)),'calculated','politics_adapter')
+    politics=overview.get('politics',{})
+    if isinstance(politics,dict) and politics.get('status') in ('observed','partial'):
+        for part in ('ideas','advisors'):
+            section=politics.get(part,{})
+            rows=section.get('items') if isinstance(section,dict) and section.get('status')=='observed' else None
+            if not isinstance(rows,list) or len(rows)>4096: continue
+            ids=[]
+            for row in rows:
+                if not isinstance(row,dict) or not identifier(row.get('id')): break
+                if part=='ideas' and (not identifier(row.get('group')) or not identifier(row.get('category')) or type(row.get('is_law')) is not bool): break
+                if part=='advisors' and (not identifier(row.get('character_id')) or type(row.get('slot')) is not int or not 0<=row['slot']<=2_000_000_000): break
+                ids.append(row['id'])
+            else:
+                if len(set(ids))==len(ids): publish('politics.'+part,ids)
+    events=overview.get('events',{})
+    rows=events.get('visible') if isinstance(events,dict) and events.get('status')=='observed' else None
+    if isinstance(rows,list) and len(rows)<=256:
+        identities=set(); visible=[]; options=[]; options_known=True
+        for row in rows:
+            if (not isinstance(row,dict) or not identifier(row.get('instance_id')) or row['instance_id'] in identities
+                    or not identifier(row.get('event_id'))): break
+            identities.add(row['instance_id']); visible.append(row['event_id'])
+            choices=row.get('option_ids')
+            if not isinstance(choices,list) or len(choices)>256 or not all(identifier(x) for x in choices) or len(set(choices))!=len(choices): options_known=False
+            else: options.extend(row['event_id']+':'+choice for choice in choices)
+        else:
+            publish('events.visible',visible)
+            if options_known: publish('events.visible_options',options)
+    decisions=overview.get('decisions',{})
+    listed=decisions.get('listed_ids') if isinstance(decisions,dict) and decisions.get('status')=='observed' else None
+    if isinstance(listed,list) and len(listed)<=4096 and all(identifier(x) for x in listed) and len(set(listed))==len(listed):
+        publish('decisions.listed',listed)
+    return result
 
 
 def evaluate_condition(node: Condition, state: LiveState, checks: dict[str, bool] | None = None) -> bool | None:
