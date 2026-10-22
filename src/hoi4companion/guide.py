@@ -147,7 +147,7 @@ def manual_keys(guide):
             visit(node['arg'])
     for rows in guide['tracks'].values():
         for step in rows:
-            for field in ('when', 'priority_when', 'skip_when', 'completion'):
+            for field in ('when', 'priority_when', 'skip_when', 'completion', 'started_when'):
                 if field in step:
                     visit(step[field])
             allowed.update(step[f] for f in ('gate', 'available_gate') if f in step)

@@ -1,27 +1,24 @@
 <!doctype html>
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
-<title>HOI4 Companion — Walkthrough</title>
+<title>HOI4 Companion — Piano operativo</title>
 <link rel="stylesheet" href="/guide.css"><link rel="stylesheet" href="/live-state.css">
-<script defer src="/contracts.js"></script><script defer src="/guide-runtime.js"></script><script defer src="/guide-model.js"></script><script defer src="/live-state.js"></script><script defer src="/guide.js"></script>
+<script defer src="/contracts.js"></script><script defer src="/guide-runtime.js"></script><script defer src="/guide-model.js"></script><script defer src="/guide-presentation.js"></script><script defer src="/live-state.js"></script><script defer src="/guide-session.js"></script><script defer src="/guide.js"></script>
 </head><body>
 <header class="topbar"><nav aria-label="Viste"><a href="/">Focus nazionali</a><a href="/technologies">Tecnologie</a><a href="/country">Nazione</a><a href="/walkthrough" aria-current="page">Walkthrough</a></nav><span>HOI4 COMPANION</span></header>
 <main>
-<div id="hudControls"><strong>HOI4 · Prossimi passi</strong><a href="/walkthrough" target="_blank" rel="noopener">Guida completa ↗</a></div>
-<section class="hero"><div><p class="eyebrow">GUIDA ALLA CAMPAGNA</p><label>Guida <select id="guideSelect" aria-label="Guida"></select></label><h1 id="guideTitle">Walkthrough</h1><p id="subtitle">Caricamento del percorso…</p></div><a id="sourceLink" target="_blank" rel="noopener noreferrer" hidden>Fonte originale ↗</a></section>
+<div id="hudControls"><strong>HOI4 · Piano operativo</strong><a id="hudLink" href="/walkthrough" target="_blank" rel="noopener">Guida completa ↗</a></div>
+<section class="hero"><div><p class="eyebrow">IL PIANO OPERATIVO DELLA CAMPAGNA</p><label>Guida <select id="guideSelect" aria-label="Guida"></select></label><h1 id="guideTitle">Walkthrough</h1><p id="subtitle">Caricamento delle istruzioni…</p></div><a id="sourceLink" target="_blank" rel="noopener noreferrer" hidden>Fonte originale ↗</a></section>
 <p id="error" role="alert" hidden></p>
-<section class="run-bar" aria-label="Modalità della guida"><div><strong id="mode">Anteprima della guida</strong><p id="modeNote">Le priorità sono consultabili anche senza una partita aperta.</p></div><button id="reset" type="button">Nuova checklist</button></section>
+<section class="run-bar" aria-label="Modalità della guida"><div><strong id="mode">Anteprima della guida</strong><p id="modeNote">Collega una partita valida per aggiornare il percorso.</p></div><button id="reset" type="button">Nuova checklist</button></section>
 <p id="resetNotice" role="status" hidden></p>
-<section class="next-grid" aria-label="Prossimi passi della guida">
-<article class="next-card"><p class="eyebrow">FOCUS NAZIONALE</p><div id="focusCurrent"></div><h2 id="focusNext">—</h2><div id="focusAction"></div><p id="focusNote"></p></article>
-<article class="next-card"><p class="eyebrow">RICERCA TECNOLOGICA</p><div id="researchCurrent"></div><h2 id="researchNext">—</h2><div id="researchAction"></div><p id="researchNote"></p><div id="parallel"></div><div id="projects"></div></article>
-</section>
-<section id="priorityControls" class="priority-control" hidden aria-label="Conferme per le priorità"></section>
-<nav class="section-nav" aria-label="Sezioni del percorso"><a href="#focusPlan">Focus <span id="focusProgress">—</span></a><a href="#researchPlan">Ricerche <span id="researchProgress">—</span></a><a href="#checkpoints">Checkpoint</a><a href="#sourceDetails">Fonti e criteri</a></nav>
-<div class="plans">
-<section id="focusPlan"><div class="section-head"><div><p class="eyebrow">SEQUENZA DELLA GUIDA</p><h2>Focus nazionali</h2></div><label class="filter"><input type="checkbox" id="hideDone">Nascondi completati</label></div><p class="section-note">Ordine definito dalla guida. Le attese e le scelte libere restano passaggi espliciti; i completamenti non vengono salvati manualmente.</p><ol id="focusSteps" class="steps"></ol></section>
-<section id="researchPlan"><div class="section-head"><div><p class="eyebrow">PRIORITÀ, NON UNA CODA SERIALE</p><h2>Ricerche tecnologiche</h2></div></div><p class="section-note">Assegna il primo elemento non ricercato e non già in corso a uno slot libero. Progetti speciali separati. I livelli “UP” sono ricostruzioni esplicitamente indicate.</p><ol id="researchSteps" class="steps"></ol></section>
-</div>
-<section id="checkpoints"><p class="eyebrow">EVENTI E CONDIZIONI DA VERIFICARE</p><h2>Checkpoint del walkthrough</h2><p class="section-note">Queste conferme sono manuali e restano distinte dai dati letti dal gioco.</p><div id="milestones" class="milestones"></div></section>
+<nav class="tree-shortcuts" aria-label="Segui la guida negli alberi">
+<a id="focusTreeLink" class="tree-shortcut" href="/"><span class="shortcut-icon" aria-hidden="true">◈</span><span><strong>Focus nazionali</strong><small>Prossimo focus illuminato nel suo albero</small></span><span aria-hidden="true">↗</span></a>
+<a id="researchTreeLink" class="tree-shortcut" href="/technologies"><span class="shortcut-icon" aria-hidden="true">⚙</span><span><strong>Ricerche tecnologiche</strong><small>Prossima ricerca illuminata nella sua scheda</small></span><span aria-hidden="true">↗</span></a>
+</nav>
+<section id="nextOperation" class="next-operation" aria-label="Prossima istruzione operativa"></section>
+<section id="operationsPlan"><div class="section-head"><div><p class="eyebrow">COSA FARE E QUANDO</p><h2>Istruzioni operative <span id="operationProgress"></span> <span id="operationActive" role="status"></span></h2></div><label class="filter"><input type="checkbox" id="hideDone" checked>Nascondi completate</label></div>
+<p class="section-note">Gli avvii verificabili si rilevano automaticamente dallo stato live, anche in pausa. Il pulsante manuale resta per le attività senza un criterio osservabile. L’avvio non equivale al completamento: conferma il criterio finale solo quando è rispettato nel gioco. Il minutaggio dei riferimenti è quello del video.</p>
+<nav id="operationFilters" class="operation-filters" aria-label="Tipo di istruzione"></nav><div id="operationCards" class="operation-cards"></div></section>
 <details id="sourceDetails"><summary>Fonti, corrispondenze e limiti della guida</summary><p id="sourceBasis"></p><ul id="assumptions"></ul><div id="catalogWarnings"></div><h3>Capitoli del video</h3><ul id="chapters"></ul></details>
-</main><footer>Locale · sola lettura del gioco · la checklist non impartisce comandi a HOI4</footer>
+</main><footer>Locale · sola lettura del gioco · le istruzioni non impartiscono comandi a HOI4</footer>
 </body></html>

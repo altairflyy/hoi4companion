@@ -4,7 +4,7 @@
   "country": "POL",
   "tree_id": "polish_focus",
   "title": "Polonia 1936 · da Anastasia a Wojtek",
-  "subtitle": "Percorso guidato da MachiavellianStrategist: focus, ricerche e checkpoint della strada Romanov.",
+  "subtitle": "Focus e ricerche evidenziati nei rispettivi alberi. Qui trovi costruzioni, scelte politiche, eserciti, personaggi e progetti del percorso Romanov.",
   "source": {
     "video_id": "FBPdhlwqMwM",
     "url": "https://www.youtube.com/watch?v=FBPdhlwqMwM",
@@ -252,7 +252,18 @@
         "name": "Attendi l’annessione della Lituania",
         "confirmation": "Ho verificato: la Lituania è annessa",
         "action": {
-          "kind": "manual"
+          "kind": "manual",
+          "params": {
+            "category": "checkpoints",
+            "timing": "Dopo la richiesta alla Lituania, prima di scegliere un nuovo focus.",
+            "source_seconds": 380
+          }
+        },
+        "when": {
+          "op": "fact",
+          "key": "focus.completed",
+          "test": "contains",
+          "value": "POL_demand_LIT_pavel"
         }
       },
       {
@@ -928,6 +939,10 @@
           "entity": {
             "kind": "project",
             "id": "sp_land_flamethrower_tank"
+          },
+          "params": {
+            "category": "projects",
+            "timing": "Dopo le ricerche precedenti nella priorità della fonte; verifica impianto, scienziato e svolte nel gioco."
           }
         }
       },
@@ -1099,6 +1114,10 @@
           "entity": {
             "kind": "project",
             "id": "sp_land_military_engineering_vehicles"
+          },
+          "params": {
+            "category": "projects",
+            "timing": "Dopo le ricerche precedenti nella priorità della fonte; verifica impianto, scienziato e svolte nel gioco."
           }
         }
       },
@@ -1523,6 +1542,456 @@
           "kind": "free"
         }
       }
+    ],
+    "operations": [
+      {
+        "key": "setup_construction",
+        "title": "Costruzioni iniziali a Katowice",
+        "name": "Costruzioni iniziali a Katowice",
+        "note": "L’avvio è rilevato automaticamente quando almeno uno degli ordini previsti è in coda, anche in pausa. La fonte non indica una quota certa di fabbriche o livelli delle infrastrutture: il criterio finale resta da verificare nel gioco. Cancellare un ordine non significa averlo completato.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "construction",
+            "timing": "Avvio della campagna, 1936: impianto prima delle altre costruzioni.",
+            "source_seconds": 0,
+            "instructions": [
+              "Costruisci prima un impianto di ricerca terrestre.",
+              "Poi avvia infrastrutture e fabbriche militari a Katowice."
+            ],
+            "legacy_key": "m_setup"
+          }
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 0
+          }
+        ],
+        "completion": {
+          "op": "any",
+          "args": [
+            {
+              "op": "check",
+              "key": "setup_construction"
+            },
+            {
+              "op": "check",
+              "key": "m_setup"
+            }
+          ]
+        },
+        "started_when": {
+          "op": "any",
+          "args": [
+            {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "building:land_facility"
+            },
+            {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:762:infrastructure"
+            },
+            {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:762:arms_factory"
+            }
+          ]
+        }
+      },
+      {
+        "key": "setup_agency",
+        "title": "Crea l’agenzia",
+        "name": "Crea l’agenzia",
+        "note": "Crea l’agenzia di intelligence nella preparazione iniziale mostrata dal video. L’avvio viene rilevato automaticamente anche in pausa; il passaggio si completa soltanto quando il gioco indica che l’agenzia è stata creata. I successivi progetti di collaborazione sono richiamati nella preparazione contro l’URSS.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "politics",
+            "timing": "Preparazione iniziale della campagna, 1936.",
+            "source_seconds": 0,
+            "legacy_key": "m_setup"
+          }
+        },
+        "started_when": {
+          "op": "any",
+          "args": [
+            {
+              "op": "fact",
+              "key": "country.intelligence.in_creation",
+              "test": "eq",
+              "value": true
+            },
+            {
+              "op": "fact",
+              "key": "country.intelligence.is_created",
+              "test": "eq",
+              "value": true
+            }
+          ]
+        },
+        "completion": {
+          "op": "fact",
+          "key": "country.intelligence.is_created",
+          "test": "eq",
+          "value": true
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 0
+          }
+        ]
+      },
+      {
+        "key": "setup_mio",
+        "title": "Assegna le organizzazioni industriali",
+        "name": "Assegna le organizzazioni industriali",
+        "note": "Assegna i MIO ai progetti, come indicato nella preparazione iniziale. La trascrizione disponibile non identifica con certezza ogni organizzazione o tratto da scegliere.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "production",
+            "timing": "Preparazione iniziale della campagna, 1936.",
+            "source_seconds": 0,
+            "legacy_key": "m_setup"
+          }
+        },
+        "completion": {
+          "op": "any",
+          "args": [
+            {
+              "op": "check",
+              "key": "setup_mio"
+            },
+            {
+              "op": "check",
+              "key": "m_setup"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 0
+          }
+        ]
+      },
+      {
+        "key": "setup_training",
+        "title": "Addestra le forze iniziali",
+        "name": "Addestra le forze iniziali",
+        "note": "Il video mette in addestramento esercito, marina e aerei durante la preparazione iniziale. Verifica perdite, carburante ed equipaggiamento nella tua partita.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "army",
+            "timing": "Preparazione iniziale della campagna, 1936.",
+            "source_seconds": 0,
+            "legacy_key": "m_setup"
+          }
+        },
+        "completion": {
+          "op": "any",
+          "args": [
+            {
+              "op": "check",
+              "key": "setup_training"
+            },
+            {
+              "op": "check",
+              "key": "m_setup"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 0
+          }
+        ]
+      },
+      {
+        "key": "m_danzig",
+        "title": "Danzica e primi eventi",
+        "name": "Danzica e primi eventi",
+        "note": "Il video imposta Nessuna guarnigione per provocare la rivolta; attende che i difensori escano e prende rapidamente Danzica. Nella pace crea Kashubia come fantoccio, anziché Città libera di Danzica. È una strategia del video con rischio RNG, non una garanzia della tua run.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "politics",
+            "timing": "Dopo Bloccare Danzica, durante la rivolta e nella conferenza di pace.",
+            "source_seconds": 212
+          }
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 212
+          }
+        ]
+      },
+      {
+        "key": "m_romanov",
+        "title": "Nona candidata: Anastasia",
+        "name": "Nona candidata: Anastasia",
+        "note": "Rifiuta i primi otto pretendenti e accetta Anastasia come nona candidata. Conferma solo dopo aver verificato il sovrano nel gioco. Il reader attuale non legge candidati o leader.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "characters",
+            "timing": "Durante gli eventi dei pretendenti: Anastasia è la nona candidata.",
+            "source_seconds": 213
+          }
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 213
+          }
+        ]
+      },
+      {
+        "key": "m_lithuania",
+        "title": "Lituania: risposta e annessione",
+        "name": "Lituania: risposta e annessione",
+        "note": "Prepara l’esercito prima della richiesta. Se la Lituania rifiuta, il video suggerisce una guerra rapida e nessun nuovo focus fino all’annessione; senza le sue divisioni, addestra rinforzi. Per Ripristinare il Commonwealth controlla la condizione della conformità o la soluzione del fantoccio descritta a 07:45.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "army",
+            "timing": "Prima della richiesta alla Lituania e fino alla sua annessione.",
+            "source_seconds": 380
+          }
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 380
+          }
+        ],
+        "when": {
+          "op": "fact",
+          "key": "focus.completed",
+          "test": "contains",
+          "value": "POL_demand_LIT_pavel"
+        }
+      },
+      {
+        "key": "m_doctrines",
+        "title": "Dottrine del video",
+        "name": "Dottrine del video",
+        "note": "La sequenza narrata è Grand Assault → Assault Infantry → Self-Propelled Support → Logistical Focus → Streamlined Deployment. Sono scelte del nuovo sistema dottrine: non fanno parte dei 48 slot tecnologici monitorati e vanno verificate manualmente.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "army",
+            "timing": "Quando puoi spendere esperienza nelle dottrine; ordine indicato dal video.",
+            "source_seconds": 533
+          }
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 533
+          }
+        ]
+      },
+      {
+        "key": "m_balkans",
+        "title": "Due risposte jugoslave",
+        "name": "Due risposte jugoslave",
+        "note": "Prepara eserciti per Lettonia/Estonia e Ungheria/Jugoslavia, con difesa sul fronte rumeno. Il video distingue accettazione e rifiuto jugoslavo; economia di guerra e leva estesa vanno ottenute prima di terminare le guerre. Queste condizioni non sono lette dal companion.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "politics",
+            "timing": "Preparando le guerre balcaniche; leggi economiche e leva prima della fine delle guerre.",
+            "source_seconds": 693
+          }
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 693
+          }
+        ]
+      },
+      {
+        "key": "m_spg",
+        "title": "SPG offensivi",
+        "name": "SPG offensivi",
+        "note": "Successivamente il video amplia l’uso delle divisioni offensive. Il progetto esatto dei moduli dei mezzi non è stato ricostruito fotogramma per fotogramma.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "templates",
+            "timing": "Quando disponi degli SPG per le divisioni offensive, prima di estenderne l’uso.",
+            "source_seconds": 613,
+            "instructions": [
+              "Sostituisci un battaglione di fanteria con un battaglione SPG nel template offensivo.",
+              "Mantieni larghezza 18 come nel video; verifica disponibilità ed equipaggiamento nel gioco."
+            ]
+          }
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 613
+          }
+        ]
+      },
+      {
+        "key": "m_ussr",
+        "title": "Preparazione contro l’URSS",
+        "name": "Preparazione contro l’URSS",
+        "note": "Organizza i due eserciti offensivi, i rifornimenti, le collaborazioni e le compagnie logistiche/lanciafiamme (circa 19:34). Prima di Tra i due mari dispiega soltanto gli uomini necessari per la soglia del focus.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "army",
+            "timing": "Prima della guerra contro l’URSS e prima della soglia richiesta da Tra i due mari.",
+            "source_seconds": 1020
+          }
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 1020
+          }
+        ]
+      },
+      {
+        "key": "m_unity",
+        "title": "Priorità all’unità slava",
+        "name": "Priorità all’unità slava",
+        "note": "Quando Proclamare l’unità slava è effettivamente disponibile, passa a quel focus prima dei tre riempitivi militari. Dopo, recupera Modernizzazione dell’artiglieria se manca.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "politics",
+            "timing": "Quando l’unità slava diventa disponibile nel gioco.",
+            "source_seconds": 1663
+          }
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 1663
+          }
+        ]
+      },
+      {
+        "key": "m_iran",
+        "title": "Requisiti del comandante Wojtek",
+        "name": "Requisiti del comandante Wojtek",
+        "note": "Il video elenca: controllare Hamadan in Iran, essere non allineati, aver completato Modernizzazione dell’artiglieria, essere in guerra con l’Italia e avere divisioni in Lazio o Abruzzo. Conferma gli eventi nel gioco; non vengono dedotti dai soli focus/tecnologie.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "characters",
+            "timing": "Durante la preparazione dell’evento di Wojtek, prima di concludere la guerra italiana.",
+            "source_seconds": 1800
+          }
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 1800
+          }
+        ]
+      },
+      {
+        "key": "m_italy",
+        "title": "Raggiungere Lazio o Abruzzo prima che sia tardi",
+        "name": "Raggiungere Lazio o Abruzzo prima che sia tardi",
+        "note": "Il video avverte del rischio che l’Italia crolli o inizi la guerra civile prima dell’evento. Raggiungi la zona richiesta e verifica l’evento di Wojtek prima di concludere la guerra italiana. Non basta spuntare Artiglieria.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "army",
+            "timing": "Prima che l’Italia capitoli o inizi la guerra civile.",
+            "source_seconds": 2017
+          }
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 2017
+          }
+        ]
+      },
+      {
+        "key": "m_bear",
+        "title": "Wojtek comandante e poi re",
+        "name": "Wojtek comandante e poi re",
+        "note": "Attorno a 38:28 arriva l’evento del comandante. Successivamente, nell’evento sul destino di Anastasia (40:36), l’autore sceglie l’opzione che cede la corona all’orso. Sono due momenti distinti, da verificare entrambi nel gioco.",
+        "confirmation": "Verificato nel gioco",
+        "depends_on": [],
+        "action": {
+          "kind": "manual",
+          "params": {
+            "category": "characters",
+            "timing": "All’evento del comandante; la scelta della corona avviene nell’evento successivo.",
+            "source_seconds": 2308
+          }
+        },
+        "evidence": [
+          {
+            "source_id": "video",
+            "basis": "inferred",
+            "timestamp_seconds": 2308
+          }
+        ]
+      }
     ]
   },
   "milestones": [
@@ -1628,5 +2097,12 @@
     "country": "POL",
     "tree_id": "polish_focus"
   },
-  "default": true
+  "default": true,
+  "sources": [
+    {
+      "id": "video",
+      "type": "youtube",
+      "url": "https://www.youtube.com/watch?v=FBPdhlwqMwM"
+    }
+  ]
 }

@@ -10,10 +10,13 @@ orologio, I/O, DOM o dipendenze dal lettore nativo. Gli input non vengono mutati
 - `Guide`: definizione v1, azioni, condizioni, dipendenze e fonti editoriali.
 - `LiveState`: osservazioni correnti adattate al contratto v1. Un campione
   inutilizzabile non fornisce fatti al runtime.
-- `GuideProgress`: `{schema_version:1, guide_id, run_id, session_id?, checks?}`.
-  Contiene solo conferme manuali della singola partita. Non memorizza
+- `GuideProgress`: `{schema_version:1, guide_id, run_id, session_id?, checks?, started?}`.
+  Contiene conferme manuali e avvii dichiarati della singola partita. Non memorizza
   completamenti ricavati dal gioco. `false` è una conferma negativa esplicita;
   una chiave assente è sconosciuta. Solo chiavi dichiarate dalla guida sono usate.
+  `started` è una mappa facoltativa di booleani per le chiavi di step `manual`
+  e `special_project`. Non modifica `checks` né la condizione di completamento.
+  L'assenza del campo conserva la compatibilità con i client v1 precedenti.
 
 I tipi Python sono in `contracts.py`, quelli TypeScript in `web/contracts.d.ts`;
 la firma JavaScript è in `web/guide-runtime.d.ts`.
@@ -29,7 +32,7 @@ anteprima, senza inventare una corrispondenza.
 | Stato | Significato |
 |---|---|
 | `completed` | Condizione di completamento vera o appartenenza osservata ai completamenti |
-| `active` | Azione selezionata nel gioco; non prova il completamento |
+| `active` | Selezione nel gioco oppure avvio manuale dichiarato; non prova il completamento |
 | `ready` | Prerequisiti dichiarati soddisfatti; disponibilità dinamica nel gioco non verificata |
 | `waiting` | Condizione falsa o dipendenza non completata |
 | `not_applicable` | Scope incompatibile oppure `skip_when` vero |
@@ -40,6 +43,20 @@ Ogni riga espone `reason`, `blocked_by`, fatti di `completion`, `selection` e
 condizioni producono fatti **calcolati**, mai osservati. `availability` resta
 sconosciuta: non viene interpretato l'intero linguaggio dei trigger di HOI4.
 Le evidenze editoriali e `action.params` non sono prove runtime né codice.
+Per un avvio manuale, `selection` è calcolata con sorgente
+`manual_started:<step>`; non è un'osservazione del gioco. Un avvio non sblocca
+dipendenze di completamento e non prevale su un'identità incompatibile.
+La condizione finale resta indipendente: se vera, lo stato diventa `completed`;
+se torna falsa, un avvio ancora dichiarato torna `active`. Non esistono timer,
+percentuali o deduzioni basate sull'assenza di dati.
+
+Gli step `manual` e `special_project` possono dichiarare `started_when`, una
+condizione v1 valutata sugli stessi fatti e conferme delle altre condizioni.
+Il risultato vero indica `active`, con selezione calcolata e sorgente
+`declared_start`; falso e sconosciuto non applicano l'avvio manuale eventualmente
+conservato in `GuideProgress.started`. La condizione finale rimane indipendente
+e prevale quando vera. Questo campo non è ammesso per focus, tecnologie o step
+liberi, e non modifica le osservazioni native né sblocca dipendenze di completamento.
 
 La valutazione segue queste regole:
 
@@ -89,11 +106,18 @@ La vista e l'HUD mostrano i sei stati e la provenienza del completamento.
 - Stesso POST con `{"run_id":"...","checks":{"chiave":false}}`: sostituisce
   le conferme della partita attiva. Rifiuta un ID non attivo, chiavi non dichiarate
   e valori non booleani. Le checkbox inviano anche le negazioni esplicite.
+- Stesso POST con `{"run_id":"...","started":{"costruzione":true}}`:
+  sostituisce gli avvii manuali, conservando le conferme. Sono ammessi anche
+  entrambi i campi; un aggiornamento non valido non scrive nessuna delle due
+  mappe. Non si possono avviare manualmente focus o tecnologie native.
+  Omettere una mappa la conserva. Nuova checklist e reset legacy le azzerano
+  entrambe; Annulla recupera entrambe dallo storico.
 - Le vecchie `/api/guide`, `/api/guide/checks` e gli alias nello stato restano
   compatibili. La risposta checklist resta esattamente `checks` + `revision`.
   Il vecchio endpoint non offre la protezione del nuovo ID partita per chi scrive.
 - SSE aggiunge `guide_runs` (identità, senza duplicare le checklist), conservando
-  `guide_states` e `guide_revision`. Nessuna modifica all'acquisizione nativa.
+  `guide_states` e `guide_revision`; `guide_started` trasporta separatamente gli
+  avvii per guida. Nessuna modifica all'acquisizione nativa.
 
 `RunStore` assegna gli ID nella composizione, separata dal motore puro. Importa
 le checklist precedenti una volta, conserva lo storico, protegge gli snapshot e

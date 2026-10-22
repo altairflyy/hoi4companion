@@ -22,8 +22,12 @@ quel saldo sottrae anche i fabbisogni. Fabbisogno, consumo e saldo netto
 giornaliero degli equipaggiamenti non sono ancora qualificati; restano `null`
 e la sezione è **Parziale**. Anche il manpower in addestramento resta `null`,
 pur risultando 0 nel tooltip di questa partita: non si generalizza quel singolo
-valore. Carburante, guarnigioni, code di costruzione e produzione effettivamente
+valore. Carburante, guarnigioni e produzione effettivamente
 consegnata nel tempo non sono esposti da questa estensione.
+
+Incremento successivo: la coda di costruzione è ora letta in sola lettura e
+può determinare l'avvio automatico delle istruzioni. Layout, prova su Polonia,
+limiti di completamento e istanza aggiornata in [construction-live.md](construction-live.md).
 
 Il tipo di una divisione segue il battaglione principale del modello: non è
 un inventario dei battaglioni né una valutazione della forza combattente.
@@ -94,3 +98,7 @@ chat, incluse `country-live-benchmark-selective.json` e `country-live-verificati
 I permessi restano `PROCESS_QUERY_INFORMATION | PROCESS_VM_READ` (0x410).
 Nessuna scrittura di memoria, iniezione, hook, mod, comando console o modifica
 dei file di gioco. Le prove GUI hanno soltanto aperto pannelli e tooltip.
+
+L’incremento [agenzia di intelligence](intelligence-live.md) aggiunge alla
+stessa osservazione la sezione `intelligence`, con flag distinti di creazione
+in corso e agenzia creata. Non interpreta percentuali, migliorie o operazioni.

@@ -115,6 +115,7 @@ class GuideStep(TypedDict):
     phase: NotRequired[str]
     depends_on: NotRequired[list[str]]
     completion: NotRequired[Condition]
+    started_when: NotRequired[Condition]
     evidence: NotRequired[list[GuideEvidence]]
 
 
@@ -140,6 +141,7 @@ class GuideProgress(TypedDict):
     run_id: str
     session_id: NotRequired[str | None]
     checks: NotRequired[dict[str, bool]]
+    started: NotRequired[dict[str, bool]]
 
 
 StepStatus = Literal['completed', 'active', 'ready', 'waiting', 'not_applicable', 'unverifiable']
@@ -257,14 +259,38 @@ def validate_condition(value: Condition, depth: int = 0) -> None:
 
 
 def _valid_fact_type(key, value):
+    if key in ('country.intelligence.is_created', 'country.intelligence.in_creation'):
+        return type(value) is bool
     if key in ('country', 'focus.tree'):
         return isinstance(value, str) and bool(value)
-    if key in ('focus.completed', 'focus.active', 'focus.continuous', 'focus.ids', 'research.completed', 'research.active', 'research.ids'):
+    if key in ('focus.completed', 'focus.active', 'focus.continuous', 'focus.ids', 'research.completed', 'research.active', 'research.ids', 'construction.queued'):
         return isinstance(value, list) and all(isinstance(item, str) and item for item in value)
     if key == 'research.slots':
         return isinstance(value, list) and all(isinstance(item, dict) and 'technology_id' in item and
                 (item['technology_id'] is None or isinstance(item['technology_id'], str) and bool(item['technology_id'])) for item in value)
     return True
+
+
+def _queued_construction(section):
+    """Project a complete qualified queue into membership, never completions."""
+    if not isinstance(section, dict) or section.get('status') != 'observed' or not isinstance(section.get('lines'), list):
+        return None
+    keys, identities = set(), set()
+    def integer(value, minimum=0):
+        return type(value) in (int, float) and is_json_number(value) and value == int(value) and value >= minimum
+    for row in section['lines']:
+        if (not isinstance(row, dict) or any(not isinstance(row.get(key), str) or not row[key] for key in ('id', 'building_id'))
+                or row['id'] in identities or row.get('location_status') != 'observed'
+                or not integer(row.get('state_id'), 1)
+                or ('province_id' not in row or row['province_id'] is not None and not integer(row['province_id'], 1))
+                or any(not integer(row.get(key)) for key in ('amount', 'active_factories', 'built_level', 'repair_levels'))
+                or type(row.get('conversion')) is not bool):
+            return None
+        identities.add(row['id'])
+        if row['amount'] > 0 and row['repair_levels'] == 0 and not row['conversion']:
+            keys.add('building:' + row['building_id'])
+            keys.add(f"state:{int(row['state_id'])}:{row['building_id']}")
+    return sorted(keys)
 
 
 def normalise_state(value: dict) -> LiveState:
@@ -308,6 +334,8 @@ def normalise_state(value: dict) -> LiveState:
         put(key, sample.get(native))
     overview = sample.get('country_overview') or {}
     overview = overview if isinstance(overview, dict) else {}
+    queued = _queued_construction(overview.get('construction')) if isinstance(sample.get('country'), str) and sample['country'] and overview.get('country') == sample['country'] else None
+    facts['construction.queued'] = fact(queued, 'calculated', 'construction_adapter') if queued is not None else fact(reason='Coda costruzioni non qualificata')
     if overview.get('country') == sample.get('country'):
         # These fields are derivations in country.py, not direct observations.
         derived = {'by_type', 'by_template', 'total', 'effective_factories', 'output_per_day',
@@ -325,7 +353,8 @@ def normalise_state(value: dict) -> LiveState:
             else:
                 aggregated_stockpile = path.startswith('country.equipment.items.') and path.endswith('.stockpile')
                 enumerated_line = path.startswith('country.production.lines.') and path.endswith('.id')
-                put(path, data, known, calculated or aggregated_stockpile or enumerated_line)
+                construction_label = path.startswith('country.construction.lines.') and path.rsplit('.', 1)[-1] in ('position', 'location_status', 'state_name')
+                put(path, data, known, calculated or aggregated_stockpile or enumerated_line or construction_label)
         for section, data in overview.items():
             if isinstance(data, dict):
                 # Available manpower is a computed sum; explicit zero is known.

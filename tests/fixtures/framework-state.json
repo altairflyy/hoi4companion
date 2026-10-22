@@ -205,5 +205,1185 @@
         "value": null
       }
     }
+  },
+  {
+    "name": "observed empty construction queue",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": []
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "calculated",
+        "value": [],
+        "source": "construction_adapter"
+      }
+    }
+  },
+  {
+    "name": "paused queued construction with zero assigned factories",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed",
+                "position": 1,
+                "state_name": "Example"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "calculated",
+        "value": [
+          "building:arms_factory",
+          "state:7:arms_factory"
+        ],
+        "source": "construction_adapter"
+      },
+      "country.construction.lines.1.id": {
+        "status": "observed",
+        "value": "1",
+        "source": "process_memory"
+      },
+      "country.construction.lines.1.repair_levels": {
+        "status": "observed",
+        "value": 0,
+        "source": "process_memory"
+      },
+      "country.construction.lines.1.position": {
+        "status": "calculated",
+        "value": 1,
+        "source": "legacy_adapter"
+      },
+      "country.construction.lines.1.location_status": {
+        "status": "calculated",
+        "value": "observed",
+        "source": "legacy_adapter"
+      },
+      "country.construction.lines.1.state_name": {
+        "status": "calculated",
+        "value": "Example",
+        "source": "legacy_adapter"
+      }
+    }
+  },
+  {
+    "name": "repair conversion and empty orders are not ordinary construction",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "repair",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 1,
+                "conversion": false,
+                "location_status": "observed"
+              },
+              {
+                "id": "conversion",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": true,
+                "location_status": "observed"
+              },
+              {
+                "id": "empty",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 0,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "calculated",
+        "value": [],
+        "source": "construction_adapter"
+      }
+    }
+  },
+  {
+    "name": "state and building memberships deduplicate and sort Unicode",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              },
+              {
+                "id": "second",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              },
+              {
+                "id": "third",
+                "building_id": "",
+                "state_id": 8,
+                "province_id": 25,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              },
+              {
+                "id": "fourth",
+                "building_id": "𐀀",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "calculated",
+        "value": [
+          "building:arms_factory",
+          "building:",
+          "building:𐀀",
+          "state:7:arms_factory",
+          "state:7:𐀀",
+          "state:8:"
+        ],
+        "source": "construction_adapter"
+      }
+    }
+  },
+  {
+    "name": "invalid construction amount True",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": true,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "invalid construction amount -1",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": -1,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "invalid construction amount 1.5",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 1.5,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "invalid construction active_factories -1",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": -1,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "invalid construction built_level None",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": null,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "invalid construction repair_levels 0",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": "0",
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "invalid construction conversion 1",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": 1,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "invalid construction state_id None",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": null,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "invalid construction province_id 0",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": 0,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "invalid construction location_status unavailable",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "unavailable"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "invalid construction building_id ",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "malformed construction line",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              },
+              null
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "duplicate construction identity",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              },
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "construction queue lines missing",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed"
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "construction partial",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "partial",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "construction unavailable",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "unavailable",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "foreign country construction",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "POL",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "stale construction sample",
+    "input": {
+      "usable": false,
+      "source": "process_memory",
+      "sample": {
+        "country": "GER",
+        "country_overview": {
+          "country": "GER",
+          "construction": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 7,
+                "province_id": null,
+                "amount": 2,
+                "active_factories": 0,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "missing sample identity cannot qualify an empty queue",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country_overview": {
+          "construction": {
+            "status": "observed",
+            "lines": []
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
+  },
+  {
+    "name": "invalid canonical construction membership",
+    "input": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "construction.queued": {
+          "status": "calculated",
+          "value": [
+            1
+          ],
+          "source": "construction_adapter"
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Dato contratto non valido"
+      }
+    }
+  },
+  {
+    "name": "agency not started",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "POL",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "observed",
+            "is_created": false,
+            "in_creation": false
+          }
+        }
+      }
+    },
+    "expected": {
+      "country.intelligence.is_created": {
+        "status": "observed",
+        "value": false,
+        "source": "process_memory"
+      },
+      "country.intelligence.in_creation": {
+        "status": "observed",
+        "value": false,
+        "source": "process_memory"
+      }
+    }
+  },
+  {
+    "name": "agency creation started",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "POL",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "observed",
+            "is_created": false,
+            "in_creation": true
+          }
+        }
+      }
+    },
+    "expected": {
+      "country.intelligence.is_created": {
+        "status": "observed",
+        "value": false,
+        "source": "process_memory"
+      },
+      "country.intelligence.in_creation": {
+        "status": "observed",
+        "value": true,
+        "source": "process_memory"
+      }
+    }
+  },
+  {
+    "name": "agency created",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "POL",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "observed",
+            "is_created": true,
+            "in_creation": false
+          }
+        }
+      }
+    },
+    "expected": {
+      "country.intelligence.is_created": {
+        "status": "observed",
+        "value": true,
+        "source": "process_memory"
+      },
+      "country.intelligence.in_creation": {
+        "status": "observed",
+        "value": false,
+        "source": "process_memory"
+      }
+    }
+  },
+  {
+    "name": "agency flags unavailable",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "POL",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "observed",
+            "is_created": null,
+            "in_creation": null
+          }
+        }
+      }
+    },
+    "expected": {
+      "country.intelligence.is_created": {
+        "status": "unknown",
+        "value": null
+      },
+      "country.intelligence.in_creation": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "malformed intelligence flags",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "POL",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "observed",
+            "is_created": 1,
+            "in_creation": "true"
+          }
+        }
+      }
+    },
+    "expected": {
+      "country.intelligence.is_created": {
+        "status": "unknown",
+        "value": null
+      },
+      "country.intelligence.in_creation": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "unavailable intelligence cannot publish retained flags",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "POL",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "unavailable",
+            "is_created": true,
+            "in_creation": true
+          }
+        }
+      }
+    },
+    "expected": {
+      "country.intelligence.is_created": {
+        "status": "unknown",
+        "value": null
+      },
+      "country.intelligence.in_creation": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "stale intelligence sample cannot publish flags",
+    "input": {
+      "usable": false,
+      "source": "process_memory",
+      "sample": {
+        "country": "POL",
+        "country_overview": {
+          "country": "POL",
+          "intelligence": {
+            "status": "observed",
+            "is_created": true,
+            "in_creation": true
+          }
+        }
+      }
+    },
+    "expected": {},
+    "absent": [
+      "country.intelligence.is_created",
+      "country.intelligence.in_creation"
+    ]
+  },
+  {
+    "name": "foreign intelligence overview cannot publish flags",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "POL",
+        "country_overview": {
+          "country": "ROM",
+          "intelligence": {
+            "status": "observed",
+            "is_created": true,
+            "in_creation": true
+          }
+        }
+      }
+    },
+    "expected": {},
+    "absent": [
+      "country.intelligence.is_created",
+      "country.intelligence.in_creation"
+    ]
+  },
+  {
+    "name": "absent intelligence section",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "POL",
+        "country_overview": {
+          "country": "POL"
+        }
+      }
+    },
+    "expected": {},
+    "absent": [
+      "country.intelligence.is_created",
+      "country.intelligence.in_creation"
+    ]
   }
 ]

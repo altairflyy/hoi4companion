@@ -100,6 +100,10 @@ def validate_guide_extensions(guide: dict) -> None:
             raise ValueError(f'Fase sconosciuta: {key}')
         if 'completion' in step:
             validate_condition(step['completion'])
+        if 'started_when' in step:
+            if step['action']['kind'] not in ('manual', 'special_project'):
+                raise ValueError(f'Condizione di avvio incompatibile con azione: {key}')
+            validate_condition(step['started_when'])
         if 'params' in step['action']:
             params = step['action']['params']
             if not isinstance(params, dict):

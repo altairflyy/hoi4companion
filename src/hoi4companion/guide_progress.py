@@ -43,7 +43,7 @@ class RunStore:
         if run_id in reserved:
             raise ValueError('Identità partita duplicata')
         return {'schema_version': 1, 'guide_id': guide_id, 'run_id': run_id,
-                'session_id': session_id, 'checks': dict(checks)}
+                'session_id': session_id, 'checks': dict(checks), 'started': {}}
 
     def ensure(self, guide_id, legacy_checks=None):
         """Create an initial run once, importing only boolean legacy checks."""
@@ -86,12 +86,15 @@ class RunStore:
                 raise ValueError('Partita della guida non trovata')
             return deepcopy(record)
 
-    def update(self, guide_id, checks):
+    def update(self, guide_id, checks, *, started=None):
         """Replace the active run's checklist after validating the whole update."""
         checks = _checks(checks)
+        started = _checks(started) if started is not None else None
         with self._lock:
             record = self.get(guide_id)
             record['checks'] = checks
+            if started is not None:
+                record['started'] = started
             self._runs[record['run_id']] = record
             return deepcopy(record)
 
@@ -126,5 +129,5 @@ class RunStore:
     def metadata(self):
         """Return active identities without duplicating checklist data in SSE."""
         with self._lock:
-            return {guide_id: {key: value for key, value in self._runs[run_id].items() if key != 'checks'}
+            return {guide_id: {key: value for key, value in self._runs[run_id].items() if key not in ('checks', 'started')}
                     for guide_id, run_id in self._active.items()}

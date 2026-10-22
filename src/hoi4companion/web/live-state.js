@@ -20,7 +20,7 @@
     follow.hidden=!s.focus_tree_id;follow.onclick=()=>window.dispatchEvent(new CustomEvent('hoi-live-follow',{detail:s}));
   }
   function publish(next){
-    const stamp=JSON.stringify([next.usable,next.status,next.sample?{...next.sample,native_tick:undefined,metrics:undefined}:null,next.error,next.guide_revision,next.guide_checks,next.guide_states,next.guide_runs]);
+    const stamp=JSON.stringify([next.usable,next.status,next.sample?{...next.sample,native_tick:undefined,metrics:undefined}:null,next.error,next.guide_revision,next.guide_checks,next.guide_states,next.guide_started,next.guide_runs]);
     value=next;draw();if(stamp!==signature){signature=stamp;changed();}
   }
   function unavailable(message,statusName='disconnected'){

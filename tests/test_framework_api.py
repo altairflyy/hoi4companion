@@ -81,8 +81,15 @@ class FrameworkApiTests(unittest.TestCase):
                         get('/api/guide?id=..%2Ftwo')
                     self.assertEqual(error.exception.code, 400)
                     with urlopen(base + '/walkthrough', timeout=2) as response:
-                        self.assertIn(b'/contracts.js', response.read())
-                    with urlopen(base + '/contracts.js', timeout=2) as response:
-                        self.assertIn('javascript', response.headers['Content-Type'])
+                        page = response.read()
+                        self.assertIn(b'/guide-session.js', page)
+                        self.assertIn(b'operationCards', page)
+                        self.assertNotIn(b'id="focusSteps"', page)
+                        self.assertNotIn(b'id="researchSteps"', page)
+                    for path in ['/contracts.js', '/guide-presentation.js', '/guide-session.js', '/guide-assist.js']:
+                        with urlopen(base + path, timeout=2) as response:
+                            self.assertIn('javascript', response.headers['Content-Type'])
+                    with urlopen(base + '/guide-assist.css', timeout=2) as response:
+                        self.assertIn(b'.guide-next', response.read())
                 finally:
                     server.shutdown(); thread.join(timeout=2)

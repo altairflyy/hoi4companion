@@ -252,7 +252,10 @@ class Store:
             if default_id:
                 states[default_id] = checks
             return {**self.live_cache, 'guide_id': default_id, 'guide_checks': checks,
-                    'guide_states': states, 'guide_runs': self._progress_store().metadata(),
+                    'guide_states': states,
+                    'guide_started': {key: self._progress_store().get(key)['started']
+                                      for key in self._progress_store().metadata()},
+                    'guide_runs': self._progress_store().metadata(),
                     'guide_revision': getattr(self,'guide_revision',0)}
 
     def _progress_store(self):
@@ -297,14 +300,20 @@ class Store:
                     runs.create(guide['id'], runs.get(guide['id'])['session_id'])
                 elif set(update) == {'run_id'}:
                     runs.select(guide['id'], update['run_id'])
-                elif set(update) == {'run_id', 'checks'}:
+                elif ('run_id' in update and set(update) <= {'run_id', 'checks', 'started'}
+                      and ('checks' in update or 'started' in update)):
                     current = runs.get(guide['id'])
                     if update['run_id'] != current['run_id']:
                         raise ValueError('Checklist di una partita non attiva')
-                    checks = update['checks']
+                    checks = update.get('checks', current['checks'])
                     if not isinstance(checks, dict) or set(checks) - manual_keys(guide):
                         raise ValueError('Conferme non dichiarate dalla guida')
-                    runs.update(guide['id'], checks)
+                    started = update.get('started', current['started'])
+                    operations = {step['key'] for rows in guide['tracks'].values() for step in rows
+                                  if step['action']['kind'] in ('manual', 'special_project')}
+                    if not isinstance(started, dict) or set(started) - operations:
+                        raise ValueError('Avvii non dichiarati dalla guida')
+                    runs.update(guide['id'], checks, started=started)
                 else:
                     raise ValueError('Operazione sulla partita non riconosciuta')
                 self._sync_progress()
@@ -326,7 +335,8 @@ class Store:
             current = self._progress_store().get(guide['id'])['checks']
             if update is not None:
                 current = update_checks(guide,current,update)
-                self._progress_store().update(guide['id'], current)
+                self._progress_store().update(guide['id'], current,
+                                              started={} if update == {'reset': True} else None)
                 self._sync_progress()
                 self.guide_revision += 1
             return {'checks':current.copy(),'revision':self.guide_revision}
@@ -513,6 +523,8 @@ def make_handler(store: Store):
                       '/walkthrough': 'guide.html', '/hud': 'guide.html', '/guide-model.js': 'guide-model.js',
                       '/guide.js': 'guide.js', '/guide.css': 'guide.css',
                       '/guide-runtime.js': 'guide-runtime.js',
+                      '/guide-presentation.js': 'guide-presentation.js', '/guide-session.js': 'guide-session.js',
+                      '/guide-assist.js': 'guide-assist.js', '/guide-assist.css': 'guide-assist.css',
                       '/live-state.js': 'live-state.js', '/live-state.css': 'live-state.css', '/live-model.js': 'live-model.js',
                       '/technologies': 'technologies.html', '/technologies.js': 'technologies.js', '/technologies.css': 'technologies.css',
                       '/explorer.js': 'explorer.js', '/style.css': 'style.css', '/game.css': 'game.css'}

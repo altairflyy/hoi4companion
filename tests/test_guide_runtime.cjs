@@ -9,12 +9,13 @@ for(const example of cases)test('runtime: '+example.name,()=>{
  if(example.expected.mode)assert.equal(value.mode,example.expected.mode);
  if(example.expected.progress_status)assert.equal(value.progress_status,example.expected.progress_status);
  if(example.expected.parallel)for(const [lane,keys]of Object.entries(example.expected.parallel))assert.deepEqual(value.parallel[lane].steps,keys);
+ for(const [field,prop]of [['selection_values','value'],['selection_sources','source']])if(example.expected[field])assert.deepEqual(value.steps.map(row=>row.selection[prop]),example.expected[field]);
  assert.equal(JSON.stringify(example),before,'the runtime must never mutate definitions, observations or progression');
  assert.deepEqual(runtime.evaluate(example.guide,example.state,example.progress),value);
 });
 test('invalid progress is rejected and large dependency chains are iterative',()=>{
  const example=cases[0];
- for(const change of [{schema_version:true},{schema_version:2},{checks:null},{checks:{x:1}},{run_id:' '},{session_id:''}])assert.throws(()=>runtime.evaluate(example.guide,example.state,{...example.progress,...change}));
+ for(const change of [{schema_version:true},{schema_version:2},{checks:null},{checks:{x:1}},{started:null},{started:[]},{started:{x:1}},{run_id:' '},{session_id:''}])assert.throws(()=>runtime.evaluate(example.guide,example.state,{...example.progress,...change}));
  const rows=Array.from({length:2000},(_,i)=>({key:String(i),action:{kind:'select_focus',entity:{kind:'focus',id:String(i)}},depends_on:i?[String(i-1)]:[]}));
  const state=structuredClone(example.state);state.facts['focus.completed'].value=rows.slice(0,-1).map(x=>x.key);
  const guide={id:'deep',tracks:{focus:rows}};

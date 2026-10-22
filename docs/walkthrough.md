@@ -4,7 +4,18 @@ Fonte: [Secret Poland Guide: Wojtek Conquers The World, MachiavellianStrategist]
 
 ## Percorso
 
-`/walkthrough` conserva tutte le 34 righe della priorità dei focus (inclusi attesa, duplicato condizionale e scelta libera) e tutte le 48 righe della ricerca (inclusi due progetti speciali e scelta libera). L’ordine è quello originale; non rappresenta date di completamento garantite. Le ricerche si assegnano ai diversi slot in parallelo.
+I dati conservano tutte le 34 righe della priorità dei focus (inclusi attesa,
+duplicato condizionale e scelta libera) e tutte le 48 righe della ricerca
+(inclusi due progetti speciali e scelta libera). Focus e tecnologie sono
+evidenziati nelle rispettive schede, con un comando per centrare il prossimo
+elemento e un contrassegno sulla categoria tecnologica corretta.
+`/walkthrough` presenta invece soltanto istruzioni operative e checkpoint:
+costruzioni, produzione, politica, personaggi, forze armate, template e progetti.
+L’ordine della fonte non rappresenta date di completamento garantite.
+Le ricerche si assegnano ai diversi slot in parallelo.
+
+Organizzazione attuale, metadati e verifiche in
+[contextual-guide.md](contextual-guide.md).
 
 Gli omonimi sono associati al ramo Romanov: Demand Lithuania → `POL_demand_LIT_pavel`, Demand Slovakia → `POL_demand_slovakia_pavel`, Pan-Slavic Revanchism → `POL_pan_slavism`. La versione falangista e altre omonime non sono intercambiabili. Kb PPanc → `infantry_at`, verificato nella localizzazione nazionale polacca. Truck → `motorised_infantry`, distinto da `tech_trucks`, già nella base polacca 1936.
 
@@ -31,9 +42,14 @@ Il frontend azzera le conferme quando osserva un cambio di nazione o la perdita 
 
 `avvia-hud.vbs` avvia `scripts/hud.ps1` senza console visibile. Lo script apre `/hud` in Edge in modalità app con un profilo dedicato al progetto. Una stringa casuale per ogni lancio identifica la finestra esatta, anche quando Edge ha altre finestre aperte o la finestra app inizialmente è nascosta. Il pannello viene impostato Topmost senza attivarlo; compare quando HOI4 è in primo piano e si nasconde passando ad altre applicazioni. Non apre handle della memoria del gioco: usa il servizio locale esistente.
 
-È un riquadro HUD con raccomandazioni evidenziate. Non è una cornice agganciata al nodo nella GUI di HOI4: quella funzione richiede il rilevamento del menu, del nodo e dello zoom, non osservati dal reader attuale. La sovrapposizione va qualificata sul gioco in finestra/senza bordi; non è garantita in schermo intero esclusivo. L’anteprima desktop può essere verificata senza avviare HOI4 con `-Preview`.
+Il riquadro HUD mostra l'istruzione operativa da verificare e i collegamenti
+agli alberi del companion, dove sono evidenziati i nodi. Non è una cornice
+agganciata alla GUI di HOI4: quella funzione richiede il rilevamento del menu,
+del nodo e dello zoom, non osservati dal reader attuale. La sovrapposizione va
+qualificata sul gioco in finestra/senza bordi; non è garantita in schermo intero
+esclusivo. L’anteprima desktop è disponibile con `-Preview`.
 
-## Verifiche e prove
+## Prove storiche della prima vista a liste (superata)
 
 Il catalogo locale riconosce tutti i target ordinari della guida: nessuna corrispondenza mancante all’API. La vista reale del browser mostra 34 righe focus, 48 righe ricerca, i prossimi passi dal 1936 e nessun errore JavaScript osservato. I collegamenti aprono e selezionano `POL_clamp_down_on_danzig` e `electronic_mechanical_engineering` nei relativi esploratori.
 

@@ -36,7 +36,7 @@ def _membership(state, key, target):
 
 def _progress(guide, state, value):
     if value is None:
-        return 'none', None, {}
+        return 'none', None, {}, {}
     if (not isinstance(value, dict) or not is_json_number(value.get('schema_version'))
             or value['schema_version'] != 1 or not isinstance(value.get('guide_id'), str)
             or not isinstance(value.get('run_id'), str) or not value['run_id'].strip()
@@ -45,18 +45,23 @@ def _progress(guide, state, value):
     checks = value.get('checks', {})
     if any(not isinstance(key, str) or type(checked) is not bool for key, checked in checks.items()):
         raise ValueError('Conferme della partita non valide')
+    started = value.get('started', {})
+    if not isinstance(started, dict) or any(not isinstance(key, str) or type(flag) is not bool for key, flag in started.items()):
+        raise ValueError('Avvii della partita non validi')
     binding = value.get('session_id')
     if binding is not None and (not isinstance(binding, str) or not binding.strip()):
         raise ValueError('Sessione della partita non valida')
     if value['guide_id'] != guide.get('id', ''):
-        return 'wrong_guide', None, {}
+        return 'wrong_guide', None, {}, {}
     if binding is not None:
         if not state['usable']:
-            return 'session_unverified', None, {}
+            return 'session_unverified', None, {}, {}
         if binding != state.get('session_id'):
-            return 'wrong_session', None, {}
+            return 'wrong_session', None, {}, {}
     allowed = manual_keys(guide)
-    return 'accepted', value['run_id'], {key: checked for key, checked in checks.items() if key in allowed}
+    operations = {step['key'] for rows in guide['tracks'].values() for step in rows if step['action']['kind'] in ('manual', 'special_project')}
+    return ('accepted', value['run_id'], {key: checked for key, checked in checks.items() if key in allowed},
+            {key: flag for key, flag in started.items() if key in operations})
 
 
 def _topological(rows):
@@ -100,10 +105,11 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
             mode = 'wrong_tree'
         elif (scope.get('country') and country is None) or (scope.get('tree_id') and tree is None):
             mode = 'preview'
-    progress_status, run_id, checks = _progress(guide, state, progress)
+    progress_status, run_id, checks, started = _progress(guide, state, progress)
     mismatched = mode in ('wrong_country', 'wrong_tree')
     if mismatched:
         checks = {}
+        started = {}
     context = state if mode == 'live' else {'schema_version': 1, 'usable': False, 'session_id': None, 'facts': {}}
     # JSON objects have no semantic order. Canonical track IDs also avoid JS's
     # special property order for integer-like names; list order stays authored.
@@ -139,6 +145,11 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
                 completion = _membership(context, prefix + '.completed', ref['id'])
             elif kind in ('manual', 'special_project') and key in checks:
                 completion = _calculated(checks[key], 'check:' + key)
+            if 'started_when' in step:
+                value = condition(step['started_when'])
+                selection = _unknown() if value is None else _calculated(value, 'declared_start')
+            elif kind in ('manual', 'special_project') and key in started:
+                selection = _calculated(started[key], 'manual_started:' + key)
             if 'completion' in step:
                 value = condition(step['completion'])
                 completion = _unknown() if value is None else _calculated(value, 'declared_completion')

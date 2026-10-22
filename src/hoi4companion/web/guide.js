@@ -1,62 +1,69 @@
 'use strict';
 (()=>{
- if(location.pathname==='/hud'){document.body.classList.add('hud-view');const token=new URLSearchParams(location.search).get('instance')||'';document.title='HOI4 Companion HUD '+(/^[a-f0-9]{32}$/.test(token)?token:'');}
  const $=id=>document.getElementById(id),el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
- const labels={completed:'Completato',active:'In corso',ready:'Pronto nella guida',waiting:'In attesa',not_applicable:'Non applicabile',unverifiable:'Non verificabile'};
- const reasons={dependency_unknown:'Dipendenza non verificabile.',dependency_not_completed:'Attendi il completamento dei passaggi richiesti.',manual_confirmation_required:'Serve una verifica manuale.',completion_unknown:'Completamento non osservato.',selection_unknown:'Selezione corrente non osservata.',condition_unknown:'Condizione non verificata.',condition_false:'Condizione non soddisfatta.',phase_condition_unknown:'Fase non verificata.',phase_condition_false:'Fase non ancora aperta.',catalog_unmatched:'Elemento non trovato nel catalogo locale.',skip_condition_unknown:'Non è verificato se il passaggio sia applicabile.',live_state_unavailable:'Serve una lettura valida della partita.'};
- let guide=null,previousSample=null,lastState=null,local={checks:{}},undo=null,seenRevision=-1,pending=0,saveQueue=Promise.resolve();
- const endpoint=path=>path+'?id='+encodeURIComponent(guide.id);
- function sendProgress(payload){pending++;saveQueue=saveQueue.then(async()=>{try{const response=await fetch(endpoint('/api/guide/progress'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!response.ok)throw Error('HTTP '+response.status);const saved=await response.json();seenRevision=saved.revision;if(pending===1)local=saved;}catch(e){$('error').hidden=false;$('error').textContent='Conferme non sincronizzate con l’HUD: '+e.message;}finally{pending--;render();}});}
- function save(){sendProgress({run_id:local.run_id,checks:{...local.checks}});}
- function reset(message){undo=local;local={...local,checks:{}};sendProgress({});const box=$('resetNotice');box.replaceChildren(document.createTextNode(message+' '));const b=el('button','','Annulla');b.type='button';b.onclick=()=>{if(pending||!undo)return;local=undo;undo=null;sendProgress({run_id:local.run_id});box.hidden=true;render();};box.append(b);box.hidden=false;}
- function checkbox(key,text){const label=el('label','checkpoint-check'),input=el('input');input.type='checkbox';input.checked=local.checks[key]===true;input.setAttribute('data-check',key);input.addEventListener('change',()=>{local.checks[key]=input.checked;save();render();});label.append(input,el('span','',text));return label;}
- function link(step){if(!step.href)return null;const a=el('a','open',step.kind==='focus'?'Apri nell’albero dei focus ↗':'Mostra nella scheda tecnologica ↗');a.href=step.href;return a;}
- function conditionKeys(step){const phase=(guide.phases||[]).find(p=>p.id===step.phase);return [...new Set([step.when,step.completion_condition,phase?.when,step.skip_when].flatMap(node=>HoiContracts.checkKeys(node)))];}
- function action(step,container){container.replaceChildren();if(!step)return;const a=link(step);if(a)container.append(a);const keys=new Set(conditionKeys(step));if(['manual','special_project'].includes(step.action.kind)&&!step.completion_condition)keys.add(step.key);for(const key of keys)container.append(checkbox(key,step.confirmation||'Condizione verificata nel gioco'));}
- function current(rows,container,kind){container.replaceChildren();if(!rows.length)return;const n=el('div','current');n.append(el('strong','',kind==='focus'?'In corso:':'Ricerche in corso:'));for(const row of rows)n.append(el('span','',row.name));container.append(n);}
- function card(track,kind,mode){const prefix=kind==='focus'?'focus':'research',next=track.next;current(track.active,$(prefix+'Current'),kind);$(prefix+'Next').textContent=next?next.name:'Priorità della guida completate';action(next,$(prefix+'Action'));
-  $(prefix+'Note').textContent=next?labels[next.runtime_status]+'. '+(reasons[next.runtime_reason]||'')+' '+(mode!=='live'?'Anteprima: ':'')+(next.note||''):'Non sono prescritti altri passaggi obbligatori.';
-  if(kind==='focus'&&track.outside)$(prefix+'Current').append(el('p','current','Focus attuale fuori percorso: '+track.outside));
+ const categories={all:'Tutte',construction:'Fabbriche e infrastrutture',production:'Produzione',projects:'Progetti speciali',politics:'Politica e leggi',characters:'Personaggi',army:'Forze armate',templates:'Template e mezzi',checkpoints:'Eventi e condizioni'};
+ let value=null,filter='all',undo=null,lastGuide=null;
+ if(location.pathname==='/hud'){document.body.classList.add('hud-view');const token=new URLSearchParams(location.search).get('instance')||'';document.title='HOI4 Companion HUD '+(/^[a-f0-9]{32}$/.test(token)?token:'');}
+ const sourceLink=seconds=>{try{const url=new URL(value.guide.source?.url||value.guide.sources?.[0]?.url);if(!['http:','https:'].includes(url.protocol))return null;if(Number.isFinite(seconds))url.searchParams.set('t',String(Math.floor(seconds)));return url.href;}catch{return null;}};
+ const clock=seconds=>Math.floor(seconds/60)+':'+String(Math.floor(seconds%60)).padStart(2,'0');
+ const name=row=>row.name||row.title||row.key;
+ function badge(row){return row.runtime_status==='completed'?'Completata':row.runtime_status==='not_applicable'?'Non applicabile':row.runtime_status==='waiting'?'Più avanti':row.runtime_status==='active'?(row.start_basis==='live'?'Avviata · rilevata live':row.start_basis==='condition'?'Avviata · criterio verificato':'Avviata · in corso (manuale)'):row.started_when?(row.selection?.value===false?'Nessun ordine rilevato':'Avvio non verificabile'):row.runtime_reason==='manual_confirmation_required'||row.runtime_status==='ready'?'Da verificare nel gioco':'Momento da verificare';}
+ function confirm(key,text){const label=el('label','checkpoint-check'),input=el('input');input.type='checkbox';input.checked=value.progress.checks[key]===true;input.disabled=value.pending>0;input.setAttribute('data-check',key);input.addEventListener('change',()=>window.hoiGuide.confirm(key,input.checked).catch(()=>{}));label.append(input,el('span','',text));return label;}
+ function controls(row,box){
+  if(row.started_when&&row.runtime_status!=='completed'){
+   box.append(el('p','operation-start-note',row.runtime_status==='active'?'Avvio rilevato dalla condizione della guida. Il solo avvio non prova il completamento.':'Avvio automatico: attendo che la condizione della guida risulti verificata.'));
+  }
+  if(['manual','special_project'].includes(row.action.kind)&&!row.started_when&&row.selection&&row.runtime_status!=='completed'){
+   const started=value.progress.started?.[row.key]===true,button=el('button','operation-start',started?'Annulla avvio segnalato':'Ho impartito l’ordine');
+   button.type='button';button.disabled=value.pending>0;button.setAttribute('data-start',row.key);button.setAttribute('aria-pressed',String(started));button.onclick=()=>window.hoiGuide.start(row.key,!started).catch(()=>{});box.append(button);
+   if(row.runtime_status==='active')box.append(el('p','operation-start-note','Ordine impartito manualmente; completamento ancora da verificare. Nessuna dipendenza è sbloccata dal solo avvio.'));
+  }
+  if(['manual','special_project'].includes(row.action.kind)&&!row.completion_condition)box.append(confirm(row.key,'Completata · '+(row.confirmation||'criterio finale verificato nel gioco')));
+  const phase=value.guide.phases?.find(p=>p.id===row.phase);
+  const keys=new Set([row.when,row.priority_when,row.skip_when,row.started_when,phase?.when].flatMap(node=>HoiContracts.checkKeys(node)));
+  if(row.completion_condition)for(const key of HoiContracts.checkKeys(row.completion_condition))if(key!==row.action.params?.legacy_key)keys.add(key);
+  const finalKeys=new Set(HoiContracts.checkKeys(row.completion_condition));
+  for(const key of keys)box.append(confirm(key,finalKeys.has(key)?'Criterio finale verificato nel gioco':key===row.key?'Completata · '+(row.confirmation||'criterio finale verificato nel gioco'):'Condizione verificata nel gioco'));
  }
- function renderRows(track,id,next){const box=$(id);box.replaceChildren();for(const step of track.rows){if($('hideDone').checked&&['completed','confirmed','skipped'].includes(step.status))continue;
-  const li=el('li','step '+step.status+' runtime-'+step.runtime_status+(step.key===next?.key?' next':''));li.id='step-'+step.key;li.dataset.step=step.key;li.dataset.status=step.runtime_status;li.append(el('span','ordinal',String(step.order)));
-  const top=el('div','step-top');top.append(el('h3','',step.name),el('span','badge',labels[step.runtime_status]));li.append(top);
-  if(reasons[step.runtime_reason])li.append(el('p','meta',reasons[step.runtime_reason]));
-  if(step.runtime_status==='completed')li.append(el('p','meta',step.completion_basis==='manual'?'Conferma manuale':step.completion_basis==='condition'?'Condizione dichiarata verificata':'Completamento letto dal gioco'));
-  if(step.title!==step.name)li.append(el('p','source-title',step.title));
-  const metadata=[];if(step.folder_name)metadata.push(step.folder_name);if(step.year)metadata.push(String(step.year));if(step.estimated_days)metadata.push('durata base stimata '+step.estimated_days+' giorni');
-  if(metadata.length)li.append(el('p','meta',metadata.join(' · ')));
-  if(step.mapping_basis==='interpreted_upgrade')li.append(el('p','interpretation','UP → livello interpretato dai file locali'));
-  const a=link(step);if(a)li.append(a);
-  const keys=new Set(conditionKeys(step));if(['manual','special_project'].includes(step.action.kind)&&!step.completion_condition)keys.add(step.key);
-  for(const key of keys)li.append(checkbox(key,step.confirmation||'Condizione verificata'));
-  for(const key of HoiContracts.checkKeys(step.priority_when))li.append(checkbox(key,'Ho verificato nel gioco la condizione di priorità per '+step.name));
-  const details=el('details'),summary=el('summary','','Istruzioni e riferimento');details.append(summary,el('p','',step.note));
-  if(step.target)details.append(el('p','meta',step.target));if(Number.isInteger(step.source_order))details.append(el('p','meta','Priorità '+step.source_order+' della fonte originale'));li.append(details);box.append(li);
- }}
- function sourceLink(seconds){try{const url=new URL(guide.source?.url);if(!['http:','https:'].includes(url.protocol))return null;if(Number.isFinite(seconds))url.searchParams.set('t',String(Math.floor(seconds)));return url.href;}catch{return null;}}
- function renderMilestones(){const box=$('milestones');box.replaceChildren();for(const item of guide.milestones||[]){const node=el('article','milestone'+(local.checks[item.key]?' confirmed':''));node.append(el('h3','',item.title));const href=sourceLink(item.seconds);if(href){const a=el('a','','Fonte · '+clock(item.seconds||0)+' ↗');a.href=href;a.target='_blank';a.rel='noopener noreferrer';node.append(a);}node.append(el('p','',item.note),checkbox(item.key,item.confirmation));box.append(node);}}
- function clock(seconds){return Math.floor(seconds/60)+':'+String(Math.floor(seconds%60)).padStart(2,'0');}
- function render(){if(!guide)return;const value=window.hoiLive?.enabled?lastState:null,r=HoiGuideModel.evaluate(guide,value,local);
-  $('reset').disabled=pending>0;
-  const modeText={live:'Percorso collegato · '+(r.country||'partita corrente'),preview:'Anteprima della guida',wrong_country:'Partita diversa: '+r.country,wrong_tree:'Albero della partita diverso dalla guida'};
-  $('mode').textContent=modeText[r.mode];$('modeNote').textContent=r.mode==='live'?'Gli step si ricalcolano a ogni cambio dello stato letto. I completamenti provengono dal gioco; le checkbox sono verifiche manuali, le priorità sono calcolate.':r.mode==='preview'?'Piano consultabile senza gioco. Alla lettura di una partita compatibile, focus e tecnologie si aggiorneranno. Nessun vecchio campione viene usato.':'Non applico i completamenti di questa partita alla guida selezionata. La sequenza resta un’anteprima.';
-  if(['wrong_guide','wrong_session','session_unverified'].includes(r.runtime.progress_status))$('modeNote').textContent+=' Le conferme di questa checklist non sono applicate: la sessione non corrisponde o non è verificabile.';
-  card(r.focus,'focus',r.mode);card(r.research,'research',r.mode);
-  $('focusProgress').textContent=r.focus.completed+'/'+r.focus.rows.length;$('researchProgress').textContent=r.research.completed+'/'+r.research.rows.length;
-  const parallel=$('parallel');parallel.replaceChildren();if(r.mode==='live'){parallel.append(el('p','current',r.research.free_slots===null?'Slot liberi non osservati':r.research.free_slots+' slot liberi di '+r.research.slots.length));if(r.research.outside.length)parallel.append(el('p','current','Ricerche fuori percorso: '+r.research.outside.join(', ')));}
-  if(r.research.suggestions.length>1){const list=el('ol','other-picks');for(const s of r.research.suggestions.slice(1,Math.max(1,r.research.free_slots??3)))list.append(el('li','',s.name));if(list.children.length){parallel.append(el('p','current','Poi, negli altri slot liberi:'),list);}}
-  const projects=$('projects');projects.replaceChildren();for(const project of r.research.projects){const node=el('div','project-callout');node.append(el('strong','',project.name),el('p','',project.note),checkbox(project.key,project.confirmation));projects.append(node);}
-  const controls=$('priorityControls');controls.replaceChildren();if(r.mode==='live')for(const track of Object.values(r.tracks))for(const step of track.rows){if(['completed','active','skipped'].includes(step.status))continue;const keys=HoiContracts.checkKeys(step.priority_when);if(!keys.length)continue;const box=el('div');box.append(el('strong','','Priorità condizionata: '+step.name));for(const key of keys)box.append(checkbox(key,step.confirmation||'Ho verificato nel gioco la condizione di questa priorità'));controls.append(box);}controls.hidden=!controls.children.length;
-  renderRows(r.focus,'focusSteps',r.focus.next);renderRows(r.research,'researchSteps',r.research.next);renderMilestones();
+ function card(row,highlight=false){const node=el('article','operation-card'+(highlight?' highlighted':'')+(row.runtime_status==='completed'?' completed':'')+(row.runtime_status==='active'?' in-progress':''));node.id=(highlight?'next-operation-':'operation-')+row.key;node.dataset.step=row.key;
+  const top=el('div','operation-top');top.append(el('span','eyebrow',categories[row.category]||'ISTRUZIONE'),el('span','badge',badge(row)));node.append(top,el('h3','',name(row)));
+  node.append(el('p','operation-timing','Quando: '+row.timing));
+  if(row.instructions?.length){const list=el('ol','operation-instructions');for(const line of row.instructions)list.append(el('li','',line));node.append(list);}
+  if(row.note)node.append(el('p','operation-copy',row.note));
+  if(row.construction_observations?.length){const list=el('ul','operation-observations');for(const line of row.construction_observations)list.append(el('li','',`${line.name||line.building_id} · ${line.state_name||'regione '+line.state_id}: ${line.amount} in coda · ${line.active_factories} fabbriche attive`));node.append(el('p','eyebrow','ORDINI LETTI LIVE'),list);}
+  if(row.blocked_by?.length){const rows=value.view.operations;node.append(el('p','operation-wait','Prima: '+row.blocked_by.map(key=>name(rows.find(r=>r.key===key)||{key})).join(', ')));}
+  controls(row,node);const href=sourceLink(row.source_seconds);if(href){const a=el('a','operation-source','Fonte'+(Number.isFinite(row.source_seconds)?' · video '+clock(row.source_seconds):'')+' ↗');a.href=href;a.target='_blank';a.rel='noopener noreferrer';node.append(a);}return node;
  }
- function onLive(value){lastState=value;if(value?.guide_revision!==undefined&&value.guide_revision>=seenRevision&&!pending){seenRevision=value.guide_revision;local={...local,...value.guide_runs?.[guide.id],checks:value.guide_states?.[guide.id]||(value.guide_id===guide.id?value.guide_checks:{} )||{}};}const sample=value?.usable?value.sample:null;if(sample&&previousSample){const old=previousSample,done=new Set(sample.completed_focuses||[]),researched=new Set(sample.researched_technologies||[]);const changedCountry=old.country!==sample.country,rollback=old.country===sample.country&&Array.isArray(sample.completed_focuses)&&Array.isArray(sample.researched_technologies)&&((old.completed_focuses||[]).some(id=>!done.has(id))||(old.researched_technologies||[]).some(id=>!researched.has(id)));if((changedCountry||rollback)&&Object.keys(local.checks).length&&!pending)reset('Nuova checklist dopo un cambio di nazione o il ritorno a uno stato precedente. Puoi recuperare la precedente.');}if(sample)previousSample=sample;render();}
- async function start(){try{const selected=new URLSearchParams(location.search).get('guide'),response=await fetch('/api/guide'+(selected?'?id='+encodeURIComponent(selected):''));if(!response.ok)throw Error('Guida non disponibile: HTTP '+response.status);guide=await response.json();const checkResponse=await fetch(endpoint('/api/guide/checks'));if(!checkResponse.ok)throw Error('Checklist condivisa non disponibile');await checkResponse.json();const progressResponse=await fetch(endpoint('/api/guide/progress'));if(!progressResponse.ok)throw Error('Avanzamento della partita non disponibile');local=await progressResponse.json();seenRevision=local.revision;
-   const catalog=await fetch('/api/guides');if(!catalog.ok)throw Error('Catalogo guide non disponibile');const entries=(await catalog.json()).guides;for(const item of entries){const option=el('option','',item.title);option.value=item.id;option.selected=item.id===guide.id;$('guideSelect').append(option);}$('guideSelect').onchange=()=>{const url=new URL(location.href);url.searchParams.set('guide',$('guideSelect').value);location.href=url.href;};document.querySelector('#hudControls a').href='/walkthrough?guide='+encodeURIComponent(guide.id);
-   $('guideTitle').textContent=guide.title;$('subtitle').textContent=guide.subtitle;const href=sourceLink();$('sourceLink').hidden=!href;if(href)$('sourceLink').href=href;$('sourceBasis').textContent=[guide.source?.author,guide.source?.published,guide.source?.basis].filter(Boolean).join(' · ');
-   $('assumptions').replaceChildren(...(guide.assumptions||[]).map(t=>el('li','',t)));$('catalogWarnings').replaceChildren(...(guide.catalog_warnings||[]).map(t=>el('p','',t)));
-   $('chapters').replaceChildren(...(guide.source?.chapters||[]).map(c=>{const li=el('li'),a=el('a','',clock(c.start_time)+' · '+c.title);const href=sourceLink(c.start_time);if(href)a.href=href;a.target='_blank';a.rel='noopener noreferrer';li.append(a);return li;}));
-   window.hoiLive?.subscribe(onLive);render();
-  }catch(e){$('error').hidden=false;$('error').textContent=e.message;}}
- $('reset').onclick=()=>{reset('Nuova checklist locale: nessun dato del gioco è stato modificato.');render();};$('hideDone').onchange=render;start();
+ function links(){const {guide,view}=value;const focus=view.lanes.focus.next,tech=view.lanes.research.next;
+  const scope=guide.applies_to?.tree_id;const baseFocus=scope?'/?tree='+encodeURIComponent(scope):'/';
+  $('focusTreeLink').href=window.hoiGuide.withGuide(focus?.href||baseFocus);$('researchTreeLink').href=window.hoiGuide.withGuide(tech?.href||'/technologies');$('hudLink').href=window.hoiGuide.withGuide('/walkthrough');
+  for(const a of document.querySelectorAll('.topbar a'))a.href=window.hoiGuide.withGuide(a.getAttribute('href'));
+ }
+ function render(next){value=next;if(!value.guide){$('error').hidden=false;$('error').textContent=value.error||'Caricamento della guida…';return;}
+  const {guide,view}=value;$('error').hidden=!value.error;$('error').textContent=value.error;
+  if(lastGuide!==guide){lastGuide=guide;filter='all';$('guideTitle').textContent=guide.title;$('subtitle').textContent=guide.subtitle;
+   $('guideSelect').replaceChildren();for(const item of value.catalog){const option=el('option','',item.title);option.value=item.id;option.selected=item.id===guide.id;$('guideSelect').append(option);}
+   const href=sourceLink();$('sourceLink').hidden=!href;if(href)$('sourceLink').href=href;$('sourceBasis').textContent=[guide.source?.author,guide.source?.published,guide.source?.basis].filter(Boolean).join(' · ');
+   $('assumptions').replaceChildren(...(guide.assumptions||[]).map(text=>el('li','',text)));$('catalogWarnings').replaceChildren(...(guide.catalog_warnings||[]).map(text=>el('p','',text)));
+   $('chapters').replaceChildren(...(guide.source?.chapters||[]).map(chapter=>{const li=el('li'),a=el('a','',clock(chapter.start_time)+' · '+chapter.title);a.href=sourceLink(chapter.start_time);a.target='_blank';a.rel='noopener noreferrer';li.append(a);return li;}));
+  }
+  $('guideSelect').disabled=value.pending>0;$('reset').disabled=value.pending>0;links();
+  $('mode').textContent={live:'Percorso collegato · '+(view.country||'partita corrente'),preview:'Anteprima della guida',wrong_country:'Guida sospesa · nazione diversa',wrong_tree:'Guida sospesa · albero diverso'}[view.mode];
+  $('modeNote').textContent=view.mode==='live'?'Focus e ricerche si aggiornano nei rispettivi alberi. Qui conferma soltanto le attività che hai verificato nel gioco.':'Le istruzioni restano consultabili. Senza una partita compatibile non viene dedotto alcun avanzamento.';
+  const rows=value.view.operations,done=rows.filter(r=>r.runtime_status==='completed').length,active=rows.filter(r=>r.runtime_status==='active').length;$('operationProgress').textContent=done+'/'+rows.length;$('operationActive').textContent=active?active+' in corso':'';
+  const eligible=rows.filter(row=>!['completed','not_applicable','waiting','active'].includes(row.runtime_status));
+  const upcoming=eligible.find(row=>!['dependency_unknown','phase_condition_unknown','condition_unknown','live_state_unavailable'].includes(row.runtime_reason))||eligible[0];
+  $('nextOperation').replaceChildren();if(upcoming){
+   $('nextOperation').append(el('p','eyebrow','PROSSIMA ISTRUZIONE DA VERIFICARE'));
+   if(location.pathname==='/hud')$('nextOperation').append(card(upcoming,true));
+   else{const summary=el('div','operation-summary'),copy=el('div');copy.append(el('strong','',name(upcoming)),el('p','',upcoming.timing));const a=el('a','','Mostra istruzione ↓');a.href='#operation-'+upcoming.key;a.onclick=()=>{filter=upcoming.category;render(value);};summary.append(copy,a);$('nextOperation').append(summary);}
+  }else $('nextOperation').append(el('p','',rows.length?'Non ci sono altre istruzioni da verificare ora. Consulta le attività successive.':'Questa guida non contiene ancora istruzioni operative.'));
+  const filters=$('operationFilters');filters.replaceChildren();for(const [key,label]of Object.entries(categories))if(key==='all'||rows.some(r=>r.category===key)){const b=el('button','operation-filter',label);b.type='button';b.setAttribute('aria-pressed',String(filter===key));b.onclick=()=>{filter=key;render(value);};filters.append(b);}
+  const cards=$('operationCards');cards.replaceChildren();const visible=rows.filter(row=>(filter==='all'||row.category===filter)&&(!$('hideDone').checked||row.runtime_status!=='completed'));
+  for(const row of visible)cards.append(card(row));if(!visible.length)cards.append(el('p','empty-operations','Nessuna istruzione da verificare in questa categoria.'));
+ }
+ $('guideSelect').onchange=()=>window.hoiGuide.select($('guideSelect').value);
+ $('hideDone').onchange=()=>render(value);
+ $('reset').onclick=async()=>{try{undo=await window.hoiGuide.newRun();const box=$('resetNotice');box.replaceChildren(document.createTextNode('Nuova checklist. '));const b=el('button','','Annulla');b.type='button';b.onclick=async()=>{if(!undo||value.pending)return;await window.hoiGuide.restore(undo);undo=null;box.hidden=true;};box.append(b);box.hidden=false;}catch{}};
+ window.hoiGuide.subscribe(render);
 })();

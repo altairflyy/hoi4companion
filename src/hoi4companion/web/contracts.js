@@ -4,16 +4,30 @@
  const unknown=(reason='Campo non osservato')=>({status:'unknown',value:null,source:'',reason});
  const known=(value,source='process_memory',calculated=false)=>value===null||value===undefined?unknown():({status:calculated?'calculated':'observed',value,source});
  function validType(key,value){
+  if(['country.intelligence.is_created','country.intelligence.in_creation'].includes(key))return typeof value==='boolean';
   if(['country','focus.tree'].includes(key))return typeof value==='string'&&value.length>0;
-  if(['focus.completed','focus.active','focus.continuous','focus.ids','research.completed','research.active','research.ids'].includes(key))return Array.isArray(value)&&value.every(x=>typeof x==='string'&&x.length>0);
+  if(['focus.completed','focus.active','focus.continuous','focus.ids','research.completed','research.active','research.ids','construction.queued'].includes(key))return Array.isArray(value)&&value.every(x=>typeof x==='string'&&x.length>0);
   if(key==='research.slots')return Array.isArray(value)&&value.every(x=>x&&typeof x==='object'&&Object.hasOwn(x,'technology_id')&&(x.technology_id===null||typeof x.technology_id==='string'&&x.technology_id.length>0));
   return true;
  }
- function validateFacts(value){return {...value,facts:Object.fromEntries(Object.entries(value.facts).map(([k,f])=>[k,fact(value,k)]))};}
+ function validateFacts(value,invalidReason='Dato contratto non valido'){return {...value,facts:Object.fromEntries(Object.entries(value.facts).map(([k,f])=>{
+  if(f?.status==='unknown'&&f.value===null&&f.source===''&&(f.reason===undefined||typeof f.reason==='string'))return [k,{status:'unknown',value:null,source:'',...(f.reason?{reason:f.reason}:{})}];
+  const item=fact(value,k);return [k,item.status==='unknown'&&value.usable?unknown(invalidReason):item];
+ }))};}
+ function queuedConstruction(section){
+  if(!section||typeof section!=='object'||Array.isArray(section)||section.status!=='observed'||!Array.isArray(section.lines))return null;
+  const keys=new Set(),identities=new Set(),integer=(value,min=0)=>Number.isSafeInteger(value)&&value>=min;
+  for(const row of section.lines){
+   if(!row||typeof row!=='object'||Array.isArray(row)||['id','building_id'].some(key=>typeof row[key]!=='string'||!row[key])||identities.has(row.id)||row.location_status!=='observed'||!integer(row.state_id,1)||!Object.hasOwn(row,'province_id')||row.province_id!==null&&!integer(row.province_id,1)||['amount','active_factories','built_level','repair_levels'].some(key=>!integer(row[key]))||typeof row.conversion!=='boolean')return null;
+   identities.add(row.id);
+   if(row.amount>0&&row.repair_levels===0&&!row.conversion){keys.add('building:'+row.building_id);keys.add('state:'+row.state_id+':'+row.building_id);}
+  }
+  return [...keys].sort((a,b)=>{const left=Array.from(a,c=>c.codePointAt(0)),right=Array.from(b,c=>c.codePointAt(0));for(let i=0;i<Math.min(left.length,right.length);i++)if(left[i]!==right[i])return left[i]-right[i];return left.length-right.length;});
+ }
  function state(value){
   if(value?.schema_version!==undefined){
    if(value.schema_version!==VERSION||value.usable!==true||!value.facts||typeof value.facts!=='object'||Array.isArray(value.facts))return {schema_version:VERSION,usable:false,session_id:null,facts:{}};
-   return validateFacts(value);
+   return validateFacts({schema_version:VERSION,usable:true,session_id:value.session_id??null,facts:value.facts});
   }
   const s=value?.usable===true&&value.sample&&typeof value.sample==='object'&&!Array.isArray(value.sample)?value.sample:{};
   const source=value?.source||'process_memory',f={};
@@ -25,20 +39,22 @@
   f['research.active']=validType('research.slots',s.research_slots)?known(s.research_slots.map(x=>x.technology_id).filter(Boolean),source):unknown();
   f['research.slots']=known(s.research_slots,source);f['focus.ids']=known(s.focus_ids,source);f['research.ids']=known(s.technology_ids,source);
   const overview=s.country_overview||{},derived=new Set(['by_type','by_template','total','effective_factories','output_per_day','assigned_factories','category','balance','used','owned','controlled','name']);
+  const queued=typeof s.country==='string'&&s.country&&overview.country===s.country?queuedConstruction(overview.construction):null;
+  f['construction.queued']=queued===null?unknown('Coda costruzioni non qualificata'):known(queued,'construction_adapter',true);
   function put(path,data,present,calculated){f[path]=present?known(data,calculated?'legacy_adapter':source,calculated):unknown();}
   function flatten(path,data,present,calculated=false){
    if(Array.isArray(data)){put(path+'.count',data.length,present,true);data.forEach((child,i)=>flatten(path+'.'+(child&&typeof child==='object'?child.id??String(i):String(i)),child,present,calculated));}
    else if(data&&typeof data==='object'){for(const [key,child]of Object.entries(data))if(!['status','reason'].includes(key))flatten(path+'.'+key,child,present,calculated||derived.has(key));}
-   else put(path,data,present,calculated||(path.startsWith('country.equipment.items.')&&path.endsWith('.stockpile'))||(path.startsWith('country.production.lines.')&&path.endsWith('.id')));
+   else put(path,data,present,calculated||(path.startsWith('country.equipment.items.')&&path.endsWith('.stockpile'))||(path.startsWith('country.production.lines.')&&path.endsWith('.id'))||(path.startsWith('country.construction.lines.')&&['position','location_status','state_name'].includes(path.split('.').at(-1))));
   }
   if(overview.country===s.country)for(const [section,data]of Object.entries(overview))if(data&&typeof data==='object'&&!Array.isArray(data)){
    const present=['observed','partial'].includes(data.status);
    if(section==='manpower'){for(const [key,child]of Object.entries(data))if(!['status','reason'].includes(key))put('country.manpower.'+key,child,present,key==='available');}
    else flatten('country.'+section,data,present);
   }
-  return validateFacts({schema_version:VERSION,usable:Object.keys(s).length>0,session_id:s.session_id||null,facts:f});
+  return validateFacts({schema_version:VERSION,usable:Object.keys(s).length>0,session_id:s.session_id||null,facts:f},'Campo non osservato');
  }
- function fact(state,key){const f=state?.schema_version===VERSION&&state?.usable===true?state.facts?.[key]:null;return f&&['observed','calculated'].includes(f.status)&&typeof f.source==='string'&&f.source&&f.value!==null&&f.value!==undefined&&validType(key,f.value)&&!(typeof f.value==='number'&&!Number.isFinite(f.value))?f:unknown();}
+ function fact(state,key){const f=state?.schema_version===VERSION&&state?.usable===true?state.facts?.[key]:null;return f&&['observed','calculated'].includes(f.status)&&typeof f.source==='string'&&f.source&&f.value!==null&&f.value!==undefined&&validType(key,f.value)&&!(typeof f.value==='number'&&!Number.isFinite(f.value))?f:unknown(f?.status==='unknown'&&f.value===null&&f.source===''&&typeof f.reason==='string'?f.reason:undefined);}
  function condition(node,s,checks={},depth=0){
   if(!node||depth>16||typeof node!=='object')return null;
   if(node.op==='all'||node.op==='any'){
@@ -109,6 +125,10 @@
    pending.set(step.key,deps.length);for(const dep of deps)successors.get(dep).push(step.key);
    if(Object.hasOwn(step,'phase')&&(typeof step.phase!=='string'||!phases.has(step.phase)))throw Error('Fase sconosciuta: '+step.key);
    if(Object.hasOwn(step,'completion'))validateCondition(step.completion);
+   if(Object.hasOwn(step,'started_when')){
+    if(!['manual','special_project'].includes(step.action.kind))throw Error('Condizione di avvio incompatibile con azione: '+step.key);
+    validateCondition(step.started_when);
+   }
    if(Object.hasOwn(step.action,'params')){if(!record(step.action.params))throw Error('Parametri azione non validi');jsonData(step.action.params);}
    const evidence=Object.hasOwn(step,'evidence')?step.evidence:[];
    if(!Array.isArray(evidence)||evidence.length>32)throw Error('Evidenze non valide');

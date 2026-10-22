@@ -43,6 +43,10 @@ class GuideRuntimeTests(unittest.TestCase):
                         self.assertEqual(result[field], expected[field])
                 for lane, keys in expected.get('parallel', {}).items():
                     self.assertEqual(result['parallel'][lane]['steps'], keys)
+                for field in ('selection_values', 'selection_sources'):
+                    if field in expected:
+                        prop = 'value' if field == 'selection_values' else 'source'
+                        self.assertEqual([row['selection'][prop] for row in result['steps']], expected[field])
                 self.assertEqual(example, before)
                 self.assertEqual(evaluate(example['guide'], example['state'], example.get('progress')), result)
 
@@ -163,7 +167,8 @@ class GuideRuntimeTests(unittest.TestCase):
         definition = guide(focus('a'))
         progress = {'schema_version': 1, 'guide_id': 'generic', 'run_id': 'r'}
         self.assertEqual(evaluate(definition, state(), progress)['progress_status'], 'accepted')
-        for change in ({'schema_version': True}, {'run_id': ' '}, {'checks': {'a': 1}}, {'session_id': ''}):
+        for change in ({'schema_version': True}, {'run_id': ' '}, {'checks': {'a': 1}},
+                       {'started': None}, {'started': []}, {'started': {'a': 1}}, {'session_id': ''}):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 evaluate(definition, state(), {**progress, **change})
         self.assertEqual(evaluate(definition, state(), {**progress, 'guide_id': 'other'})['progress_status'], 'wrong_guide')

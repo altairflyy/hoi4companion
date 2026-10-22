@@ -187,6 +187,22 @@ class CountryReader:
         return {'status': 'observed', 'items': sorted(items, key=lambda x: x['id']),
                 'reason': 'Edifici costruiti nei territori posseduti o controllati. Danni, occupazione e bonus modificano le fabbriche effettivamente disponibili.'}
 
+    def intelligence(self):
+        """Creation flags, not agency upgrades or percentage estimates.
+
+        Exact-build getter 6CF7F0, serializer FDF3A0, start FDE7C0
+        and cancel FDAA50 corroborate C0=is_created and C1=in_creation.
+        """
+        agency = self.typed(self.pointer(self.country + 0xFC0), 'CIntelligenceAgency')
+        if self.pointer(agency + 0x78) != self.country:
+            raise LiveReadError('Agenzia di intelligence di un’altra nazione')
+        created, creating = self.track(agency + 0xC0, 2)
+        if created not in (0, 1) or creating not in (0, 1):
+            raise LiveReadError('Indicatori creazione agenzia non validi')
+        return {'status': 'observed', 'is_created': bool(created),
+                'in_creation': bool(creating),
+                'reason': 'Creazione avviata e agenzia operativa sono indicatori nativi distinti. Migliorie, operazioni e percentuali non determinate.'}
+
     def equipment(self):
         status = self.typed(self.pointer(self.country + 0xF68), 'CProductionStatus')
         if self.pointer(status + 0x290) != self.country:
@@ -213,6 +229,93 @@ class CountryReader:
                            'balance_per_day': None, 'needed': None} for key, amount in sorted(amounts.items())],
                 'variants': variants,
                 'reason': 'Quantità lorde nel magazzino nativo, incluse le varianti estere. Il saldo della Logistica sottrae anche fabbisogni: fabbisogno e saldo netto giornaliero non ancora qualificati.'}
+
+    def construction(self):
+        """Own queue membership, not a completion history or an ETA.
+
+        Exact-build serializers: E71CB0, F6E660, 14B59B0, 10DB880;
+        geographic joins must reciprocally contain the selected building.
+        """
+        production = self.typed(self.pointer(self.country + 0xF68), 'CProductionStatus')
+        if self.pointer(production + 0x290) != self.country:
+            raise LiveReadError('Costruzioni di un’altra nazione')
+        entries = self.array(production + 0x70, 2048)
+        # Empty is observed only after validating the owner and full container.
+        if not entries:
+            return {'status': 'observed', 'lines': [], 'reason': 'Coda di costruzione vuota osservata.'}
+        registry = self.typed(self.u(self.process.base + 0x332EE28), 'CBuildingDatabase')
+        definitions = self.array(registry + 0x40, 512)
+        def location_member(header, identifier, maximum):
+            data, capacity, count = struct.unpack('<Qii', self.track(header, 16))
+            if not 0 < identifier < count <= capacity <= maximum or not data:
+                raise LiveReadError('Ubicazione costruzione fuori dal catalogo')
+            return self.pointer(data + identifier * 8)
+        lines, handles, incomplete = [], set(), False
+        for position, line in enumerate(entries, 1):
+            kind = self.process.profile.class_name(self.u(line) - self.process.base)
+            if kind != '.?AVCBuildingProductionLine@@':
+                incomplete = True  # Railways/other line layouts remain unqualified.
+                continue
+            if self.pointer(line + 0x20) != production:
+                raise LiveReadError('Ordine di costruzione di un’altra nazione')
+            handle = self.track(line + 8, 8)
+            if handle in handles or struct.unpack('<II', handle)[0] != 0x3B or not struct.unpack('<II', handle)[1]:
+                raise LiveReadError('Identità ordine di costruzione assente o duplicata')
+            handles.add(handle)
+            building = self.typed(self.pointer(line + 0x70), 'CBuilding')
+            status = self.typed(self.pointer(building + 0x1D8), 'CBuildingStatus')
+            template = self.typed(self.pointer(building + 0x1E0), 'CBuildingTemplate')
+            ordinal = self.u(template + 0x2E0, '<i')
+            if not 0 <= ordinal < len(definitions) or definitions[ordinal] != template:
+                raise LiveReadError('Definizione costruzione fuori dal catalogo corrente')
+            key = self.s.string(template + 0x270)
+            level = struct.unpack('<h', self.track(building + 0x40, 2))[0]
+            if not 0 <= level <= 1000:
+                raise LiveReadError('Livello costruito non valido')
+            amount = self.integer(line + 0x48, 1000)
+            repairs = self.integer(line + 0x78, 1000)
+            conversion = self.track(line + 0x8C, 1)[0]
+            if conversion not in (0, 1):
+                raise LiveReadError('Indicatore conversione non valido')
+            row = {'id': handle.hex(), 'position': position, 'building_id': key,
+                   'amount': amount, 'built_level': level,
+                   'active_factories': self.integer(line + 0x18, 10000),
+                   'repair_levels': repairs, 'conversion': bool(conversion),
+                   'state_id': None, 'province_id': None, 'location_status': 'unavailable'}
+            flags = self.integer(status + 0x68, 0x7FFFFFFF)
+            identifier = self.integer(status + 0x6C, 100000, 1)
+            national_override = self.integer(status + 0x70, 8191)
+            if flags & 1:
+                province = self.typed(location_member(self.world + 0x2B0, identifier, 20000), 'CProvince')
+                if self.integer(province + 0xA4, 100000, 1) != identifier or province + 0x190 != status:
+                    raise LiveReadError('Identità provincia costruzione non coerente')
+                state = self.typed(self.pointer(province + 0xC0), 'CState')
+                row['province_id'] = identifier
+                own_province = self.integer(province + 0x188, 8191) == self.tag
+            else:
+                state = self.typed(location_member(self.world + 0x2C8, identifier, 4096), 'CState')
+                if state + 0x120 != status:
+                    raise LiveReadError('Contenitore regione costruzione non coerente')
+                own_province = True
+            state_id = self.integer(state + 0x58, 100000, 1)
+            if location_member(self.world + 0x2C8, state_id, 4096) != state:
+                raise LiveReadError('Identità regione costruzione non coerente')
+            owner = self.integer(state + 0xC8, 8191)
+            controller = self.integer(state + 0xCC, 8191)
+            if national_override == 0 and own_province and owner == controller == self.tag:
+                mapping = self.s.array(status + 0x20, 4, 512)
+                self.track(status + 0x20, 16)
+                if mapping:
+                    self.track(self.u(status + 0x20), len(mapping) * 4)
+                members = self.array(status + 0x38, 512)
+                if ordinal >= len(mapping) or not 0 <= mapping[ordinal] < len(members) or members[mapping[ordinal]] != building:
+                    raise LiveReadError('Edificio non appartenente alla regione/provincia dichiarata')
+                row.update(state_id=state_id, location_status='observed')
+            else:
+                incomplete = True
+            lines.append(row)
+        return {'status': 'partial' if incomplete else 'observed', 'lines': lines,
+                'reason': 'Ordini in coda, compresi quelli senza fabbriche attive. Riparazioni e conversioni distinte. La scomparsa di un ordine non prova il completamento.'}
 
     def token_name(self, token):
         base = self.process.base
@@ -274,7 +377,7 @@ class CountryReader:
 def collect_country(process, world, country, native_tag, country_tag, watch_plan=None):
     result = {'country': country_tag}
     witnesses = {}
-    for section in ('divisions', 'manpower', 'states', 'production', 'equipment', 'resources'):
+    for section in ('divisions', 'manpower', 'states', 'production', 'equipment', 'resources', 'construction', 'intelligence'):
         reader = CountryReader(process, world, country, native_tag)
         try:
             reader.typed(country, 'CCountry')
@@ -317,4 +420,7 @@ def localise_country(value, labels):
                 item['name'] = labels.get(f'{country}_{key}', labels.get(key, key))
     for item in result.get('resources', {}).get('items', []):
         item['name'] = labels.get(item['id'], labels.get('PRODUCTION_MATERIALS_' + item['id'].upper(), item['id']))
+    for item in result.get('construction', {}).get('lines', []):
+        item['name'] = labels.get(item['building_id'], item['building_id'])
+        item['state_name'] = labels.get(f"STATE_{item['state_id']}", str(item['state_id'])) if item['state_id'] else None
     return result

@@ -2183,5 +2183,215 @@
       "title": "Guida",
       "subtitle": ""
     }
+  },
+  {
+    "name": "started_when manual compatibility",
+    "guide": {
+      "schema_version": 1,
+      "id": "starts",
+      "tracks": {
+        "activity": [
+          {
+            "key": "a",
+            "action": {
+              "kind": "manual"
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "example",
+              "test": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema_version": 1,
+      "id": "starts",
+      "tracks": {
+        "activity": [
+          {
+            "key": "a",
+            "action": {
+              "kind": "manual"
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "example",
+              "test": "eq",
+              "value": true
+            },
+            "kind": "gate"
+          }
+        ]
+      },
+      "applies_to": {},
+      "milestones": [],
+      "assumptions": [],
+      "title": "starts",
+      "subtitle": ""
+    }
+  },
+  {
+    "name": "started_when special_project compatibility",
+    "guide": {
+      "schema_version": 1,
+      "id": "starts",
+      "tracks": {
+        "activity": [
+          {
+            "key": "a",
+            "action": {
+              "kind": "special_project",
+              "entity": {
+                "kind": "project",
+                "id": "p"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "example",
+              "test": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema_version": 1,
+      "id": "starts",
+      "tracks": {
+        "activity": [
+          {
+            "key": "a",
+            "action": {
+              "kind": "special_project",
+              "entity": {
+                "kind": "project",
+                "id": "p"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "example",
+              "test": "eq",
+              "value": true
+            },
+            "kind": "project",
+            "target": "p"
+          }
+        ]
+      },
+      "applies_to": {},
+      "milestones": [],
+      "assumptions": [],
+      "title": "starts",
+      "subtitle": ""
+    }
+  },
+  {
+    "name": "started_when select_focus compatibility",
+    "guide": {
+      "schema_version": 1,
+      "id": "starts",
+      "tracks": {
+        "activity": [
+          {
+            "key": "a",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "f"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "example",
+              "test": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "started_when research compatibility",
+    "guide": {
+      "schema_version": 1,
+      "id": "starts",
+      "tracks": {
+        "activity": [
+          {
+            "key": "a",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "t"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "example",
+              "test": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "started_when free compatibility",
+    "guide": {
+      "schema_version": 1,
+      "id": "starts",
+      "tracks": {
+        "activity": [
+          {
+            "key": "a",
+            "action": {
+              "kind": "free"
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "example",
+              "test": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "started_when rejects an invalid condition",
+    "guide": {
+      "schema_version": 1,
+      "id": "starts",
+      "tracks": {
+        "activity": [
+          {
+            "key": "a",
+            "action": {
+              "kind": "manual"
+            },
+            "started_when": {
+              "op": "invalid"
+            }
+          }
+        ]
+      }
+    },
+    "valid": false
   }
 ]
