@@ -22,6 +22,7 @@ export type Action =
   | {kind: 'manual'|'free'; params?: Record<string, JsonValue>};
 export type GuideStep = {
   key: string; action: Action; title?: string; note?: string; confirmation?: string;
+  tracking?: 'action'|'reminder';
   when?: Condition; priority_when?: Condition; priority?: number; skip_when?: Condition;
   phase?: string; depends_on?: string[]; completion?: Condition; started_when?: Condition;
   evidence?: GuideEvidence[];
@@ -39,15 +40,23 @@ export type Guide = {
   phases?: GuidePhase[];
   milestones?: {key: string; title: string; note?: string; confirmation?: string; seconds?: number}[];
 };
+export type ProductionLine = {id: string; equipment: string; equipment_name?: string; name: string; category: 'military'|'naval'; requested_factories: number; assigned_factories: number; active_factories: number; damaged_factories: number; output_per_day?: number};
+export type ProductionProgress = {assigned: number|null; requested: number|null; active: number|null; damaged: number|null; baseline: number|null; target: number|null; lines: ProductionLine[]; reason: string};
+export type OperationBaseline = {fact_key: string; value: number; country: string; quantity: number; source: string};
+export type ConstructionBaseline = OperationBaseline;
 export type GuideProgress = {
   schema_version: 1; guide_id: string; run_id: string;
   session_id?: string|null; checks?: Record<string, boolean>; started?: Record<string, boolean>;
+  baselines?: Record<string, OperationBaseline>;
 };
 export type StepStatus = 'completed'|'active'|'ready'|'waiting'|'not_applicable'|'unverifiable';
 export type RuntimeStep = {
   key: string; track: string; status: StepStatus; reason: string; blocked_by: string[];
+  tracking?: 'reminder';
   completion: Fact<boolean>; selection: Fact<boolean>; availability: Fact<boolean>;
-  completion_basis: 'native_membership'|'manual'|'condition'|'free'; priority: number; priority_known: boolean;
+  construction?: {baseline: number|null; current: number|null; target: number|null};
+  production?: ProductionProgress;
+  completion_basis: 'native_membership'|'manual'|'condition'|'free'|'reminder'; priority: number; priority_known: boolean;
 };
 export type RuntimeTrack = {keys: string[]; order: string[]; next: string|null};
 export type RuntimeLane = {capacity: number|null; steps: string[]};

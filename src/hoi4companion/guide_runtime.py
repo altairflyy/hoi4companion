@@ -9,6 +9,8 @@ from collections import deque
 
 from .contracts import GuideEvaluation, GuideProgress, evaluate_condition, is_json_number, normalise_state
 from .guide import manual_keys, normalise_guide
+from .construction_progress import validate_baselines, construction_context
+from .production_progress import production_context
 
 
 def _unknown(reason='not_observed'):
@@ -59,7 +61,8 @@ def _progress(guide, state, value):
         if binding != state.get('session_id'):
             return 'wrong_session', None, {}, {}
     allowed = manual_keys(guide)
-    operations = {step['key'] for rows in guide['tracks'].values() for step in rows if step['action']['kind'] in ('manual', 'special_project')}
+    operations = {step['key'] for rows in guide['tracks'].values() for step in rows
+                  if step['action']['kind'] in ('manual', 'special_project') and step.get('tracking') != 'reminder'}
     return ('accepted', value['run_id'], {key: checked for key, checked in checks.items() if key in allowed},
             {key: flag for key, flag in started.items() if key in operations})
 
@@ -106,11 +109,14 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
         elif (scope.get('country') and country is None) or (scope.get('tree_id') and tree is None):
             mode = 'preview'
     progress_status, run_id, checks, started = _progress(guide, state, progress)
+    baselines = validate_baselines(progress.get('baselines', {})) if progress is not None else {}
     mismatched = mode in ('wrong_country', 'wrong_tree')
     if mismatched:
         checks = {}
         started = {}
     context = state if mode == 'live' else {'schema_version': 1, 'usable': False, 'session_id': None, 'facts': {}}
+    context, construction = construction_context(guide, context, baselines if progress_status == 'accepted' else {})
+    context, production = production_context(guide, context, baselines if progress_status == 'accepted' else {})
     # JSON objects have no semantic order. Canonical track IDs also avoid JS's
     # special property order for integer-like names; list order stays authored.
     track_items = sorted(guide['tracks'].items())
@@ -123,7 +129,7 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
         barriers = []
         for step in steps:
             implicit[step['key']] = list(barriers) if 'depends_on' not in step else []
-            if step['action']['kind'] == 'manual':
+            if step['action']['kind'] == 'manual' and step.get('tracking') != 'reminder':
                 barriers.append(step['key'])
 
     def condition(node):
@@ -134,11 +140,12 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
         kind = step['action']['kind']
         ref = step['action'].get('entity', {})
         native = kind in ('select_focus', 'research')
-        basis = 'condition' if 'completion' in step else 'native_membership' if native else 'free' if kind == 'free' else 'manual'
-        completion, selection = _unknown(), _unknown()
+        reminder = step.get('tracking') == 'reminder'
+        basis = 'reminder' if reminder else 'condition' if 'completion' in step else 'native_membership' if native else 'free' if kind == 'free' else 'manual'
+        completion, selection = _unknown('not_tracked' if reminder else 'not_observed'), _unknown()
         entity_mismatch = (kind == 'select_focus' and ref.get('scope') and tree is not None and ref['scope'] != tree)
         entity_unknown = kind == 'select_focus' and ref.get('scope') and tree is None
-        if not mismatched and not entity_mismatch and not entity_unknown:
+        if not reminder and not mismatched and not entity_mismatch and not entity_unknown:
             if native:
                 prefix = 'focus' if kind == 'select_focus' else 'research'
                 selection = _membership(context, prefix + '.active', ref['id'])
@@ -165,6 +172,12 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
                         'completion_basis': basis, 'priority': priority, 'priority_known': priority_known,
                         'availability': _unknown('dynamic_availability_not_evaluated')}
         result = results[key]
+        if reminder:
+            result['tracking'] = 'reminder'
+        if key in construction:
+            result['construction'] = construction[key]
+        if key in production:
+            result['production'] = production[key]
         if mismatched:
             result.update(status='not_applicable', reason='guide_scope_mismatch')
         elif entity_mismatch:
@@ -223,6 +236,8 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
                           reason='dependency_unknown' if unknown else 'dependency_not_completed', blocked_by=blocked)
         elif kind in ('select_focus', 'research') and result['selection']['value'] is None:
             result.update(reason='selection_unknown')
+        elif step.get('tracking') == 'reminder':
+            result.update(status='ready', reason='reminder_available')
         elif result['completion']['value'] is None and kind != 'free':
             result.update(reason='manual_confirmation_required' if kind in ('manual', 'special_project') else 'completion_unknown')
         else:
@@ -235,7 +250,8 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
     for track, steps in track_items:
         keys = [step['key'] for step in steps]
         order = sorted(keys, key=ordering)
-        next_key = next((key for key in order if results[key]['status'] not in ('completed', 'not_applicable', 'active')), None)
+        next_key = next((key for key in order if definitions[key].get('tracking') != 'reminder'
+                         and results[key]['status'] not in ('completed', 'not_applicable', 'active')), None)
         tracks[track] = {'keys': keys, 'order': order, 'next': next_key}
     focus_active = _value(context, 'focus.active')
     slots = _value(context, 'research.slots')
@@ -248,7 +264,7 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
         for key in track['order']:
             result = results[key]
             kind = definitions[key]['action']['kind']
-            if kind == 'special_project' or result['status'] in ('completed', 'active', 'not_applicable'):
+            if definitions[key].get('tracking') == 'reminder' or kind == 'special_project' or result['status'] in ('completed', 'active', 'not_applicable'):
                 continue
             if result['status'] in ('waiting', 'unverifiable'):
                 if result['reason'] in ('dependency_not_completed', 'dependency_unknown'):
@@ -262,5 +278,6 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
     return {'schema_version': 1, 'guide_id': guide.get('id', ''), 'run_id': run_id,
             'progress_status': progress_status, 'mode': mode, 'country': country,
             'steps': [results[step['key']] for _, step in rows], 'tracks': tracks,
-            'ready': sorted((key for key, result in results.items() if result['status'] == 'ready'), key=ordering),
+            'ready': sorted((key for key, result in results.items() if result['status'] == 'ready'
+                             and definitions[key].get('tracking') != 'reminder'), key=ordering),
             'parallel': parallel}

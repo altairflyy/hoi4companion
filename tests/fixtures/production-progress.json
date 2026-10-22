@@ -1,0 +1,1815 @@
+[
+  {
+    "name": "one assigned",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "active",
+    "assigned": 1
+  },
+  {
+    "name": "only requested",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 3,
+                "assigned_factories": 0,
+                "active_factories": 0,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "active",
+    "assigned": 0
+  },
+  {
+    "name": "three assigned",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 3,
+                "assigned_factories": 3,
+                "active_factories": 3,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "completed",
+    "assigned": 3
+  },
+  {
+    "name": "overshoot exact target",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 4,
+                "assigned_factories": 4,
+                "active_factories": 4,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "active",
+    "assigned": 4
+  },
+  {
+    "name": "empty",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": []
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "ready",
+    "assigned": 0
+  },
+  {
+    "name": "multiple lines",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              },
+              {
+                "id": "2",
+                "equipment": "tool_2",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 2,
+                "assigned_factories": 2,
+                "active_factories": 2,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "completed",
+    "assigned": 3
+  },
+  {
+    "name": "variant mismatch",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [
+                    "Model B"
+                  ],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "ready",
+    "assigned": 0
+  },
+  {
+    "name": "variant match",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [
+                    "Model A"
+                  ],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "active",
+    "assigned": 1
+  },
+  {
+    "name": "damaged",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 3,
+                "assigned_factories": 3,
+                "active_factories": 1,
+                "damaged_factories": 2,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "completed",
+    "assigned": 3
+  },
+  {
+    "name": "stale",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": false,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "unverifiable",
+    "assigned": null
+  },
+  {
+    "name": "foreign",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "OTHER",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "unverifiable",
+    "assigned": null
+  },
+  {
+    "name": "partial",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "partial",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "unverifiable",
+    "assigned": null
+  },
+  {
+    "name": "invalid counts",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 100,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "unverifiable",
+    "assigned": null
+  },
+  {
+    "name": "naval filter",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": "naval"
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "ready",
+    "assigned": 0
+  },
+  {
+    "name": "reordered",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "2",
+                "equipment": "tool_2",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 2,
+                "assigned_factories": 2,
+                "active_factories": 2,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              },
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "completed",
+    "assigned": 3
+  },
+  {
+    "name": "removed",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.assigned",
+              "test": "eq",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": []
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "ready",
+    "assigned": 0
+  },
+  {
+    "name": "relative no baseline",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3,
+                "quantity_mode": "additional"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.added",
+              "test": "gte",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "unverifiable",
+    "assigned": 1
+  },
+  {
+    "name": "relative before order",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3,
+                "quantity_mode": "additional"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.added",
+              "test": "gte",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "order": {
+          "fact_key": "production:{\"category\":null,\"equipment_ids\":[\"tool_1\",\"tool_2\"],\"variant_names\":[]}",
+          "value": 1,
+          "country": "TST",
+          "quantity": 3,
+          "source": "production_adapter"
+        }
+      }
+    },
+    "expected": "ready",
+    "assigned": 1
+  },
+  {
+    "name": "relative requested",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3,
+                "quantity_mode": "additional"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.added",
+              "test": "gte",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 4,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "order": {
+          "fact_key": "production:{\"category\":null,\"equipment_ids\":[\"tool_1\",\"tool_2\"],\"variant_names\":[]}",
+          "value": 1,
+          "country": "TST",
+          "quantity": 3,
+          "source": "production_adapter"
+        }
+      }
+    },
+    "expected": "active",
+    "assigned": 1
+  },
+  {
+    "name": "relative complete",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3,
+                "quantity_mode": "additional"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.added",
+              "test": "gte",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 4,
+                "assigned_factories": 4,
+                "active_factories": 4,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "order": {
+          "fact_key": "production:{\"category\":null,\"equipment_ids\":[\"tool_1\",\"tool_2\"],\"variant_names\":[]}",
+          "value": 1,
+          "country": "TST",
+          "quantity": 3,
+          "source": "production_adapter"
+        }
+      }
+    },
+    "expected": "completed",
+    "assigned": 4
+  },
+  {
+    "name": "relative cancelled",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3,
+                "quantity_mode": "additional"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.added",
+              "test": "gte",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "order": {
+          "fact_key": "production:{\"category\":null,\"equipment_ids\":[\"tool_1\",\"tool_2\"],\"variant_names\":[]}",
+          "value": 1,
+          "country": "TST",
+          "quantity": 3,
+          "source": "production_adapter"
+        }
+      }
+    },
+    "expected": "ready",
+    "assigned": 1
+  },
+  {
+    "name": "relative wrong session",
+    "guide": {
+      "schema_version": 1,
+      "id": "production",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "order",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "production_selector": {
+                  "equipment_ids": [
+                    "tool_1",
+                    "tool_2"
+                  ],
+                  "variant_names": [],
+                  "category": null
+                },
+                "category": "production",
+                "assigned_factories": 3,
+                "quantity_mode": "additional"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.production.order.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.production.order.added",
+              "test": "gte",
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "session_id": "session",
+        "country_overview": {
+          "country": "TST",
+          "production": {
+            "status": "observed",
+            "lines": [
+              {
+                "id": "1",
+                "equipment": "tool_1",
+                "name": "Model A",
+                "category": "military",
+                "requested_factories": 1,
+                "assigned_factories": 1,
+                "active_factories": 1,
+                "damaged_factories": 0,
+                "output_per_day": 1.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "production",
+      "run_id": "r",
+      "session_id": "other",
+      "checks": {},
+      "baselines": {
+        "order": {
+          "fact_key": "production:{\"category\":null,\"equipment_ids\":[\"tool_1\",\"tool_2\"],\"variant_names\":[]}",
+          "value": 1,
+          "country": "TST",
+          "quantity": 3,
+          "source": "production_adapter"
+        }
+      }
+    },
+    "expected": "unverifiable",
+    "assigned": 1
+  }
+]

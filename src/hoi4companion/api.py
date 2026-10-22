@@ -9,7 +9,7 @@ from pathlib import Path
 from threading import RLock
 from urllib.parse import urlparse, unquote, parse_qs
 from .focus import evaluate, load_trees
-from .installation import collect_files, active_mods, load_localisation
+from .installation import collect_files, active_mods, load_localisations
 from .state import read_snapshot
 from .dlc import discover_dlcs
 from .eligibility import filter_trees, load_scripted_triggers
@@ -22,6 +22,10 @@ from .guide import load_guide, list_guides, default_guide_id, enrich_guide, upda
 from .guide_progress import RunStore
 from .guide_runtime import evaluate as evaluate_guide
 from .contracts import VERSION, normalise_state
+from .guide_importer import Importer, catalog_entities
+from .import_sources import acquire_source, ytdlp_path, MAX_BYTES
+from .research_start import read_research_start
+from .operation_import import operation_catalog
 
 BASE = Path(__file__).resolve().parent
 PROJECT = BASE.parent.parent
@@ -72,6 +76,7 @@ class Store:
 
     def refresh(self):
         with self.lock:
+            self.research_start_cache = {}
             config = self.settings
             game = Path(config['game_dir']).expanduser() if config['game_dir'] else None
             mods = []
@@ -81,10 +86,12 @@ class Store:
             self.sprites = None
             self.technologies = {'folders': {}, 'technologies': {}, 'warnings': [], 'excluded_folders': []}
             self.technology_visuals = {'templates': {}, 'folders': {}}
+            self.operation_entities = []
             self.demo = not bool(game and (game / 'common' / 'national_focus').is_dir())
             if self.demo:
                 files = [DEMO]
                 labels = json.loads((PROJECT / 'examples' / 'demo_labels.json').read_text(encoding='utf-8'))
+                reference_labels = labels
                 warnings.append('Modalità dimostrativa: nessun file HOI4 reale caricato.')
             else:
                 if config['mods'] == 'auto' and config['docs_dir']:
@@ -92,7 +99,9 @@ class Store:
                     warnings += warns
                 files, warns = collect_files(game, mods, 'common/national_focus', '.txt')
                 warnings += warns
-                labels = load_localisation(game, mods, config['language'])
+                labels, reference_labels = load_localisations(game, mods, config['language'])
+                self.operation_entities, issues = operation_catalog(game,mods,labels,reference_labels)
+                warnings += issues
                 if not files:
                     warnings.append('Nessun file di focus trovato; controlla il percorso di installazione.')
             trees, warns = load_trees(files, labels)
@@ -125,6 +134,9 @@ class Store:
                 warnings += self.technology_visuals['warnings']
             self.warnings = warnings
             self.labels = labels
+            self.reference_labels = reference_labels
+            self.game_root, self.mod_roots = game, mods
+            self.scripts = scripts if not self.demo else {}
             self.trees = trees
             self.import_error = ''
             if self.settings['tree_id'] not in trees:
@@ -255,6 +267,8 @@ class Store:
                     'guide_states': states,
                     'guide_started': {key: self._progress_store().get(key)['started']
                                       for key in self._progress_store().metadata()},
+                    'guide_baselines': {key: self._progress_store().get(key).get('baselines', {})
+                                        for key in self._progress_store().metadata()},
                     'guide_runs': self._progress_store().metadata(),
                     'guide_revision': getattr(self,'guide_revision',0)}
 
@@ -280,6 +294,10 @@ class Store:
         if self._progress_store().bind(session):
             self._sync_progress()
             self.guide_revision = getattr(self, 'guide_revision', 0) + 1
+        if session:
+            for guide_id in self._progress_store().metadata():
+                if self._progress_store().observe(load_guide(guide_id), cached):
+                    self.guide_revision = getattr(self, 'guide_revision', 0) + 1
 
     def _ensure_progress(self, guide_id):
         default_id = getattr(self, 'default_guide_id', None) or default_guide_id()
@@ -348,6 +366,30 @@ class Store:
             result['catalog_country'] = self.settings['country'].upper()
             result['demo'] = self.demo
             return result
+
+    def importer(self):
+        with self.lock:
+            if not hasattr(self, '_importer'):
+                self._importer = Importer(self.import_catalog, research_context=self.research_start)
+            return self._importer
+
+    def research_start(self, guide):
+        with self.lock:
+            if self.demo or not getattr(self,'game_root',None): return None
+            scope = guide.get('applies_to',{})
+            if not isinstance(scope,dict): return None
+            country = scope.get('country',guide.get('country'))
+            date = guide.get('start_date')
+            if not isinstance(country,str) or date is not None and not isinstance(date,str): return None
+            key = (country,date)
+            if key not in self.research_start_cache:
+                self.research_start_cache[key] = read_research_start(self.game_root,self.mod_roots,country,self.dlcs,self.scripts,date)
+            return self.research_start_cache[key]
+
+    def import_catalog(self):
+        with self.lock:
+            return catalog_entities(self.trees, self.technologies['technologies'], self.labels,
+                                    getattr(self, 'reference_labels', {})) + getattr(self,'operation_entities',[])
 
     def technology_catalog(self):
         with self.lock:
@@ -427,6 +469,15 @@ def make_handler(store: Store):
 
         def do_GET(self):
             url = urlparse(self.path)
+            if url.path == '/api/import/status':
+                self.json({**store.importer().status(), 'youtube_available': bool(ytdlp_path())})
+                return
+            if url.path == '/api/import/prompt':
+                self.json({'prompt': store.importer().prompt()})
+                return
+            if url.path == '/api/import/catalog':
+                self.json({'entities': store.importer().catalog(), 'demo': store.demo})
+                return
             if url.path == '/api/state/events':
                 origin, host = self.headers.get('Origin', ''), self.headers.get('Host', '')
                 if (origin and urlparse(origin).netloc != host) or self.headers.get('Sec-Fetch-Site') == 'cross-site':
@@ -517,12 +568,15 @@ def make_handler(store: Store):
                 self.json(store.technology_tree(parse_qs(url.query).get('id', [''])[0]))
                 return
             static = {'/': 'index.html', '/index.html': 'index.html',
+                      '/importer': 'importer.html', '/importer.js': 'importer.js',
+                      '/importer-model.js': 'importer-model.js', '/importer.css': 'importer.css',
                       '/contracts.js': 'contracts.js',
                       '/country': 'country.html', '/country.js': 'country.js',
                       '/country.css': 'country.css', '/country-model.js': 'country-model.js',
                       '/walkthrough': 'guide.html', '/hud': 'guide.html', '/guide-model.js': 'guide-model.js',
                       '/guide.js': 'guide.js', '/guide.css': 'guide.css',
                       '/guide-runtime.js': 'guide-runtime.js',
+                      '/production-progress.js': 'production-progress.js',
                       '/guide-presentation.js': 'guide-presentation.js', '/guide-session.js': 'guide-session.js',
                       '/guide-assist.js': 'guide-assist.js', '/guide-assist.css': 'guide-assist.css',
                       '/live-state.js': 'live-state.js', '/live-state.css': 'live-state.css', '/live-model.js': 'live-model.js',
@@ -540,24 +594,52 @@ def make_handler(store: Store):
 
         def do_POST(self):
             url = urlparse(self.path)
-            if url.path not in ('/api/config', '/api/refresh', '/api/guide/checks', '/api/guide/progress'):
+            import_paths = {'/api/import/source', '/api/import/packet', '/api/import/extract', '/api/import/preview', '/api/import/install', '/api/import/document'}
+            if url.path not in ('/api/config', '/api/refresh', '/api/guide/checks', '/api/guide/progress') and url.path not in import_paths:
                 self.json({'error': 'Not found'}, 404)
                 return
             # Blocca richieste cross-origin da siti terzi verso il servizio locale.
             origin = self.headers.get('Origin', '')
             host = self.headers.get('Host', '')
-            if origin and urlparse(origin).netloc != host:
+            if (origin and urlparse(origin).netloc != host) or self.headers.get('Sec-Fetch-Site') == 'cross-site':
                 self.json({'error': 'Origine non autorizzata'}, 403)
                 return
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
                 self.json({'error': 'Richiesta JSON necessaria'}, 415)
                 return
-            length = int(self.headers.get('Content-Length', '0'))
-            if length < 1 or length > 16_384:
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+            except ValueError:
+                length = 0
+            if length < 1 or length > (MAX_BYTES if url.path in import_paths else 16_384):
                 self.json({'error': 'Dimensione non valida'}, 413)
                 return
             try:
                 update = json.loads(self.rfile.read(length))
+                if url.path in import_paths:
+                    if not isinstance(update, dict):
+                        raise ValueError('Richiesta importazione non valida')
+                    operation = url.path.rsplit('/', 1)[-1]
+                    allowed = {'source': {'url', 'text'}, 'packet': {'sources', 'tree_id'},
+                               'extract': {'sources', 'tree_id'}, 'preview': {'guide', 'sources'},
+                               'install': {'guide', 'sources', 'reviewed'}, 'document': {'document'}}[operation]
+                    if set(update) - allowed:
+                        raise ValueError('Campi importazione non riconosciuti')
+                    importer = store.importer()
+                    if operation == 'source':
+                        result = acquire_source(update.get('url', ''), update.get('text', ''))
+                    elif operation == 'document':
+                        result = importer.document(update.get('document'))
+                    elif operation == 'packet':
+                        result = importer.packet(update.get('sources'), update.get('tree_id'))
+                    elif operation == 'extract':
+                        result = importer.extract(update.get('sources'), update.get('tree_id'))
+                    elif operation == 'preview':
+                        result = importer.preview(update.get('guide'), update.get('sources'))
+                    else:
+                        result = importer.install(update.get('guide'), update.get('sources'), reviewed=update.get('reviewed'))
+                    self.json(result)
+                    return
                 if url.path == '/api/guide/checks':
                     self.json(store.walkthrough_checks(update, parse_qs(url.query).get('id', [None])[0]))
                     return
@@ -570,7 +652,7 @@ def make_handler(store: Store):
                     store.refresh()
                 else:
                     store.set_settings(update)
-            except (ValueError, UnicodeError, OSError) as exc:
+            except (ValueError, UnicodeError, OSError, RecursionError) as exc:
                 self.json({'error': str(exc)}, 400)
                 return
             self.json(store.overview())

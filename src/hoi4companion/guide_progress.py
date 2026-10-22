@@ -9,6 +9,10 @@ from __future__ import annotations
 from copy import deepcopy
 from threading import RLock
 from uuid import uuid4
+from .construction_progress import relative_spec, observed_count
+from .contracts import normalise_state
+from .guide_runtime import evaluate
+from .production_progress import relative_spec as production_spec
 
 
 def _identifier(value, label, *, optional=False, maximum=None):
@@ -126,8 +130,57 @@ class RunStore:
                 self._active[record['guide_id']] = record['run_id']
             return bool(replacements)
 
+    def observe(self, guide, live_state):
+        """Capture actionable construction/production counts once per run.
+
+        Queued construction or pending production assignments cannot establish
+        an earlier count. Established baselines are never revised.
+        All reads come from supplied evidence, with no game or clock access.
+        """
+        with self._lock:
+            record = self.get(guide['id'])
+            candidates = {step['key']: relative_spec(step) or production_spec(step) for rows in guide['tracks'].values()
+                          for step in rows if step['key'] not in record.get('baselines', {})}
+            candidates = {key: spec for key, spec in candidates.items() if spec is not None}
+            if not candidates:
+                return False
+            state = normalise_state(live_state)
+            result = evaluate(guide, state, record)
+            if (result['mode'] != 'live' or result['progress_status'] != 'accepted'
+                    or not record['session_id'] or record['session_id'] != state['session_id']
+                    or not isinstance(result['country'], str) or not result['country']):
+                return False
+            queued = state['facts'].get('construction.queued', {})
+            queue_known = queued.get('status') in ('observed', 'calculated') and bool(queued.get('source')) and isinstance(queued.get('value'), list)
+            changed = False
+            statuses = {row['key']: row['status'] for row in result['steps']}
+            occupied = {entry['fact_key'] for key, entry in record.get('baselines', {}).items()
+                        if statuses.get(key) not in ('completed', 'not_applicable')}
+            for row in result['steps']:
+                spec = candidates.get(row['key'])
+                if (spec is None or 'queue_key' in spec and (not queue_known or spec['queue_key'] in queued['value'])
+                        or spec['fact_key'] in occupied
+                        or row['reason'] not in ('prerequisites_satisfied', 'manual_confirmation_required')):
+                    continue
+                if 'queue_key' in spec:
+                    current = observed_count(state, spec['fact_key'])
+                else:
+                    metrics = row.get('production', {})
+                    count = metrics.get('assigned')
+                    current = {'value':count,'source':'production_adapter'} if type(count) is int and metrics.get('requested') == count else None
+                if current is None:
+                    continue
+                record.setdefault('baselines', {})[row['key']] = {
+                    'fact_key': spec['fact_key'], 'value': current['value'], 'quantity': spec['quantity'],
+                    'country': result['country'], 'source': current['source']}
+                occupied.add(spec['fact_key'])
+                changed = True
+            if changed:
+                self._runs[record['run_id']] = record
+            return changed
+
     def metadata(self):
         """Return active identities without duplicating checklist data in SSE."""
         with self._lock:
-            return {guide_id: {key: value for key, value in self._runs[run_id].items() if key not in ('checks', 'started')}
+            return {guide_id: {key: value for key, value in self._runs[run_id].items() if key not in ('checks', 'started', 'baselines')}
                     for guide_id, run_id in self._active.items()}

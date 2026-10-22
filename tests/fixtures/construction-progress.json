@@ -1,0 +1,1033 @@
+[
+  {
+    "name": "initial five",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.military_factories",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "ready",
+    "completed": false
+  },
+  {
+    "name": "queued two",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [
+            "state:77:arms_factory"
+          ],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.military_factories",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "active",
+    "completed": false
+  },
+  {
+    "name": "cancelled order",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.military_factories",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "ready",
+    "completed": false
+  },
+  {
+    "name": "one completed one queued",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [
+            "state:77:arms_factory"
+          ],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 6,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.military_factories",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "active",
+    "completed": false
+  },
+  {
+    "name": "one completed other cancelled",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 6,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.military_factories",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "ready",
+    "completed": false
+  },
+  {
+    "name": "seven built",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 7,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.military_factories",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "completed",
+    "completed": true
+  },
+  {
+    "name": "built rollback",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 4,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.military_factories",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "ready",
+    "completed": false
+  },
+  {
+    "name": "baseline missing",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "unverifiable",
+    "completed": null
+  },
+  {
+    "name": "wrong country",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "OTHER",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.military_factories",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "not_applicable",
+    "completed": null
+  },
+  {
+    "name": "wrong session",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "other",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.military_factories",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "unverifiable",
+    "completed": null
+  },
+  {
+    "name": "stale",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": false,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.military_factories",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "unverifiable",
+    "completed": null
+  },
+  {
+    "name": "different target quantity",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.military_factories",
+          "value": 5,
+          "country": "TST",
+          "quantity": 3,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "unverifiable",
+    "completed": null
+  },
+  {
+    "name": "forged external delta",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "arms_factory",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:arms_factory"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.military_factories": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        },
+        "guide.construction.factory.added": {
+          "status": "observed",
+          "value": 999,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {}
+    },
+    "expected": "unverifiable",
+    "completed": null
+  }
+]

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
+<title>HOI4 Companion — Guide Importer</title><link rel="stylesheet" href="/guide.css"><link rel="stylesheet" href="/importer.css">
+<script defer src="/contracts.js"></script><script defer src="/importer-model.js"></script><script defer src="/importer.js"></script></head>
+<body><header class="topbar"><nav aria-label="Viste"><a href="/">Focus nazionali</a><a href="/technologies">Tecnologie</a><a href="/country">Nazione</a><a href="/walkthrough">Walkthrough</a><a href="/importer" aria-current="page">Importa guida</a></nav><span>HOI4 COMPANION</span></header>
+<main><p class="eyebrow">PROMPT → IA ESTERNA → FILE GUIDA</p><h1>Importa una guida</h1><p class="intro">Copia il prompt completo e dallo alla tua IA insieme al link o al materiale della guida. Carica qui il file .hoi4-guide.json restituito: il programma ne controlla formato, evidenze e ID.</p>
+<p>Questa schermata prepara la guida e collega le istruzioni ai controlli live disponibili. Dopo averla aggiunta, apri il walkthrough: lì le operazioni collegate passano a «In corso» e «Completato» quando i dati del gioco ne confermano i criteri.</p>
+<p id="notice" role="status">Caricamento del catalogo…</p><p id="error" role="alert" hidden></p>
+<section class="import-section" aria-labelledby="promptHeading"><p class="eyebrow">01 · DA DARE ALLA TUA IA</p><h2 id="promptHeading">Prompt completo per creare la guida</h2>
+<p>Apri una conversazione con l’IA che preferisci, incolla questo prompt e aggiungi il link YouTube/web oppure gli allegati. Chiedile di restituire il file indicato dal prompt. Puoi partire subito, senza acquisire fonti nel programma.</p>
+<div class="actions"><button id="copyPrompt" type="button" disabled>Copia prompt completo</button><button id="downloadPrompt" type="button" disabled>Scarica prompt .txt</button></div>
+<details><summary>Leggi il prompt</summary><label for="importPrompt">Istruzioni da copiare nella tua IA</label><textarea id="importPrompt" rows="12" readonly spellcheck="false"></textarea></details>
+<label for="treeScope">Catalogo ID facoltativo: seleziona un albero nazionale</label><select id="treeScope"><option value="">Tutti gli alberi del catalogo</option></select>
+<button id="downloadCatalog" type="button">Scarica catalogo ID da allegare all’IA</button><p class="hint">Il catalogo aiuta l’IA a scegliere gli ID della tua installazione. Puoi ometterlo: le corrispondenze dubbie verranno segnalate nell’anteprima.</p>
+</section>
+<section class="import-section" aria-labelledby="fileHeading"><p class="eyebrow">02 · RISPOSTA DELL’IA</p><h2 id="fileHeading">Carica il file restituito dall’IA</h2>
+<label for="draftFile">File .hoi4-guide.json, bozza o pacchetto precedente</label><input id="draftFile" type="file" accept=".json,application/json"><p>Il file contiene istruzioni e fonti. I checksum vengono calcolati automaticamente dal programma. Puoi anche incollare l’intero JSON nell’editor qui sotto.</p>
+</section>
+<details class="import-section"><summary>Opzioni aggiuntive: acquisizione nel programma e API IA</summary><section aria-labelledby="sourceHeading"><h2 id="sourceHeading">Acquisizione facoltativa</h2>
+<label for="sourceUrl">Link YouTube o pagina web</label><input id="sourceUrl" type="url" placeholder="https://www.youtube.com/watch?v=…">
+<label for="sourceText">Oppure incolla descrizione e trascrizione / testo della guida</label><textarea id="sourceText" rows="5" placeholder="Con un testo incollato il link è soltanto un riferimento: non viene scaricato."></textarea>
+<div class="actions"><button id="acquire" type="button">Acquisisci fonte</button><span id="sourceCount">Nessuna fonte</span></div><div id="sources"></div>
+<p class="hint">YouTube: descrizione e sottotitoli disponibili, senza login né download del video. Web: testo HTML statico. I fotogrammi e le immagini non sono analizzati.</p></section>
+<section aria-labelledby="extractHeading"><h2 id="extractHeading">API IA facoltativa</h2>
+<p id="aiStatus" class="hint"></p><div class="actions"><button id="packet" type="button">Scarica pacchetto per IA</button><button id="extract" type="button" disabled>Estrai con API IA</button></div>
+<p class="hint">Il pacchetto contiene istruzioni, fonti e ID: forniscilo all’IA che usi e chiedile di restituire soltanto il JSON della guida. Nessun dato della partita è incluso. Il pulsante API invia queste fonti a OpenAI e può consumare credito API.</p>
+</section></details>
+<section class="import-section" aria-labelledby="previewHeading"><p class="eyebrow">03 · REVISIONE</p><h2 id="previewHeading">Anteprima modificabile</h2>
+<p>Modifica titoli e corrispondenze nelle schede. L’editor JSON permette di correggere tutti i parametri: quantità, regioni, personaggi, tempi, condizioni, dipendenze e priorità. Ogni modifica richiede una nuova validazione.</p>
+<label for="guideJson">File dell’IA o definizione Guide Schema v1</label><textarea id="guideJson" rows="12" spellcheck="false" placeholder="Incolla qui l’intero JSON restituito dall’IA"></textarea>
+<div class="actions"><button id="validate" type="button">Risolvi ID e valida</button><button id="saveDraft" type="button">Salva bozza modificabile</button></div>
+<p id="validation" role="status">Nessuna bozza validata.</p><ul id="issues"></ul>
+<p id="monitoringSummary" role="status"></p><p id="reviewSummary"></p>
+<details><summary>Dettagli delle fonti e correzioni automatiche</summary><ul id="sourceWarnings"></ul></details>
+<div id="preview" class="preview-cards"></div>
+</section>
+<section class="import-section" aria-labelledby="exportHeading"><p class="eyebrow">04 · ESPORTAZIONE</p><h2 id="exportHeading">Porta la guida nel programma</h2>
+<label class="review"><input id="reviewed" type="checkbox">Ho rivisto le istruzioni della guida e i dettagli ancora incerti della fonte.</label>
+<div class="actions"><button id="exportGuide" type="button" disabled>Scarica guida .json</button><button id="install" type="button" disabled>Aggiungi alle mie guide</button><a id="openGuide" hidden>Apri il walkthrough →</a></div>
+<p class="hint">Si installano solo guide valide e revisionate. Le guide incluse non vengono sovrascritte. La validazione tecnica non certifica che una strategia funzioni o che l’IA abbia incluso ogni dettaglio della fonte.</p></section>
+</main><footer>Guide Schema v1 · fonti e definizione separate dalla partita · nessuna modifica a HOI4</footer></body></html>

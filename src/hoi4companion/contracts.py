@@ -105,6 +105,7 @@ class LiveState(TypedDict):
 class GuideStep(TypedDict):
     key: str
     action: Action
+    tracking: NotRequired[Literal['action', 'reminder']]
     when: NotRequired[Condition]
     priority_when: NotRequired[Condition]
     priority: NotRequired[int]
@@ -135,6 +136,41 @@ class Guide(TypedDict):
     phases: NotRequired[list[GuidePhase]]
 
 
+class ProductionLine(TypedDict):
+    id: str
+    equipment: str
+    equipment_name: NotRequired[str]
+    name: str
+    category: Literal['military', 'naval']
+    requested_factories: int
+    assigned_factories: int
+    active_factories: int
+    damaged_factories: int
+    output_per_day: NotRequired[float]
+
+
+class ProductionProgress(TypedDict):
+    assigned: int | None
+    requested: int | None
+    active: int | None
+    damaged: int | None
+    baseline: int | None
+    target: int | None
+    lines: list[ProductionLine]
+    reason: str
+
+
+class OperationBaseline(TypedDict):
+    fact_key: str
+    value: int
+    country: str
+    quantity: int
+    source: str
+
+
+ConstructionBaseline = OperationBaseline
+
+
 class GuideProgress(TypedDict):
     schema_version: Literal[1]
     guide_id: str
@@ -142,6 +178,7 @@ class GuideProgress(TypedDict):
     session_id: NotRequired[str | None]
     checks: NotRequired[dict[str, bool]]
     started: NotRequired[dict[str, bool]]
+    baselines: NotRequired[dict[str, OperationBaseline]]
 
 
 StepStatus = Literal['completed', 'active', 'ready', 'waiting', 'not_applicable', 'unverifiable']
@@ -151,12 +188,15 @@ class RuntimeStep(TypedDict):
     key: str
     track: str
     status: StepStatus
+    tracking: NotRequired[Literal['reminder']]
     reason: str
     blocked_by: list[str]
     completion: Fact
+    construction: NotRequired[dict[str, int | None]]
+    production: NotRequired[ProductionProgress]
     selection: Fact
     availability: Fact
-    completion_basis: Literal['native_membership', 'manual', 'condition', 'free']
+    completion_basis: Literal['native_membership', 'manual', 'condition', 'free', 'reminder']
     priority: int
     priority_known: bool
 
@@ -259,6 +299,8 @@ def validate_condition(value: Condition, depth: int = 0) -> None:
 
 
 def _valid_fact_type(key, value):
+    if key == 'production.lines':
+        return _valid_production_lines(value)
     if key in ('country.intelligence.is_created', 'country.intelligence.in_creation'):
         return type(value) is bool
     if key in ('country', 'focus.tree'):
@@ -268,6 +310,24 @@ def _valid_fact_type(key, value):
     if key == 'research.slots':
         return isinstance(value, list) and all(isinstance(item, dict) and 'technology_id' in item and
                 (item['technology_id'] is None or isinstance(item['technology_id'], str) and bool(item['technology_id'])) for item in value)
+    return True
+
+
+def _valid_production_lines(lines):
+    if not isinstance(lines, list) or len(lines) > 4096:
+        return False
+    identities = set()
+    for row in lines:
+        if (not isinstance(row, dict) or any(not isinstance(row.get(key), str) or not row[key]
+                for key in ('id', 'equipment', 'name')) or row['id'] in identities
+                or row.get('category') not in ('military', 'naval')
+                or any(type(row.get(key)) not in (int, float) or not is_json_number(row[key])
+                       or row[key] != int(row[key]) or not 0 <= row[key] <= 9007199254740991
+                       for key in ('requested_factories', 'assigned_factories', 'active_factories', 'damaged_factories'))
+                or row['assigned_factories'] != row['active_factories'] + row['damaged_factories']
+                or row['assigned_factories'] > row['requested_factories']):
+            return False
+        identities.add(row['id'])
     return True
 
 
@@ -336,6 +396,12 @@ def normalise_state(value: dict) -> LiveState:
     overview = overview if isinstance(overview, dict) else {}
     queued = _queued_construction(overview.get('construction')) if isinstance(sample.get('country'), str) and sample['country'] and overview.get('country') == sample['country'] else None
     facts['construction.queued'] = fact(queued, 'calculated', 'construction_adapter') if queued is not None else fact(reason='Coda costruzioni non qualificata')
+    production = overview.get('production', {})
+    lines = production.get('lines') if isinstance(production, dict) else None
+    production_known = (isinstance(sample.get('country'), str) and bool(sample['country'])
+                        and overview.get('country') == sample['country'] and isinstance(production, dict)
+                        and production.get('status') == 'observed' and _valid_production_lines(lines))
+    facts['production.lines'] = fact(deepcopy(lines), 'calculated', 'production_adapter') if production_known else fact(reason='Linee di produzione non qualificate')
     if overview.get('country') == sample.get('country'):
         # These fields are derivations in country.py, not direct observations.
         derived = {'by_type', 'by_template', 'total', 'effective_factories', 'output_per_day',

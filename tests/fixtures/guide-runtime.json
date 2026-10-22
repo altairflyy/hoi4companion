@@ -6341,5 +6341,342 @@
         "not_applicable"
       ]
     }
+  },
+  {
+    "name": "reminder does not block next native action",
+    "guide": {
+      "id": "reminder-parity",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "method",
+            "action": {
+              "kind": "manual"
+            },
+            "tracking": "reminder"
+          },
+          {
+            "key": "focus",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "focus"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "reminder-parity",
+      "run_id": "r",
+      "checks": {
+        "method": true
+      },
+      "started": {
+        "method": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "ready"
+      ],
+      "parallel": {
+        "focus": [
+          "focus"
+        ]
+      }
+    }
+  },
+  {
+    "name": "reminder visibility is unknown without blocking actions",
+    "guide": {
+      "id": "reminder-parity",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "method",
+            "action": {
+              "kind": "manual"
+            },
+            "tracking": "reminder",
+            "when": {
+              "op": "fact",
+              "key": "absent",
+              "test": "eq",
+              "value": true
+            }
+          },
+          {
+            "key": "focus",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "focus"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "reminder-parity",
+      "run_id": "r",
+      "checks": {
+        "method": true
+      },
+      "started": {
+        "method": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "unverifiable",
+        "ready"
+      ],
+      "parallel": {
+        "focus": [
+          "focus"
+        ]
+      }
+    }
+  },
+  {
+    "name": "reminder in wrong country never becomes completed",
+    "guide": {
+      "id": "reminder-parity",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "method",
+            "action": {
+              "kind": "manual"
+            },
+            "tracking": "reminder"
+          },
+          {
+            "key": "focus",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "focus"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "POL",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "reminder-parity",
+      "run_id": "r",
+      "checks": {
+        "method": true
+      },
+      "started": {
+        "method": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "not_applicable",
+        "not_applicable"
+      ],
+      "parallel": {
+        "focus": []
+      }
+    }
+  },
+  {
+    "name": "reminder works without live evidence",
+    "guide": {
+      "id": "reminder-parity",
+      "applies_to": {
+        "country": "GER"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "method",
+            "action": {
+              "kind": "manual"
+            },
+            "tracking": "reminder"
+          },
+          {
+            "key": "focus",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "focus"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "state": null,
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "reminder-parity",
+      "run_id": "r",
+      "checks": {
+        "method": true
+      },
+      "started": {
+        "method": true
+      }
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "unverifiable"
+      ],
+      "parallel": {
+        "focus": []
+      }
+    }
   }
 ]
