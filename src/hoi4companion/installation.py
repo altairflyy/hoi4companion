@@ -8,7 +8,20 @@ from .clausewitz import parse
 
 
 def default_documents() -> Path:
-    return Path.home() / 'Documents' / 'Paradox Interactive' / 'Hearts of Iron IV'
+    documents = Path.home() / 'Documents'
+    if os.name == 'nt':
+        # Windows may redirect Documents to OneDrive or another drive. Read the
+        # current user's location rather than carrying a developer profile path.
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                    r'Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders') as key:
+                value, _ = winreg.QueryValueEx(key, 'Personal')
+                if isinstance(value, str) and value:
+                    documents = Path(os.path.expandvars(value))
+        except (ImportError, OSError):
+            pass
+    return documents / 'Paradox Interactive' / 'Hearts of Iron IV'
 
 
 def detect_game() -> Path | None:
@@ -29,39 +42,62 @@ def _descriptor_value(text: str, key: str) -> str:
     return parse(text).scalar(key).strip()
 
 
-def active_mods(docs: Path) -> tuple[list[Path], list[str]]:
+def inspect_mods(docs: Path) -> dict:
+    """Read the local launcher's last selected mod set, not live process proof."""
     config = docs / 'dlc_load.json'
-    if not config.is_file():
-        return [], []
+    result = {'status': 'unavailable', 'source': str(config), 'basis': 'launcher_profile',
+              'items': [], 'roots': [], 'warnings': []}
     try:
-        items = json.loads(config.read_text(encoding='utf-8-sig')).get('enabled_mods', [])
+        value = json.loads(config.read_text(encoding='utf-8-sig'))
+        if not isinstance(value, dict) or not isinstance(value.get('enabled_mods'), list):
+            raise ValueError('enabled_mods deve essere un elenco')
+        items = value['enabled_mods']
     except (ValueError, OSError) as exc:
-        return [], [f'Impossibile leggere dlc_load.json: {exc}']
-    dirs: list[Path] = []
-    warnings: list[str] = []
+        result['warnings'].append(f'Impossibile leggere le mod da {config}: {exc}')
+        return result
     for item in items:
-        item = str(item).replace('\\', '/')
-        desc = docs / item
-        if not desc.is_file():
-            warnings.append(f'Descrittore mod non trovato: {item}')
+        entry = {'descriptor': str(item), 'name': str(item), 'path': None, 'status': 'unavailable', 'reason': ''}
+        result['items'].append(entry)
+        if not isinstance(item, str) or not item.strip():
+            entry['reason'] = 'Riferimento mod non valido nel profilo'
             continue
+        desc = docs / item.replace('\\', '/')
         try:
-            root = parse(desc.read_text(encoding='utf-8-sig', errors='replace'))
+            root = parse(desc.read_text(encoding='utf-8-sig'))
+            entry['name'] = root.scalar('name') or item
             location = root.scalar('path')
             if not location:
-                if root.scalar('archive'):
-                    warnings.append(f'Mod archivio ZIP non supportata: {item}')
+                entry['reason'] = ('Mod archivio ZIP non supportata' if root.scalar('archive') else 'Percorso mod assente')
                 continue
-            folder = Path(location)
+            folder = Path(location.replace('\\', '/')).expanduser()
             if not folder.is_absolute():
-                folder = (desc.parent / folder).resolve()
+                # Launcher paths such as mod/my_mod are relative to the HOI4
+                # user directory, not docs/mod/mod. Also accept a descriptor-local
+                # folder when unambiguous, for existing local mod installations.
+                candidates = list(dict.fromkeys(p.resolve() for p in (docs / folder, desc.parent / folder) if p.is_dir()))
+                if len(candidates) != 1:
+                    entry['reason'] = ('Percorso mod relativo ambiguo' if candidates else f'Cartella mod non trovata: {location}')
+                    continue
+                folder = candidates[0]
             if folder.is_dir():
-                dirs.append(folder)
+                entry.update(path=str(folder.resolve()), status='loaded')
             else:
-                warnings.append(f'Cartella mod non trovata: {folder}')
-        except (OSError, ValueError) as exc:
-            warnings.append(f'Mod non leggibile ({item}): {exc}')
-    return dirs, warnings
+                entry['reason'] = f'Cartella mod non trovata: {folder}'
+        except (OSError, ValueError, RecursionError) as exc:
+            entry['reason'] = f'Mod non leggibile: {exc}'
+    result['warnings'] = [f"{entry['descriptor']}: {entry['reason']}" for entry in result['items'] if entry['reason']]
+    for entry in result['items']:
+        if entry['status'] == 'loaded':
+            if entry['path'] in result['roots']:
+                result['roots'].remove(entry['path'])
+            result['roots'].append(entry['path'])
+    result['status'] = 'partial' if result['warnings'] else 'observed'
+    return result
+
+
+def active_mods(docs: Path) -> tuple[list[Path], list[str]]:
+    inventory = inspect_mods(docs)
+    return [Path(path) for path in inventory['roots']], inventory['warnings']
 
 
 def collect_files(game: Path, mod_dirs: list[Path], subdir: str, extension: str) -> tuple[list[Path], list[str]]:

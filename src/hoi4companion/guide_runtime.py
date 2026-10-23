@@ -285,7 +285,17 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
                 candidates['focus' if kind == 'select_focus' else 'research'].append(key)
     for kind in parallel:
         capacity = parallel[kind]['capacity']
-        parallel[kind]['steps'] = sorted(candidates[kind], key=ordering)[:capacity] if capacity is not None else []
+        # Several authored steps may refer to the same entity. Such a repeat
+        # cannot occupy a second native slot; keep looking for distinct choices.
+        seen = set()
+        for key in sorted(candidates[kind], key=ordering):
+            ref = definitions[key]['action']['entity']
+            identity = (ref.get('scope'), ref['id'])
+            if capacity is None or len(parallel[kind]['steps']) >= capacity:
+                break
+            if identity not in seen:
+                seen.add(identity)
+                parallel[kind]['steps'].append(key)
     return {'schema_version': 1, 'guide_id': guide.get('id', ''), 'run_id': run_id,
             'progress_status': progress_status, 'mode': mode, 'country': country,
             'steps': [results[step['key']] for _, step in rows], 'tracks': tracks,

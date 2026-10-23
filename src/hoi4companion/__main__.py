@@ -2,7 +2,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 from .api import Store, serve
-from .installation import detect_game, default_documents
 
 
 def main():
@@ -21,13 +20,11 @@ def main():
         suite = unittest.defaultTestLoader.discover(str(root / 'tests'))
         result = unittest.TextTestRunner(verbosity=2).run(suite)
         raise SystemExit(0 if result.wasSuccessful() else 1)
-    detected = detect_game()
-    docs = default_documents()
     overrides = {}
-    if args.game_dir or detected:
-        overrides['game_dir'] = str(Path(args.game_dir or detected))
-    if args.docs_dir or docs.is_dir():
-        overrides['docs_dir'] = str(Path(args.docs_dir or docs))
+    if args.game_dir:
+        overrides['game_dir'] = str(Path(args.game_dir))
+    if args.docs_dir:
+        overrides['docs_dir'] = str(Path(args.docs_dir))
     if args.snapshot:
         overrides['snapshot_path'] = args.snapshot
     if args.country:

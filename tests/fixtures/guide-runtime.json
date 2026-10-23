@@ -6678,5 +6678,582 @@
         "focus": []
       }
     }
+  },
+  {
+    "name": "research proposals fill 0 free slots with distinct entities",
+    "guide": {
+      "schema_version": 1,
+      "id": "slot-test",
+      "tracks": {
+        "research": [
+          {
+            "key": "first",
+            "folder": "engineering",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "A"
+              }
+            }
+          },
+          {
+            "key": "repeat",
+            "folder": "engineering",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "A"
+              }
+            }
+          },
+          {
+            "key": "second",
+            "folder": "industry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "B"
+              }
+            }
+          },
+          {
+            "key": "third",
+            "folder": "industry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "C"
+              }
+            }
+          },
+          {
+            "key": "fourth",
+            "folder": "infantry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "D"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [
+            "X"
+          ],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "technology_id": "X"
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "ready",
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "parallel": {
+        "research": []
+      }
+    }
+  },
+  {
+    "name": "research proposals fill 1 free slots with distinct entities",
+    "guide": {
+      "schema_version": 1,
+      "id": "slot-test",
+      "tracks": {
+        "research": [
+          {
+            "key": "first",
+            "folder": "engineering",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "A"
+              }
+            }
+          },
+          {
+            "key": "repeat",
+            "folder": "engineering",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "A"
+              }
+            }
+          },
+          {
+            "key": "second",
+            "folder": "industry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "B"
+              }
+            }
+          },
+          {
+            "key": "third",
+            "folder": "industry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "C"
+              }
+            }
+          },
+          {
+            "key": "fourth",
+            "folder": "infantry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "D"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [
+            "X"
+          ],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "technology_id": "X"
+            },
+            {
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "ready",
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "parallel": {
+        "research": [
+          "first"
+        ]
+      }
+    }
+  },
+  {
+    "name": "research proposals fill 3 free slots with distinct entities",
+    "guide": {
+      "schema_version": 1,
+      "id": "slot-test",
+      "tracks": {
+        "research": [
+          {
+            "key": "first",
+            "folder": "engineering",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "A"
+              }
+            }
+          },
+          {
+            "key": "repeat",
+            "folder": "engineering",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "A"
+              }
+            }
+          },
+          {
+            "key": "second",
+            "folder": "industry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "B"
+              }
+            }
+          },
+          {
+            "key": "third",
+            "folder": "industry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "C"
+              }
+            }
+          },
+          {
+            "key": "fourth",
+            "folder": "infantry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "D"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [
+            "X"
+          ],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "technology_id": "X"
+            },
+            {
+              "technology_id": null
+            },
+            {
+              "technology_id": null
+            },
+            {
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "ready",
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "parallel": {
+        "research": [
+          "first",
+          "second",
+          "third"
+        ]
+      }
+    }
+  },
+  {
+    "name": "unknown research capacity never invents slots",
+    "guide": {
+      "schema_version": 1,
+      "id": "slot-test",
+      "tracks": {
+        "research": [
+          {
+            "key": "first",
+            "folder": "engineering",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "A"
+              }
+            }
+          },
+          {
+            "key": "repeat",
+            "folder": "engineering",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "A"
+              }
+            }
+          },
+          {
+            "key": "second",
+            "folder": "industry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "B"
+              }
+            }
+          },
+          {
+            "key": "third",
+            "folder": "industry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "C"
+              }
+            }
+          },
+          {
+            "key": "fourth",
+            "folder": "infantry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "D"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [
+            "X"
+          ],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "unknown",
+          "value": null,
+          "source": ""
+        }
+      }
+    },
+    "expected": {
+      "statuses": [
+        "ready",
+        "ready",
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "parallel": {
+        "research": []
+      }
+    }
+  },
+  {
+    "name": "three free slots exclude already active guide research",
+    "guide": {
+      "schema_version": 1,
+      "id": "slot-test",
+      "tracks": {
+        "research": [
+          {
+            "key": "first",
+            "folder": "engineering",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "A"
+              }
+            }
+          },
+          {
+            "key": "repeat",
+            "folder": "engineering",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "A"
+              }
+            }
+          },
+          {
+            "key": "second",
+            "folder": "industry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "B"
+              }
+            }
+          },
+          {
+            "key": "third",
+            "folder": "industry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "C"
+              }
+            }
+          },
+          {
+            "key": "fourth",
+            "folder": "infantry",
+            "action": {
+              "kind": "research",
+              "entity": {
+                "kind": "technology",
+                "id": "D"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [
+            "A"
+          ],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "technology_id": "A"
+            },
+            {
+              "technology_id": null
+            },
+            {
+              "technology_id": null
+            },
+            {
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": {
+      "statuses": [
+        "active",
+        "active",
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "parallel": {
+        "research": [
+          "second",
+          "third",
+          "fourth"
+        ]
+      }
+    }
   }
 ]

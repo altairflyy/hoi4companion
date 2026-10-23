@@ -47,5 +47,74 @@ class ResearchSpriteTests(unittest.TestCase):
         self.tree['technologies'].append(self.tree['technologies'][0]|{'id':'another_level'})
         self.assertEqual(self.matcher.match(self.frame,self.proposals,self.ocr),[])
 
+    def test_non_centered_and_mixed_gui_icon_origins_are_respected(self):
+        # The artillery small-item GUI anchors its icon at the upper left,
+        # whereas other item templates center the sprite.
+        self.tree['technologies'][0]['visual']['icon']={'centered':False,'x':8,'y':8}
+        result=self.matcher.match(self.frame,self.proposals,self.ocr)
+        self.assertEqual(result[0]['rect'],[62,96,102,136])
+        for node in self.tree['technologies']:
+            node['visual']['icon']={'centered':False,'x':8,'y':8}
+        self.matcher.folders={}
+        self.assertEqual(self.matcher.match(self.frame,self.proposals,self.ocr)[0]['rect'],[62,96,102,136])
+
+    def test_dark_icon_discovery_uses_the_same_rgb_bound_as_admission(self):
+        rng=random.Random(18);icon=Image.new('RGBA',(24,24))
+        pixels=[tuple(rng.randrange(5,35) for _ in range(3))+(255,) for _ in range(576)]
+        icon.putdata(pixels);data=io.BytesIO();icon.save(data,format='PNG');self.assets['/api/sprite/0.png']=data.getvalue()
+        for delta,expected in ((10,1),(14,0)):
+            observed=Image.new('RGBA',icon.size);observed.putdata([tuple(v+delta for v in p[:3])+(255,) for p in pixels])
+            frame=self.frame.copy();frame.paste(observed,(70,104),observed)
+            self.assertEqual(len(self.matcher.match(frame,self.proposals,self.ocr)),expected)
+
+
+@unittest.skipUnless(find_spec('cv2') and find_spec('numpy'),'optional overlay sprite dependencies unavailable')
+class ResearchTabTests(unittest.TestCase):
+    def setUp(self):
+        rng=random.Random(7);self.assets={};folders=[]
+        self.frame=Image.new('RGB',(600,400),(30,30,30))
+        for index,x in enumerate((20,95,170,245)):
+            asset=Image.new('RGBA',(60,28))
+            asset.putdata([tuple(rng.randrange(40,240) for _ in range(3))+(255,) for _ in range(60*28)])
+            data=io.BytesIO();asset.save(data,format='PNG');url='/api/sprite/tab'+str(index)+'.png'
+            self.assets[url]=data.getvalue();self.frame.paste(asset,(x+10,40),asset)
+            folders.append({'id':str(index),'name':'Folder '+str(index),'tab':{'order':x,'sprite':{'url':url}}})
+        self.catalog={'folders':folders}
+        self.matcher=ResearchSprites(lambda path:self.catalog,lambda path:self.assets[path])
+        self.proposals=[{'key':'r'+str(i),'panel':'research','folder':str(i%2),'status':'ready'} for i in range(3)]
+
+    def test_two_folders_represent_three_research_choices_and_direct_nodes_take_over(self):
+        result=self.matcher.navigation(self.frame,self.proposals,[])
+        self.assertEqual([m['identity'] for m in result],['0','1'])
+        self.assertEqual([m['count'] for m in result],[2,1])
+        self.assertEqual(result[0]['rect'],[40,46,80,62])
+        self.assertEqual(result[0]['step_keys'],['r0','r2'])
+        self.assertEqual(result[0]['basis'],'tab_sprite_and_two_gui_peers')
+        nodes=[{'panel':'research','folder':'0'}]
+        self.assertEqual([m['identity'] for m in self.matcher.navigation(self.frame,self.proposals,nodes)],['1'])
+
+    def test_no_guidance_no_context_occlusion_duplicate_rows_and_external_urls(self):
+        self.assertEqual(self.matcher.navigation(self.frame,[],[]),[])
+        self.assertEqual(self.matcher.navigation(Image.new('RGB',self.frame.size),self.proposals,[]),[])
+        changed=self.frame.copy();changed.paste((0,0,0),(105,40,315,68))
+        self.assertEqual(self.matcher.navigation(changed,self.proposals,[]),[])
+        duplicate=Image.new('RGB',(1200,400));duplicate.paste(self.frame,(0,0));duplicate.paste(self.frame,(600,0))
+        self.assertEqual(self.matcher.navigation(duplicate,self.proposals,[]),[])
+        self.catalog['folders'][0]['tab']['sprite']['url']='https://example.invalid/icon.png'
+        self.matcher.tabs=None
+        self.assertNotIn('0',[m['identity'] for m in self.matcher.navigation(self.frame,self.proposals,[])])
+
+    def test_repeated_sprite_cannot_name_a_tab(self):
+        self.catalog['folders'].append(self.catalog['folders'][0]|{'id':'duplicate'})
+        self.assertNotIn('0',[m['identity'] for m in self.matcher.navigation(self.frame,self.proposals,[])])
+
+    def test_inactive_atlas_frame_is_used_instead_of_the_active_frame(self):
+        for folder in self.catalog['folders']:
+            tab=folder['tab'];tab['inactive_sprite']=tab['sprite']
+            tab['sprite']={'url':'/api/sprite/active.png'}
+        data=io.BytesIO();Image.new('RGBA',(60,28),'red').save(data,format='PNG')
+        self.assets['/api/sprite/active.png']=data.getvalue()
+        self.assertEqual(len(self.matcher.navigation(self.frame,self.proposals,[])),2)
+
 
 if __name__=='__main__':unittest.main()

@@ -37,6 +37,18 @@ altre modalità video, schermi, DPI e scale richiedono verifica.
 - Le indicazioni vengono proiettate dal **Guide Runtime**, con i suoi vincoli,
   dipendenze e slot paralleli. Non vengono reinterpretati il parlato o i tempi
   descritti nella guida. I promemoria non producono cornici.
+- Le nuove ricerche proposte sono tante quanti gli slot **liberi osservati**,
+  se la guida offre abbastanza azioni ammesse. Tecnologie ripetute non consumano
+  due posti; ricerche già avviate, dipendenze e dati sconosciuti non sono aggirati
+  per riempire il numero. La selezione vale su tutte le schede, non sulla sola
+  pagina aperta. I nodi nelle altre schede diventano visibili quando le si apre.
+- Per raggiungere una scheda, l'overlay riconosce il suo sprite **inattivo**
+  insieme a due altre icone della barra nella disposizione dichiarata dalla GUI.
+  La cornice delimita l'interno riconosciuto dell'icona, evitando i bordi coperti
+  dall'albero. Mostra nome della scheda e numero di suggerimenti contenuti;
+  più ricerche della stessa scheda condividono una cornice di navigazione.
+  Quando i nodi sono riconosciuti nella pagina aperta, prendono il posto della
+  relativa indicazione sulla scheda. Non si inventano posizioni fuori schermo.
 - Guida, nazione del runtime e nazione osservata devono corrispondere. Se manca
   l'identità osservata o lo stato live è inutilizzabile, non viene mostrato nulla.
 - Focus, ricerche con nome leggibile, leggi, consiglieri e produzioni: il nome
@@ -117,3 +129,27 @@ sull'ambiente locale con le dipendenze opzionali disponibili.
 **Restano da verificare nella partita:** opzioni evento, menu di leggi/personaggi
 e produzioni con istruzioni attive della guida; altri alberi tecnologici, scale e
 modalità video. Non sono dichiarati validati sulla sola base delle fixture.
+
+## Navigazione delle ricerche e capacità (23 ottobre 2026)
+
+Suite aggiornate: **351 Python e 226 JavaScript** superati, nessuno saltato;
+65 output completi delle fixture runtime identici fra Python e JavaScript.
+Coperti zero, uno e tre slot liberi, capacità sconosciuta, ricerche già attive,
+ID ripetuti, ordine del runtime fra schede diverse, raggruppamento dei pulsanti,
+immagini attive/inattive, occlusione e barre duplicate.
+Le icone dei nodi rispettano anche le origini non centrate dichiarate dalla GUI
+(per esempio Artiglieria). La scoperta dei candidati usa lo stesso errore RGB
+assoluto dell'ammissione, eliminando un filtro normalizzato che penalizzava
+icone scure; soglia finale e due riscontri indipendenti restano richiesti.
+
+Verificata nella partita reale POL la cornice sulla scheda **Artiglieria** mentre
+era aperta **Ingegneria**, con un solo slot libero osservato e le ricerche
+Attrezzature di base e Ingegneria elettro-meccanica già avviate. Prova composita
+reale: `.local/overlay-navigation-proof.png`; diagnostica:
+`.local/overlay-navigation-tab-verification.json`. Il caso di tre slot liberi
+è verificato con fixture, senza annullare ricerche o cambiare partita per provarlo.
+Aprendo Artiglieria è stata verificata la scomparsa dell'indicazione sulla scheda
+e la cornice sul nodo **Artiglieria Interguerra** (`r03`), con due riscontri GUI;
+prova composita `.local/overlay-navigation-node-proof.png` e diagnostica
+`.local/overlay-navigation-node-verification.json`. Nessuna ricerca selezionata.
+Companion riavviato conservando identità della campagna e run attivo.

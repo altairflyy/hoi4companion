@@ -133,7 +133,16 @@
   const focus=c.fact(context,'focus.active'),slots=c.fact(context,'research.slots');
   const capacity={focus:Array.isArray(focus.value)?(focus.value.length?0:1):null,research:Array.isArray(slots.value)?slots.value.filter(x=>!x.technology_id).length:null};
   const ready=steps.filter(x=>x.status==='ready'&&x.tracking!=='reminder').map(x=>x.key).sort(compare),parallel={};
-  for(const [lane,kind]of [['focus','select_focus'],['research','research']])parallel[lane]={capacity:capacity[lane],steps:capacity[lane]===null?[]:ready.filter(key=>candidates.has(key)&&definitions.get(key).action.kind===kind).slice(0,capacity[lane])};
+  for(const [lane,kind]of [['focus','select_focus'],['research','research']]){
+   const seen=new Set(),selected=[];
+   for(const key of ready){
+    if(capacity[lane]===null||selected.length>=capacity[lane])break;
+    if(!candidates.has(key)||definitions.get(key).action.kind!==kind)continue;
+    const ref=definitions.get(key).action.entity,identity=JSON.stringify([ref.scope??null,ref.id]);
+    if(!seen.has(identity)){seen.add(identity);selected.push(key);}
+   }
+   parallel[lane]={capacity:capacity[lane],steps:selected};
+  }
   return {schema_version:1,guide_id:guide.id||'',run_id:run.run_id,progress_status:run.status,mode,country,steps,tracks,ready,parallel};
  }
  const api={evaluate};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiGuideRuntime=api;

@@ -23,6 +23,7 @@
     <a class="nav" href="/technologies"><span>⚙</span> Ricerca tecnologica</a>
     <a class="nav" href="/country"><span>▦</span> Stato della nazione</a>
     <a class="nav" href="/walkthrough"><span>☷</span> Walkthrough</a>
+    <a class="nav" href="/importer"><span>＋</span> Importa guida</a>
     <button class="nav" id="navSettings"><span>⚙</span> Configurazione</button>
     <div class="navheading space-top">PANORAMICA</div>
     <div class="info-card"><span class="tiny-label">ALBERO SELEZIONATO</span><strong id="sideTree">—</strong><span class="muted" id="sideCount">—</span></div>
@@ -32,7 +33,7 @@
 
   <main class="main">
     <header class="topbar">
-      <nav class="crumb view-tabs" aria-label="Viste"><a href="/" aria-current="page">Focus nazionali</a> <span>/</span> <a href="/technologies">Tecnologie</a> <a href="/country">Nazione</a> <a href="/walkthrough">Walkthrough</a></nav>
+      <nav class="crumb view-tabs" aria-label="Viste"><a href="/" aria-current="page">Focus nazionali</a> <span>/</span> <a href="/technologies">Tecnologie</a> <a href="/country">Nazione</a> <a href="/walkthrough">Walkthrough</a> <a href="/importer">Importa guida</a></nav>
       <div class="top-actions"><span id="connection" class="connection">● Server locale</span><button id="reload" class="ghost-button" title="Ricarica dal disco">↻ Ricarica</button></div>
     </header>
     <div class="content">
@@ -47,6 +48,11 @@
         <ul id="dlcList"></ul>
         <p id="excludedSummary"></p>
         <ul id="excludedTrees"></ul>
+      </details>
+      <details class="dlc-panel" id="modsPanel" hidden>
+        <summary id="modsSummary">Mod del profilo HOI4</summary>
+        <p id="modsSource"></p><ul id="modsList"></ul>
+        <p>Questa è la selezione registrata dal launcher, non una verifica delle mod nella memoria del gioco. Dopo aver avviato HOI4 con il playset desiderato, premi «Ricarica» per rileggere mod e cataloghi. Per un profilo personalizzato imposta la cartella documenti in Configurazione.</p>
       </details>
       <section id="guideAssist" class="guide-assist" data-lane="focus" aria-label="Percorso guidato nei focus"></section>
       <section class="workspace">

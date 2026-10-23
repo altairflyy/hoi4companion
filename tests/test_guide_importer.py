@@ -27,6 +27,18 @@ ENTITIES = [{'kind': 'technology', 'id': 'basic_machine_tools', 'name': 'Basic M
 
 
 class ImportTests(unittest.TestCase):
+    def test_importing_another_guide_keeps_existing_guides(self):
+        src = source()
+        with TemporaryDirectory() as root:
+            importer = Importer(lambda: ENTITIES, root)
+            first = definition(src)
+            second = copy.deepcopy(first)
+            second.update(id='another-country-guide', title='Another guide')
+            importer.install(first, [src], reviewed=True)
+            importer.install(second, [src], reviewed=True)
+            self.assertEqual({g['id'] for g in list_guides(Path(root))}, {first['id'], second['id']})
+            self.assertEqual(load_guide(second['id'], directory=Path(root))['title'], second['title'])
+
     def test_resolves_unique_names_without_mutation_and_reuses_v1(self):
         src = source(); guide = definition(src); before = copy.deepcopy(guide)
         result = preview(guide, [src], ENTITIES)

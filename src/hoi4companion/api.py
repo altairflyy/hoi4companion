@@ -10,7 +10,7 @@ from threading import RLock
 from uuid import uuid4
 from urllib.parse import urlparse, unquote, parse_qs
 from .focus import evaluate, load_trees
-from .installation import collect_files, active_mods, load_localisations
+from .installation import collect_files, inspect_mods, load_localisations, detect_game, default_documents
 from .state import read_snapshot
 from .dlc import discover_dlcs
 from .eligibility import filter_trees, load_scripted_triggers
@@ -50,6 +50,14 @@ class Store:
                 pass
         if overrides:
             self.settings.update({k: v for k, v in overrides.items() if v is not None and k in self.settings})
+        # Explicit/persisted paths win over discovery, including a custom HOI4
+        # profile. Discovery only fills empty settings for this installation.
+        if not self.settings['game_dir']:
+            detected = detect_game()
+            if detected:
+                self.settings['game_dir'] = str(detected)
+        if not self.settings['docs_dir']:
+            self.settings['docs_dir'] = str(default_documents())
         self.trees: dict = {}
         self.warnings: list[str] = []
         self.demo = True
@@ -90,6 +98,8 @@ class Store:
             self.dlcs = None
             self.excluded_trees = []
             self.sprites = None
+            self.mod_inventory = {'status': 'off' if config['mods'] == 'off' else 'unavailable',
+                                  'source': '', 'basis': 'launcher_profile', 'items': [], 'roots': [], 'warnings': []}
             self.technologies = {'folders': {}, 'technologies': {}, 'warnings': [], 'excluded_folders': []}
             self.technology_visuals = {'templates': {}, 'folders': {}}
             self.operation_entities = []
@@ -101,8 +111,9 @@ class Store:
                 warnings.append('Modalità dimostrativa: nessun file HOI4 reale caricato.')
             else:
                 if config['mods'] == 'auto' and config['docs_dir']:
-                    mods, warns = active_mods(Path(config['docs_dir']).expanduser())
-                    warnings += warns
+                    self.mod_inventory = inspect_mods(Path(config['docs_dir']).expanduser())
+                    mods = [Path(path) for path in self.mod_inventory['roots']]
+                    warnings += self.mod_inventory['warnings']
                 files, warns = collect_files(game, mods, 'common/national_focus', '.txt')
                 warnings += warns
                 labels, reference_labels = load_localisations(game, mods, config['language'])
@@ -172,6 +183,7 @@ class Store:
                 'settings': self.settings.copy(), 'demo': self.demo,
                 'warnings': self.warnings[:70],
                 'dlcs': self.dlcs.to_json() if self.dlcs else None,
+                'mods': getattr(self, 'mod_inventory', None),
                 'excluded_trees': self.excluded_trees,
                 'tree_filter': 'initial_dlc_compatibility' if not self.demo else 'demo',
                 'trees': [{'id': x.id, 'count': len(x.focuses), 'source': x.source, 'countries': x.eligible_countries}
@@ -462,7 +474,8 @@ class Store:
             for folder in self.technologies['folders'].values():
                 item = {k: v for k, v in folder.items() if k != 'technologies'} | {'count': len(folder['technologies'])}
                 if folder.get('tab'):
-                    item['tab'] = {**folder['tab'], 'sprite': self.sprites.resolve(folder['tab']['sprite_name']) if self.sprites else None}
+                    item['tab'] = {**folder['tab'], 'sprite': self.sprites.resolve(folder['tab']['sprite_name']) if self.sprites else None,
+                                   'inactive_sprite': self.sprites.resolve(folder['tab']['sprite_name'],2) if self.sprites else None}
                 folders.append(item)
             return {'folders': folders,
                     'excluded_folders': self.technologies['excluded_folders'],
