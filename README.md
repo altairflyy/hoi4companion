@@ -42,6 +42,11 @@ Altri argomenti: `--docs-dir`, `--snapshot`, `--country AUS`, `--port 8766`, `--
 
 ## Funzionalità disponibili
 
+- **Evidenziazioni sopra HOI4**: launcher Windows `avvia-overlay.vbs`, cornici
+  trasparenti ai clic guidate dal runtime, riconoscimento dei nomi e dei nodi
+  tecnologici a icona tramite sprite locali. Sperimentale: copertura, avvio,
+  prove reali e limiti in [docs/native-overlay.md](docs/native-overlay.md).
+
 - **Guide Importer MVP** (`/importer`): prompt completo da dare alla propria
   IA insieme alla guida; importazione diretta del file restituito, risoluzione ID, citazioni,
   anteprima modificabile ed esportazione/installazione di guide v1.
@@ -235,7 +240,7 @@ per attribuire ricerche completate. Le dottrine del nuovo sistema restano fuori 
 
 Il repository dispone di una suite completa di test automatizzati per il backend Python e per i modelli frontend:
 
-### Test Python (315 test)
+### Test Python (327 test)
 Tramite lo script batch (Windows):
 ```cmd
 test.bat
@@ -261,7 +266,8 @@ Il server locale è vincolato all'interfaccia di loopback `127.0.0.1` e non espo
 
 - **Licenza del codice:** [MIT License](LICENSE).
 - **Verifica delle dipendenze di terze parti:**
-  - L'unica dipendenza esterna di terze parti a runtime è **Pillow** (`Pillow>=12.3,<13`), concessa con licenza open source **HPND / PIL Software License**, licenza ampiamente permissiva e pienamente compatibile con la licenza MIT.
+  - L'unica dipendenza esterna obbligatoria di terze parti a runtime è **Pillow** (`Pillow>=12.3,<13`), concessa con licenza open source **HPND / PIL Software License**, licenza ampiamente permissiva e pienamente compatibile con la licenza MIT.
+  - Per l'overlay nativo opzionale (riconoscimento nodi tecnologici senza testo tramite sprite), l'extra facoltativo `overlay` utilizza **opencv-python-headless** (`opencv-python-headless>=4.10,<6`), distribuito con licenza open source **Apache 2.0**, anch'essa pienamente compatibile con MIT.
   - Il resto del software adotta esclusivamente la libreria standard di Python 3.11+, standard web ECMAScript / CSS nativo, e Node.js built-in (`node:test` / `node:assert`) per i test di modello.
   - Nessuna dipendenza impone vincoli copyleft (GPL) o clausole proprietarie incompatibili.
 - **Nessun asset proprietario ridistribuito:** Il repository non contiene file `.hoi4`, texture DDS/TGA, audio o script proprietari di Paradox Interactive. Tutte le risorse grafiche originali vengono estratte dinamicamente e memorizzate solo in locale nella cache dell'utente.
