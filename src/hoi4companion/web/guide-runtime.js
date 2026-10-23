@@ -41,6 +41,13 @@
   const started=Object.hasOwn(input,'started')?input.started:{};
   if(!started||typeof started!=='object'||Array.isArray(started)||Object.values(started).some(x=>typeof x!=='boolean'))throw Error('Avvii della partita non validi');
   if(input.guide_id!==(guide.id||''))return {status:'wrong_guide',run_id:null,checks:{},started:{}};
+  if(input.campaign_required&&!input.campaign_id)return {status:'campaign_unverified',run_id:null,checks:{},started:{}};
+  if(input.campaign_id!==undefined&&input.campaign_id!==null){
+   if(typeof input.campaign_id!=='string'||!/^hoi4:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}$/.test(input.campaign_id)||input.campaign_id.split(':')[1]==='00000000-0000-0000-0000-000000000000')throw Error('Campagna della partita non valida');
+   const observed=state.facts['campaign.id'];
+   if(!state.usable||observed?.status!=='observed'||!observed.source)return {status:'campaign_unverified',run_id:null,checks:{},started:{}};
+   if(observed.value!==input.campaign_id||input.country!==c.fact(state,'country').value)return {status:'wrong_campaign',run_id:null,checks:{},started:{}};
+  }
   if(input.session_id&&!state.usable)return {status:'session_unverified',run_id:null,checks:{},started:{}};
   if(input.session_id&&input.session_id!==state.session_id)return {status:'wrong_session',run_id:null,checks:{},started:{}};
   const operations=new Set(Object.values(guide.tracks).flat().filter(step=>['manual','special_project'].includes(step.action.kind)&&step.tracking!=='reminder').map(step=>step.key));

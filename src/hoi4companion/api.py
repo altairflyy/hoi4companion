@@ -7,6 +7,7 @@ import mimetypes
 import time
 from pathlib import Path
 from threading import RLock
+from uuid import uuid4
 from urllib.parse import urlparse, unquote, parse_qs
 from .focus import evaluate, load_trees
 from .installation import collect_files, active_mods, load_localisations
@@ -64,12 +65,17 @@ class Store:
         self.guide_checks = {}
         self.guide_revision = 0
         self.guide_states = {}
-        self.guide_runs = RunStore()
+        self.guide_server_id=uuid4().hex
+        self.progress_error=''
+        try:self.guide_runs=RunStore(path=SETTINGS.with_name('guide-progress.sqlite3'))
+        except ValueError as exc:
+            self.guide_runs=RunStore();self.progress_error=str(exc)
         try:
             self.default_guide_id = default_guide_id()
         except (OSError, ValueError):
             # Optional content must never prevent the live framework starting.
             self.default_guide_id = None
+        self._sync_progress()
         self.live_hub = LiveEventHub(lambda: self.live_state(force=True), interval=.25,
                                      on_idle=self.live_idle)
         self.refresh()
@@ -270,12 +276,37 @@ class Store:
                     'guide_baselines': {key: self._progress_store().get(key).get('baselines', {})
                                         for key in self._progress_store().metadata()},
                     'guide_runs': self._progress_store().metadata(),
+                    'guide_server_id':self._server_identity(),
+                    'guide_storage':self._storage_status(),
                     'guide_revision': getattr(self,'guide_revision',0)}
 
     def _progress_store(self):
         if not hasattr(self, 'guide_runs'):
             self.guide_runs = RunStore()
         return self.guide_runs
+
+    def _server_identity(self):
+        if not hasattr(self,'guide_server_id'):self.guide_server_id=uuid4().hex
+        return self.guide_server_id
+
+    def _storage_status(self):
+        error=getattr(self,'progress_error','')
+        return {'status':'unavailable' if error else 'persistent' if self._progress_store()._database else 'memory',
+                'error':error}
+
+    def _write_guard(self,update,current):
+        if getattr(self,'progress_error',''):raise ValueError(self.progress_error)
+        if current.get('campaign_id'):
+            from .campaign import observed_id
+            cached=getattr(self,'live_cache',None) or {}
+            sample=(cached.get('sample') or {}) if cached.get('usable') else {}
+            if observed_id(sample)!=current['campaign_id'] or sample.get('country')!=current.get('country'):
+                raise ValueError('Identità della campagna non verificata: avanzamento sospeso')
+        if 'server_id' in update and update['server_id']!=self._server_identity():raise ValueError('Server riavviato: ricarica l’avanzamento prima di confermare')
+        if 'expected_run_id' in update and update['expected_run_id']!=current['run_id']:raise ValueError('Campagna o checklist cambiata: ricarica prima di confermare')
+        if 'expected_revision' in update and (type(update['expected_revision']) is not int or update['expected_revision']!=current.get('run_revision',0)):
+            raise ValueError('Avanzamento aggiornato da un’altra vista: ricarica prima di confermare')
+        return {k:v for k,v in update.items() if k not in ('server_id','expected_run_id','expected_revision')}
 
     def _sync_progress(self):
         runs = self._progress_store()
@@ -286,18 +317,33 @@ class Store:
             self.guide_states[guide_id] = checks
             if guide_id == getattr(self, 'default_guide_id', None):
                 self.guide_checks = checks.copy()
+        self._progress_synced=True
 
     def _bind_progress(self):
-        # Consumer metadata only: never acquire or infer a native identity here.
+        # Consume only witnessed native identity; never infer it from a tag/date.
         cached = getattr(self, 'live_cache', None)
-        session = (cached.get('sample') or {}).get('session_id') if cached and cached.get('usable') else None
-        if self._progress_store().bind(session):
-            self._sync_progress()
-            self.guide_revision = getattr(self, 'guide_revision', 0) + 1
-        if session:
-            for guide_id in self._progress_store().metadata():
-                if self._progress_store().observe(load_guide(guide_id), cached):
-                    self.guide_revision = getattr(self, 'guide_revision', 0) + 1
+        sample=(cached.get('sample') or {}) if cached and cached.get('usable') else {}
+        session=sample.get('session_id')
+        if getattr(self,'progress_error',''):return
+        from .campaign import observed_id
+        from .progress_storage import ProgressStorageError
+        try:
+            campaign=observed_id(sample)
+            changed=(self._progress_store().bind_campaign(campaign,sample.get('country'),session,sample.get('native_tick'))
+                     if campaign else self._progress_store().bind(session))
+            if changed or not getattr(self,'_progress_synced',False):
+                self._sync_progress()
+            if changed:
+                self.guide_revision=getattr(self,'guide_revision',0)+1
+            if session:
+                for guide_id in self._progress_store().metadata():
+                    try:definition=load_guide(guide_id)
+                    except (OSError,ValueError):continue
+                    if self._progress_store().observe(definition,cached):
+                        self.guide_revision=getattr(self,'guide_revision',0)+1
+        except ProgressStorageError as exc:
+            self.progress_error=str(exc)
+            self.guide_revision=getattr(self,'guide_revision',0)+1
 
     def _ensure_progress(self, guide_id):
         default_id = getattr(self, 'default_guide_id', None) or default_guide_id()
@@ -314,6 +360,7 @@ class Store:
             if update is not None:
                 if not isinstance(update, dict):
                     raise ValueError('Avanzamento della partita non valido')
+                update=self._write_guard(update,runs.get(guide['id']))
                 if update == {}:
                     runs.create(guide['id'], runs.get(guide['id'])['session_id'])
                 elif set(update) == {'run_id'}:
@@ -336,7 +383,9 @@ class Store:
                     raise ValueError('Operazione sulla partita non riconosciuta')
                 self._sync_progress()
                 self.guide_revision = getattr(self, 'guide_revision', 0) + 1
-            return {**runs.get(guide['id'], run_id), 'revision': getattr(self, 'guide_revision', 0)}
+            return {**runs.get(guide['id'], run_id), 'revision': getattr(self, 'guide_revision', 0),
+                    'server_id':self._server_identity(),'history':runs.history(guide['id']),
+                    'storage':self._storage_status()}
 
     def walkthrough_runtime(self, guide_id=None, run_id=None):
         with self.lock:
@@ -352,6 +401,7 @@ class Store:
             self._ensure_progress(guide['id'])
             current = self._progress_store().get(guide['id'])['checks']
             if update is not None:
+                self._write_guard({},self._progress_store().get(guide['id']))
                 current = update_checks(guide,current,update)
                 self._progress_store().update(guide['id'], current,
                                               started={} if update == {'reset': True} else None)

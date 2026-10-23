@@ -43,6 +43,8 @@
   const s=value?.usable===true&&value.sample&&typeof value.sample==='object'&&!Array.isArray(value.sample)?value.sample:{};
   const source=value?.source||'process_memory',f={};
   f.country=known(s.country,source);f['focus.tree']=known(s.focus_tree_id,'legacy_adapter',true);
+  const campaign=s.campaign_identity;
+  if(campaign?.status==='observed'&&campaign.source==='native_game_unique_id_and_seed'&&typeof campaign.id==='string'&&/^hoi4:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}$/.test(campaign.id)&&campaign.id.split(':')[1]!=='00000000-0000-0000-0000-000000000000')f['campaign.id']=known(campaign.id,campaign.source);
   f['focus.completed']=s.focus_complete===false?unknown():known(s.completed_focuses,source);
   f['research.completed']=s.research_complete===false?unknown():known(s.researched_technologies,source);
   f['focus.active']=Object.hasOwn(s,'current_focus')?known(s.current_focus?[s.current_focus]:[],source):unknown();

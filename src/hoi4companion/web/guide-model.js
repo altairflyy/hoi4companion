@@ -7,7 +7,7 @@
  const settled=row=>row.runtime_status==='completed'||row.runtime_reason==='skip_condition_true';
  function evaluate(input,value,local={}){
   const guide=c.guide(input),state=c.state(value);
-  const progress=local.progress||{schema_version:1,guide_id:guide.id||'',run_id:local.run_id||'legacy',session_id:local.session_id||null,checks:local.checks||{},started:local.started||{},baselines:local.baselines||{}};
+  const progress=local.progress||{schema_version:1,guide_id:guide.id||'',run_id:local.run_id||'legacy',session_id:local.session_id||null,checks:local.checks||{},started:local.started||{},baselines:local.baselines||{},...(local.campaign_id?{campaign_id:local.campaign_id,country:local.country}:{}),...(local.campaign_required?{campaign_required:true}:{})};
   const result=runtime.evaluate(guide,state,progress),byKey=new Map(result.steps.map(row=>[row.key,row]));
   function row(step,index){
    const decision=byKey.get(step.key),kind=step.action.kind;

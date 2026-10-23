@@ -60,6 +60,14 @@
   $('guideSelect').disabled=value.pending>0;$('reset').disabled=value.pending>0;links();
   $('mode').textContent={live:'Percorso collegato · '+(view.country||'partita corrente'),preview:'Anteprima della guida',wrong_country:'Guida sospesa · nazione diversa',wrong_tree:'Guida sospesa · albero diverso'}[view.mode];
   $('modeNote').textContent=view.mode==='live'?'Focus e ricerche si aggiornano nei rispettivi alberi. Le operazioni con criteri live avanzano automaticamente; i promemoria restano consultabili senza conferme. Conferma solo i criteri non osservabili.':'Le istruzioni restano consultabili. Senza una partita compatibile non viene dedotto alcun avanzamento.';
+  const p=value.progress,storage=p.storage||{},campaign=p.campaign_id;
+  $('campaignStatus').textContent=storage.error?'Avanzamento non salvato: '+storage.error:
+   ['wrong_campaign','campaign_unverified'].includes(view.progress_status)?'Avanzamento sospeso: la campagna salvata non corrisponde a un’identità live verificata.':
+   (campaign?'Campagna '+p.country+' · '+campaign.split(':')[1].slice(0,8)+' · ':'Identità della campagna non verificata · ')+
+   (storage.status==='persistent'?'Avanzamento salvato su questo PC.':'Avanzamento temporaneo.');
+  const history=(p.history||[]).filter(row=>row.campaign_id===campaign&&row.country===p.country);
+  $('runHistory').replaceChildren(...history.map((row,index)=>{const option=el('option','',`Checklist ${index+1} · ${row.run_id.slice(0,8)}${row.run_id===p.run_id?' · attuale':''}${row.branch_reason==='timeline_rewind'?' · dopo caricamento precedente':''}`);option.value=row.run_id;return option;}));
+  $('runHistory').value=p.run_id;$('restoreHistory').disabled=value.pending>0||!history.length;$('refreshHistory').disabled=value.pending>0;
   const allRows=value.view.operations,rows=allRows.filter(r=>r.tracking!=='reminder'),done=rows.filter(r=>r.runtime_status==='completed').length,active=rows.filter(r=>r.runtime_status==='active').length;$('operationProgress').textContent=done+'/'+rows.length;$('operationActive').textContent=active?active+' in corso':'';
   const eligible=rows.filter(row=>!['completed','not_applicable','waiting','active'].includes(row.runtime_status));
   const upcoming=rows.find(row=>row.event_observation?.visible===true&&!['completed','not_applicable'].includes(row.runtime_status))||eligible.find(row=>!['dependency_unknown','phase_condition_unknown','condition_unknown','live_state_unavailable'].includes(row.runtime_reason))||eligible[0];
@@ -75,5 +83,7 @@
  $('guideSelect').onchange=()=>window.hoiGuide.select($('guideSelect').value);
  $('hideDone').onchange=()=>render(value);
  $('reset').onclick=async()=>{try{undo=await window.hoiGuide.newRun();const box=$('resetNotice');box.replaceChildren(document.createTextNode('Nuova checklist. '));const b=el('button','','Annulla');b.type='button';b.onclick=async()=>{if(!undo||value.pending)return;await window.hoiGuide.restore(undo);undo=null;box.hidden=true;};box.append(b);box.hidden=false;}catch{}};
+ $('refreshHistory').onclick=()=>window.hoiGuide.refreshProgress().catch(()=>{});
+ $('restoreHistory').onclick=()=>window.hoiGuide.restore({run_id:$('runHistory').value}).catch(()=>{});
  window.hoiGuide.subscribe(render);
 })();

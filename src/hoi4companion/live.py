@@ -349,7 +349,13 @@ def read_native_state(process, *, watch_plan=None):
             ranges += [(pointer, 8), (pointer + 0x158, 32)]
         watched = {(address, size): sample.read(address, size) for address, size in ranges}
     overview = None
+    campaign = None
     if process.profile.sha256 == SUPPORTED_HASH:
+        from .campaign import read_campaign
+        previous_witnesses=set(sample.witnesses)
+        campaign = read_campaign(sample,world)
+        if watch_plan is not None:
+            watched.update({key:sample.witnesses[key] for key in sample.witnesses.keys()-previous_witnesses})
         from .country import collect_country
         overview = collect_country(process, world, country, native_tag, tag, watch_plan)
     sample.verify()
@@ -359,6 +365,7 @@ def read_native_state(process, *, watch_plan=None):
         watch_plan.update(watched)
     return {'session_id': f'{process.pid}:{process.created}:{world:x}:{country:x}',
             'pid': process.pid, 'executable_sha256': process.profile.sha256,
+            **({'campaign_identity':campaign} if campaign is not None else {}),
             **({'country_overview': overview} if overview is not None else {}),
             'country': tag, 'native_tick': tick,
             'country_identity_validation': 'primary_selector_and_country_map',
