@@ -12,7 +12,7 @@ class GuideProgressTests(unittest.TestCase):
     def test_ensure_imports_legacy_once_and_preserves_false(self):
         first = self.store.ensure('one', {'done': True, 'pending': False, 'invalid': 1})
         self.assertEqual(first, {'schema_version': 1, 'guide_id': 'one', 'run_id': 'run-1',
-                                 'session_id': None, 'checks': {'done': True, 'pending': False}, 'started': {}})
+                                 'session_id': None, 'checks': {'done': True, 'pending': False}, 'started': {},'run_revision':0})
         self.assertNotIn('unknown', first['checks'])
         self.assertEqual(self.store.ensure('one', {'replacement': True}), first)
 
@@ -39,7 +39,7 @@ class GuideProgressTests(unittest.TestCase):
         changed['checks']['extra'] = True
         self.assertEqual(self.store.get('one')['checks'], {'done': False})
         metadata = self.store.metadata()
-        self.assertEqual(metadata['one'], {'schema_version': 1, 'guide_id': 'one', 'run_id': 'run-1', 'session_id': None})
+        self.assertEqual(metadata['one'], {'schema_version': 1, 'guide_id': 'one', 'run_id': 'run-1', 'session_id': None,'run_revision':1})
         metadata['one']['run_id'] = 'tampered'
         self.assertEqual(self.store.metadata()['one']['run_id'], 'run-1')
 

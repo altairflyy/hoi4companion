@@ -55,6 +55,17 @@ def _progress(guide, state, value):
         raise ValueError('Sessione della partita non valida')
     if value['guide_id'] != guide.get('id', ''):
         return 'wrong_guide', None, {}, {}
+    campaign=value.get('campaign_id')
+    if value.get('campaign_required') and campaign is None:
+        return 'campaign_unverified',None,{},{}
+    if campaign is not None:
+        from .campaign import valid_id
+        if not valid_id(campaign):raise ValueError('Campagna della partita non valida')
+        observed=state['facts'].get('campaign.id',{})
+        if not state['usable'] or observed.get('status')!='observed' or not observed.get('source'):
+            return 'campaign_unverified',None,{},{}
+        if observed.get('value')!=campaign or value.get('country')!=_value(state,'country'):
+            return 'wrong_campaign',None,{},{}
     if binding is not None:
         if not state['usable']:
             return 'session_unverified', None, {}, {}

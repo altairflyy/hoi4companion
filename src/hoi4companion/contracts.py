@@ -198,6 +198,11 @@ class GuideProgress(TypedDict):
     guide_id: str
     run_id: str
     session_id: NotRequired[str | None]
+    campaign_id: NotRequired[str]
+    campaign_required: NotRequired[bool]
+    country: NotRequired[str]
+    last_tick: NotRequired[int]
+    run_revision: NotRequired[int]
     checks: NotRequired[dict[str, bool]]
     started: NotRequired[dict[str, bool]]
     baselines: NotRequired[dict[str, OperationBaseline]]
@@ -406,6 +411,9 @@ def normalise_state(value: dict) -> LiveState:
     def put(key, data, known=True, calculated=False, reason='Campo non osservato'):
         facts[key] = fact(data, 'calculated' if calculated else 'observed', source if not calculated else 'legacy_adapter') if known and data is not None and _valid_fact_type(key, data) else fact(reason=reason)
     put('country', sample.get('country'))
+    from .campaign import observed_id
+    campaign_id=observed_id(sample)
+    if campaign_id:facts['campaign.id']=fact(campaign_id,'observed','native_game_unique_id_and_seed')
     put('focus.tree', sample.get('focus_tree_id'), calculated=True)
     put('focus.completed', sample.get('completed_focuses'), sample.get('focus_complete') is not False)
     put('research.completed', sample.get('researched_technologies'), sample.get('research_complete') is not False)

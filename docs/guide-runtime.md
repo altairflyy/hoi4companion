@@ -121,14 +121,14 @@ La vista e l'HUD mostrano i sei stati e la provenienza del completamento.
 
 `RunStore` assegna gli ID nella composizione, separata dal motore puro. Importa
 le checklist precedenti una volta, conserva lo storico, protegge gli snapshot e
-ruota le partite al cambio di sessione osservata. Nuova checklist/Annulla nella
-vista usa questi snapshot. I progressi e lo storico restano **in memoria**:
-riavviare il server li perde, come avveniva per le checklist precedenti.
+associa le partite alla campagna nativa e alla nazione. Nuova checklist/Annulla
+nella vista usa questi snapshot. Dal 23 ottobre progressi e storico sono
+persistiti in SQLite e ripristinati dopo il riavvio del server.
 
-La sessione nativa non è un'identità affidabile del salvataggio/campagna: un
-caricamento che riusa processo, paese e indirizzi può non essere distinto.
-Usare Nuova checklist per una nuova campagna; il controller separa anche i
-rollback osservabili, ma nessuna euristica certifica tutti i caricamenti.
+UUID e seed nativi distinguono la campagna dalla sessione tecnica del processo.
+Il server riconcilia cambi e rewind osservati, conservando le checklist precedenti;
+il browser non effettua reset autonomi. Copie di salvataggi con la stessa identità
+nativa mantengono i limiti descritti in [campaign-progress.md](campaign-progress.md).
 
 ## Verifica e limiti
 
@@ -157,14 +157,16 @@ calcolano lo stesso risultato. La vista mostra conteggio corrente, iniziale e ta
 Esempio: 5 iniziali + 2 richieste → target 7. Coda presente: in corso; coda
 annullata e totale 5 o 6: incompleta; totale osservato almeno 7: completata.
 La baseline non cambia quando l'ordine viene annullato e ripreso. La creazione di
-una nuova checklist o il cambio sessione la separa dalla partita precedente.
+una nuova checklist o il cambio campagna/nazione la separa dalla partita precedente.
 Il criterio misura il totale netto nella regione, non la provenienza causale
 di ogni nuovo edificio.
 
 Limiti: se il primo campione arriva dopo l'avvio della costruzione, il conteggio
 originario resta sconosciuto; non viene ricostruito dai lavori rimasti in coda.
-Come gli altri progressi, le baseline sono in memoria e si perdono al riavvio
-del server. Restano applicabili i limiti sull'identità della campagna descritti sopra.
+Dal 23 ottobre le baseline e gli altri progressi sono persistiti su disco e
+associati alla campagna nativa e alla nazione. Vedi
+[avanzamento per campagna](campaign-progress.md) per riconciliazione, storico,
+prove reali e limiti dei rami di salvataggio.
 
 Verifica 22 ottobre 2026: fixture condivise Python/JavaScript, API HTTP reali con
 acquisizione simulata e browser reale su server fixture isolato hanno verificato

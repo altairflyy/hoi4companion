@@ -50,6 +50,7 @@ export type ConstructionBaseline = OperationBaseline;
 export type GuideProgress = {
   schema_version: 1; guide_id: string; run_id: string;
   session_id?: string|null; checks?: Record<string, boolean>; started?: Record<string, boolean>;
+  campaign_id?: string; campaign_required?: boolean; country?: string; last_tick?: number; run_revision?: number;
   baselines?: Record<string, OperationBaseline>;
 };
 export type StepStatus = 'completed'|'active'|'ready'|'waiting'|'not_applicable'|'unverifiable';
