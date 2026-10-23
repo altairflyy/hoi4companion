@@ -10,6 +10,6 @@ if %errorlevel% equ 0 (
 )
 if errorlevel 1 (
     echo.
-    echo Impossibile avviare HOI4 Companion. Installa Python 3.11 o superiore.
+    echo Avvio fallito. Controlla il messaggio precedente per Python, dipendenze o parser Rust.
     pause
 )

@@ -1,0 +1,19 @@
+[package]
+name = "hoi4companion-parser"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[lib]
+name = "hoi4companion_parser"
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "hoi4-parser-cli"
+path = "src/main.rs"
+
+[dependencies]
+jomini = { version = "=0.37.2", default-features = false, features = ["derive", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

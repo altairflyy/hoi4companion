@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from .clausewitz import Node, parse
+from .clausewitz import Node
+from .jomini_parser import parse_file
 from .tooltips import localise, focus_tooltips
 
 
@@ -60,27 +61,31 @@ class Tree:
 
 
 def _build_focus(node: Node, labels: dict[str, str], source: str) -> Focus | None:
-    focus_id = node.scalar('id')
+    fields = node.projection if node.projection and node.projection.get('kind') == 'focus' else None
+    def scalar(key):
+        return (fields.get(key) or '') if fields is not None else node.scalar(key)
+    focus_id = scalar('id')
     if not focus_id:
         return None
-    prerequisites = []
-    for block in node.blocks('prerequisite'):
-        group = _refs(block, 'focus')
-        if group:
-            prerequisites.append(group)
-    mutex = [reference for block in node.blocks('mutually_exclusive') for reference in _refs(block, 'focus')]
+    prerequisites = fields['prerequisites'] if fields else []
+    if fields is None:
+        for block in node.blocks('prerequisite'):
+            group = _refs(block, 'focus')
+            if group:
+                prerequisites.append(group)
+    mutex = fields['mutually_exclusive'] if fields else [reference for block in node.blocks('mutually_exclusive') for reference in _refs(block, 'focus')]
     filt = node.first('search_filters')
     filters = [value for key, value in filt.entries if key == '' and isinstance(value, str)] if isinstance(filt, Node) else []
     variants = []
-    icon = node.scalar('icon')
+    icon = scalar('icon')
     for block in node.blocks('icon'):
         variants.extend(k for k, v in block.entries if k.startswith('GFX_'))
     return Focus(
         id=focus_id, name=localise(labels.get(focus_id, focus_id), labels),
         description=localise(labels.get(focus_id+'_desc', ''), labels), icon=icon,
-        x=_num(node.scalar('x'), 0), y=_num(node.scalar('y'), 0),
-        relative_to=node.scalar('relative_position_id'),
-        cost=_num(node.scalar('cost'), 10), prerequisites=prerequisites,
+        x=_num(scalar('x'), 0), y=_num(scalar('y'), 0),
+        relative_to=scalar('relative_position_id'),
+        cost=_num(scalar('cost'), 10), prerequisites=prerequisites,
         mutually_exclusive=list(dict.fromkeys(mutex)),
         has_conditions=bool(node.blocks('available') or node.blocks('allow_branch') or node.blocks('visible')),
         has_bypass=bool(node.blocks('bypass')), filters=filters, source=source,
@@ -124,7 +129,7 @@ def load_trees(files: list[Path], labels: dict[str, str]) -> tuple[dict[str, Tre
     warnings: list[str] = []
     for filename in files:
         try:
-            root = parse(filename.read_text(encoding='utf-8-sig', errors='replace'))
+            root = parse_file(filename)
         except (OSError, ValueError, RecursionError) as exc:
             warnings.append(f'File ignorato: {filename.name} ({exc})')
             continue

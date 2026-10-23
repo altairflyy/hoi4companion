@@ -1,0 +1,10 @@
+include native/parser/Cargo.toml native/parser/Cargo.lock
+recursive-include native/parser/src *.rs
+recursive-include native/parser/tests *.rs
+include scripts/build-parser.ps1
+include scripts/legacy_clausewitz.py scripts/compare-parsers.py scripts/compare-parser-catalogs.py
+recursive-include tests *.py *.cjs *.json *.txt
+recursive-include examples *.json
+include docs/jomini-migration.md
+include docs/script-analysis.md
+recursive-include src/hoi4companion/rules/cwtools *.cwt *.json LICENSE

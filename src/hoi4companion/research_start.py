@@ -6,7 +6,8 @@ from pathlib import Path
 import re
 import math
 
-from .clausewitz import Node, parse
+from .clausewitz import Node
+from .jomini_parser import parse_file
 from .eligibility import condition
 from .installation import collect_files
 
@@ -31,13 +32,13 @@ def read_research_start(game, mods, country, dlcs, scripts, start_date=None):
         bookmarks, _ = collect_files(game, mods, 'common/bookmarks', '.txt')
         dates = []
         for path in bookmarks:
-            for group in parse(path.read_text(encoding='utf-8-sig')).blocks('bookmarks'):
+            for group in parse_file(path).blocks('bookmarks'):
                 dates += [b.scalar('date') for b in group.blocks('bookmark') if b.scalar('date')]
         if not dates:
             return None
         start_date = min(dates, key=_date)
     date = _date(start_date)
-    root = parse(files[0].read_text(encoding='utf-8-sig'))
+    root = parse_file(files[0])
 
     def limits(node):
         return Node([(k.upper() if k.upper() in ('AND','OR','NOT','NOR','NAND') else k,

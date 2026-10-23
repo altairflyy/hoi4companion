@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import unicodedata
 
-from .clausewitz import parse
+from .jomini_parser import parse_file
 
 
 def normalise(value: str) -> str:
@@ -65,7 +65,7 @@ def discover_dlcs(game: Path, docs: Path | None) -> DlcInventory:
             continue
         for descriptor in descriptors:
             try:
-                node = parse(descriptor.read_text(encoding='utf-8-sig'))
+                node = parse_file(descriptor)
                 name = node.scalar('name')
                 if not name:
                     raise ValueError('nome DLC assente')

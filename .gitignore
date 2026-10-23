@@ -30,6 +30,15 @@ htmlcov/
 # App local runtime, caches & profiles (HOI4 Companion)
 .local/
 .cache/
+native/**/target/
+src/hoi4companion/hoi4companion_parser*.pyd
+src/hoi4companion/hoi4companion_parser*.so
+src/hoi4companion/hoi4companion_parser*.dll
+src/hoi4companion/hoi4companion_parser*.dylib
+src/hoi4companion/_native/*.pyd
+src/hoi4companion/_native/*.so
+src/hoi4companion/_native/*.dll
+src/hoi4companion/_native/*.dylib
 
 # Logs & debug traces
 *.log

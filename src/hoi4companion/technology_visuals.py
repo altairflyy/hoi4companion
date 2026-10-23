@@ -10,7 +10,8 @@ import math
 from pathlib import Path, PurePosixPath
 import struct
 
-from .clausewitz import Node, parse
+from .clausewitz import Node
+from .jomini_parser import parse_file
 
 
 STATES = ('unavailable', 'available', 'researched', 'currently_researching')
@@ -92,7 +93,7 @@ def load_technology_visuals(gui_files, gfx_files, sprite_library=None):
     sprites = {}
     for file in map(Path, gfx_files):
         try:
-            root = parse(file.read_text(encoding='utf-8-sig'))
+            root = parse_file(file)
             for kind, node in _walk(root):
                 if kind not in ('spritetype', 'frameanimatedspritetype', 'corneredtilespritetype'):
                     continue
@@ -102,12 +103,8 @@ def load_technology_visuals(gui_files, gfx_files, sprite_library=None):
                 frames = int(_field(node, 'noofframes', '1'))
                 if not 1 <= frames <= 256:
                     continue
-                path = _texture_path(file, texture)
                 asset = {'name': name, 'sprite_name': name, 'texture': texture, 'frames': frames,
                          'frame': 1, 'source': str(file), 'kind': kind}
-                size = _dimensions(path, frames) if path else None
-                if size:
-                    asset.update(size)
                 if kind == 'corneredtilespritetype':
                     asset['tile'] = _field(node, 'tilingcenter') == 'yes'
                     asset['border'] = _point(node, 'bordersize')
@@ -115,7 +112,18 @@ def load_technology_visuals(gui_files, gfx_files, sprite_library=None):
         except (OSError, ValueError, UnicodeError, RecursionError) as exc:
             result['warnings'].append(f'Technology graphics not readable ({file.name}): {exc}')
 
+    # Only GUI-referenced technology assets need texture headers. Reading every
+    # sprite here opened ~25,000 unrelated textures during measured Store loads.
+    # Cache is scoped to this load, so Refresh observes changed files/mods.
+    measured = set()
     def asset(name):
+        if name in sprites and name not in measured:
+            item = sprites[name]
+            path = _texture_path(Path(item['source']), item['texture'])
+            size = _dimensions(path, item['frames']) if path else None
+            if size:
+                item.update(size)
+            measured.add(name)
         value = dict(sprites[name]) if name in sprites else None
         if value and sprite_library is not None:
             resolved = sprite_library.resolve(name, frame=1)
@@ -164,7 +172,7 @@ def load_technology_visuals(gui_files, gfx_files, sprite_library=None):
 
     for file in map(Path, gui_files):
         try:
-            root = parse(file.read_text(encoding='utf-8-sig'))
+            root = parse_file(file)
             for kind, node in _walk(root):
                 name = _field(node, 'name')
                 if kind != 'containerwindowtype' or not isinstance(name, str):

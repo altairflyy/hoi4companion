@@ -3,7 +3,8 @@ from pathlib import Path
 import re
 from copy import deepcopy
 
-from .clausewitz import Node, parse
+from .clausewitz import Node
+from .jomini_parser import parse_file
 from .installation import collect_files
 from .research_upgrades import exact_matches, normal_name
 from .tooltips import localise
@@ -27,7 +28,7 @@ def operation_catalog(game, mods, labels, reference):
         files, issues = collect_files(game,mods,directory,'.txt'); warnings.extend(issues)
         for path in files:
             try:
-                root=parse(path.read_text(encoding='utf-8-sig'))
+                root=parse_file(path)
                 if kind=='building':
                     for group in root.blocks('buildings'):
                         result.extend({'kind':kind,'id':key,**names(key)}
@@ -43,7 +44,7 @@ def operation_catalog(game, mods, labels, reference):
     definitions = {}
     for path in equipment_files:
         try:
-            for group in parse(path.read_text(encoding='utf-8-sig')).blocks('equipments'):
+            for group in parse_file(path).blocks('equipments'):
                 definitions.update((key,node) for key,node in group.entries if isinstance(node,Node))
         except (OSError,ValueError,RecursionError) as exc:
             warnings.append(f'Catalogo equipaggiamenti non leggibile ({path.name}): {exc}')
