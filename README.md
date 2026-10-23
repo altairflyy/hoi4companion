@@ -23,6 +23,20 @@ Applicazione **gratuita e open source** per esplorare i focus nazionali di *Hear
 
 **Primo avvio:** se non viene trovata l'installazione di HOI4 appare un **albero dimostrativo INVENTATO**. Non rappresenta l'albero originale dell'Austria.
 
+**Guide:** «Importa guida» è sempre disponibile nella navigazione di tutte le
+viste, anche dopo aver installato una guida. La guida della Polonia inclusa è
+un esempio: puoi aggiungerne altre e sceglierle dal selettore, senza sostituirla.
+
+**Mod e profili:** al primo avvio vengono cercati i percorsi del PC corrente,
+compresa la cartella Documenti reindirizzata di Windows. I percorsi salvati o
+esplicitamente indicati hanno precedenza. Nella pagina Focus, «Mod» mostra il
+`dlc_load.json` letto, nomi, cartelle e problemi delle mod selezionate. Dopo un
+cambio di playset e l'avvio di HOI4 premi **Ricarica** per ricostruire i cataloghi.
+Questo file descrive la configurazione registrata dal launcher; non prova quali
+mod siano già caricate nel processo in esecuzione. Archivi ZIP e percorsi
+ambigui/mancanti sono segnalati. Non viene distribuita una lista personale di mod:
+impostazioni, guide importate e cache risiedono in `.local/`, esclusa da Git.
+
 ### Esecuzione dalla console
 
 Windows PowerShell, dalla cartella del progetto:
@@ -245,7 +259,7 @@ per attribuire ricerche completate. Le dottrine del nuovo sistema restano fuori 
 
 Il repository dispone di una suite completa di test automatizzati per il backend Python e per i modelli frontend:
 
-### Test Python (344 test)
+### Test Python (360 test)
 Tramite lo script batch (Windows):
 ```cmd
 test.bat
@@ -257,7 +271,7 @@ py -3 -m hoi4companion --test
 ```
 (in alternativa: `python -m unittest discover -s tests -p "test_*.py"`).
 
-### Test frontend JavaScript / Node.js (221 test)
+### Test frontend JavaScript / Node.js (232 test)
 I modelli logici del client sono verificati tramite il test runner nativo di Node.js (`node:test`):
 ```powershell
 Get-ChildItem -Path "tests" -Filter "*.cjs" | ForEach-Object { node $_.FullName }

@@ -189,7 +189,8 @@ def main():
                 sprite_at=time.monotonic()
                 key=(digest,json.dumps(proposed,sort_keys=True,ensure_ascii=False))
                 if visual_key!=key:
-                    cached_visual=sprites.match(image,proposed,cached);visual_key=key
+                    nodes=sprites.match(image,proposed,cached)
+                    cached_visual=nodes+sprites.navigation(image,proposed,matches+nodes);visual_key=key
                 visual=cached_visual
                 visual_keys={m['key'] for m in visual}
                 matches=[m for m in matches if m['key'] not in visual_keys]+visual
@@ -259,7 +260,8 @@ def main():
                 for match in matches:
                     x,y,right,bottom=match['rect'];color='#5ed1ef' if match['status']=='active' and match['panel']!='event' else '#ffdd57'
                     canvas.create_rectangle(x,y,right,bottom,outline=color,width=3)
-                    caption='GUIDA'+(' · totale '+str(match['quantity'])+' fabbriche' if match.get('quantity') is not None else '')
+                    caption=('GUIDA · '+match['title']+' · '+str(match['count'])+(' ricerca' if match['count']==1 else ' ricerche') if match['panel']=='research_tab'
+                             else 'GUIDA'+(' · totale '+str(match['quantity'])+' fabbriche' if match.get('quantity') is not None else ''))
                     canvas.create_text(x,max(12,y-9),text=caption,anchor='w',fill=color,font=('Segoe UI',10,'bold'))
                 if args.proof and not proof_saved:
                     # Capture real composited pixels, not a synthesized annotation.

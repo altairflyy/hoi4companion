@@ -76,5 +76,20 @@ class ScreenOverlayTests(unittest.TestCase):
         # Icon-only nodes provide no text evidence and must not acquire guessed boxes.
         self.assertEqual(rectangles(frame|{'lines':[line('Ricerca',y=10)]},[proposal]),[])
 
+    def test_research_projection_keeps_slot_choices_across_folders_in_priority_order(self):
+        self.guide['tracks']={'research':[{'key':str(i),'folder':folder,'folder_name':folder,
+            'action':{'kind':'research','entity':{'kind':'technology','id':'tech'+str(i)}}}
+            for i,folder in enumerate(('industry','engineering','industry','infantry'))]}
+        self.catalog=[{'kind':'technology','id':'tech'+str(i),'name':'Technology '+str(i)} for i in range(4)]
+        self.runtime['steps']=[{'key':str(i),'status':'ready'} for i in range(4)]
+        for keys in (['1','0','2'],['3'],[]):
+            self.runtime['parallel']={'research':{'capacity':len(keys),'steps':keys}}
+            result=targets(self.guide,self.runtime,self.catalog,self.state)
+            self.assertEqual([r['key'] for r in result],keys)
+            self.assertEqual(len(result),len(keys))
+        self.runtime['steps'][1]['status']='active'
+        self.runtime['parallel']={'research':{'capacity':1,'steps':['0']}}
+        self.assertEqual([r['key'] for r in targets(self.guide,self.runtime,self.catalog,self.state)],['0'])
+
 
 if __name__=='__main__':unittest.main()

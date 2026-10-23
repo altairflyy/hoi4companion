@@ -52,6 +52,14 @@ function updateOverview(){
   $('demoBadge').classList.toggle('hidden',!v.demo);$('modeDot').classList.toggle('gold',v.demo);
   $('modeText').textContent=v.demo?'Demo locale':'Dati HOI4';$('modeHint').textContent=v.demo?'Nessun percorso del gioco':'File reali in sola lettura';
   $('warnings').hidden=!v.warnings?.length;$('warnings').textContent=(v.warnings||[]).slice(0,5).join('\n');
+  $('modsPanel').hidden=!v.mods;
+  if(v.mods){
+    const mods=v.mods,labels={observed:'Profilo letto',partial:'Alcune mod non leggibili',unavailable:'Profilo non disponibile',off:'Mod ignorate dalla configurazione'};
+    $('modsSummary').textContent=`Mod · ${labels[mods.status]||'Da verificare'} · ${(mods.roots||[]).length} cartelle caricate`;
+    $('modsSource').textContent=mods.source?'Profilo letto: '+mods.source:'Nessun profilo mod letto.';
+    clear($('modsList'));for(const item of mods.items||[])$('modsList').append(el('li','',`${item.name} — ${item.status==='loaded'?'File caricati: '+item.path:item.reason}`));
+    if(mods.status==='observed'&&!mods.items.length)$('modsList').append(el('li','','Nessuna mod abilitata in questo profilo.'));
+  }
   $('dlcPanel').hidden=!v.dlcs;
   if(v.dlcs){
     const hidden=v.excluded_trees||[];

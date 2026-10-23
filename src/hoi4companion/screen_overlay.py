@@ -29,7 +29,9 @@ def targets(guide,runtime,catalog,state):
     events=overview.get('events',{}) if overview.get('country')==country else {}
     visible={r.get('event_id') for r in events.get('visible',[])} if events.get('status')=='observed' else set()
     result=[];seen=set()
-    for item in runtime.get('steps',[]):
+    # Preserve the runtime's priority order, including across research folders.
+    order={key:index for index,key in enumerate(runtime.get('parallel',{}).get('research',{}).get('steps',[]))}
+    for item in sorted(runtime.get('steps',[]),key=lambda item:order.get(item['key'],len(order))):
         row=rows.get(item['key']);status=item.get('status');reason=item.get('reason')
         if not row or row.get('tracking')=='reminder' or status not in ('ready','active','unverifiable'):continue
         if status=='unverifiable' and reason!='manual_confirmation_required':continue
@@ -68,7 +70,7 @@ def targets(guide,runtime,catalog,state):
         if not labels:continue
         seen.add((panel,identity));result.append({'key':item['key'],'panel':panel,'identity':identity,'labels':labels,
             'title':row.get('title') or row.get('name') or item['key'],'status':status,
-            'folder':row.get('folder'),
+            'folder':row.get('folder'),'folder_name':row.get('folder_name'),
             'event_title':params.get('event_name'),'event_titles':[label for e in catalog if panel=='event' and e['kind']=='event' and e['id']==params.get('event_id') for label in (e.get('name'),e.get('localized_name')) if label],
             'quantity':(item.get('production') or {}).get('target',params.get('assigned_factories'))})
     return result
