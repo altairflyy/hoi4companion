@@ -2,6 +2,7 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from hoi4companion.technology_visuals import load_technology_visuals
 
@@ -71,6 +72,31 @@ class TechnologyVisualsTest(unittest.TestCase):
             result = load_technology_visuals([path], [])
             self.assertTrue(result['warnings'])
             self.assertFalse(result['templates'])
+
+    def test_unused_textures_are_not_opened_and_refresh_reloads_used_headers(self):
+        from hoi4companion import technology_visuals as visuals
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            (root/'interface').mkdir()
+            (root/'gfx').mkdir()
+            texture=root/'gfx/used.dds'
+            def write(width):
+                data=bytearray(128);data[:4]=b'DDS '
+                struct.pack_into('<II',data,12,72,width)
+                texture.write_bytes(data)
+            write(72)
+            gfx=root/'interface/test.gfx'
+            gfx.write_text('spriteTypes={spriteType={name=unused textureFile="gfx/never-open.dds"} spriteType={name=GFX_technology_x_folder_unavailable_item_bg textureFile="gfx/used.dds"}}')
+            gui=root/'interface/test.gui'
+            gui.write_text('guiTypes={containerWindowType={name=techtree_x_folder_item iconType={name=Icon}}}')
+            with patch.object(visuals,'_dimensions',wraps=visuals._dimensions) as dimensions:
+                result=load_technology_visuals([gui],[gfx])
+                self.assertEqual(dimensions.call_count,1)
+                self.assertEqual(dimensions.call_args.args[0],texture.resolve())
+            self.assertEqual(result['templates']['techtree_x_folder_item']['size']['width'],72)
+            write(144)
+            result=load_technology_visuals([gui],[gfx])
+            self.assertEqual(result['templates']['techtree_x_folder_item']['size']['width'],144)
 
 
 if __name__ == '__main__':

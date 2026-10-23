@@ -2,7 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from hoi4companion.clausewitz import parse, tokenize
+from hoi4companion.clausewitz import parse
 from hoi4companion.focus import load_trees, evaluate, prerequisite_closure
 from hoi4companion.installation import collect_files
 from hoi4companion.state import read_snapshot

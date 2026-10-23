@@ -27,17 +27,24 @@ from .guide_importer import Importer, catalog_entities
 from .import_sources import acquire_source, ytdlp_path, MAX_BYTES
 from .research_start import read_research_start
 from .operation_import import operation_catalog
+from .jomini_parser import backend_info
 
 BASE = Path(__file__).resolve().parent
 PROJECT = BASE.parent.parent
-DEMO = PROJECT / 'examples' / 'demo_focus.txt'
+DEMO = BASE / 'examples' / 'demo_focus.txt'
 WEB = BASE / 'web'
 SETTINGS = PROJECT / '.local' / 'settings.json'
 
 
 class Store:
     def __init__(self, overrides: dict | None = None):
+        # Deployment errors must abort before file loaders can treat them as
+        # malformed scripts, or progress/campaign state can be initialized.
+        self.parser_info = backend_info()
         self.lock = RLock()
+        self._analysis_lock = RLock()
+        self._analysis_report = None
+        self._analysis_generation = 0
         self.settings: dict = {
             'game_dir': '', 'docs_dir': '', 'tree_id': '', 'snapshot_path': '',
             'country': 'AUS', 'language': 'italian', 'mods': 'auto',
@@ -106,7 +113,7 @@ class Store:
             self.demo = not bool(game and (game / 'common' / 'national_focus').is_dir())
             if self.demo:
                 files = [DEMO]
-                labels = json.loads((PROJECT / 'examples' / 'demo_labels.json').read_text(encoding='utf-8'))
+                labels = json.loads((DEMO.parent / 'demo_labels.json').read_text(encoding='utf-8'))
                 reference_labels = labels
                 warnings.append('Modalità dimostrativa: nessun file HOI4 reale caricato.')
             else:
@@ -155,6 +162,8 @@ class Store:
             self.game_root, self.mod_roots = game, mods
             self.scripts = scripts if not self.demo else {}
             self.trees = trees
+            self._analysis_generation = getattr(self,'_analysis_generation',0)+1
+            self._analysis_report = None
             self.import_error = ''
             if self.settings['tree_id'] not in trees:
                 self.settings['tree_id'] = next(iter(trees), '')
@@ -181,6 +190,7 @@ class Store:
         with self.lock:
             return {
                 'settings': self.settings.copy(), 'demo': self.demo,
+                'parser': self.parser_info.copy(),
                 'warnings': self.warnings[:70],
                 'dlcs': self.dlcs.to_json() if self.dlcs else None,
                 'mods': getattr(self, 'mod_inventory', None),
@@ -444,6 +454,28 @@ class Store:
                     'changes':read_associations(source['id'])['changes'],
                     'revision':getattr(self,'guide_revision',0)}
 
+    def script_analysis(self, refresh=False):
+        from .script_analysis import analyze_installation, analyze_documents
+        # Expensive diagnostics never hold the lock shared with live/SSE APIs.
+        with self._analysis_lock:
+            with self.lock:
+                if self._analysis_report is not None and not refresh:
+                    return self._analysis_report
+                generation=self._analysis_generation
+                game,mods=getattr(self,'game_root',None),list(getattr(self,'mod_roots',[]))
+                labels,reference=self.labels,getattr(self,'reference_labels',{})
+                demo=self.demo
+            if demo:
+                from .jomini_parser import parse_file
+                report=analyze_documents([('common/national_focus/demo.txt',parse_file(DEMO))],labels,reference)
+                report['demo']=True
+            else:report=analyze_installation(game,mods,labels,reference)
+            with self.lock:
+                if generation!=self._analysis_generation:
+                    raise ValueError('Cataloghi ricaricati durante l’analisi: ripeti il controllo')
+                self._analysis_report=report
+            return report
+
     def importer(self):
         with self.lock:
             if not hasattr(self, '_importer'):
@@ -547,6 +579,18 @@ def make_handler(store: Store):
 
         def do_GET(self):
             url = urlparse(self.path)
+            if url.path == '/api/script-analysis':
+                try:self.json(store.script_analysis(refresh=parse_qs(url.query).get('refresh')==['1']))
+                except (OSError,ValueError) as exc:self.json({'error':str(exc)},400)
+                return
+            if url.path == '/api/script-rules':
+                from .script_analysis import RuleBook
+                query=parse_qs(url.query);kind=query.get('kind',['trigger'])[0];name=query.get('name',[''])[0]
+                if kind not in ('trigger','effect') or not 1<=len(name)<=160:
+                    self.json({'error':'Indica trigger/effect e un nome valido'},400);return
+                try:self.json(RuleBook.load().describe(kind,name))
+                except (OSError,ValueError) as exc:self.json({'error':str(exc)},400)
+                return
             if url.path == '/api/import/status':
                 self.json({**store.importer().status(), 'youtube_available': bool(ytdlp_path())})
                 return
@@ -650,6 +694,7 @@ def make_handler(store: Store):
                 self.json(store.technology_tree(parse_qs(url.query).get('id', [''])[0]))
                 return
             static = {'/': 'index.html', '/index.html': 'index.html',
+                      '/analysis':'analysis.html','/analysis.js':'analysis.js','/analysis.css':'analysis.css',
                       '/associations':'associations.html','/associations.js':'associations.js',
                       '/importer': 'importer.html', '/importer.js': 'importer.js',
                       '/importer-model.js': 'importer-model.js', '/importer.css': 'importer.css',

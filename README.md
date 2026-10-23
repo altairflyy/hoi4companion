@@ -8,14 +8,18 @@ Applicazione **gratuita e open source** per esplorare i focus nazionali di *Hear
 
 1. Clona o scarica il repository in una cartella a scelta.
 2. Assicurati di avere Python **3.11 o successivo**.
-3. Installa l'unica dipendenza (Pillow, per la conversione delle texture del gioco):
-   ```bash
-   pip install "Pillow>=12.3,<13"
-   ```
-   oppure installa in modalità modificabile:
+3. Installa il programma. Da un pacchetto **wheel della tua piattaforma e versione
+   Python**, `pip install percorso/hoi4companion-....whl` installa anche il parser
+   Rust/Jomini già compilato e Pillow; **Rust non serve sul PC dell'utente**.
+   Per compilare dal repository servono Rust e un linker (su Windows i C++ Build
+   Tools MSVC), poi:
    ```bash
    pip install -e .
    ```
+   In alternativa, su Windows, dopo aver installato Pillow puoi eseguire
+   `powershell -NoProfile -File scripts/build-parser.ps1` per compilare e collocare
+   il parser nel checkout. Il parser viene individuato automaticamente; non
+   richiede variabili d'ambiente. [Dettagli](docs/jomini-migration.md).
 4. Su Windows puoi avviare direttamente con un doppio clic su **`avvia.bat`**. Verrà aperta l'interfaccia nel browser su `http://127.0.0.1:8766`.
 5. Apri **Configurazione** dall'interfaccia e imposta:
    - Percorso della cartella principale di Hearts of Iron IV (dove risiede `hoi4.exe`).
@@ -97,7 +101,22 @@ Altri argomenti: `--docs-dir`, `--snapshot`, `--country AUS`, `--port 8766`, `--
   build Windows supportata; sezioni parziali esplicite per addestramento e
   fabbisogni logistici. Uso, evidenze e limiti in [docs/country-live.md](docs/country-live.md).
 
-- Parser degli script Clausewitz `.txt`, capace di preservare campi duplicati e blocchi annidati.
+- Parser degli script Clausewitz **Rust/Jomini 0.37.2**, capace di preservare
+  campi duplicati, ordine, operatori, stringhe e blocchi annidati. Ha sostituito
+  il parser Python nell'applicazione; libreria obbligatoria inclusa nelle wheel
+  e controllata all'avvio, senza fallback silenziosi. La struttura del documento
+  usa `TextTape`; i campi principali di focus e tecnologie sono deserializzati
+  in modelli Rust tramite `JominiDeserialize`, conservando il documento completo.
+  I modelli focus includono icone, gruppi di prerequisiti e mutue esclusioni.
+  I caricatori degli script leggono UTF-8 e Windows-1252; il JSON nativo di Jomini
+  è disponibile come esportazione separata, senza cambiare le API del programma.
+  Esiste anche un parser CLI
+  autonomo. [Integrazione, prove e limiti](docs/jomini-migration.md).
+  Server, runtime delle guide, lettore live e overlay richiedono ancora Python.
+- **Analisi script** facoltativa: usa regole CWTools fissate a una revisione per
+  controllare riferimenti, contesti, parametri e localizzazioni. I costrutti non
+  supportati restano non verificabili; non aggiunge conferme al walkthrough né
+  esegue condizioni del gioco. [Uso, copertura e limiti](docs/script-analysis.md).
 - Estrazione `focus_tree`, `focus`, `shared_focus` e `joint_focus` (importazione basilare).
 - Prerequisiti con **OR all'interno dello stesso blocco** e **AND tra blocchi differenti**; focus mutuamente esclusivi.
 - Coordinate `x`, `y`, `relative_position_id`, costo stimato, icona indicata per nome, ID e testo localizzato.
@@ -259,7 +278,7 @@ per attribuire ricerche completate. Le dottrine del nuovo sistema restano fuori 
 
 Il repository dispone di una suite completa di test automatizzati per il backend Python e per i modelli frontend:
 
-### Test Python (360 test)
+### Test Python (410 test)
 Tramite lo script batch (Windows):
 ```cmd
 test.bat
@@ -271,7 +290,7 @@ py -3 -m hoi4companion --test
 ```
 (in alternativa: `python -m unittest discover -s tests -p "test_*.py"`).
 
-### Test frontend JavaScript / Node.js (232 test)
+### Test frontend JavaScript / Node.js (235 test)
 I modelli logici del client sono verificati tramite il test runner nativo di Node.js (`node:test`):
 ```powershell
 Get-ChildItem -Path "tests" -Filter "*.cjs" | ForEach-Object { node $_.FullName }
@@ -285,7 +304,9 @@ Il server locale è vincolato all'interfaccia di loopback `127.0.0.1` e non espo
 
 - **Licenza del codice:** [MIT License](LICENSE).
 - **Verifica delle dipendenze di terze parti:**
-  - L'unica dipendenza esterna obbligatoria di terze parti a runtime è **Pillow** (`Pillow>=12.3,<13`), concessa con licenza open source **HPND / PIL Software License**, licenza ampiamente permissiva e pienamente compatibile con la licenza MIT.
+  - L'unica dipendenza esterna obbligatoria di terze parti a runtime Python è **Pillow** (`Pillow>=12.3,<13`), concessa con licenza open source **HPND / PIL Software License**, licenza ampiamente permissiva e pienamente compatibile con la licenza MIT.
+  - Il parser degli script Clausewitz integra **Jomini 0.37.2** compilato come estensione nativa (`src/hoi4companion/_native/`), distribuito con licenza permissiva **MIT**. L'elenco completo delle licenze delle dipendenze Rust è documentato in [`src/hoi4companion/licenses/rust-dependencies.txt`](src/hoi4companion/licenses/rust-dependencies.txt) (tutte permissive: MIT/Apache-2.0).
+  - Le regole statiche opzionali includono un sottoinsieme di configurazioni da **cwtools-hoi4-config**, rilasciate con licenza open source **MIT** ([`src/hoi4companion/rules/cwtools/LICENSE`](src/hoi4companion/rules/cwtools/LICENSE)).
   - Per l'overlay nativo opzionale (riconoscimento nodi tecnologici senza testo tramite sprite), l'extra facoltativo `overlay` utilizza **opencv-python-headless** (`opencv-python-headless>=4.10,<6`), distribuito con licenza open source **Apache 2.0**, anch'essa pienamente compatibile con MIT.
   - Il resto del software adotta esclusivamente la libreria standard di Python 3.11+, standard web ECMAScript / CSS nativo, e Node.js built-in (`node:test` / `node:assert`) per i test di modello.
   - Nessuna dipendenza impone vincoli copyleft (GPL) o clausole proprietarie incompatibili.

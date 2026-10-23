@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from .clausewitz import Node, parse
+from .clausewitz import Node
+from .jomini_parser import parse_file
 from .eligibility import condition
 from .tooltips import localise
 
@@ -36,7 +37,7 @@ def load_technologies(files, tag_files, labels, dlcs, scripts, country='AUS', gu
         return condition(_normal(block), country, dlcs, scripts) if dlcs else None
     for file in tag_files:
         try:
-            root = parse(file.read_text(encoding='utf-8-sig'))
+            root = parse_file(file)
             for group in root.blocks('technology_folders'):
                 for key, node in group.entries:
                     if not isinstance(node, Node) or node.scalar('doctrine') == 'yes':
@@ -51,12 +52,15 @@ def load_technologies(files, tag_files, labels, dlcs, scripts, country='AUS', gu
             warnings.append(f'Categorie ricerca non leggibili ({file.name}): {exc}')
     for file in files:
         try:
-            root = parse(file.read_text(encoding='utf-8-sig'))
+            root = parse_file(file)
             for group in root.blocks('technologies'):
                 variables = {k: v for k, v in [*root.entries, *group.entries] if k.startswith('@') and isinstance(v, str)}
                 for key, node in group.entries:
                     if not isinstance(node, Node) or key.startswith('@'):
                         continue
+                    fields = node.projection if node.projection and node.projection.get('kind') == 'technology' else None
+                    def scalar(field):
+                        return (fields.get(field) or '') if fields is not None else node.scalar(field)
                     branch = check(node.first('allow_branch')) if node.blocks('allow_branch') else True
                     if branch is not True:
                         continue
@@ -87,12 +91,12 @@ def load_technologies(files, tag_files, labels, dlcs, scripts, country='AUS', gu
                     technologies[key] = {
                         'id': key, 'name': localise(labels.get(name_key, key), labels),
                         'description': localise(labels.get(description_key, ''), labels),
-                        'source': str(file), 'research_cost': _number(node.scalar('research_cost'), variables),
-                        'start_year': _number(node.scalar('start_year'), variables),
+                        'source': str(file), 'research_cost': _number(scalar('research_cost'), variables),
+                        'start_year': _number(scalar('start_year'), variables),
                         'folders': memberships, 'paths': paths, 'dependencies': requirements,
                         'exclusions': [v for k, b in node.entries if k.lower() == 'xor' for v in _values(b)],
                         'sub_technologies': [v for b in node.blocks('sub_technologies') for v in _values(b)],
-                        'special_project': node.scalar('is_special_project_tech') == 'yes',
+                        'special_project': scalar('is_special_project_tech') == 'yes',
                         'has_conditions': bool(node.blocks('allow')), 'unlocks': unlocks,
                     }
         except (OSError, ValueError, UnicodeError, RecursionError) as exc:

@@ -3,7 +3,8 @@
 English is the reference; local labels and trait names are aliases. A catalog
 association proves identity, not availability or completion in a live campaign.
 """
-from .clausewitz import Node, parse
+from .clausewitz import Node
+from .jomini_parser import parse_file
 from .installation import collect_files
 from .research_upgrades import exact_matches, normal_name
 from .tooltips import localise
@@ -19,7 +20,7 @@ def political_catalog(game, mods, labels, reference):
     def read(directory):
         files,issues=collect_files(game,mods,directory,'.txt'); warnings.extend(issues)
         for path in files:
-            try: yield path,parse(path.read_text(encoding='utf-8-sig'))
+            try: yield path,parse_file(path)
             except (OSError,ValueError,RecursionError) as exc:
                 warnings.append(f'Catalogo politica non leggibile ({path.name}): {exc}')
     def traits(node):

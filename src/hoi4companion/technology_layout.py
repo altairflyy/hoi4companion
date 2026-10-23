@@ -6,7 +6,8 @@ and corroborated against the user's game screenshots. No game script executes.
 from __future__ import annotations
 
 import math
-from .clausewitz import Node, parse
+from .clausewitz import Node
+from .jomini_parser import parse_file
 from .tooltips import localise
 
 
@@ -70,7 +71,7 @@ def _technology_metadata(technologies, warnings):
     for path in dict.fromkeys(t.get('source') for t in technologies.values() if t.get('source')):
         try:
             from pathlib import Path
-            root = parse(Path(path).read_text(encoding='utf-8-sig'))
+            root = parse_file(Path(path))
             for block in root.blocks('technologies'):
                 for key, node in block.entries:
                     if not isinstance(node, Node):
@@ -93,7 +94,7 @@ def apply_technology_layout(catalog, gui_files, labels):
         tech['layout_ignored_paths'] = metadata.get(key, {}).get('ignored', [])
     for file in gui_files:
         try:
-            root = parse(file.read_text(encoding='utf-8-sig'))
+            root = parse_file(file)
             for kind, window, _, _ in _walk(root):
                 if kind != 'containerwindowtype':
                     continue

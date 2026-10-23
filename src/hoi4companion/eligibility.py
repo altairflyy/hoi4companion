@@ -9,7 +9,8 @@ import math
 from pathlib import Path
 import re
 
-from .clausewitz import Node, parse
+from .clausewitz import Node
+from .jomini_parser import parse_file
 from .dlc import DlcInventory
 
 
@@ -18,7 +19,7 @@ def load_scripted_triggers(files: list[Path]) -> tuple[dict[str, Node], list[str
     warnings = []
     for file in files:
         try:
-            node = parse(file.read_text(encoding='utf-8-sig'))
+            node = parse_file(file)
             result.update((k, v) for k, v in node.entries if isinstance(v, Node))
         except (OSError, ValueError, UnicodeError, RecursionError) as exc:
             warnings.append(f'Trigger non leggibili ({file.name}): {exc}')

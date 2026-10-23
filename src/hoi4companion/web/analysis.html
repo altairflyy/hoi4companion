@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HOI4 Companion · Analisi script</title><link rel="stylesheet" href="/guide.css"><link rel="stylesheet" href="/importer.css"><link rel="stylesheet" href="/analysis.css">
+<script defer src="/analysis.js"></script></head><body>
+<header class="topbar"><nav aria-label="Viste"><a href="/">Focus nazionali</a><a href="/technologies">Tecnologie</a><a href="/country">Nazione</a><a href="/walkthrough">Walkthrough</a><a href="/importer">Importa guida</a><a href="/analysis" aria-current="page">Analisi script</a></nav><strong>HOI4 Companion</strong></header>
+<main class="import-main"><p class="eyebrow">CATALOGHI INSTALLATI</p><h1>Analisi script</h1>
+<p>Controlla riferimenti, contesti, parametri e testi dei file del gioco e delle mod attive. Le segnalazioni sono diagnostiche: non sono operazioni da confermare e non determinano cosa sia disponibile o completato nella partita.</p>
+<button id="analyze" type="button">Ripeti analisi</button><p id="status" role="status">Caricamento dell’analisi…</p><p id="error" role="alert" hidden></p>
+<section class="import-section"><h2>Avvisi da verificare</h2><p>I numeri contano segnalazioni statiche sull’intera installazione e sulle mod attive: <strong>non sono errori confermati e non sono passaggi della tua guida</strong>. Regole incomplete o diverse dalla versione del gioco possono produrre falsi positivi.</p><p id="summary"></p><p id="coverage"></p><p id="provenance" class="hint"></p>
+<label for="category">Mostra</label><select id="category"><option value="">Tutte le categorie</option><option value="references">Riferimenti agli ID</option><option value="scopes">Contesti</option><option value="parameters">Parametri di trigger ed effetti</option><option value="localisation">Localizzazioni</option></select>
+<label for="search">Cerca nei risultati</label><input id="search" type="search" placeholder="ID, file o messaggio"><p id="count"></p><ul id="diagnostics"></ul>
+<details><summary>Limiti e file non analizzati</summary><p>Il controllo usa un sottoinsieme delle regole CWTools. Costrutti dinamici, cardinalità e sottotipi complessi possono restare non verificabili. La compatibilità completa delle regole con questa versione di HOI4 non è certificata. Un controllo statico non esegue gli script.</p><ul id="limitations"></ul></details></section>
+<section class="import-section"><h2>Consulta un trigger o effetto</h2><label for="ruleKind">Tipo</label><select id="ruleKind"><option value="trigger">Condizione (trigger)</option><option value="effect">Effetto</option></select>
+<label for="ruleName">Nome nello script</label><input id="ruleName" value="has_completed_focus"><button id="lookup" type="button">Mostra definizione</button><p id="ruleInfo" role="status"></p><pre id="ruleDefinition"></pre></section>
+</main></body></html>

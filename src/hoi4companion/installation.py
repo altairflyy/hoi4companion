@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 from .clausewitz import parse
+from .jomini_parser import parse_file
 
 
 def default_documents() -> Path:
@@ -63,7 +64,7 @@ def inspect_mods(docs: Path) -> dict:
             continue
         desc = docs / item.replace('\\', '/')
         try:
-            root = parse(desc.read_text(encoding='utf-8-sig'))
+            root = parse_file(desc)
             entry['name'] = root.scalar('name') or item
             location = root.scalar('path')
             if not location:
@@ -110,7 +111,7 @@ def collect_files(game: Path, mod_dirs: list[Path], subdir: str, extension: str)
             descriptor = root / 'descriptor.mod'
             if descriptor.exists():
                 try:
-                    config = parse(descriptor.read_text(encoding='utf-8-sig', errors='replace'))
+                    config = parse_file(descriptor)
                     replacement = [p.replace('\\', '/').rstrip('/') for p in config.all('replace_path') if isinstance(p, str)]
                     if any(subdir == item or subdir.startswith(item + '/') or item.startswith(subdir + '/') for item in replacement):
                         result = {key: val for key, val in result.items()

@@ -8,7 +8,8 @@ from pathlib import Path, PurePosixPath
 import struct
 from threading import RLock
 
-from .clausewitz import Node, parse
+from .clausewitz import Node
+from .jomini_parser import parse_file
 from .installation import collect_files
 
 try:
@@ -62,7 +63,7 @@ class SpriteLibrary:
             if descriptor.is_file():
                 try:
                     self.replacements[root] = [str(PurePosixPath(x.replace('\\', '/'))).casefold()
-                                               for x in parse(descriptor.read_text(encoding='utf-8-sig')).all('replace_path')
+                                               for x in parse_file(descriptor).all('replace_path')
                                                if isinstance(x, str)]
                 except (OSError, ValueError, RecursionError):
                     self.warnings.append(f'Replace path delle texture non leggibile: {descriptor.name}')
@@ -70,7 +71,7 @@ class SpriteLibrary:
         self.warnings += warnings
         for file in files:
             try:
-                definitions = _definitions(parse(file.read_text(encoding='utf-8-sig', errors='replace')))
+                definitions = _definitions(parse_file(file))
                 self.sprites.update((sprite.name, sprite) for sprite in definitions)
             except (OSError, ValueError, RecursionError) as exc:
                 self.warnings.append(f'Sprite non letti ({file.name}): {exc}')
