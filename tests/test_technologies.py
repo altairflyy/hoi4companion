@@ -34,6 +34,43 @@ class TechnologiesTest(unittest.TestCase):
         self.assertFalse(c['folders'])
         self.assertEqual(c['excluded_folders'][0]['reason'], 'Disponibilità non verificata')
 
+    def test_import_candidates_exclude_only_proven_inactive_dlc_folders(self):
+        from hoi4companion.guide_importer import catalog_entities
+        source='''technologies={
+            landing_craft={folder={name=old} path={leads_to_tech=tank_landing_craft}}
+            tank_landing_craft={folder={name=old}}
+            mtg_landing_craft={folder={name=new} path={leads_to_tech=mtg_tank_landing_craft}}
+            mtg_tank_landing_craft={folder={name=new}}
+            multi={folder={name=old} folder={name=new}}
+            child={} missing={folder={name=unlisted}}
+        }'''
+        tags='''technology_folders={old={available={NOT={has_dlc=Pack}}}
+                                  new={available={has_dlc=Pack}}}'''
+        for status,expected in [('enabled','mtg_landing_craft'),('integrated','mtg_landing_craft'),
+                                ('disabled','landing_craft')]:
+            with self.subTest(status=status):
+                catalog=self.load(source,tags,DlcInventory(items=[{'name':'Pack','status':status}]))
+                rows=catalog_entities({},catalog['technologies'],{},
+                    {'landing_craft':'Landing Craft','mtg_landing_craft':'Landing Craft'})
+                self.assertEqual([r['id'] for r in rows if r['name']=='Landing Craft'],[expected])
+                ids={r['id'] for r in rows}
+                self.assertTrue({'child','missing','multi'}<=ids)
+                # Raw definitions remain available to dependency/diagnostic views.
+                self.assertIn('landing_craft',catalog['technologies'])
+        unknown=self.load(source,tags,DlcInventory(complete=False))
+        rows=catalog_entities({},unknown['technologies'],{},
+            {'landing_craft':'Landing Craft','mtg_landing_craft':'Landing Craft'})
+        self.assertEqual(len([r for r in rows if r['name']=='Landing Craft']),2)
+
+    def test_upgrades_do_not_cross_into_known_inactive_folder(self):
+        from hoi4companion.guide_importer import catalog_entities
+        catalog=self.load('''technologies={A={folder={name=active}
+            path={leads_to_tech=OLD} path={leads_to_tech=B}}
+            OLD={folder={name=inactive}} B={folder={name=active}}}''',
+            'technology_folders={active={} inactive={available={always=no}}}')
+        rows=catalog_entities({},catalog['technologies'],{})
+        self.assertEqual(next(r for r in rows if r['id']=='A')['upgrade_successors'],['B'])
+
     def test_variables_cycles_xor_dependencies_subtechnologies(self):
         c = self.load('''technologies={@year=4 @alias=@year
           A={research_cost=1.5 start_year=1936 folder={name=test position={x=2 y=@alias}}

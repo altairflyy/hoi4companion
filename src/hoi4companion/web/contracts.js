@@ -8,7 +8,7 @@
   if(key==='production.lines')return validProductionLines(value);
   if(['country.intelligence.is_created','country.intelligence.in_creation'].includes(key))return typeof value==='boolean';
   if(['country','focus.tree'].includes(key))return typeof value==='string'&&value.length>0;
-  if(['focus.completed','focus.active','focus.continuous','focus.ids','research.completed','research.active','research.ids','construction.queued'].includes(key))return Array.isArray(value)&&value.every(x=>typeof x==='string'&&x.length>0);
+  if(['focus.completed','focus.active','focus.continuous','focus.ids','research.completed','research.active','research.ids','construction.queued','projects.active','projects.completed'].includes(key))return Array.isArray(value)&&value.every(x=>typeof x==='string'&&x.length>0);
   if(key==='research.slots')return Array.isArray(value)&&value.every(x=>x&&typeof x==='object'&&Object.hasOwn(x,'technology_id')&&(x.technology_id===null||typeof x.technology_id==='string'&&x.technology_id.length>0));
   return true;
  }
@@ -54,6 +54,8 @@
   const overview=s.country_overview||{},derived=new Set(['by_type','by_template','total','effective_factories','output_per_day','assigned_factories','category','balance','used','owned','controlled','name']);
   const queued=typeof s.country==='string'&&s.country&&overview.country===s.country?queuedConstruction(overview.construction):null;
   f['construction.queued']=queued===null?unknown('Coda costruzioni non qualificata'):known(queued,'construction_adapter',true);
+  const projects=overview.projects,items=projects?.items,projectsKnown=Boolean(s.country)&&overview.country===s.country&&projects?.status==='observed'&&Array.isArray(items)&&items.length<=1024&&items.every(row=>row&&typeof row.id==='string'&&row.id&&typeof row.active==='boolean'&&typeof row.completed==='boolean'&&!(row.active&&row.completed))&&new Set(items.map(row=>row.id)).size===items.length;
+  for(const field of ['active','completed'])f['projects.'+field]=projectsKnown?known(items.filter(row=>row[field]).map(row=>row.id),'projects_adapter',true):unknown('Progetti speciali non qualificati');
   const production=overview.production,productionKnown=typeof s.country==='string'&&s.country&&overview.country===s.country&&production?.status==='observed'&&validProductionLines(production.lines);
   f['production.lines']=productionKnown?known(production.lines.map(row=>({...row})),'production_adapter',true):unknown('Linee di produzione non qualificate');
   Object.assign(f,politicalFacts(typeof s.country==='string'&&s.country&&overview.country===s.country?overview:{}));
@@ -171,6 +173,7 @@
     validateCondition(step.started_when);
    }
    if(Object.hasOwn(step.action,'params')){if(!record(step.action.params))throw Error('Parametri azione non validi');jsonData(step.action.params);}
+   if(Object.hasOwn(step.action.params||{},'game_date')){const v=step.action.params.game_date,m=typeof v==='string'&&v.match(/^(\d{1,4})\.(\d{1,2})\.(\d{1,2})$/);if(!m)throw Error('Data della partita non valida');const [y,month,d]=m.slice(1).map(Number),days=[31,y%4===0&&(y%100!==0||y%400===0)?29:28,31,30,31,30,31,31,30,31,30,31];if(y<1||month<1||month>12||d<1||d>days[month-1])throw Error('Data della partita non valida');}
    const evidence=Object.hasOwn(step,'evidence')?step.evidence:[];
    if(!Array.isArray(evidence)||evidence.length>32)throw Error('Evidenze non valide');
    for(const item of evidence){

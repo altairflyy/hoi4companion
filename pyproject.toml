@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Open source National Focus Explorer for Hearts of Iron IV"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["Pillow>=12.3,<13"]
+dependencies = ["Pillow>=12.3,<13", "yt-dlp>=2026.3.17", "imageio-ffmpeg>=0.6,<1"]
 license = "MIT"
 
 [project.optional-dependencies]

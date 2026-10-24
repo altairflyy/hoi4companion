@@ -28,12 +28,16 @@
    visit(row.started_when);
    const construction=scopeOK&&result.mode==='live'&&queued.status!=='unknown'?(state?.sample?.country_overview?.construction?.lines||[]).filter(line=>line.amount>0&&!line.repair_levels&&!line.conversion&&(targets.has('building:'+line.building_id)||targets.has('state:'+line.state_id+':'+line.building_id))):[];
    const membership=(key,value)=>{const item=contracts.fact(scopeOK&&result.mode==='live'?normalised:null,key);return item.status==='unknown'?null:item.value.includes(value);};
+   const goal=row.completion_condition,staticConstruction=params.category==='construction'&&Number.isInteger(params.baseline_level)&&goal?.op==='fact'&&goal.key.startsWith('country.states.items.')&&Number.isInteger(goal.value)?{baseline:params.baseline_level,target:goal.value,current:null}:null;
+   if(staticConstruction){const counter=contracts.fact(scopeOK&&result.mode==='live'?normalised:null,goal.key);staticConstruction.current=counter.status==='unknown'?null:counter.value;}
    return {...row,category:params.category||(row.action.kind==='special_project'?'projects':'checkpoints'),
+    ...(staticConstruction?{construction:staticConstruction}:{}),
     ...(params.event_id?{event_observation:{visible:membership('events.visible',params.event_id),option_available:params.event_option_id?membership('events.visible_options',params.event_id+':'+params.event_option_id):null}}:{}),
     start_basis:row.started_when?(contracts.checkKeys(row.started_when).length?'condition':'live'):'manual',construction_observations:construction,
+    game_date:params.game_date||null,
     timing:params.timing||'Al punto indicato dalla guida; verifica le condizioni nel gioco.',
     instructions:Array.isArray(params.instructions)?params.instructions.filter(x=>typeof x==='string'):[],
-    source_seconds:params.source_seconds??null};
+    source_seconds:params.source_seconds??(row.evidence||[]).find(e=>e.basis==='visual'&&Number.isFinite(e.timestamp_seconds))?.timestamp_seconds??(row.evidence||[]).find(e=>Number.isFinite(e.timestamp_seconds))?.timestamp_seconds??null};
   });
   const existing=new Set(operations.map(row=>row.key));
   for(const row of operations)if(row.action.params?.legacy_key)existing.add(row.action.params.legacy_key);
@@ -42,7 +46,8 @@
    timing:item.timing||'Verifica il momento nella fonte; il minutaggio riguarda il video.',instructions:[],
    source_seconds:item.seconds??null,completion_basis:'manual',runtime_status:scopeOK&&result.runtime.progress_status==='accepted'&&progress.checks?.[item.key]===true?'completed':'unverifiable',runtime_reason:'manual_confirmation_required'});
   // Timestamps order source instructions, never estimate in-game completion.
-  operations.sort((a,b)=>(a.source_seconds??Infinity)-(b.source_seconds??Infinity));
+  const dateKey=row=>row.game_date?row.game_date.split('.').reduce((n,v)=>n*100+Number(v),0):Infinity;
+  operations.sort((a,b)=>dateKey(a)-dateKey(b)||(a.source_seconds??Infinity)-(b.source_seconds??Infinity));
   return {mode:result.mode,country:result.country,progress_status:result.runtime.progress_status,lanes,operations,model:result};
  }
  const api={evaluate,folder};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiGuidePresentation=api;

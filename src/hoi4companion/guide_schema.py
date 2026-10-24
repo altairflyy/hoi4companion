@@ -6,6 +6,8 @@ nessuno stato del gioco viene acquisito o modificato.
 from __future__ import annotations
 
 from collections import deque
+from datetime import date
+import re
 from urllib.parse import urlsplit
 
 from .contracts import is_json_number, validate_condition
@@ -117,6 +119,12 @@ def validate_guide_extensions(guide: dict) -> None:
             if not isinstance(params, dict):
                 raise ValueError(f'Parametri azione non validi: {key}')
             _json_data(params)
+            if 'game_date' in params:
+                value=params['game_date']
+                if not isinstance(value,str) or not re.fullmatch(r'\d{1,4}\.\d{1,2}\.\d{1,2}',value):
+                    raise ValueError(f'Data della partita non valida: {key}')
+                try:date(*map(int,value.split('.')))
+                except ValueError:raise ValueError(f'Data della partita non valida: {key}') from None
 
         evidence = step.get('evidence', [])
         if not isinstance(evidence, list) or len(evidence) > 32:

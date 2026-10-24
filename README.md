@@ -33,6 +33,14 @@ Applicazione **gratuita e open source** per esplorare i focus nazionali di *Hear
 viste, anche dopo aver installato una guida. La guida della Polonia inclusa è
 un esempio: puoi aggiungerne altre e sceglierle dal selettore, senza sostituirla.
 
+**Video e istruzioni:** l'importatore prepara video YouTube a 15 FPS in parti
+entro 150 MB, con 15 secondi di sovrapposizione, usando l'encoder hardware se
+verificato disponibile. I fotogrammi locali, le date mostrate nella guida e i
+totali di fabbriche richieste per prodotto rendono le istruzioni consultabili
+senza rinvii generici al video. [Workflow e limiti](docs/guide-video-workflow.md).
+I [progetti speciali live](docs/special-projects-live.md) distinguono avvio e
+completamento, come le costruzioni: il solo avvio non completa l'istruzione.
+
 **Mod e profili:** al primo avvio vengono cercati i percorsi del PC corrente,
 compresa la cartella Documenti reindirizzata di Windows. I percorsi salvati o
 esplicitamente indicati hanno precedenza. Nella pagina Focus, «Mod» mostra il
@@ -67,9 +75,10 @@ Altri argomenti: `--docs-dir`, `--snapshot`, `--country AUS`, `--port 8766`, `--
   nativi e nazione, ritorno alle campagne precedenti e storico delle checklist.
   [Funzionamento, prove e limiti](docs/campaign-progress.md).
 
-- **Evidenziazioni sopra HOI4**: launcher Windows `avvia-overlay.vbs`, cornici
-  trasparenti ai clic guidate dal runtime, riconoscimento dei nomi e dei nodi
-  tecnologici a icona tramite sprite locali. Sperimentale: copertura, avvio,
+- **Evidenziazioni sopra HOI4**: launcher Windows `avvia-overlay.vbs`, host Rust e Direct2D, cornici
+  trasparenti ai clic guidate dal runtime. Focus, tecnologie e capitoli condividono
+  il riconoscimento tramite ID e geometria GUI in sola lettura; gli altri pannelli
+  conservano OCR Windows e sprite locali. Sperimentale: copertura, avvio,
   prove reali e limiti in [docs/native-overlay.md](docs/native-overlay.md).
 
 - **Guide Importer MVP** (`/importer`): prompt completo da dare alla propria
@@ -114,7 +123,9 @@ Altri argomenti: `--docs-dir`, `--snapshot`, `--country AUS`, `--port 8766`, `--
   è disponibile come esportazione separata, senza cambiare le API del programma.
   Esiste anche un parser CLI
   autonomo. [Integrazione, prove e limiti](docs/jomini-migration.md).
-  Server, runtime delle guide, lettore live e overlay richiedono ancora Python.
+  Server, runtime delle guide e lettore live richiedono ancora Python. L’overlay usa
+  Rust per rendering e, quando necessario, cattura/OCR; un worker Python gestisce
+  indicazioni, geometria GUI nativa e matching visivo degli altri pannelli.
 - **Analisi script** facoltativa: il componente Rust richiama il vero motore
   CWTools (.NET) con l’intero pacchetto di regole incluso, fissato a una revisione,
   per controllare riferimenti, contesti, parametri e localizzazioni. Jomini resta
@@ -283,7 +294,7 @@ per attribuire ricerche completate. Le dottrine del nuovo sistema restano fuori 
 
 Il repository dispone di una suite completa di test automatizzati per il backend Python e per i modelli frontend:
 
-### Test Python (431 test)
+### Test Python (507 test)
 Tramite lo script batch (Windows):
 ```cmd
 test.bat
@@ -295,7 +306,7 @@ py -3 -m hoi4companion --test
 ```
 (in alternativa: `python -m unittest discover -s tests -p "test_*.py"`).
 
-### Test frontend JavaScript / Node.js (238 test)
+### Test frontend JavaScript / Node.js (243 test)
 I modelli logici del client sono verificati tramite il test runner nativo di Node.js (`node:test`):
 ```powershell
 Get-ChildItem -Path "tests" -Filter "*.cjs" | ForEach-Object { node $_.FullName }
@@ -309,7 +320,8 @@ Il server locale è vincolato all'interfaccia di loopback `127.0.0.1` e non espo
 
 - **Licenza del codice:** [MIT License](LICENSE).
 - **Verifica delle dipendenze di terze parti:**
-  - L'unica dipendenza esterna obbligatoria di terze parti a runtime Python è **Pillow** (`Pillow>=12.3,<13`), concessa con licenza open source **HPND / PIL Software License**, licenza ampiamente permissiva e pienamente compatibile con la licenza MIT.
+  - Le dipendenze esterne a runtime Python comprendono **Pillow** (`Pillow>=12.3,<13`, licenza **HPND / PIL Software License**), **yt-dlp** (licenza **The Unlicense**, pubblico dominio) e **imageio-ffmpeg** (licenza **BSD 2-Clause**), tutte permissive e pienamente compatibili con la licenza MIT.
+  - L'host nativo dell'overlay Windows (`native/overlay/`) integra librerie Rust per rendering Direct2D/DirectWrite, documentate in [`src/hoi4companion/licenses/overlay-rust-dependencies.txt`](src/hoi4companion/licenses/overlay-rust-dependencies.txt) (licenze permissive: MIT/Apache-2.0).
   - Il parser degli script Clausewitz integra **Jomini 0.37.2** compilato come estensione nativa (`src/hoi4companion/_native/`), distribuito con licenza permissiva **MIT**. L'elenco completo delle licenze delle dipendenze Rust è documentato in [`src/hoi4companion/licenses/rust-dependencies.txt`](src/hoi4companion/licenses/rust-dependencies.txt) (tutte permissive: MIT/Apache-2.0).
   - Le regole statiche opzionali includono un sottoinsieme di configurazioni da **cwtools-hoi4-config**, rilasciate con licenza open source **MIT** ([`src/hoi4companion/rules/cwtools/LICENSE`](src/hoi4companion/rules/cwtools/LICENSE)).
   - Per l'overlay nativo opzionale (riconoscimento nodi tecnologici senza testo tramite sprite), l'extra facoltativo `overlay` utilizza **opencv-python-headless** (`opencv-python-headless>=4.10,<6`), distribuito con licenza open source **Apache 2.0**, anch'essa pienamente compatibile con MIT.

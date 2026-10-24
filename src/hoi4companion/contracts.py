@@ -172,6 +172,7 @@ class VisibleEvent(TypedDict):
 
 
 class ProductionProgress(TypedDict):
+    basis: NotRequired[Literal['requested','assigned']]
     assigned: int | None
     requested: int | None
     active: int | None
@@ -180,6 +181,10 @@ class ProductionProgress(TypedDict):
     target: int | None
     lines: list[ProductionLine]
     reason: str
+
+
+class ProductionLayout(TypedDict):
+    layout: list[ProductionProgress]
 
 
 class OperationBaseline(TypedDict):
@@ -220,7 +225,7 @@ class RuntimeStep(TypedDict):
     blocked_by: list[str]
     completion: Fact
     construction: NotRequired[dict[str, int | None]]
-    production: NotRequired[ProductionProgress]
+    production: NotRequired[ProductionProgress | ProductionLayout]
     selection: Fact
     availability: Fact
     completion_basis: Literal['native_membership', 'manual', 'condition', 'free', 'reminder']
@@ -335,7 +340,7 @@ def _valid_fact_type(key, value):
         return type(value) is bool
     if key in ('country', 'focus.tree'):
         return isinstance(value, str) and bool(value)
-    if key in ('focus.completed', 'focus.active', 'focus.continuous', 'focus.ids', 'research.completed', 'research.active', 'research.ids', 'construction.queued'):
+    if key in ('focus.completed', 'focus.active', 'focus.continuous', 'focus.ids', 'research.completed', 'research.active', 'research.ids', 'construction.queued', 'projects.active', 'projects.completed'):
         return isinstance(value, list) and all(isinstance(item, str) and item for item in value)
     if key == 'research.slots':
         return isinstance(value, list) and all(isinstance(item, dict) and 'technology_id' in item and
@@ -435,6 +440,17 @@ def normalise_state(value: dict) -> LiveState:
                         and overview.get('country') == sample['country'] and isinstance(production, dict)
                         and production.get('status') == 'observed' and _valid_production_lines(lines))
     facts['production.lines'] = fact(deepcopy(lines), 'calculated', 'production_adapter') if production_known else fact(reason='Linee di produzione non qualificate')
+    projects=overview.get('projects',{})
+    items=projects.get('items') if isinstance(projects,dict) else None
+    projects_known=(overview.get('country')==sample.get('country') and bool(sample.get('country'))
+                    and isinstance(projects,dict) and projects.get('status')=='observed'
+                    and isinstance(items,list) and len(items)<=1024
+                    and all(isinstance(row,dict) and isinstance(row.get('id'),str) and row['id']
+                        and type(row.get('active')) is bool and type(row.get('completed')) is bool
+                        and not(row['active'] and row['completed']) for row in items)
+                    and len({row['id'] for row in items})==len(items))
+    for field in ('active','completed'):
+        facts['projects.'+field]=fact([row['id'] for row in items if row[field]],'calculated','projects_adapter') if projects_known else fact(reason='Progetti speciali non qualificati')
     facts.update(_political_facts(overview if isinstance(sample.get('country'),str) and sample['country'] and overview.get('country')==sample['country'] else {}))
     if overview.get('country') == sample.get('country'):
         # These fields are derivations in country.py, not direct observations.

@@ -19,3 +19,7 @@ recursive-include native/cwtools *.fs *.cs *.fsproj *.csproj *.props *.json *.Co
 prune native/cwtools/bin
 prune native/cwtools/obj
 prune native/cwtools/vendor/artifacts
+include native/overlay/Cargo.toml native/overlay/Cargo.lock
+recursive-include native/overlay/src *.rs
+include scripts/build-overlay.py scripts/build-overlay.ps1
+include avvia-overlay.vbs docs/native-overlay.md

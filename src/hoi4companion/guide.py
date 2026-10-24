@@ -224,7 +224,7 @@ def enrich_guide(guide, trees, technologies, labels, folders):
                 else:
                     warnings.append(f'Tecnologia non trovata nel catalogo compatibile: {target}')
             elif kind in ('gate','project'):
-                step['verification']='manual'
+                step['verification']='automatic' if step.get('completion') else 'start_only' if step.get('started_when') else 'manual'
                 if target in labels:
                     step['name']=localise(labels[target],labels)
             step.setdefault('name',step.get('title',target or kind))

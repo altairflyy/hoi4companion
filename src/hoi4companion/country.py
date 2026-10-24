@@ -10,6 +10,10 @@ from .live import NativeSample, LiveReadError, WORLD_RVA
 
 
 class CountryReader:
+    def projects(self):
+        from .projects_native import read_projects
+        return read_projects(self)
+
     def politics(self):
         from .politics_native import read_politics
         return read_politics(self)
@@ -389,7 +393,7 @@ class CountryReader:
 def collect_country(process, world, country, native_tag, country_tag, watch_plan=None):
     result = {'country': country_tag}
     witnesses = {}
-    for section in ('divisions', 'manpower', 'states', 'production', 'equipment', 'resources', 'construction', 'intelligence', 'politics', 'events', 'decisions'):
+    for section in ('divisions', 'manpower', 'states', 'production', 'equipment', 'resources', 'construction', 'intelligence', 'politics', 'events', 'decisions', 'projects'):
         reader = CountryReader(process, world, country, native_tag)
         try:
             reader.typed(country, 'CCountry')

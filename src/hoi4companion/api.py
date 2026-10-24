@@ -28,6 +28,8 @@ from .import_sources import acquire_source, ytdlp_path, MAX_BYTES
 from .research_start import read_research_start
 from .operation_import import operation_catalog
 from .jomini_parser import backend_info
+from .guide_media import VideoJobs
+from .guide_frames import GuideFrames, frame_reference
 
 BASE = Path(__file__).resolve().parent
 PROJECT = BASE.parent.parent
@@ -78,6 +80,8 @@ class Store:
         self.live_cache = None
         self.live_cache_time = 0
         self.guide_checks = {}
+        self.video_jobs = VideoJobs(SETTINGS.parent / 'guide-videos')
+        self.guide_frames = GuideFrames(SETTINGS.parent / 'guide-frames')
         self.guide_revision = 0
         self.guide_states = {}
         self.guide_server_id=uuid4().hex
@@ -246,6 +250,7 @@ class Store:
     def close(self):
         # Never hold Store.lock while joining the producer: its idle callback
         # releases the read-only handle using that same lock.
+        if getattr(self,'video_jobs',None):self.video_jobs.close()
         self.live_hub.close()
         self.live_idle()
 
@@ -572,7 +577,7 @@ def make_handler(store: Store):
             self.send_header('Content-Length', str(len(data)))
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.send_header('Cache-Control', 'no-store')
-            self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'")
+            self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'")
             self.end_headers()
             self.wfile.write(data)
 
@@ -581,6 +586,37 @@ def make_handler(store: Store):
 
         def do_GET(self):
             url = urlparse(self.path)
+            if url.path=='/api/guide/frame':
+                query=parse_qs(url.query)
+                try:
+                    guide=store.walkthrough(query.get('id',[''])[0])
+                    step=next((s for rows in guide['tracks'].values() for s in rows if s['key']==query.get('key',[''])[0]),None)
+                    reference=frame_reference(guide,step) if step else None
+                    if not reference:raise ValueError('Questa istruzione non contiene un fotogramma temporizzato della fonte')
+                    path=store.guide_frames.frame(reference['url'],reference['seconds'])
+                    self._send(200,path.read_bytes(),'image/jpeg')
+                except (ValueError,OSError) as exc:self.json({'error':str(exc)},404)
+                return
+            if url.path in ('/api/import/video/status', '/api/import/video/file'):
+                query=parse_qs(url.query)
+                try:
+                    jobs=store.video_jobs
+                    key=query.get('id',[''])[0]
+                    if url.path.endswith('/status'):
+                        self.json(jobs.status(key))
+                    else:
+                        path=jobs.file(key,query.get('name',[''])[0])
+                        self.send_response(200)
+                        self.send_header('Content-Type',mimetypes.guess_type(path.name)[0] or 'application/octet-stream')
+                        self.send_header('Content-Length',str(path.stat().st_size))
+                        self.send_header('Content-Disposition','attachment; filename="'+path.name+'"')
+                        self.send_header('X-Content-Type-Options','nosniff')
+                        self.end_headers()
+                        with path.open('rb') as stream:
+                            import shutil
+                            shutil.copyfileobj(stream,self.wfile,1024*1024)
+                except (ValueError,OSError) as exc:self.json({'error':str(exc)},400)
+                return
             if url.path == '/api/script-analysis':
                 try:self.json(store.script_analysis(refresh=parse_qs(url.query).get('refresh')==['1']))
                 except (OSError,ValueError) as exc:self.json({'error':str(exc)},400)
@@ -726,7 +762,7 @@ def make_handler(store: Store):
         def do_POST(self):
             url = urlparse(self.path)
             import_paths = {'/api/import/source', '/api/import/packet', '/api/import/extract', '/api/import/preview', '/api/import/install', '/api/import/document'}
-            if url.path not in ('/api/config', '/api/refresh', '/api/guide/checks', '/api/guide/progress','/api/guide/associations') and url.path not in import_paths:
+            if url.path not in ('/api/config', '/api/refresh', '/api/guide/checks', '/api/guide/progress','/api/guide/associations','/api/import/video') and url.path not in import_paths:
                 self.json({'error': 'Not found'}, 404)
                 return
             # Blocca richieste cross-origin da siti terzi verso il servizio locale.
@@ -747,6 +783,11 @@ def make_handler(store: Store):
                 return
             try:
                 update = json.loads(self.rfile.read(length))
+                if url.path=='/api/import/video':
+                    if not isinstance(update,dict) or set(update)!={'url'} or not isinstance(update['url'],str):
+                        raise ValueError('Indica il link a un video YouTube')
+                    self.json(store.video_jobs.start(update['url']))
+                    return
                 if url.path=='/api/guide/associations':
                     self.json(store.associations(update=update))
                     return
