@@ -75,6 +75,8 @@ def _response(dll, data, encoding=1, mode=0):
     if (value.get('document_model') != 'TextTape' or value.get('typed_models') != 2
             or value.get('capabilities') != ['windows-1252','jomini-json','typed-focus-relations']):
         raise ValueError('Libreria Jomini precedente: ricompila il parser con modelli v2, codifiche e JSON')
+    if value.get('reviewed_recovery')!=1:
+        raise ValueError('Libreria Jomini precedente: ricompila il parser con recupero verificato v1')
     return value
 
 
@@ -88,7 +90,8 @@ def _verified_info(path):
         raise ParserUnavailableError(f'Controllo iniziale Jomini fallito: {exc}') from exc
     return {'engine': value['engine'], 'engine_version': value['engine_version'],
             'schema_version': value['schema_version'], 'document_model':value['document_model'],
-            'typed_models':value['typed_models'],'capabilities':value['capabilities']}
+            'typed_models':value['typed_models'],'capabilities':value['capabilities'],
+            'reviewed_recovery':value['reviewed_recovery']}
 
 
 def backend_info():
@@ -116,7 +119,7 @@ def _process(data, encoding='auto', mode=0):
 def parse_file(path, *, encoding='auto'):
     with Path(path).open('rb') as stream:
         data=stream.read(80_000_001)
-    return parse_bytes(data,encoding=encoding)
+    return parse_bytes(data,encoding=encoding,reviewed_recovery=True)
 
 
 def export_json(source, *, encoding='auto', duplicate_keys='key_value_pairs'):
@@ -130,9 +133,9 @@ def export_json(source, *, encoding='auto', duplicate_keys='key_value_pairs'):
     return _process(source,encoding,modes[duplicate_keys])
 
 
-def parse_bytes(data, *, encoding='auto'):
+def parse_bytes(data, *, encoding='auto', reviewed_recovery=False):
     from .clausewitz import Node
-    value = _process(data,encoding)
+    value = _process(data,encoding,4 if reviewed_recovery else 0)
 
     def convert(raw, depth=0):
         if depth > 180 or not isinstance(raw, dict) or not {'entries'} <= set(raw) or set(raw) - {'entries','projection'} or not isinstance(raw['entries'], list):
@@ -160,4 +163,5 @@ def parse_bytes(data, *, encoding='auto'):
         return node
     node=convert(value.get('node'))
     node.source_encoding=value['source_encoding']
+    node.source_recovery=value.get('source_recovery')
     return node

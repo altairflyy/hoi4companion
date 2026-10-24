@@ -16,6 +16,7 @@ class Node:
     # document stays authoritative for conditions and fields not migrated yet.
     projection: dict | None = field(default=None, compare=False, repr=False)
     source_encoding: str | None = field(default=None, compare=False, repr=False)
+    source_recovery: dict | None = field(default=None, compare=False, repr=False)
 
     def all(self, key: str) -> list[str | 'Node']:
         return [value for name, value in self.entries if name == key]

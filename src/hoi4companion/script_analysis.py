@@ -1,7 +1,9 @@
-"""Read-only, partial CWTools rule adapter. Never evaluates a game condition.
+"""CWTools rule descriptions and the legacy, explicitly partial demo analyzer.
 
 Jomini parses both scripts and lexically quoted CWT atoms. Unsupported schema
 constructs and unknown scopes remain unknown, including across mod boundaries.
+Installed-game analysis delegates to the full upstream engine through Rust.
+The demo analyzer is never an installation fallback.
 """
 from collections import Counter, defaultdict
 from functools import lru_cache
@@ -163,6 +165,7 @@ class _Analyzer:
         if kind.startswith('event.') and kind[6:] in ('country_event','news_event','state_event','unit_leader_event'):
             kind=kind[6:]
         kinds={'focus':('focus','shared_focus','joint_focus'),'event':('event','country_event','news_event','state_event','unit_leader_event')}.get(kind,(kind,))
+        if kind in NAMESPACES and any(value in self.index[k] for k in kinds):return None
         if kind not in NAMESPACES or any(k in self.incomplete for k in kinds):self.unknown('namespace:'+kind);return None
         return None if any(value in self.index[k] for k in kinds) else ('reference_missing',f'ID {kind} «{value}» non trovato nel catalogo installato','references')
 
@@ -381,19 +384,5 @@ def analyze_documents(documents,labels=None,reference_labels=None,*,book=None,in
 
 
 def analyze_installation(game,mods,labels,reference_labels):
-    documents=[];warnings=[];incomplete=set();sources={}
-    for directory in DIRECTORIES:
-        files,issues=collect_files(game,mods,directory,'.txt');warnings.extend(issues)
-        if issues:incomplete.update(DIRECTORY_TYPES[directory])
-        for file in files:
-            try:
-                root=parse_file(file)
-                relative=next((file.relative_to(base).as_posix() for base in reversed([game,*mods]) if file.is_relative_to(base)),directory+'/'+file.name)
-                sources[relative]=str(file)
-                documents.append((relative,root))
-            except (OSError,ValueError) as exc:
-                warnings.append(str(file)+': '+str(exc));incomplete.update(DIRECTORY_TYPES[directory])
-    report=analyze_documents(documents,labels,reference_labels,incomplete=incomplete)
-    report['file_warnings']=warnings
-    report['sources']=sources
-    return report
+    from .cwtools_engine import analyze_installation as engine_analysis
+    return engine_analysis(game,mods)

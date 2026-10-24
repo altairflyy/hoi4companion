@@ -55,6 +55,10 @@ class ScriptAnalysisTests(unittest.TestCase):
         self.assertNotIn('reference_missing',self.codes(report))
         self.assertGreater(report['coverage']['unsupported'],0)
 
+    def test_known_id_remains_verified_in_incomplete_namespace(self):
+        report=analyze_documents(documents('focus={id=A prerequisite={focus=A}}'),incomplete={'focus'})
+        self.assertNotIn('namespace:focus',report['coverage']['unhandled'])
+
     def test_diagnostic_limit_keeps_total_counts_and_signals_truncation(self):
         report=analyze_documents(documents('focus={id=A available={always=wrong always=wrong always=wrong}}'),limit=1)
         self.assertEqual(len(report['diagnostics']),1)

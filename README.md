@@ -10,15 +10,17 @@ Applicazione **gratuita e open source** per esplorare i focus nazionali di *Hear
 2. Assicurati di avere Python **3.11 o successivo**.
 3. Installa il programma. Da un pacchetto **wheel della tua piattaforma e versione
    Python**, `pip install percorso/hoi4companion-....whl` installa anche il parser
-   Rust/Jomini già compilato e Pillow; **Rust non serve sul PC dell'utente**.
-   Per compilare dal repository servono Rust e un linker (su Windows i C++ Build
-   Tools MSVC), poi:
+   Rust/Jomini, il motore CWTools con runtime .NET incluso e Pillow; **Rust e .NET
+   non servono sul PC dell'utente**. Il pacchetto completo è verificato su Windows x64.
+   Per compilare dal repository servono Rust, .NET SDK **9.0.319** e un linker
+   (su Windows i C++ Build Tools MSVC), poi:
    ```bash
    pip install -e .
    ```
    In alternativa, su Windows, dopo aver installato Pillow puoi eseguire
    `powershell -NoProfile -File scripts/build-parser.ps1` per compilare e collocare
-   il parser nel checkout. Il parser viene individuato automaticamente; non
+   il parser nel checkout, seguito da `powershell -NoProfile -File
+   scripts/build-cwtools.ps1` per il motore semantico. I componenti sono individuati automaticamente; non
    richiede variabili d'ambiente. [Dettagli](docs/jomini-migration.md).
 4. Su Windows puoi avviare direttamente con un doppio clic su **`avvia.bat`**. Verrà aperta l'interfaccia nel browser su `http://127.0.0.1:8766`.
 5. Apri **Configurazione** dall'interfaccia e imposta:
@@ -113,9 +115,12 @@ Altri argomenti: `--docs-dir`, `--snapshot`, `--country AUS`, `--port 8766`, `--
   Esiste anche un parser CLI
   autonomo. [Integrazione, prove e limiti](docs/jomini-migration.md).
   Server, runtime delle guide, lettore live e overlay richiedono ancora Python.
-- **Analisi script** facoltativa: usa regole CWTools fissate a una revisione per
-  controllare riferimenti, contesti, parametri e localizzazioni. I costrutti non
-  supportati restano non verificabili; non aggiunge conferme al walkthrough né
+- **Analisi script** facoltativa: il componente Rust richiama il vero motore
+  CWTools (.NET) con l’intero pacchetto di regole incluso, fissato a una revisione,
+  per controllare riferimenti, contesti, parametri e localizzazioni. Jomini resta
+  il parser dei cataloghi del Companion; CWTools usa internamente il proprio
+  parser per la semantica. La copertura delle singole istruzioni resta sconosciuta;
+  non aggiunge conferme al walkthrough né
   esegue condizioni del gioco. [Uso, copertura e limiti](docs/script-analysis.md).
 - Estrazione `focus_tree`, `focus`, `shared_focus` e `joint_focus` (importazione basilare).
 - Prerequisiti con **OR all'interno dello stesso blocco** e **AND tra blocchi differenti**; focus mutuamente esclusivi.
@@ -278,7 +283,7 @@ per attribuire ricerche completate. Le dottrine del nuovo sistema restano fuori 
 
 Il repository dispone di una suite completa di test automatizzati per il backend Python e per i modelli frontend:
 
-### Test Python (410 test)
+### Test Python (431 test)
 Tramite lo script batch (Windows):
 ```cmd
 test.bat
@@ -290,7 +295,7 @@ py -3 -m hoi4companion --test
 ```
 (in alternativa: `python -m unittest discover -s tests -p "test_*.py"`).
 
-### Test frontend JavaScript / Node.js (235 test)
+### Test frontend JavaScript / Node.js (238 test)
 I modelli logici del client sono verificati tramite il test runner nativo di Node.js (`node:test`):
 ```powershell
 Get-ChildItem -Path "tests" -Filter "*.cjs" | ForEach-Object { node $_.FullName }

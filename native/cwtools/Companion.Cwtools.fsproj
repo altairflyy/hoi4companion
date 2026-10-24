@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RuntimeFrameworkVersion>9.0.21</RuntimeFrameworkVersion>
+    <AssemblyName>Companion.Cwtools</AssemblyName>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <ItemGroup><Compile Include="JominiInput.fs" /><Compile Include="Program.fs" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="vendor/CWTools/CWTools.fsproj" /></ItemGroup>
+</Project>

@@ -2,7 +2,8 @@ use std::io::{self, BufRead, Write};
 
 fn main() {
     // JSONL protocol also makes the native parser independently usable without
-    // Python. No arbitrary commands, filesystem paths or network are accepted.
+    // Python. Semantic analysis accepts a local CWTools host and file manifest;
+    // parsing itself has no filesystem access. Neither action uses a shell.
     let stdin = io::stdin();
     let mut out = io::BufWriter::new(io::stdout().lock());
     for line in stdin.lock().lines() {
@@ -11,6 +12,15 @@ fn main() {
                 serde_json::from_str(&line).map_err(|e| e.to_string())?;
             if value["schema_version"] != 1 {
                 return Err("Unsupported request schema".into());
+            }
+            if value["action"] == "analyze" {
+                let host = value["host"].as_str().ok_or("Missing CWTools host")?;
+                let request = serde_json::to_vec(&value["request"]).map_err(|e| e.to_string())?;
+                return hoi4companion_parser::analysis::run(
+                    std::path::Path::new(host),
+                    &request,
+                    std::time::Duration::from_secs(300),
+                );
             }
             let encoding = match value["encoding"].as_str().unwrap_or("auto") {
                 "auto" => 0,

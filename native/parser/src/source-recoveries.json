@@ -1,0 +1,533 @@
+{
+  "schema_version": 1,
+  "policy": "reviewed-content-only-v1",
+  "entries": [
+    {
+      "file": "common/doctrines/subdoctrines/sea/navy_submarine_doctrines.txt",
+      "decoded_sha256": "b0fe32ce5ca0d8e0efba38f747cb1aa0851f29664d6594197d00869fc43fad38",
+      "source_sha256": "b0fe32ce5ca0d8e0efba38f747cb1aa0851f29664d6594197d00869fc43fad38",
+      "edits": [
+        {
+          "start": 9123,
+          "end": 9123,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "619a09cf3e36a7ee97fbb86403eb78bba09deab7d298bad790ec8d0c903ec7f0",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "common/focus_inlay_windows/ast_right_vs_left_campaign_empty_inlay_window.txt",
+      "decoded_sha256": "0021c7eb94bbda7a2d3812743bddbc4d037f41178a6803dd63ad2d4fc31c048f",
+      "source_sha256": "0021c7eb94bbda7a2d3812743bddbc4d037f41178a6803dd63ad2d4fc31c048f",
+      "edits": [
+        {
+          "start": 585,
+          "end": 585,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "f3986523fa78bb17f39b1cea2e455e57e770f387e4528e078f56ed0e5abb2a95",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "common/ideas/SOV.txt",
+      "decoded_sha256": "3c6c883aa521e8a34a5c6852716df86dde9b82db40dc41b1b5aa515af9608911",
+      "source_sha256": "3c6c883aa521e8a34a5c6852716df86dde9b82db40dc41b1b5aa515af9608911",
+      "edits": [
+        {
+          "start": 201974,
+          "end": 201974,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "3c24613f79daa39b2e453db2cb19fbd1c0530646b866ca703d524de7e96b3753",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "common/ideas/persia.txt",
+      "decoded_sha256": "2e1b23ea425e93f90f79533e0c4666689dedf24ee293174d2d3ee034d6fc6ac9",
+      "source_sha256": "2e1b23ea425e93f90f79533e0c4666689dedf24ee293174d2d3ee034d6fc6ac9",
+      "edits": [
+        {
+          "start": 28391,
+          "end": 28391,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "9f3b48868d5679ca8d83476d3304dff271babe6ad41b07eb2265e4784c033596",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "common/ideas/switzerland.txt",
+      "decoded_sha256": "8f67fd650041e6a6aa21bf73b607900d91dce76752b58f5d32d342d0326945be",
+      "source_sha256": "8f67fd650041e6a6aa21bf73b607900d91dce76752b58f5d32d342d0326945be",
+      "edits": [
+        {
+          "start": 22686,
+          "end": 22686,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "9c51c1b2799e3ff666e0672487b31c7926b66fdffde7226bec4056fad7dc0ec3",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "common/military_industrial_organization/organizations/BRA_organization.txt",
+      "decoded_sha256": "aff5af6e58a36cbcfea84a0b9042144228022593f4989cf908f6a57a948df851",
+      "source_sha256": "aff5af6e58a36cbcfea84a0b9042144228022593f4989cf908f6a57a948df851",
+      "edits": [
+        {
+          "start": 3222,
+          "end": 3222,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "8f2e5c201cde2819258a92638eba1180d97235e6cc0be6dd76afb9778e62b53e",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "common/national_focus/TSR_lingguang_incident_joint_branch.txt",
+      "decoded_sha256": "116ab54bcc9d0fb66cf176bd43d8a568ecf336e09dce3e7dc09978ae661de0aa",
+      "source_sha256": "116ab54bcc9d0fb66cf176bd43d8a568ecf336e09dce3e7dc09978ae661de0aa",
+      "edits": [
+        {
+          "start": 6948,
+          "end": 6949,
+          "original": "}",
+          "replacement": " ",
+          "kind": "remove_unmatched_final_close"
+        }
+      ],
+      "expected_ast_sha256": "331ddc1b5974f5a68050fa4201499136de6c40c3931058ef0d5b1dc465b6db34",
+      "original_error": "Parentesi graffa chiusa senza apertura",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "common/scripted_guis/AST_cabinet_trust_scripted_gui.txt",
+      "decoded_sha256": "a5dea1b8451c3a107ec262f57b2c4e17716bc9d8cb91f3510d1e8f794d51242b",
+      "source_sha256": "a5dea1b8451c3a107ec262f57b2c4e17716bc9d8cb91f3510d1e8f794d51242b",
+      "edits": [
+        {
+          "start": 575,
+          "end": 575,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "3aaa6b62c09c753563b0f845e0e62df202bb599fd227b1713275e8dade69a2fa",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "common/units/names_divisions/BRA_names_divisions.txt",
+      "decoded_sha256": "2fbbf5b17ac71a33fd7c635824cadd60eaf49a282dfc9153d3194014c9851b96",
+      "source_sha256": "460c0cbb9071dceff7243665d5a8649287a860c37c43b3b65d0ca5940bc1f621",
+      "edits": [
+        {
+          "start": 12321,
+          "end": 12321,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "2fd0374809be68e093af6a8f78b09c6bbd1dc2be825b863ed9771f8e849da2fa",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "gfx/entities/empty.gfx",
+      "decoded_sha256": "ee9ad42e7b44da26a493703be7ed13f6f56fb5191c18643c03c4742030cb9e9a",
+      "source_sha256": "ee9ad42e7b44da26a493703be7ed13f6f56fb5191c18643c03c4742030cb9e9a",
+      "edits": [
+        {
+          "start": 112,
+          "end": 112,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "8e62e256e8edb847e9500731c30b6cf9c8d16669b9310d96fc1fa838d465c271",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "gfx/entities/flame_tanks.gfx",
+      "decoded_sha256": "caf80bc30dd334957442334b548ac48cb53da0627fc22bdfa143703d2ae38e71",
+      "source_sha256": "caf80bc30dd334957442334b548ac48cb53da0627fc22bdfa143703d2ae38e71",
+      "edits": [
+        {
+          "start": 1408,
+          "end": 1408,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "5f3be4a9c64ea4750e45d755dfa395e8dd73ba5195ea0c6137680a61d96c48cf",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "gfx/models/units/trains/flat_wagon.asset",
+      "decoded_sha256": "7ded9ef66b100fc853ec57bba0c7e3e763dec2b1b2bafb738a4b9ada07693667",
+      "source_sha256": "7ded9ef66b100fc853ec57bba0c7e3e763dec2b1b2bafb738a4b9ada07693667",
+      "edits": [
+        {
+          "start": 293,
+          "end": 293,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "7c9a7fcb6d245b6bf68e5bd9bd36fd26d0ff9cd85d6b5c0e890112e69141b934",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "gfx/models/units/trains/tank_wagon.asset",
+      "decoded_sha256": "bb8d8cb3d1d77eec09de136ca320a3ee727e10752aac72a22c9834d1f090a2ba",
+      "source_sha256": "bb8d8cb3d1d77eec09de136ca320a3ee727e10752aac72a22c9834d1f090a2ba",
+      "edits": [
+        {
+          "start": 293,
+          "end": 293,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "c252d5e2355c7cb972e4ede92ad06ce132ff44c097203aecaa4f7f6392dfe762",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "gfx/models/units/trains/tank_wagon_2.asset",
+      "decoded_sha256": "39f1918182112d5b552d619e469f8200f4d63bb7ffaa6d10bbc58d6b6891dd1e",
+      "source_sha256": "39f1918182112d5b552d619e469f8200f4d63bb7ffaa6d10bbc58d6b6891dd1e",
+      "edits": [
+        {
+          "start": 297,
+          "end": 297,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "eef91d392b37b45cc22cd0cceebcdb9b27a3575f9b3598d0dfa60f1d99600899",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "gfx/models/units/trains/train_coal_equipment_1.asset",
+      "decoded_sha256": "6e6d95551d868d906d234fcf6e345b14b55ac4ddba3946b599e1676d60147ffa",
+      "source_sha256": "6e6d95551d868d906d234fcf6e345b14b55ac4ddba3946b599e1676d60147ffa",
+      "edits": [
+        {
+          "start": 337,
+          "end": 337,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "791595e0bb6fd01e36948929e763c091d01717378e4e42abe9d82c9df32b1407",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "gfx/models/units/trains/train_coal_equipment_2.asset",
+      "decoded_sha256": "0cac53983c86d2aac9919d9481d845964ca944ed78875dfc05ee5d0efdc5e244",
+      "source_sha256": "0cac53983c86d2aac9919d9481d845964ca944ed78875dfc05ee5d0efdc5e244",
+      "edits": [
+        {
+          "start": 336,
+          "end": 336,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "34e5dfa6a88ff74190361884ee2e2d1a879ea77563fbfe40f2a585deba32be7d",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "gfx/models/units/trains/train_coal_equipment_3.asset",
+      "decoded_sha256": "8be46a4bfb57a9029ff3e048860881c4f900cf6c694e706a4a6f17a2904a2ff1",
+      "source_sha256": "8be46a4bfb57a9029ff3e048860881c4f900cf6c694e706a4a6f17a2904a2ff1",
+      "edits": [
+        {
+          "start": 337,
+          "end": 337,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "6c145da4d7853f466eba10aacd535690c365eed88d13684e6f1cf3f2d7974052",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "gfx/models/units/trains/wagon_1.asset",
+      "decoded_sha256": "50a724c4a01957452761a9c4e80c3a81bbce135841963493f7ea18a926226b55",
+      "source_sha256": "50a724c4a01957452761a9c4e80c3a81bbce135841963493f7ea18a926226b55",
+      "edits": [
+        {
+          "start": 288,
+          "end": 288,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "5c3543bcfdf7eaf3eeae9e1b747336c88d0f54cacc8a3bcb5003a042f867bc77",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "gfx/models/units/trains/wagon_2.asset",
+      "decoded_sha256": "43ba8680cb1eb65501c1b28af2ff144aa2e7e8cafb4cf586b7c16a530b44bc38",
+      "source_sha256": "43ba8680cb1eb65501c1b28af2ff144aa2e7e8cafb4cf586b7c16a530b44bc38",
+      "edits": [
+        {
+          "start": 287,
+          "end": 287,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "f87eb59697452453eed8f3fbd7f1e39bbce18f3d82bc78d97ef69e8ebb80fa05",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "gfx/particles/particle_repository.txt",
+      "decoded_sha256": "fed4bf78c856fec0c4d26dc0246fb61327417da80eb10c075e4a44f8632b15f2",
+      "source_sha256": "fed4bf78c856fec0c4d26dc0246fb61327417da80eb10c075e4a44f8632b15f2",
+      "edits": [
+        {
+          "start": 2598,
+          "end": 2605,
+          "original": "force =",
+          "replacement": "       ",
+          "kind": "omit_assignment_without_value"
+        }
+      ],
+      "expected_ast_sha256": "279a63227c0540197cb982a3cef5ce11b9f8add417cbacb4529ff0498260a704",
+      "original_error": "invalid syntax encountered: encountered '}' for object value (offset: 2614)",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "history/countries/NOR - Norway.txt",
+      "decoded_sha256": "163a9d707599373b3874355944c8bc5dcc78d3e456475cb76f3c59ecf7eadef7",
+      "source_sha256": "f26704f9311af80a35a72d7620f0e991eb0682f038ded4c663f293b4f60ca3a1",
+      "edits": [
+        {
+          "start": 12481,
+          "end": 12481,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "38f6c1f9f1369f73ce2bf32f699839050efed47901b60bbdbac66c2c42d27034",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "history/units/AST_1936.txt",
+      "decoded_sha256": "fc6e2866605dd56b1768d1f5f0c335d903c23cb9ab24bb2a52b5ed325f05fff8",
+      "source_sha256": "44fa19d7f62dabe775828007e2e41381585ea0ada944a563e32fc22d02b3ac9a",
+      "edits": [
+        {
+          "start": 3842,
+          "end": 3842,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "a656e25df1c69909f4710d7ca796ee02cd15beda2545b6adce158a11457a3a29",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "history/units/FRA_1936.txt",
+      "decoded_sha256": "2d82d385412c83083ebf15c81108a8bc0ddc9caf11bc16d919656a426ff1086b",
+      "source_sha256": "92275e5385272fbc532a9b1090eda58a8e7a62753bad10828d4aba07218ab890",
+      "edits": [
+        {
+          "start": 28041,
+          "end": 28041,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "6c07d7664ffbfcc0364a2fba711afae286e60cf13384bd81b90d82a7f3d79263",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "history/units/FRA_1936_nsb.txt",
+      "decoded_sha256": "7914a2d6f9305046cb5071f59f7becd0396e0cd67ef3660552bb5cf2358697cd",
+      "source_sha256": "c4ef14f658a767b938f960d29e11d0fbb2762202f935b1d9ed2f9fdf7ff0ff50",
+      "edits": [
+        {
+          "start": 28222,
+          "end": 28222,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "287a044eacf7480205305ec2b6bb874e120098287e12845ee5299b2388aa9cff",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "history/units/FRA_1939_naval_legacy.txt",
+      "decoded_sha256": "8cde0440c7d6950d729d7806ef10a809a554ebd2c6e584f4208a65c23e5e9ab8",
+      "source_sha256": "83bf97302d2b38f21539b3d61cd1fa668969d62e9a845bbdd318633e6f782f5e",
+      "edits": [
+        {
+          "start": 28662,
+          "end": 28662,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "d7f83fc7d86670bdc285dec487964dd9f135ba2352afad1fc7fc2900213581e9",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "history/units/FRA_1939_naval_mtg.txt",
+      "decoded_sha256": "802e1b95155aa3672e8fff35c0791932bdd0723f01e560b16be345fe4aa89eeb",
+      "source_sha256": "924b9a97b4657044f19ef6ec59d5743f2a549184ff371320c48de62a73413907",
+      "edits": [
+        {
+          "start": 34570,
+          "end": 34570,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "e9afaf5da85637f6a0ed41496f50982f4b35823d76db006e980b49aeff03b3e7",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "interface/backend.gui",
+      "decoded_sha256": "17a1f3a3f9db84aac5405d21f226f5c505b8e8b535a58e434e2a0b09fee7fbc3",
+      "source_sha256": "17a1f3a3f9db84aac5405d21f226f5c505b8e8b535a58e434e2a0b09fee7fbc3",
+      "edits": [
+        {
+          "start": 3718,
+          "end": 3718,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "fddc845baf3aaef813bd278083fe2ae6da866ed7c6be1d43cf2bd55f1f9fc7ce",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "interface/ger_monroe_doctrine_scripted_gui.gui",
+      "decoded_sha256": "2e8ea5e70533f8974931ec897250b77fc0f34dd62e9bd5d29f3b917f7628e9e1",
+      "source_sha256": "2e8ea5e70533f8974931ec897250b77fc0f34dd62e9bd5d29f3b917f7628e9e1",
+      "edits": [
+        {
+          "start": 1593,
+          "end": 1593,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "9a9c971b7ed9862613f4fb47c1dd1d0ae66c23a2682ab2cac6080d097830ee5a",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "interface/powerbalanceview.gfx",
+      "decoded_sha256": "ec6cbf62cb12835e612be40ce3a54cedf424817ff84e1b3817bc07c1492808f1",
+      "source_sha256": "ec6cbf62cb12835e612be40ce3a54cedf424817ff84e1b3817bc07c1492808f1",
+      "edits": [
+        {
+          "start": 15132,
+          "end": 15132,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "ed0b974797be81f51c1f64e1c4cbc892b18fe321ec42bf7fbb1e03b0dbc0b829",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "interface/sia_movie_theater_campaigns_scripted_gui.gui",
+      "decoded_sha256": "151d4f78f5c9122e8a4faeef7132316401c01a0ba531da8eff41ac88b3699c4b",
+      "source_sha256": "151d4f78f5c9122e8a4faeef7132316401c01a0ba531da8eff41ac88b3699c4b",
+      "edits": [
+        {
+          "start": 1091,
+          "end": 1091,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "d3ffe906552c146f4d866ab3ed9172c0926c16b560c042ea0262cba414438ccd",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    },
+    {
+      "file": "interface/sov_propaganda_campaigns_scripted_gui.gui",
+      "decoded_sha256": "c000fb0b06c5d0fcef07e044fc53d56f4f8797586f52ba19406e1759d065df97",
+      "source_sha256": "c000fb0b06c5d0fcef07e044fc53d56f4f8797586f52ba19406e1759d065df97",
+      "edits": [
+        {
+          "start": 1746,
+          "end": 1746,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "5c12ec83debc87bd9547888617196c6370f9316905bd87cabd2b3add44432a34",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "reviewed block boundaries and strict Jomini AST; CWTools cross-check required before deployment"
+    }
+  ]
+}

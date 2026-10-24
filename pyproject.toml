@@ -18,7 +18,7 @@ overlay = ["opencv-python-headless>=4.10,<6"]
 hoi4companion = "hoi4companion.__main__:main"
 
 [tool.setuptools.package-data]
-hoi4companion = ["web/*.html", "web/*.css", "web/*.js", "web/*.d.ts", "guides/*.json", "guide-import-prompt.md", "examples/*.txt", "examples/*.json", "licenses/*.txt", "rules/cwtools/*.cwt", "rules/cwtools/*.json", "rules/cwtools/LICENSE", "rules/cwtools/common/*.cwt", "rules/cwtools/history/*.cwt"]
+hoi4companion = ["web/*.html", "web/*.css", "web/*.js", "web/*.d.ts", "guides/*.json", "guide-import-prompt.md", "examples/*.txt", "examples/*.json", "licenses/*.txt", "rules/cwtools/**/*", "rules/cwtools/*"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

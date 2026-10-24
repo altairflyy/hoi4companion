@@ -473,6 +473,8 @@ class Store:
             with self.lock:
                 if generation!=self._analysis_generation:
                     raise ValueError('Cataloghi ricaricati durante l’analisi: ripeti il controllo')
+                from .source_errors import record_source_errors
+                report=record_source_errors(report,SETTINGS.parent/'logs'/'source-errors.json')
                 self._analysis_report=report
             return report
 
@@ -582,6 +584,7 @@ def make_handler(store: Store):
             if url.path == '/api/script-analysis':
                 try:self.json(store.script_analysis(refresh=parse_qs(url.query).get('refresh')==['1']))
                 except (OSError,ValueError) as exc:self.json({'error':str(exc)},400)
+                except RuntimeError as exc:self.json({'error':str(exc)},503)
                 return
             if url.path == '/api/script-rules':
                 from .script_analysis import RuleBook

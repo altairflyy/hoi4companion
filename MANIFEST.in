@@ -1,10 +1,21 @@
 include native/parser/Cargo.toml native/parser/Cargo.lock
 recursive-include native/parser/src *.rs
 recursive-include native/parser/tests *.rs
+recursive-include native/parser/tests/fixtures *.txt
+include native/parser/src/source-recoveries.json
 include scripts/build-parser.ps1
 include scripts/legacy_clausewitz.py scripts/compare-parsers.py scripts/compare-parser-catalogs.py
 recursive-include tests *.py *.cjs *.json *.txt
 recursive-include examples *.json
 include docs/jomini-migration.md
 include docs/script-analysis.md
+include docs/parsing-compatibility.md
+include docs/source-recovery.md
 recursive-include src/hoi4companion/rules/cwtools *.cwt *.json LICENSE
+recursive-include src/hoi4companion/rules/cwtools *.csv *.reference
+include scripts/build-cwtools.py scripts/build-cwtools.ps1
+include native/cwtools/global.json native/cwtools/vendor-provenance.json
+recursive-include native/cwtools *.fs *.cs *.fsproj *.csproj *.props *.json *.Config LICENSE
+prune native/cwtools/bin
+prune native/cwtools/obj
+prune native/cwtools/vendor/artifacts
