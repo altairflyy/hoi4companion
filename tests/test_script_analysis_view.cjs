@@ -4,6 +4,13 @@ const fs=require('node:fs');
 const path=require('node:path');
 const {filterDiagnostics,summaryText,mount}=require('../src/hoi4companion/web/analysis.js');
 
+test('full engine does not render unavailable coverage metrics as zero',()=>{
+  const text=summaryText({coverage:{metrics_available:false,documents:10,parser_errors:2}});
+  assert.match(text,/sconosciuta/);
+  assert.doesNotMatch(text,/0 controlli/);
+  assert.match(summaryText({coverage:{metrics_available:false,documents:10,parser_errors:1},parser_error_details:[{classification:'rejected_by_both'}]}),/entrambi i parser/);
+});
+
 test('analysis filters the four categories without treating unknown coverage as success',()=>{
   const report={status:'partial',coverage:{unsupported:7,unknown_scope:2},summary:{references:1,scopes:2,parameters:3,localisation:4},
     diagnostics:[{category:'references',file:'mod.txt',message:'Missing ID',value:'F1'},{category:'scopes',file:'event.txt',message:'Wrong context'}]};
@@ -13,6 +20,22 @@ test('analysis filters the four categories without treating unknown coverage as 
   assert.match(summaryText(report),/2/);
   assert.doesNotMatch(summaryText(report),/completat|tutto valido/i);
   assert.match(summaryText(report),/si sovrappongono/);
+});
+
+test('set aside source errors have a separate count and a persistent log',()=>{
+  const text=summaryText({coverage:{metrics_available:false,documents:10,parser_errors:3,ignored_parser_errors:2},
+    source_error_log:{status:'saved',path:'local/source-errors.json'},
+    parser_error_details:[{classification:'rejected_by_both'},{classification:'rejected_by_both'}]});
+  assert.match(text,/1 errore/);
+  assert.match(text,/2 file.*accantonati/);
+  assert.match(text,/local\/source-errors.json/);
+});
+
+test('recovered definitions are distinguished from excluded files and gameplay proof',()=>{
+  const text=summaryText({coverage:{metrics_available:false,documents:10,parser_errors:0,ignored_parser_errors:0,recovered_sources:31}});
+  assert.match(text,/31 file recuperati in memoria/);
+  assert.match(text,/proprietà senza valore restano omesse/);
+  assert.match(text,/non verificano la partita/);
 });
 
 test('diagnostics render as text and a failed refresh clears the old results',async()=>{

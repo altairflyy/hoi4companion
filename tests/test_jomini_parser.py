@@ -21,7 +21,7 @@ class ParserSelectionTests(unittest.TestCase):
             os.environ.pop('HOI4_PARSER', None)
             os.environ.pop('HOI4_JOMINI_LIBRARY', None)
             self.assertEqual(backend_info(), {'engine':'jomini','engine_version':'0.37.2','schema_version':1,
-                                             'document_model':'TextTape','typed_models':2,'capabilities':['windows-1252','jomini-json','typed-focus-relations']})
+                                             'document_model':'TextTape','typed_models':2,'reviewed_recovery':1,'capabilities':['windows-1252','jomini-json','typed-focus-relations']})
             self.assertEqual(parse('x=yes').scalar('x'), 'yes')
 
     def test_unavailable_backend_aborts_before_catalogs_or_progress_initialisation(self):

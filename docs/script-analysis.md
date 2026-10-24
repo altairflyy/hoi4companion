@@ -1,179 +1,131 @@
-# Analisi statica degli script con regole CWTools
+# Analisi statica con CWTools e Rust/Jomini
 
-Aprire **Analisi script** dalla navigazione oppure `/analysis`. Il controllo è
-facoltativo e non aggiunge conferme al walkthrough, non modifica le guide e non
-determina disponibilità o completamenti live. Nessun file o memoria del gioco
-viene modificato; non sono eseguiti trigger, effetti o comandi.
+La pagina `/analysis` usa ora **il motore CWTools completo**, revisione
+`b377453dee803f9258be92cfc49896d09039702d`, attraverso il componente nativo Rust.
+Non usa più l’adattatore Python parziale per analizzare l’installazione.
 
-## I quattro controlli
+**Aggiornamento parsing del 24 ottobre:** corretti i disaccordi lessicali fra
+Jomini e CWTools e la classificazione dei documenti non script. L’installazione
+passa da 46 a 31 errori, tutti rifiutati da entrambi i parser. I risultati iniziali
+riportati sotto restano lo storico della prima integrazione.
+[Correzioni, prove e casi residui](parsing-compatibility.md).
 
-1. **Riferimenti:** indice delle definizioni effettive di focus/shared/joint,
-   tecnologie, personaggi, idee/token dei consiglieri, decisioni, eventi, regioni,
-   progetti ed edifici. Include tag e alias dei tag nazionali. Controlla i
-   prerequisiti/esclusioni dei focus e i riferimenti tipizzati delle regole
-   supportate. Un alias nazionale è un'identità valida, non prova del paese a cui
-   si risolverà nella partita.
-2. **Contesti:** verifica gli scope dichiarati dei trigger/effetti e le
-   transizioni `owner`, `controller`, `capital_scope`, tag e regioni. Segue
-   `ROOT`, `THIS` e `PREV`; `FROM` senza evidenza rimane sconosciuto. I contenitori
-   con destinazione non supportata vengono analizzati con contesto sconosciuto.
-3. **Parametri:** valida tipi scalari/blocchi, booleani, numeri/range, enum e
-   riferimenti coperti. Le forme alternative vengono provate separatamente:
-   diagnosi di una forma scartata non devono contaminare quella selezionata.
-   La pagina consente anche di consultare nomi, contesti e schemi delle varianti.
-4. **Localizzazioni:** controlla chiavi implicite delle entità, chiavi note,
-   riferimenti `$KEY$` raggiungibili e cicli. Segnala un fallback quando una
-   chiave manca nel dizionario visualizzato ma esiste nel riferimento inglese.
-   Il caricatore attuale fonde già inglese e traduzione: il controllo non prova
-   quindi che ogni testo sia stato tradotto in italiano. Una stringa esplicita
-   non risolta può essere testo inline; senza evidenza delle virgolette resta
-   non verificabile, evitando falsi errori su nomi come quelli delle agenzie.
+## Architettura e confini
 
-Le diagnosi hanno `schema_version: 1`, `source: static_analysis` e
-`runtime_evaluated: false`. I contatori separano riferimenti, contesti, parametri
-e localizzazioni. Non esiste un esito «tutto valido»: lo stato è `partial`.
+- Jomini 0.37.2 resta il parser Rust dei cataloghi, con TextTape, modelli tipizzati,
+  Windows-1252 e JSON. Le API di focus, tecnologie, guide e acquisizione live restano indipendenti.
+- Il facade Rust chiama direttamente `Companion.Cwtools.exe`, senza shell o console
+  visibili. Il processo locale usa la libreria upstream .NET e il suo parser interno;
+  il motore CWT non è stato riscritto in Rust o tradotto in un sottoinsieme.
+- Il manifesto dei file applica prima l’ordine delle mod attive, le sostituzioni
+  per percorso e `replace_path` del Companion. Il motore riceve una sola vista
+  effettiva tramite `ZippedDirectory`, senza copiare o modificare file del gioco.
+- Il pacchetto contiene tutti i **111 file CWT** della directory Config upstream,
+  più le risorse ausiliarie, revisione delle regole
+  `297dd69c42aabe10078a8b7ab7f2d07ee631d4ef`.
+- Provenienze e SHA-256 verificano sorgenti vendorizzati, regole e host distribuito.
+  Le licenze CWTools MIT e gli avvisi delle dipendenze .NET sono inclusi.
 
-## Regole e dipendenze
+Fonti: [motore](https://github.com/cwtools/cwtools/tree/b377453dee803f9258be92cfc49896d09039702d),
+[regole HOI4](https://github.com/cwtools/cwtools-hoi4-config/tree/297dd69c42aabe10078a8b7ab7f2d07ee631d4ef).
 
-Sono inclusi sottoinsiemi dei file originali del progetto
-[cwtools-hoi4-config](https://github.com/cwtools/cwtools-hoi4-config), revisione
-`297dd69c42aabe10078a8b7ab7f2d07ee631d4ef`, con licenza MIT e attribuzione originali.
-`rules/cwtools/provenance.json` elenca SHA-256 di ogni file: il caricamento rifiuta
-regole mancanti o alterate. Non si scaricano aggiornamenti a runtime.
+## Controlli e contratto
 
-L'adattatore `cwtools-subset-v2` usa le forme dichiarate nei `.cwt` e gli scope
-del `script_documentation.json` dello stesso repository/revisione. Gli atomi
-CWT, compresi `<type>`, vengono racchiusi lessicalmente tra virgolette in memoria
-prima di passare a **Jomini**: non è stato introdotto un secondo parser di
-contenitori. I commenti/opzioni CWT non vengono eseguiti o reinterpretati come
-regole complete. Il catalogo include 615 nomi di trigger, 573 effetti e 17 link.
+CWTools interpreta alias, cardinalità, tipi e sottotipi, enum, contesti, riferimenti,
+scripted trigger/effect e localizzazioni secondo le regole incluse. Le diagnosi
+mantengono codice upstream, severità, file, righe e colonne. La classificazione
+nei quattro gruppi dell’interfaccia è presentazione; non cambia la diagnosi.
 
-È un adattatore delle regole, **non l'integrazione dell'intero motore CWTools**.
-Non richiede .NET o VS Code. Il codice del controllo è un modulo del framework
-Python; il parser resta Rust/Jomini. La compatibilità completa del ruleset con
-la build HOI4 installata non è certificata.
+`GET /api/script-analysis` mantiene `schema_version: 1`, `source: static_analysis`,
+`runtime_evaluated: false`, `diagnostics`, `summary`, `sources` e `file_warnings`.
+`rules.adapter` vale `cwtools-engine-v1`; `rules.engine_revision` identifica il motore.
+Il risultato è memorizzato in cache e invalidato al ricaricamento dei cataloghi.
+L’analisi costosa non tiene il lock delle API live/SSE.
 
-## Limiti espliciti
+I vecchi `coverage.recognized`, `unsupported` e `unknown_scope` valgono **null**:
+CWTools non espone quelle misure. `metrics_available: false` impedisce di mostrarle
+come zeri. Sono invece disponibili documenti caricati, definizioni tipizzate,
+nomi dei tipi, sorgenti di localizzazione ed errori di parsing effettivi.
+`status: analyzed` indica che l’esecuzione è terminata senza errori di lettura/parsing,
+non che tutti gli script o le condizioni della partita siano validi.
 
-- Cardinalità/obbligatorietà, sottotipi complessi, `single_alias`, value set,
-  enum dinamici e tipi non indicizzati possono restare non supportati.
-- Un campo non coperto dal sottoinsieme CWT è registrato nella copertura, non
-  come errore certo del gioco o della mod. Le variabili/espressioni dinamiche
-  non diventano valori inventati.
-- Le chiamate a scripted trigger/effect vengono riconosciute nell'indice; non
-  sono espanse automaticamente nel contesto del chiamante. Le definizioni sono
-  analizzate separatamente con contesto sconosciuto.
-- Un file non leggibile rende incompleti solo i namespace che potrebbe definire.
-  In quel namespace l'assenza di un ID non è prova che l'ID non esista.
-- I testi non sono un emulatore delle localizzazioni dinamiche e delle stringhe
-  bindable del gioco. Si usano i dizionari già caricati dal Companion.
-- Si analizzano le directory elencate in `script_analysis.DIRECTORIES`, non ogni
-  tipo di file Paradox. L'ordine delle mod e `replace_path` usano il caricatore
-  esistente, senza alterare la selezione del launcher.
+L’elenco è limitato a 2.000 diagnosi, ma i totali comprendono tutte le severità e
+le diagnosi omesse. `truncated` segnala il limite. Un host mancante o incompatibile,
+una regola CWT sintatticamente malformata o un timeout producono un errore esplicito
+(HTTP 503 per il motore), senza tornare silenziosamente al vecchio adattatore.
 
-Le prime 2.000 diagnosi sono restituite; `truncated` indica l'omissione delle
-successive e i totali comprendono tutte le segnalazioni. I casi non verificabili
-sono raggruppati nei limiti di copertura, non moltiplicati per ogni occorrenza
-nell'elenco principale. Gli avvisi del ruleset non equivalgono a problemi che
-l'utente debba correggere nei file del gioco.
+`GET /api/script-rules` conserva la consultazione degli schemi e delle descrizioni.
+Il vecchio `analyze_documents` rimane soltanto per la dimostrazione senza gioco e i
+suoi test storici: è esplicitamente parziale e non è il backend dell’installazione.
 
-## API e costi
+## Build e distribuzione
 
-- `GET /api/script-analysis`: analisi della configurazione corrente, in cache.
-- `GET /api/script-analysis?refresh=1`: ripete la lettura statica dal disco.
-- `GET /api/script-rules?kind=trigger&name=has_completed_focus`: definizioni
-  consultabili; `kind` può essere `trigger` o `effect`.
+Il wheel Windows x64 include l’host **self-contained** con runtime .NET 9.0.21.
+L’utente finale non deve installare .NET, Rust, VS Code o CWTools. Non sono previsti
+scaricamenti a runtime.
 
-«Ricarica» invalida la cache insieme ai cataloghi. Il controllo viene eseguito
-solo su richiesta e non nel ciclo live; la sua elaborazione non mantiene il lock
-condiviso con le API live. Una ricarica simultanea impedisce di pubblicare un
-report relativo ai cataloghi precedenti. Non viene cambiato il sistema di
-acquisizione, il polling o la persistenza delle campagne.
+Per compilare i sorgenti servono Rust/MSVC e .NET SDK 9.0.319 (patch compatibili
+ammesse da `global.json`):
 
-Le prove comprendono fixture deterministiche delle quattro categorie, overload,
-scope sconosciuti, tag alias, namespace incompleti, testi ciclici, integrità delle
-regole, cache/API e rendering DOM testato con Node. Il browser Work disabilitato
-impedisce una nuova verifica visiva: le verifiche HTTP/DOM non sono screenshot
-o prova dell'overlay in gioco.
+```powershell
+powershell -NoProfile -File scripts/build-parser.ps1
+powershell -NoProfile -File scripts/build-cwtools.ps1
+```
 
-## Qualificazione locale del 23 ottobre 2026 (adattatore v1)
+`pip install -e .` e la creazione del wheel compilano entrambi i componenti.
+Il build .NET ripristina dipendenze fissate da `packages.lock.json`; il build Rust
+usa `Cargo.lock`. NuGet/rete servono solo durante la compilazione.
+L’ABI aggiunta `hoi4_cwtools_analyze` non modifica l’ABI del parser.
+Il CLI Rust accetta anche `action: analyze`, un percorso assoluto dell’host e
+`request: {schema_version: 1, rules_dir, parser_library, files: {percorso_logico: file_assoluto}}`.
+`parser_library` è il percorso assoluto della libreria Jomini del pacchetto,
+usata dall’host per la compatibilità lessicale e il confronto degli errori.
 
-- **405 test Python e 235 JavaScript superati**. Il parser Rust non è stato
-  modificato in questa fase.
-- Analizzati **2.013 file e 38.209 definizioni** dell'installazione e del playset
-  locali; 237.721 istruzioni riconosciute. Il report riporta separatamente
-  190.250 controlli non verificabili e 48.545 occorrenze con contesto sconosciuto:
-  questi conteggi non sono percentuali di copertura né errori da correggere.
-- 3.428 avvisi statici, di cui 130 sui riferimenti, 238 sui contesti, 334 sui
-  parametri e 2.726 sulle localizzazioni. Sono suggerimenti del sottoinsieme di
-  regole, non problemi del gioco confermati singolarmente. La pagina mostra
-  l'eventuale troncamento dell'elenco. I namespace focus/shared/joint e idee
-  risultano incompleti per file originali non leggibili: i loro ID assenti non
-  vengono dichiarati inesistenti.
-- **55 risposte API identiche** tra istanza precedente e nuova: configurazione,
-  cataloghi, 43 alberi nazionali e 9 schede tecnologiche. Nessuna regressione
-  osservata nei contratti confrontati.
-- Sdist e wheel Windows CPython 3.13 costruite; installazione separata con regole,
-  manifest e licenza presenti e verificati. Il controllo funziona senza Rust nel
-  PATH, senza override e senza dipendenze .NET aggiuntive.
-- Dopo il riavvio su **8772**: API live e SSE `observed`/utilizzabili, pagine e
-  risorse HTTP 200, runtime identico, stessi run/campagna/checklist/avvii/storia e
-  intero payload SQLite identico al backup precedente al passaggio.
+Limiti del bridge: manifesto 16 MB, risposta 64 MB, file testuali 80 MB, esecuzione
+300 secondi. Il processo viene terminato al timeout. I file grafici/binari sono
+indicizzati per verificarne i riferimenti, senza decodificarne il contenuto.
 
-L'analisi completa ha richiesto 66,76 s in una prova concorrente con altri lavori;
-avvio e preanalisi della nuova istanza 122,10 s complessivi. La prima analisi può
-quindi richiedere circa un minuto. Una richiesta del report già in cache ha
-impiegato 65 ms nella verifica HTTP. Sono singole misure locali, non benchmark
-controllati; l'analisi rimane fuori dal ciclo live e non si esegue all'avvio
-ordinario del programma. Solo il launcher locale usato per il passaggio ha
-precalcolato il report prima di rendere attiva l'istanza.
+## Verifiche eseguite
 
-Evidenze locali escluse da Git: `.local/cwtools-real-analysis-final.json`,
-`.local/cwtools-api-parity.json`, `.local/cwtools-production-verification.json`,
-`.local/cwtools-package-smoke.json` e log delle suite `.local/cwtools-*-tests.log`
-e `.local/cwtools-python-final.log`. Backup:
-`.local/backups/guide-progress-before-cwtools.sqlite3`.
+- **418 test Python e 236 JavaScript superati**, compresi test reali attraverso
+  l’ABI Rust e l’host: riferimenti a shared focus e sottotipi evento, alias,
+  cardinalità, tipo booleano, contesto errato, localizzazione e parsing fallito.
+- **14 test Rust superati**, Clippy con `-D warnings` superato.
+- Build da sdist a wheel Windows CPython 3.13 x64, installazione isolata e chiamata
+  reale al motore senza Rust/.NET nel PATH: verificate.
+- Installazione locale con cinque mod attive: **38.608 file indicizzati,
+  5.591 documenti elaborati, 150.893 definizioni**, circa 48 secondi per il motore
+  nella prima misura. **46 errori di parsing** esposti, inclusi testi di licenze
+  con estensione `.txt` e alcuni file non accettati dal parser upstream.
+- Il motore ha restituito 42.247 diagnosi: sono controlli sull’intera installazione,
+  comprendono suggerimenti e informazioni e **non rappresentano 42.247 bug confermati**.
+  Le misure del vecchio adattatore non sono confrontabili: l’ambito ora è più ampio.
+- Lettura della partita reale in background: `observed`, `usable: true`, Polonia,
+  stessa identità di campagna. Il lettore resta sperimentale; questa prova non
+  certifica tutti i campi rispetto ai pannelli del gioco.
+- Dopo il riavvio del server, il payload SQLite dell’avanzamento coincideva con
+  il backup precedente. Verificati identità di campagna/run e guida, sette risposte
+  HTTP 200, flusso SSE utilizzabile e parità di 55 API dei cataloghi fra server
+  precedente e candidato. La risposta dell’analisi in cache ha richiesto 0,392 s.
 
-## Correzione dei falsi positivi (adattatore v2)
+## Limiti residui
 
-I contatori sono avvisi statici dell'intera installazione, non errori confermati
-né operazioni della guida. I controlli riconosciuti, non verificabili e con
-contesto sconosciuto sono misure sovrapposte: non vanno sommati per calcolare
-una percentuale di copertura. La pagina ora lo esplicita.
-
-La verifica degli esempi reali ha riprodotto e corretto:
-
-- `66.owner` e `DEN.hosts_danish_brigades`, prima confusi con tag letterali
-  inesistenti. Le espressioni composte negli scope restano non verificabili;
-  il controllo sui tag letterali assenti rimane attivo.
-- La scelta dell'overload quando tutte le forme hanno un problema. Un blocco
-  `country_event={id=... days=90}` veniva presentato come «atteso uno scalare»
-  perché veniva scelta la variante scalare. Ora viene scelta la forma a blocco
-  e riportato il vero conflitto con l'intervallo CWT `days=1..31`. È una
-  discordanza delle regole da verificare, non prova che l'evento del gioco sia
-  errato. Gli intervalli CWT non sono stati rimossi o allargati arbitrariamente.
-- I sottotipi di evento dichiarati (`event.country_event`, ecc.) vengono
-  verificati nel rispettivo indice. Un ID evento effettivamente assente rimane
-  una segnalazione, anche quando la forma a blocco è valida.
-- I focus con `text=...` usano quella chiave per nome e descrizione. Gli esempi
-  reali comprendono `USA_CAS` → `CAS_effort` e `uk_industrial_focus` →
-  `industrial_effort`; l'assenza del nome sotto l'ID originale non è un errore.
-
-Superati **410 test Python e 235 JavaScript**, inclusi cinque nuovi casi di
-regressione. Nessuna modifica a cataloghi pubblici, lettore live o file HOI4.
-
-La nuova analisi reale conserva 237.721 istruzioni riconosciute e 48.545 contesti
-sconosciuti; i controlli non verificabili passano da 190.250 a **183.141**.
-Gli avvisi sui riferimenti scendono da 130 a **89**, quelli sulle localizzazioni
-da 2.726 a **2.722**; restano **238** avvisi sui contesti e **334** sui parametri,
-ora con distinzione tra tipo e intervallo CWT. Totale 3.383 avvisi: non sono
-stati confermati singolarmente come difetti del gioco. I conteggi v1 sopra
-restano come evidenza storica, non come risultati correnti.
-
-L'istanza 8772 usa l'adattatore v2. Verificati stato live/SSE osservati e
-utilizzabili, runtime identico, stessi identificativi, checklist, avvii, storia
-e payload SQLite interamente identico al backup del passaggio. La wheel v2 è
-stata costruita, installata separatamente e provata sul caso `text=...`.
-Evidenze locali: `.local/cwtools-v2-analysis.json`,
-`.local/cwtools-v2-production-verification.json`,
-`.local/cwtools-v2-python.log`, `.local/cwtools-v2-javascript.log`.
+- La compatibilità del pacchetto di regole con ogni build/DLC/mod non è certificata.
+  Nuove istruzioni o interpretazioni diverse possono generare falsi positivi.
+- File non interpretati rendono incompleto l’indice: un riferimento segnalato come
+  mancante può dipendere da quel parsing fallito. Questi errori restano visibili.
+- CWTools non esegue le condizioni del gioco né risolve ogni espressione dinamica;
+  non restituisce una misura esaustiva della copertura. L’assenza di diagnosi non
+  prova che una condizione sia vera o che una guida sia completata.
+- L’analisi delle localizzazioni è in inglese, lingua di riferimento supportata dal
+  motore; la lingua delle diciture del Companion e le traduzioni mod restano gestite
+  dal caricatore esistente. Non certifica la completezza della traduzione italiana.
+- Il processo viene ricreato quando si ripete l’analisi. Il costo iniziale è evitato
+  nelle normali richieste grazie alla cache; non è un controllo periodico live.
+  In un campionamento sull’installazione locale il working set del processo
+  CWTools era circa 3,2 GB; il processo termina e libera quella memoria dopo
+  l’analisi. Non è una misura del picco né un benchmark generalizzabile.
+- Distribuzione verificata soltanto su Windows x64/CPython 3.13. Il codice .NET
+  upstream presenta due avvisi di compilazione FS0104, non errori del bridge.
+- Nessun test visivo del browser o dell’overlay è stato eseguito in questa sessione.
+  Le verifiche web usano API HTTP, SSE e test del DOM.

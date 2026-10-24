@@ -48,3 +48,36 @@ class ScriptAnalysisApiTests(unittest.TestCase):
             root=Path(directory)/'rules';shutil.copytree(RULE_ROOT,root)
             (root/'triggers.cwt').write_text('tampered',encoding='utf-8')
             with self.assertRaisesRegex(ValueError,'modificate'):RuleBook(root)
+
+    def test_only_published_analysis_persists_source_errors(self):
+        from test_source_errors import raw_report
+        from hoi4companion.cwtools_engine import normalize_report
+        store=Store.__new__(Store);store.lock=RLock();store._analysis_lock=RLock()
+        store._analysis_report=None;store._analysis_generation=1;store.demo=False
+        store.game_root=Path('fixture');store.mod_roots=[];store.labels={};store.reference_labels={}
+        with TemporaryDirectory() as temp:
+            settings=Path(temp)/'settings.json'
+            log=settings.parent/'logs/source-errors.json'
+            report=normalize_report(raw_report(),{},[])
+            with patch('hoi4companion.api.SETTINGS',settings),patch('hoi4companion.script_analysis.analyze_installation',return_value=report):
+                published=store.script_analysis()
+                self.assertEqual(published['source_error_log']['status'],'saved')
+                original=log.read_bytes()
+                store.script_analysis()
+                self.assertEqual(log.read_bytes(),original)
+            def reload(*args):store._analysis_generation+=1;return report
+            with patch('hoi4companion.api.SETTINGS',settings),patch('hoi4companion.script_analysis.analyze_installation',side_effect=reload):
+                with self.assertRaises(ValueError):store.script_analysis(refresh=True)
+            self.assertEqual(log.read_bytes(),original)
+
+    def test_engine_deployment_failure_is_an_explicit_http_error(self):
+        store=Store.__new__(Store)
+        with patch.object(Store,'script_analysis',side_effect=RuntimeError('CWTools host missing')):
+            with ThreadingHTTPServer(('127.0.0.1',0),make_handler(store)) as server:
+                thread=Thread(target=server.serve_forever,daemon=True);thread.start()
+                try:
+                    with self.assertRaises(HTTPError) as failure:
+                        urlopen(f'http://127.0.0.1:{server.server_port}/api/script-analysis')
+                    self.assertEqual(failure.exception.code,503)
+                    self.assertIn('host missing',json.load(failure.exception)['error'])
+                finally:server.shutdown();thread.join(3)

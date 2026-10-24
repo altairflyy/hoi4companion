@@ -153,8 +153,21 @@ def load_trees(files: list[Path], labels: dict[str, str]) -> tuple[dict[str, Tre
                         tree.shared.append(child_value)
                 trees[tree.id] = tree
 
+    shared_children: dict[str, list[str]] = {}
+    for fid, item in shared.items():
+        for parent in {ref for group in item.prerequisites for ref in group}:
+            shared_children.setdefault(parent, []).append(fid)
     for tree in trees.values():
-        pending = tree.shared.copy()
+        # A referenced root imports its descendants. Required ancestors remain
+        # available, without pulling in their unrelated sibling branches.
+        branch, expanded = tree.shared.copy(), set()
+        while branch:
+            fid = branch.pop()
+            if fid in expanded:
+                continue
+            expanded.add(fid)
+            branch.extend(shared_children.get(fid, []))
+        pending = sorted(expanded, reverse=True)
         while pending:
             fid = pending.pop()
             if fid in tree.focuses:

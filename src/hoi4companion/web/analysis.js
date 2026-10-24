@@ -7,6 +7,20 @@
   }
   function summaryText(report){
     const coverage=report.coverage||{};
+    if(coverage.metrics_available===false){
+      if(coverage.ignored_parser_errors!==undefined){
+        const ignored=coverage.ignored_parser_errors;
+        const remaining=coverage.parser_errors-ignored;
+        const log=report.source_error_log;
+        const saved=log?.status==='saved'?` Registro: ${log.path}.`:log?.status==='error'?' Registro non salvato: consulta gli avvisi.':'';
+        const recovered=coverage.recovered_sources||0;
+        const recovery=recovered?` ${recovered} file recuperati in memoria con correzioni verificate sui contenuti; le proprietà senza valore restano omesse.`:'';
+        return `Motore CWTools: ${coverage.documents} documenti analizzati; ${remaining} ${remaining===1?'errore':'errori'} di parsing da indagare. ${ignored} file rifiutati da entrambi i parser accantonati; l’analisi prosegue sugli altri file.${recovery}${saved} La copertura delle istruzioni resta sconosciuta e i file esclusi non sono stati verificati. Le segnalazioni statiche non verificano la partita.`;
+      }
+      const both=(report.parser_error_details||[]).filter(row=>row.classification==='rejected_by_both').length;
+      const detail=both?` ${both} sorgenti sono rifiutati da entrambi i parser.`:'';
+      return `Motore CWTools: ${coverage.documents} documenti analizzati; ${coverage.parser_errors} errori di parsing.${detail} Il motore non espone un conteggio delle istruzioni non verificabili: questa copertura resta sconosciuta. Le segnalazioni statiche non verificano la partita.`;
+    }
     return `Copertura parziale: ${coverage.recognized||0} istruzioni riconosciute; ${coverage.unsupported||0} controlli non verificabili; ${coverage.unknown_scope||0} contesti sconosciuti. I contatori si sovrappongono: non sommarli per ottenere una percentuale di copertura.`;
   }
   function mount(document,fetcher){
@@ -38,8 +52,11 @@
         const count=data.summary||{};
         el('summary').textContent=`Avvisi sui riferimenti: ${count.references||0} · Contesti: ${count.scopes||0} · Parametri: ${count.parameters||0} · Localizzazioni: ${count.localisation||0}`;
         el('coverage').textContent=summaryText(data);
-        el('provenance').textContent=`Regole CWTools ${data.rules.revision.slice(0,12)} · ${data.coverage.documents} file · ${data.coverage.entities} entità · nessuna valutazione della partita`;
+        el('provenance').textContent=`${data.rules.engine?'Motore CWTools '+data.rules.engine_revision.slice(0,12)+' · ':''}Regole CWTools ${data.rules.revision.slice(0,12)} · ${data.coverage.documents} file · ${data.coverage.entities} entità · nessuna valutazione della partita`;
         for(const warning of data.file_warnings||[])add(el('limitations'),warning);
+        for(const file of data.non_script_files||[])add(el('limitations'),`Documento non script: ${file}. Indicizzato senza interpretarlo come codice.`);
+        for(const item of data.source_recoveries||[])add(el('limitations'),`Recuperato in memoria: ${item.file}. ${item.evidence.omitted_properties?'Proprietà senza valore omessa; non è stato inventato un valore.':'Struttura recuperata mediante correzione verificata sull’hash esatto.'}`);
+        if(data.input_adjustments?.length)add(el('limitations'),`Compatibilità lessicale Jomini → CWTools: ${data.input_adjustments.length} file adattati in memoria; nessuna modifica ai file del gioco.`);
         for(const warning of data.rules.load_errors||[])add(el('limitations'),warning.file+': '+warning.error);
         for(const [key,count] of Object.entries(data.coverage.unhandled||{}))add(el('limitations'),`${key}: ${count}`);
         el('status').textContent=data.demo?'Risultati dimostrativi: nessuna installazione reale caricata.':'Analisi disponibile. I dati restano in cache fino a «Ricarica» o «Ripeti analisi».';

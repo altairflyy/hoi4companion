@@ -20,9 +20,57 @@ pub struct Node {
     pub projection: Option<models::Projection>,
 }
 
+pub mod analysis;
+mod cwtools_input;
+mod recovery;
+
+/// # Safety
+/// `data` must address `len` readable UTF-8 bytes. Free with `hoi4_parser_free`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hoi4_cwtools_prepare(data: *const u8, len: usize) -> *mut c_char {
+    if data.is_null() || len > MAX_BYTES {
+        return std::ptr::null_mut();
+    }
+    let result = std::panic::catch_unwind(|| {
+        cwtools_input::prepare(unsafe { std::slice::from_raw_parts(data, len) })
+    });
+    let bytes = result.unwrap_or_else(|_| {
+        br#"{"schema_version":1,"error":"CWTools preparation panic"}"#.to_vec()
+    });
+    CString::new(bytes).expect("JSON has no raw NUL").into_raw()
+}
 mod document;
 mod input;
 mod models;
+
+/// # Safety
+/// Both pointers must address readable byte ranges for the supplied lengths.
+/// `host` is an absolute UTF-8 executable path. Free with `hoi4_parser_free`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hoi4_cwtools_analyze(
+    host: *const u8,
+    host_len: usize,
+    data: *const u8,
+    len: usize,
+) -> *mut c_char {
+    if host.is_null() || data.is_null() || host_len > 32768 || len > 16_000_000 {
+        return std::ptr::null_mut();
+    }
+    let result = std::panic::catch_unwind(|| {
+        let path = std::str::from_utf8(unsafe { std::slice::from_raw_parts(host, host_len) })
+            .map_err(|e| e.to_string())?;
+        analysis::run(
+            std::path::Path::new(path),
+            unsafe { std::slice::from_raw_parts(data, len) },
+            std::time::Duration::from_secs(300),
+        )
+    })
+    .unwrap_or_else(|_| Err("CWTools bridge panic".into()));
+    let bytes = result.unwrap_or_else(|error| {
+        serde_json::to_vec(&serde_json::json!({"schema_version":1,"error":error})).unwrap()
+    });
+    CString::new(bytes).expect("JSON has no raw NUL").into_raw()
+}
 
 pub fn parse(source: &[u8]) -> Result<Node, String> {
     document::parse(source)
@@ -36,9 +84,22 @@ pub fn process(source: &[u8], encoding: u32, mode: u32) -> Vec<u8> {
     let result=(|| {
         let (decoded,encoding)=input::decode(source,encoding)?;
         let mut result=serde_json::json!({"schema_version":SCHEMA_VERSION,"engine":"jomini","engine_version":"0.37.2",
-            "document_model":"TextTape","typed_models":2,"source_encoding":encoding,
+            "document_model":"TextTape","typed_models":2,"reviewed_recovery":1,"source_encoding":encoding,
             "capabilities":["windows-1252","jomini-json","typed-focus-relations"]});
-        if mode==0 { result["node"]=serde_json::to_value(parse(decoded.as_bytes())?).map_err(|e|e.to_string())?; }
+        if mode==0 || mode==4 {
+            let node=match parse(decoded.as_bytes()) {
+                Ok(node)=>node,
+                Err(original) if mode==4=>match recovery::recover(&decoded)? {
+                    Some((source,evidence))=>{
+                        result["source_recovery"]=serde_json::to_value(evidence).map_err(|e|e.to_string())?;
+                        parse(source.as_bytes())?
+                    }
+                    None=>return Err(original),
+                },
+                Err(error)=>return Err(error),
+            };
+            result["node"]=serde_json::to_value(node).map_err(|e|e.to_string())?;
+        }
         else {
             result["json"]=document::export_json(decoded.as_bytes(),mode)?.into();
             result["format"]="jomini-json".into();
@@ -65,7 +126,8 @@ pub unsafe extern "C" fn hoi4_parser_parse(data: *const u8, len: usize) -> *mut 
 
 /// # Safety
 /// `data` must point to `len` readable bytes (or be null for empty input).
-/// Encoding: 0 auto, 1 UTF-8, 2 Windows-1252. Mode: 0 AST, 1 pairs, 2 group, 3 preserve.
+/// Encoding: 0 auto, 1 UTF-8, 2 Windows-1252. Mode: 0 strict AST, 1 pairs,
+/// 2 group, 3 preserve, 4 AST with content-pinned reviewed recovery.
 /// Free the returned allocation exactly once with `hoi4_parser_free`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hoi4_parser_process(
