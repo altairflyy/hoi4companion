@@ -297,8 +297,9 @@ class RunStore:
                     current = observed_count(state, spec['fact_key'])
                 else:
                     metrics = row.get('production', {})
-                    count = metrics.get('assigned')
-                    current = {'value':count,'source':'production_adapter'} if type(count) is int and metrics.get('requested') == count else None
+                    requested=spec['fact_key'].startswith('production_requested:')
+                    count = metrics.get('requested' if requested else 'assigned')
+                    current = {'value':count,'source':'production_adapter'} if type(count) is int and (requested or metrics.get('requested') == count) else None
                 if current is None:
                     continue
                 record.setdefault('baselines', {})[row['key']] = {

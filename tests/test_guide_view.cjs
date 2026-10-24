@@ -14,7 +14,7 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  let subscriber;const requests=[];let run={schema_version:1,guide_id:'two',run_id:'first',session_id:null,checks:{},started:{},revision:0};const history={first:run};
  const window={hoiLive:{enabled:true,subscribe(fn){subscriber=fn;}}};
  const document={getElementById:get,createElement:()=>new Node(),createTextNode:text=>({textContent:text}),querySelectorAll:()=>[],body:{classList:{add(){}}}};
- const fetch=async(url,options)=>{requests.push(url);if(url.startsWith('/api/guide/progress')&&options){const body=JSON.parse(options.body);run=body.run_id?history[body.run_id]:(history.second={...run,run_id:'second',checks:{},started:{}});if(body.checks)run.checks=body.checks;if(body.started)run.started=body.started;run.revision++;}
+ const fetch=async(url,options)=>{requests.push(url);if(url.startsWith('/api/guide/frame'))return {ok:true,blob:async()=>new Blob(['image'])};if(url.startsWith('/api/guide/progress')&&options){const body=JSON.parse(options.body);run=body.run_id?history[body.run_id]:(history.second={...run,run_id:'second',checks:{},started:{}});if(body.checks)run.checks=body.checks;if(body.started)run.started=body.started;run.revision++;}
   return {ok:true,json:async()=>url.startsWith('/api/guide/progress')?run:url==='/api/guides'?{guides:[{id:'two',title:'Generic'}]}:guide};};
  const context={window,document,fetch,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{pathname:'/walkthrough',search:'?guide=two',href:'http://localhost/walkthrough?guide=two'},HoiContracts:require('../src/hoi4companion/web/contracts.js'),HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js')};
  vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);
@@ -56,7 +56,7 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  const live=lines=>({usable:true,sample:{country:'GER',native_tick:10,country_overview:{country:'GER',construction:{status:'observed',lines}}}});
  subscriber(live([line]));
  assert.equal(get('operationActive').textContent,'1 in corso');assert.equal(get('operationProgress').textContent,'0/1');
- assert.equal(start(),undefined);assert.match(get('operationCards').textContent,/Avviata · rilevata live/);assert.match(get('operationCards').textContent,/3 in coda · 0 fabbriche attive/);
+ assert.equal(start(),undefined);assert.match(get('operationCards').textContent,/In corso · avvio rilevato live/);assert.match(get('operationCards').textContent,/3 in coda · 0 fabbriche attive/);
  subscriber(live([{...line,amount:4}]));assert.match(get('operationCards').textContent,/4 in coda/);
  subscriber(live([]));assert.equal(get('operationActive').textContent,'');assert.equal(get('operationProgress').textContent,'0/1');assert.match(get('operationCards').textContent,/Nessun ordine rilevato/);
  subscriber({...live([line]),usable:false});assert.equal(get('operationActive').textContent,'');assert.match(get('operationCards').textContent,/Avvio non verificabile/);assert.equal(get('operationCards').textContent.includes('ORDINI LETTI LIVE'),false);
@@ -69,4 +69,9 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  const eventLive=live([]);eventLive.sample.country_overview.events={status:'observed',visible:[{instance_id:'1',event_id:'example.1',option_ids:['example.1.a']}]};
  subscriber(eventLive);assert.match(get('operationCards').textContent,/EVENTO APERTO.*Scelta consigliata: Recommended answer · disponibile nella finestra/);
  assert.match(get('nextOperation').textContent,/Choose event answer/);assert.equal(get('operationProgress').textContent,'0/2');
+ guide.tracks.operations[0].action.params.source_seconds=118;subscriber(eventLive);
+ let frame=descendants(get('operationCards')).find(n=>n.className==='operation-frame');frame.open=true;await frame.ontoggle();
+ assert.equal(requests.filter(path=>path.startsWith('/api/guide/frame')).length,1);
+ subscriber(eventLive);frame=descendants(get('operationCards')).find(n=>n.className==='operation-frame');assert.equal(frame.open,true);await frame.ontoggle();
+ assert.equal(requests.filter(path=>path.startsWith('/api/guide/frame')).length,1);
 });

@@ -11,6 +11,8 @@ class BuildWithCwtools(build_py):
         builder=runpy.run_path(str(Path(__file__).parent/'scripts/build-cwtools.py'))
         destination=(Path(__file__).parent/'src' if getattr(self,'editable_mode',False) else Path(self.build_lib))
         builder['build'](destination/'hoi4companion/_native/cwtools')
+        overlay=runpy.run_path(str(Path(__file__).parent/'scripts/build-overlay.py'))
+        overlay['build'](destination/'hoi4companion/_native/overlay')
 
 
 setup(cmdclass={'build_py':BuildWithCwtools})

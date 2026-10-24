@@ -14,6 +14,17 @@
  function invalidate(){generation++;report=null;$('reviewed').checked=false;$('validation').textContent='Bozza modificata: risolvi gli ID e valida di nuovo.';$('openGuide').hidden=true;controls();}
  function error(e){$('error').hidden=false;$('error').textContent=e.message||String(e);}
  async function request(path,body){const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const value=await response.json();if(!response.ok)throw Error(value.error||'Richiesta fallita');return value;}
+ let videoTimer=null;
+ function videoView(job){
+  $('videoStatus').textContent=job.message+(job.encoded_seconds!==undefined&&job.status==='running'?` · ${Math.floor(job.encoded_seconds)} / ${Math.ceil(job.duration_seconds||0)} secondi codificati`:'');
+  $('prepareVideo').disabled=job.status==='running';$('videoFiles').replaceChildren();
+  const clock=n=>Math.floor(n/60)+':'+String(Math.floor(n%60)).padStart(2,'0');
+  for(const part of job.parts||[]){const p=node('p'),a=node('a',`${part.name} · ${(part.bytes/1e6).toFixed(1)} MB · ${clock(part.start_seconds)}–${clock(part.end_seconds)}`);a.href=part.url;a.download=part.name;p.append(a);$('videoFiles').append(p);}
+  for(const [field,label]of [['manifest_url','Scarica indice dei tempi da allegare all’IA'],['description_url','Scarica descrizione del video']])if(job[field]){const p=node('p'),a=node('a',label);a.href=job[field];p.append(a);$('videoFiles').append(p);}
+ }
+ async function watchVideo(id){try{const job=await request('/api/import/video/status?id='+encodeURIComponent(id));videoView(job);if(job.status==='running')videoTimer=setTimeout(()=>watchVideo(id),2000);}catch(e){$('videoStatus').textContent=e.message;$('prepareVideo').disabled=false;}}
+ $('prepareVideo').onclick=async()=>{if(videoTimer)clearTimeout(videoTimer);$('prepareVideo').disabled=true;try{const job=await request('/api/import/video',{url:$('videoUrl').value.trim()});try{localStorage.setItem('hoi4-video-job',job.id);}catch{}videoView(job);watchVideo(job.id);}catch(e){$('videoStatus').textContent=e.message;$('prepareVideo').disabled=false;}};
+ try{const id=localStorage.getItem('hoi4-video-job');if(id)watchVideo(id);}catch{}
  async function run(task){if(busy)return;busy=true;$('error').hidden=true;controls();try{await task();}catch(e){error(e);}finally{busy=false;controls();}}
  function download(name,value,text=false){const url=URL.createObjectURL(new Blob([text?value:JSON.stringify(value,null,2)+'\n'],{type:text?'text/plain;charset=utf-8':'application/json'})),a=node('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
  function readGuide(){return m.readDraft($('guideJson').value).guide;}

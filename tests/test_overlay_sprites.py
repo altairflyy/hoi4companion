@@ -93,6 +93,23 @@ class ResearchTabTests(unittest.TestCase):
         nodes=[{'panel':'research','folder':'0'}]
         self.assertEqual([m['identity'] for m in self.matcher.navigation(self.frame,self.proposals,nodes)],['1'])
 
+    def test_absent_requested_icons_do_not_scan_unneeded_peer_templates(self):
+        import cv2
+        from unittest.mock import patch
+        with patch.object(cv2,'matchTemplate',wraps=cv2.matchTemplate) as match:
+            self.assertEqual(self.matcher.navigation(Image.new('RGB',self.frame.size),self.proposals,[]),[])
+        # Two requested icons over four scales; peers cannot establish a
+        # missing target, so they must not add full-region template scans.
+        self.assertLessEqual(match.call_count,8)
+
+    def test_two_independent_peers_are_sufficient_without_scanning_unused_tabs(self):
+        import cv2
+        from unittest.mock import patch
+        with patch.object(cv2,'matchTemplate',wraps=cv2.matchTemplate) as match:
+            result=self.matcher.navigation(self.frame,[self.proposals[0]],[])
+        self.assertEqual(result[0]['evidence_rects'],[[115,46,155,62],[190,46,230,62]])
+        self.assertEqual(match.call_count,3)
+
     def test_no_guidance_no_context_occlusion_duplicate_rows_and_external_urls(self):
         self.assertEqual(self.matcher.navigation(self.frame,[],[]),[])
         self.assertEqual(self.matcher.navigation(Image.new('RGB',self.frame.size),self.proposals,[]),[])

@@ -16,3 +16,6 @@ main{max-width:1240px;margin:auto;padding:28px 32px 60px}.hero{display:flex;just
 
 .operation-card.reminder{border-style:dashed;background:#18211d}.reminder .badge{color:#bdc9bb}.operation-card.event-visible{border:2px solid #dbc075;background:#302b1b}.event-choice{padding:12px;background:#4b4122;color:#ffe5a1;font-weight:600}
 .guide-tools{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}.hud-view .guide-tools{display:none}
+ .operation-frame img{display:block;width:100%;height:auto;margin-top:1rem;border:1px solid #647052}
+ .production-targets{width:100%;border-collapse:collapse;margin:1rem 0}
+ .production-targets td,.production-targets th{text-align:left;padding:.5rem;border-bottom:1px solid #4a503d}

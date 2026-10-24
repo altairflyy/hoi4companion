@@ -17,7 +17,7 @@ def operation_catalog(game, mods, labels, reference):
     country_names={}
     for texts in (reference,labels):
         for key,text in texts.items():
-            match=re.fullmatch(r'[A-Z0-9]{3}_(STATE_\d+)',key)
+            match=re.fullmatch(r'[A-Z0-9]{3}_(.+)',key)
             if match: country_names.setdefault(match[1],[]).append(localise(text,texts))
     def names(key):
         english = localise(reference.get(key,key),reference)
@@ -41,13 +41,24 @@ def operation_catalog(game, mods, labels, reference):
             except (OSError,ValueError,RecursionError) as exc:
                 warnings.append(f'Catalogo operazioni non leggibile ({Path(path).name}): {exc}')
     equipment_files, issues = collect_files(game,mods,'common/units/equipment','.txt'); warnings.extend(issues)
-    definitions = {}
+    definitions,duplicates = {},[]
     for path in equipment_files:
         try:
-            for group in parse_file(path).blocks('equipments'):
+            parsed=parse_file(path)
+            for group in parsed.blocks('equipments'):
                 definitions.update((key,node) for key,node in group.entries if isinstance(node,Node))
+            duplicates.extend((key,node) for group in parsed.blocks('duplicate_archetypes') for key,node in group.entries if isinstance(node,Node))
         except (OSError,ValueError,RecursionError) as exc:
             warnings.append(f'Catalogo equipaggiamenti non leggibile ({path.name}): {exc}')
+    # Role-specific airframes and chassis can be declared by duplicate_archetypes
+    # instead of equipments. Preserve explicitly documented variant IDs; do not
+    # guess a model from its display name or a dynamic live variant name.
+    for key,node in duplicates:
+        if node.scalar('archetype') not in definitions:continue
+        definitions.setdefault(key,Node([('is_archetype','yes')]))
+        for block in node.blocks('variant_name'):
+            for identifier,label in block.entries:
+                if isinstance(label,str):definitions.setdefault(identifier,Node([('archetype',key),('derived_variant_name',label)]))
     country_aliases = {}
     for texts in (reference,labels):
         for key,text in texts.items():
@@ -72,12 +83,19 @@ def operation_catalog(game, mods, labels, reference):
         if root is None: continue
         label=names(key)
         label['aliases']=list(dict.fromkeys([*label['aliases'],
+            *[localise(texts[node.scalar('derived_variant_name')],texts) for texts in (reference,labels) if node.scalar('derived_variant_name') in texts],
             *[localise(texts[key+'_short'],texts) for texts in (reference,labels) if key+'_short' in texts],
             key.removesuffix('_equipment').replace('_',' '), label['name']+'s']))
         result.append({'kind':'equipment','id':key,**label,'family_id':root,
                        'equipment_ids':sorted(members.get(root,[])) if node.scalar('is_archetype')=='yes' else [key],
                        'is_archetype':node.scalar('is_archetype')=='yes',
                        'country_aliases':{country:list(dict.fromkeys(items)) for country,items in country_aliases.get(key,{}).items()}})
+    project_files,issues=collect_files(game,mods,'common/special_projects/projects','.txt');warnings.extend(issues)
+    for path in project_files:
+        try:
+            result.extend({'kind':'project','id':key,**names(key)} for key,node in parse_file(path).entries if isinstance(node,Node))
+        except (OSError,ValueError,RecursionError) as exc:
+            warnings.append(f'Catalogo progetti non leggibile ({path.name}): {exc}')
     political,issues=political_catalog(game,mods,labels,reference)
     result.extend(political); warnings.extend(issues)
     return result,warnings
@@ -138,10 +156,26 @@ def bind_operations(guide,catalog):
                 step.setdefault('started_when',{'op':'any','args':[_fact('country.intelligence.in_creation','eq',True),created]})
                 step.setdefault('completion',created)
                 reason='intelligence_creation_flags'
+            elif params.get('category')=='projects' and (params.get('project_id') or params.get('project_name')) or step['action']['kind']=='special_project':
+                ref=step['action'].get('entity',{})
+                project=match('project',params.get('project_id') or ref.get('id'),params.get('project_name'))
+                reason='project_identity_unresolved'
+                if project:
+                    params['project_id']=project['id']
+                    step['action'].update(kind='special_project',entity={'kind':'project','id':project['id']})
+                    step['action'].setdefault('params',params)
+                    done=_fact('projects.completed','contains',project['id'])
+                    step.setdefault('started_when',{'op':'any','args':[_fact('projects.active','contains',project['id']),done]})
+                    step.setdefault('completion',done)
+                    reason='project_live_state'
             elif params.get('category')=='construction':
                 building=match('building',params.get('building_id'),params.get('building_name'))
                 region=match('state',params.get('state_id'),params.get('state_name'))
                 reason='building_or_state_not_resolved'
+                if building and not region and not params.get('state_id') and not params.get('state_name'):
+                    params['building_id']=building['id']
+                    step.setdefault('started_when',_fact('construction.queued','contains','building:'+building['id']))
+                    reason='building_start_without_location'
                 if building and region:
                     params['building_id'],params['state_id']=building['id'],int(region['id'])
                     step.setdefault('started_when',_fact('construction.queued','contains',f"state:{region['id']}:{building['id']}"))
@@ -174,9 +208,28 @@ def bind_operations(guide,catalog):
 
 def _bind_production(step,catalog,country,known_variants=None):
     params=step['action'].get('params',{})
+    targets=params.get('production_targets')
+    if targets is not None:
+        for field,op in [('completion','all'),('started_when','any')]:
+            condition=step.get(field,{})
+            if condition.get('op')==op and all(isinstance(arg,dict) and arg.get('op')=='fact'
+                    and arg.get('key','').startswith('guide.production.'+step['key']+'.target-')
+                    for arg in condition.get('args',[])):
+                step.pop(field)
+        if not isinstance(targets,list) or not 0<len(targets)<=64 or any(not isinstance(p,dict) or 'production_targets' in p for p in targets):
+            return 'production_targets_invalid'
+        if any(p.get('quantity_mode')=='additional' for p in targets):return 'production_layout_requires_totals'
+        children=[{'key':step['key']+'.target-'+str(i+1),'action':{'kind':'manual','params':{**p,'category':'production'}}} for i,p in enumerate(targets)]
+        reasons=[_bind_production(child,catalog,country,known_variants) for child in children]
+        params['production_targets']=[child['action']['params'] for child in children]
+        if all('completion' in child for child in children):
+            step.setdefault('completion',{'op':'all','args':[child['completion'] for child in children]})
+        if all('started_when' in child for child in children):
+            step.setdefault('started_when',{'op':'any','args':[child['started_when'] for child in children]})
+        return 'production_layout' if all('completion' in child for child in children) else next((r for r in reasons if r not in ('production_live_assignment','production_relative_assignment')),'production_target_missing')
     if 'production_selector' in params:
         prefix='guide.production.'+step['key']
-        for field,keys in [('completion',(prefix+'.assigned',prefix+'.added')),('started_when',(prefix+'.started',))]:
+        for field,keys in [('completion',(prefix+'.assigned',prefix+'.requested',prefix+'.added')),('started_when',(prefix+'.started',))]:
             condition=step.get(field,{})
             if condition.get('op')=='fact' and condition.get('key') in keys: step.pop(field)
         params.pop('production_selector')
@@ -214,11 +267,13 @@ def _bind_production(step,catalog,country,known_variants=None):
     params['production_selector']={'equipment_ids':sorted(identifiers),'variant_names':sorted(variants),'category':category}
     key='guide.production.'+step['key']
     step.setdefault('started_when',_fact(key+'.started','eq',True))
-    target=params.get('assigned_factories')
+    requested='requested_factories' in params
+    target=params.get('requested_factories') if requested else params.get('assigned_factories')
+    if requested and 'assigned_factories' in params:return 'production_target_invalid'
     if not _integer(target): return 'production_target_missing'
     relative=params.get('quantity_mode')=='additional'
     if relative and target==0: return 'production_target_missing'
     test='gte' if relative else params.get('assignment_test','eq')
     if test not in ('eq','gte'): return 'production_target_invalid'
-    step.setdefault('completion',_fact(key+('.added' if relative else '.assigned'),test,target))
+    step.setdefault('completion',_fact(key+('.added' if relative else '.requested' if requested else '.assigned'),test,target))
     return 'production_relative_assignment' if relative else 'production_live_assignment'

@@ -60,13 +60,16 @@ class ResearchSprites:
         height,width=frame.shape[:2];region=frame[:max(1,round(height*.3))]
         gray=cv2.cvtColor(region,cv2.COLOR_RGB2GRAY);candidates={}
         for scale in (1.0,.8,1.25,1.5):
-            hits=[]
-            for tab in tabs:
-                if any(t['id']!=tab['id'] and t['digest']==tab['digest'] for t in tabs):continue
+            discovered={}
+            def hits_for(tab):
+                key=id(tab)
+                if key in discovered:return discovered[key]
+                hits=[];discovered[key]=hits
+                if any(t['id']!=tab['id'] and t['digest']==tab['digest'] for t in tabs):return hits
                 size=tuple(max(1,round(v*scale)) for v in tab['image'].size)
                 data=np.asarray(tab['image'].resize(size,Image.Resampling.BICUBIC))
                 th,tw=data.shape[:2];mask=(data[:,:,3]>245).astype('uint8')*255
-                if th>=region.shape[0] or tw>=width or np.count_nonzero(mask)<80:continue
+                if th>=region.shape[0] or tw>=width or np.count_nonzero(mask)<80:return hits
                 template=data[:,:,:3]
                 scores=cv2.matchTemplate(gray,cv2.cvtColor(template,cv2.COLOR_RGB2GRAY),cv2.TM_SQDIFF_NORMED,mask=mask)
                 scores[~np.isfinite(scores)]=1
@@ -79,13 +82,19 @@ class ResearchSprites:
                                      'dx':x-(tab['order']+tab['offset'][0])*scale,
                                      'dy':y-tab['offset'][1]*scale})
                     scores[max(0,y-th//2):y+th//2+1,max(0,x-tw//2):x+tw//2+1]=1
+                return hits
+            # Discover every requested target candidate, preserving duplicate
+            # bar rejection. Other tabs only supply the two required peers;
+            # defer their full-region scans until a target can use them.
+            hits=[hit for tab in tabs if tab['id'] in requested for hit in hits_for(tab)]
             for hit in hits:
-                if hit['id'] not in requested:continue
                 peers={}
-                for other in hits:
-                    if other['digest']==hit['digest']:continue
-                    if abs(other['dx']-hit['dx'])<=2 and abs(other['dy']-hit['dy'])<=2:
-                        peers.setdefault(other['digest'],other['rect'])
+                for tab in tabs:
+                    if tab['digest']==hit['digest']:continue
+                    for other in hits_for(tab):
+                        if abs(other['dx']-hit['dx'])<=2 and abs(other['dy']-hit['dy'])<=2:
+                            peers.setdefault(other['digest'],other['rect'])
+                    if len(peers)>=2:break
                 if len(peers)<2:continue
                 candidates.setdefault(hit['id'],[]).append({
                     'key':'research-tab:'+hit['id'],'panel':'research_tab','identity':hit['id'],

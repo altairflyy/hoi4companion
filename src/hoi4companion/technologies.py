@@ -33,6 +33,7 @@ def _number(raw, variables):
 def load_technologies(files, tag_files, labels, dlcs, scripts, country='AUS', gui_files=()):
     """Filter folder membership/allow_branch only; keep runtime allow as a caveat."""
     folders, technologies, warnings, excluded = {}, {}, [], []
+    folder_conditions = {}
     def check(block):
         return condition(_normal(block), country, dlcs, scripts) if dlcs else None
     for file in tag_files:
@@ -43,6 +44,7 @@ def load_technologies(files, tag_files, labels, dlcs, scripts, country='AUS', gu
                     if not isinstance(node, Node) or node.scalar('doctrine') == 'yes':
                         continue
                     available = check(node.first('available')) if node.blocks('available') else True
+                    folder_conditions[key] = available
                     if available is not True:
                         excluded.append({'id': key, 'reason': 'Condizioni DLC non corrispondenti' if available is False else 'Disponibilità non verificata'})
                         continue
@@ -65,6 +67,11 @@ def load_technologies(files, tag_files, labels, dlcs, scripts, country='AUS', gu
                     if branch is not True:
                         continue
                     memberships = []
+                    declared_folders = [folder.scalar('name') for folder in node.blocks('folder')
+                                        if folder.scalar('name')]
+                    availability = [folder_conditions.get(name) for name in declared_folders]
+                    catalog_eligible = (True if True in availability else
+                                        False if availability and all(a is False for a in availability) else None)
                     for folder in node.blocks('folder'):
                         if folder.scalar('name') in folders:
                             pos = folder.first('position', Node())
@@ -94,6 +101,8 @@ def load_technologies(files, tag_files, labels, dlcs, scripts, country='AUS', gu
                         'source': str(file), 'research_cost': _number(scalar('research_cost'), variables),
                         'start_year': _number(scalar('start_year'), variables),
                         'folders': memberships, 'paths': paths, 'dependencies': requirements,
+                        'declared_folders': declared_folders,
+                        'catalog_eligible': catalog_eligible,
                         'exclusions': [v for k, b in node.entries if k.lower() == 'xor' for v in _values(b)],
                         'sub_technologies': [v for b in node.blocks('sub_technologies') for v in _values(b)],
                         'special_project': scalar('is_special_project_tech') == 'yes',

@@ -74,6 +74,11 @@ sequences/rejection counts as explicit requirements, not a single final choice.
 
 def catalog_entities(trees, technologies, labels, reference_labels=None):
     reference_labels = reference_labels or {}
+    # A parsed definition is not necessarily part of this installation's
+    # research UI. Retain unknown/no-folder cases, but never offer a variant
+    # whose every declared folder is provably disabled by static conditions.
+    excluded = {key for key,tech in technologies.items() if tech.get('catalog_eligible') is False}
+    technologies = {key:tech for key,tech in technologies.items() if key not in excluded}
     # Country equipment/technology labels refer to the same native technology.
     aliases_by_id = {}
     equipment = {item['id']:key for key,tech in technologies.items()
@@ -104,7 +109,8 @@ def catalog_entities(trees, technologies, labels, reference_labels=None):
                            **names(key, focus.name)})
     for key, tech in sorted(technologies.items()):
         result.append({'kind': 'technology', 'id': key, **names(key, tech.get('name', key)),
-                       'upgrade_successors': upgrade_successors(tech, technologies)})
+                       'upgrade_successors': [target for target in upgrade_successors(tech, technologies)
+                                              if target not in excluded]})
     return result
 
 

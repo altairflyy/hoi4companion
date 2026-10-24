@@ -35,6 +35,7 @@ native/cwtools/**/bin/
 native/cwtools/**/obj/
 native/cwtools/**/artifacts/
 src/hoi4companion/_native/cwtools/
+src/hoi4companion/_native/overlay/
 src/hoi4companion/hoi4companion_parser*.pyd
 src/hoi4companion/hoi4companion_parser*.so
 src/hoi4companion/hoi4companion_parser*.dll

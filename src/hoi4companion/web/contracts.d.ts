@@ -44,7 +44,8 @@ export type ProductionLine = {id: string; equipment: string; equipment_name?: st
 export type PoliticalIdea = {id: string; group: string; category: string; is_law: boolean; name?: string};
 export type PoliticalAppointment = {id: string; character_id: string; slot: number; name?: string};
 export type VisibleEvent = {instance_id: string; event_id: string; option_ids?: string[]; name?: string};
-export type ProductionProgress = {assigned: number|null; requested: number|null; active: number|null; damaged: number|null; baseline: number|null; target: number|null; lines: ProductionLine[]; reason: string};
+export type ProductionProgress = {assigned: number|null; requested: number|null; active: number|null; damaged: number|null; baseline: number|null; target: number|null; lines: ProductionLine[]; reason: string; basis?: 'requested'|'assigned'};
+export type ProductionLayout = {layout: ProductionProgress[]};
 export type OperationBaseline = {fact_key: string; value: number; country: string; quantity: number; source: string};
 export type ConstructionBaseline = OperationBaseline;
 export type GuideProgress = {
@@ -59,7 +60,7 @@ export type RuntimeStep = {
   tracking?: 'reminder';
   completion: Fact<boolean>; selection: Fact<boolean>; availability: Fact<boolean>;
   construction?: {baseline: number|null; current: number|null; target: number|null};
-  production?: ProductionProgress;
+  production?: ProductionProgress | ProductionLayout;
   completion_basis: 'native_membership'|'manual'|'condition'|'free'|'reminder'; priority: number; priority_known: boolean;
 };
 export type RuntimeTrack = {keys: string[]; order: string[]; next: string|null};

@@ -302,7 +302,16 @@ collegati dal programma. Conserva invece le condizioni esplicite della fonte.
 Per le assegnazioni di produzione usa una sola istruzione per tipo/modello:
 `category:"production"`, `equipment_id` (ID di equipaggiamento, non di ricerca)
 oppure `equipment_name`, `variant_name` solo se serve un modello preciso,
-`assigned_factories` come numero di fabbriche effettivamente assegnate.
+`requested_factories` come numero TOTALE di fabbriche da impostare sulla linea,
+incluse quelle richieste ma non ancora disponibili. Se il video richiede 10 e
+solo 3 possono lavorare, scrivi `requested_factories:10`, non 3. Conta tutti gli
+slot selezionati, anche le righe aggiuntive. Leggi il contatore delle fabbriche
+nella testata della linea e gli eventuali moltiplicatori x5/x10; NON usare i
+numeri delle risorse (acciaio, alluminio, gomma...) sulla destra. Un contatore
+15/150 indica 150 richieste, con solo 15 disponibili. Non dedurre il numero dalle
+fabbriche attive o dal totale nazionale. Usa `assigned_factories` SOLO quando l'istruzione
+richiede esplicitamente fabbriche effettivamente disponibili: i due campi si
+escludono. Non scrivere soltanto «come nel video».
 `production_category` può distinguere `military` da `naval`. Per "porta a N"
 il confronto predefinito è esattamente N; usa `assignment_test:"gte"` soltanto
 quando la fonte richiede almeno N. Per "aggiungi N" usa `quantity_mode:"additional"`:
@@ -315,6 +324,18 @@ Se il tipo non è identificabile, conserva il nome e segnala il limite. Tratta
 MIO e modifiche al progetto come istruzioni separate dall'assegnazione delle
 fabbriche. `production_selector` è generato dal programma: non serve compilarlo.
 
+Per una schermata con più linee puoi usare una singola istruzione con
+`category:"production"` e `production_targets`, lista di oggetti contenenti
+`equipment_id` oppure `equipment_name`, eventuale `variant_name`,
+`requested_factories` e `production_category`. Il programma confronta ogni
+prodotto separatamente; non confronta solo il totale delle fabbriche nazionali.
+Se non riesci a contare con certezza, NON inventare valori: specifica sempre
+`source_seconds` del fotogramma più leggibile e descrivi cosa resta da leggere.
+
+Per tutte le costruzioni dichiara edificio, regione e quantità quando visibili.
+La presenza dell'ordine nella coda indica «In corso», anche in pausa e senza
+fabbriche civili attive; il completamento richiede il conteggio costruito.
+
 ### Evidenze e timestamp
 
 Ogni step ha almeno un'evidenza:
@@ -324,6 +345,22 @@ con `segments`: deve essere il secondo iniziale del segmento citato.
 Puoi aggiungere `end_seconds` non inferiore all'inizio. Per osservazioni solo
 visive usa `basis:"visual"` e la nota osservativa descritta sopra.
 Un minuto del video non è una data o una durata in partita.
+Per OGNI istruzione operativa ricava `action.params.source_seconds` del
+fotogramma che la mostra meglio. Per difesa, fronti, linee di ripiegamento,
+offensive, template e produzione è obbligatorio quando le parole non bastano
+a riprodurre il metodo: il programma usa quel tempo per mostrare il fotogramma
+del video locale. Non inventare immagini, URL o coordinate. Se il video non è
+stato visto, segnala l'assenza di evidenza visiva.
+
+Riporta anche `action.params.game_date` nel formato `1936.1.1` quando la data
+in alto nel gioco è leggibile nel fotogramma. È un riferimento per ordinare le
+istruzioni, non una condizione automatica di completamento o una scadenza.
+Se è illeggibile ometti il campo: non convertirla dal minutaggio né inventarla.
+
+Se ricevi video divisi e un manifest, converti tutti i tempi in secondi del
+video ORIGINALE: `tempo_originale = start_seconds della parte + tempo locale`.
+Le parti condividono 15 secondi: deduplica le stesse istruzioni presenti nella
+sovrapposizione, preservando le evidenze e senza raddoppiare quantità o step.
 Non usare l'evidenza per affermare che il giocatore ha eseguito l'azione.
 
 ### Dipendenze, condizioni, priorità e avanzamento

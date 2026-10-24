@@ -18,7 +18,8 @@ function harness(){
  const fetch=async(path,options)=>{
   const body=options?.body?JSON.parse(options.body):null;requests.push({path,body});
   if(path.endsWith('/preview')&&release)await new Promise(resolve=>release(resolve));
-  const value=path.endsWith('/prompt')?{prompt:fs.readFileSync('src/hoi4companion/guide-import-prompt.md','utf8')}:path.endsWith('/document')?{guide:body.document.guide,sources:body.document.sources}:path.endsWith('/status')?{ai_configured:false}:path.endsWith('/catalog')?{entities:catalog,demo:false}:path.endsWith('/source')?source:path.endsWith('/preview')?report:path.endsWith('/install')?{id:'opening',href:'/walkthrough?guide=opening'}:{};
+  const video={id:'a'.repeat(32),status:'completed',message:'Video pronto',parts:[{name:'parte-01.mp4',bytes:149000000,start_seconds:0,end_seconds:400,url:'/api/import/video/file?id=a&name=parte-01.mp4'}],manifest_url:'/manifest',description_url:'/description'};
+  const value=path==='/api/import/video'||path.startsWith('/api/import/video/status?')?video:path.endsWith('/prompt')?{prompt:fs.readFileSync('src/hoi4companion/guide-import-prompt.md','utf8')}:path.endsWith('/document')?{guide:body.document.guide,sources:body.document.sources}:path.endsWith('/status')?{ai_configured:false}:path.endsWith('/catalog')?{entities:catalog,demo:false}:path.endsWith('/source')?source:path.endsWith('/preview')?report:path.endsWith('/install')?{id:'opening',href:'/walkthrough?guide=opening'}:{};
   return {ok:true,json:async()=>value};
  };
  const document={getElementById:get,createElement:tag=>new Node(tag),body:new Node('body')};
@@ -26,6 +27,13 @@ function harness(){
   navigator:{clipboard:{async writeText(text){clipboard.push(text);}}},Blob,URL:{createObjectURL(blob){downloads.push(blob);return 'blob:fixture';},revokeObjectURL(){}},setTimeout:fn=>fn()});
  return {get,requests,downloads,clipboard,source,report,catalog,document,setRelease:fn=>release=fn};
 }
+
+test('video preparation submits a link and exposes parts and timing manifest independently of guide import',async()=>{
+ const h=harness();await tick();h.get('videoUrl').value='https://www.youtube.com/watch?v=Ht4e89B02Wo';await h.get('prepareVideo').onclick();await tick();
+ assert.deepEqual(h.requests.find(r=>r.path==='/api/import/video').body,{url:'https://www.youtube.com/watch?v=Ht4e89B02Wo'});
+ assert.match(h.get('videoFiles').textContent,/parte-01.mp4.*149.0 MB/);assert.match(h.get('videoFiles').textContent,/indice dei tempi/);assert.equal(h.get('prepareVideo').disabled,false);
+ assert.equal(h.requests.some(r=>r.path==='/api/import/install'),false);
+});
 
 test('construction correction uses catalog selectors and revalidates the in-memory draft',async()=>{
  const h=harness();h.catalog.push({kind:'state',id:'91',name:'Lwow'},{kind:'state',id:'762',name:'Katowice'},{kind:'building',id:'infrastructure',name:'Infrastructure'});await tick();

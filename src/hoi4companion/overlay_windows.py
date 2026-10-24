@@ -93,7 +93,7 @@ class Ocr:
             except subprocess.TimeoutExpired:self.process.kill()
 
 
-def main():
+def legacy_main():
     if os.name!='nt':raise SystemExit('Overlay disponibile solo su Windows')
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--port',type=int,default=8772);parser.add_argument('--guide',default='');parser.add_argument('--start',action='store_true');parser.add_argument('--proof',type=Path,help='Save one actual rendered game/overlay frame for verification');args=parser.parse_args()
     if not 1024<=args.port<=65535:raise SystemExit('Porta locale non valida')
@@ -286,6 +286,11 @@ def main():
     root.protocol('WM_DELETE_WINDOW',close);tick()
     try:root.mainloop()
     finally:stop.set();feed.closed.set();ocr.close();kernel.CloseHandle(instance)
+
+
+def main():
+    from .overlay_native import main as native_main
+    native_main()
 
 
 if __name__=='__main__':main()

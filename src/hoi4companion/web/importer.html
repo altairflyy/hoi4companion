@@ -12,6 +12,10 @@
 <details><summary>Leggi il prompt</summary><label for="importPrompt">Istruzioni da copiare nella tua IA</label><textarea id="importPrompt" rows="12" readonly spellcheck="false"></textarea></details>
 <label for="treeScope">Catalogo ID facoltativo: seleziona un albero nazionale</label><select id="treeScope"><option value="">Tutti gli alberi del catalogo</option></select>
 <button id="downloadCatalog" type="button">Scarica catalogo ID da allegare all’IA</button><p class="hint">Il catalogo aiuta l’IA a scegliere gli ID della tua installazione. Puoi ometterlo: le corrispondenze dubbie verranno segnalate nell’anteprima.</p>
+<h3>Prepara il video da allegare all’IA</h3>
+<label for="videoUrl">Link YouTube</label><input id="videoUrl" type="url" placeholder="https://www.youtube.com/watch?v=…">
+<p class="hint">Risoluzione originale fino a 1080p · 15 FPS · H.265 · audio mono 64 kbps. Accelerazione hardware verificata quando disponibile; altrimenti x265 CRF 22. Parti entro 150 MB, con 15 secondi in comune. La qualità hardware usa parametri propri: il valore 22 non equivale esattamente a CRF 22.</p>
+<button id="prepareVideo" type="button">Scarica e prepara video</button><p id="videoStatus" role="status"></p><div id="videoFiles"></div>
 </section>
 <section class="import-section" aria-labelledby="fileHeading"><p class="eyebrow">02 · RISPOSTA DELL’IA</p><h2 id="fileHeading">Carica il file restituito dall’IA</h2>
 <label for="draftFile">File .hoi4-guide.json, bozza o pacchetto precedente</label><input id="draftFile" type="file" accept=".json,application/json"><p>Il file contiene istruzioni e fonti. I checksum vengono calcolati automaticamente dal programma. Puoi anche incollare l’intero JSON nell’editor qui sotto.</p>

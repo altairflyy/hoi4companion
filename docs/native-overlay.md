@@ -1,155 +1,234 @@
-# Evidenziazioni sopra HOI4 (sperimentale)
+# Overlay Windows nativo (sperimentale)
 
-L'overlay è una finestra Windows esterna, trasparente ai clic, che disegna cornici
-sulle indicazioni attuali della guida selezionata. Non seleziona pulsanti, non
-genera strategie e non modifica file o memoria del gioco.
+`avvia-overlay.vbs` avvia un processo Rust esterno che evidenzia le indicazioni
+ammesse dal Guide Runtime. Focus, tecnologie e capitoli usano un unico lettore
+GUI nativo e il renderer Direct2D/DirectWrite, senza cattura o OCR nel loro
+percorso attivo. Il riconoscimento visivo degli altri pannelli usa WGC e WinRT;
+non usa Tkinter, ImageGrab, PNG/Base64 o PowerShell.
+Non invia comandi al gioco e non modifica file o memoria di HOI4.
 
-## Avvio dal checkout locale
+## Motore comune per focus, tecnologie e capitoli
 
-1. Avvia Companion e verifica che lo stato live sia valido per la partita.
-2. Per riconoscere anche le tecnologie senza testo, installa l'extra facoltativo:
-   `py -3 -m pip install -e ".[overlay]"`.
-3. Avvia `avvia-overlay.vbs`, seleziona una **guida installata**, quindi passa a
-   HOI4. Il launcher locale usa la porta **8772**. Per un'altra porta:
-   `wscript.exe avvia-overlay.vbs 8766`.
-4. Dopo un'importazione usa **Ricarica guide installate** e scegli la nuova guida.
-   Una bozza ancora nell'anteprima dell'importer non viene installata dall'overlay.
-5. Per sospendere togli la spunta **Attiva cornici sopra HOI4**. Chiudi la finestra
-   di controllo per terminare anche il processo OCR. Un secondo avvio nello
-   stesso checkout non crea una seconda istanza.
+Per la build HOI4 qualificata dal lettore live, focus e tecnologie sono agganciati
+all'ID del widget del gioco e agli sprite effettivamente disegnati (simbolo e
+sfondo). La matrice del contenitore corrente e le posizioni locali native dei
+figli forniscono posizione e scala, senza dipendere dalla matrice di rendering
+potenzialmente vecchia dello sprite: spostare l'albero
+o ridurre lo zoom non richiede di rileggere il nome con OCR. La lingua non entra
+nella selezione dell'ID. Il modulo `focus_ui_native.py` usa un handle con soli
+permessi di interrogazione e lettura; non chiama funzioni del gioco. Focus,
+tecnologie e capitoli riusano lo stesso calcolo degli sprite ancorati al parent
+corrente, lo stesso contratto di geometria e lo stesso ciclo di disegno.
 
-Avvio equivalente da PowerShell nella cartella del progetto:
+L'albero tecnologico è `CCountryTechTreeView`, distinto dal pannello laterale
+`CCountryTechnologyView`. La cornice segue il vero pulsante `Background`, non
+l'illustrazione interna o le dimensioni del contenitore. L'ID della cartella è
+verificato nella gerarchia nativa e confrontato con la scheda effettivamente
+aperta. Per gli altri capitoli si evidenzia la scheda nativa; più ricerche nello
+stesso capitolo producono una sola cornice con il relativo numero. Le varianti
+DLC nascoste non sono ammesse. In una scheda aperta un nodo fuori dal ritaglio
+non viene sostituito da un invito a premere nuovamente quella stessa scheda.
+
+L'ammissione verifica processo, nazione corrente, albero, proprietario GUI,
+visibilità, ritaglio e corrispondenza della risoluzione fisica. Le letture sono
+ripetute per respingere campioni cambiati durante l'osservazione. I candidati
+del registro GUI sono memorizzati, le coordinate sono sempre rilette. Una lettura
+incoerente viene ritentata una sola volta con nuovi dati e gli stessi controlli;
+un secondo errore sospende le cornici senza riutilizzare coordinate vecchie.
+Il solo cambiamento della geometria non invalida i candidati del registro;
+errori strutturali, di proprietà o di identità li invalidano. Build non
+supportate mantengono il riconoscimento visivo esistente.
+
+Gli aggiornamenti che rinnovano soltanto la validità di una cornice non
+ridisegnano più la superficie DirectComposition. Lo stato diagnostico e l'elenco
+delle guide non impongono più cancellazioni e nuove presentazioni. Il termine
+di sicurezza di 750 ms e i controlli sulla finestra in primo piano restano attivi.
+
+Il percorso comune osserva soltanto i widget richiesti e le schede, senza
+trasferire pixel. La scoperta iniziale del registro è memorizzata; non viene
+ripetuta a ogni fotogramma. Il ciclo è limitato a circa 16 ms per iterazione per
+evitare una lettura continua senza attesa: non sono notifiche interne emesse dal
+gioco. Le raccomandazioni continuano ad arrivare dal runtime tramite SSE.
+Eventi, politica e produzione conservano il riconoscimento visivo precedente.
+
+## Avvio
+
+Avvia il Companion e poi `avvia-overlay.vbs`. Entrambi usano **8766** per
+impostazione predefinita. Per un server su un'altra porta:
+`wscript.exe avvia-overlay.vbs 8772`.
+
+La finestra di controllo nativa consente di selezionare una guida installata,
+ricaricare l'elenco, sospendere/riprendere e chiudere l'overlay. Una guida ancora
+in anteprima nell'importer deve essere installata prima. Il controllo si apre
+senza sottrarre il focus; puoi raggiungerlo dalla barra applicazioni o Alt-Tab.
+Le cornici trasparenti ai clic compaiono solo quando HOI4 è in primo piano.
+
+Avvio equivalente:
 
 ```powershell
 $env:PYTHONPATH = "$PWD\src"
-py -3 -m hoi4companion.overlay_windows --port 8772 --start
+py -3 -m hoi4companion.overlay_native --port 8766 --start
 ```
 
-Serve Windows con OCR disponibile nelle lingue del profilo, Pillow e Tkinter.
-OpenCV/NumPy sono facoltativi: senza di essi restano le corrispondenze testuali.
-Il percorso attuale è predisposto per il checkout del repository, che contiene
-`scripts/overlay-ocr.ps1`; il solo wheel non include questo launcher/script.
-La composizione sopra il gioco è stata provata sulla finestra DirectX 11 locale;
-altre modalità video, schermi, DPI e scale richiedono verifica.
+L'entrypoint storico `python -m hoi4companion.overlay_windows` avvia ora lo stesso
+backend nativo. Non esiste un ripiego automatico su quello vecchio. Il vecchio
+codice e l'OCR PowerShell restano disponibili per confronti diagnostici, senza
+essere avviati dal launcher normale.
 
-## Criteri e copertura
+Il wheel Windows x64 include `_native/overlay/hoi4-overlay.exe`. Servono Windows
+con Python e Pillow; Windows Graphics Capture, OCR nelle lingue del profilo e
+OpenCV sono utilizzati dal percorso visivo degli altri pannelli o delle build
+HOI4 prive di un profilo nativo supportato. L'extra `overlay` aggiunge OpenCV:
 
-- Le indicazioni vengono proiettate dal **Guide Runtime**, con i suoi vincoli,
-  dipendenze e slot paralleli. Non vengono reinterpretati il parlato o i tempi
-  descritti nella guida. I promemoria non producono cornici.
-- Le nuove ricerche proposte sono tante quanti gli slot **liberi osservati**,
-  se la guida offre abbastanza azioni ammesse. Tecnologie ripetute non consumano
-  due posti; ricerche già avviate, dipendenze e dati sconosciuti non sono aggirati
-  per riempire il numero. La selezione vale su tutte le schede, non sulla sola
-  pagina aperta. I nodi nelle altre schede diventano visibili quando le si apre.
-- Per raggiungere una scheda, l'overlay riconosce il suo sprite **inattivo**
-  insieme a due altre icone della barra nella disposizione dichiarata dalla GUI.
-  La cornice delimita l'interno riconosciuto dell'icona, evitando i bordi coperti
-  dall'albero. Mostra nome della scheda e numero di suggerimenti contenuti;
-  più ricerche della stessa scheda condividono una cornice di navigazione.
-  Quando i nodi sono riconosciuti nella pagina aperta, prendono il posto della
-  relativa indicazione sulla scheda. Non si inventano posizioni fuori schermo.
-- Guida, nazione del runtime e nazione osservata devono corrispondere. Se manca
-  l'identità osservata o lo stato live è inutilizzabile, non viene mostrato nulla.
-- Focus, ricerche con nome leggibile, leggi, consiglieri e produzioni: il nome
-  localizzato o inglese deve essere riconosciuto **esattamente e univocamente**
-  nella schermata pertinente. Si normalizzano accenti e punteggiatura, senza
-  corrispondenze approssimate. Una cornice OCR delimita la dicitura, non recupera
-  il rettangolo nativo completo del pulsante.
-- Tecnologie senza dicitura: si usano sprite e layout già estratti dal gioco
-  tramite le API locali. Occorrono un'intestazione della scheda, un'icona bersaglio
-  univoca e **due altri sprite distinti** nella stessa disposizione. Le icone
-  riutilizzate per ID diversi vengono rifiutate. Si provano scale 1, 0,8, 1,25 e
-  1,5; altre scale o modifiche del layout possono non essere riconosciute.
-- Eventi: sono richiesti l'evento **visibile osservato dal lettore**, l'ID esplicito
-  dell'opzione e il riscontro visivo di titolo e opzione. L'overlay non provoca
-  eventi e non sceglie risposte.
-- Produzione: i nomi delle linee già qualificate dal runtime vengono riutilizzati;
-  il numero nella cornice indica il **totale** richiesto, anche per un incremento
-  relativo con baseline. Non viene individuato il singolo pulsante di assegnazione
-  di una fabbrica. Più diciture indistinguibili fanno sospendere la cornice.
-- Politica/personaggi: servono associazioni esplicite ai cataloghi; una descrizione
-  generica o un promemoria non bastano. Per lo stesso gruppo/ruolo viene proposta
-  soltanto la prima istruzione attualmente ammessa.
+```powershell
+py -3 -m pip install "hoi4companion[overlay]"
+```
 
-Il colore giallo indica un'azione suggerita, l'azzurro una selezione attiva quando
-il runtime la espone. L'osservazione dello schermo non completa mai uno step:
-completamento e avanzamento restano responsabilità del runtime esistente.
+Dal checkout, `scripts/build-overlay.ps1` compila e installa il binario con Rust
+MSVC. Il build del pacchetto richiama `scripts/build-overlay.py` automaticamente.
+Gli utenti del wheel non devono installare Rust, .NET SDK o compilatori.
+`HOI4_OVERLAY_NATIVE` consente di selezionare un binario di sviluppo esplicito.
+Per elencare le guide: `python -m hoi4companion.overlay_native --list-guides`.
 
-## Aggiornamento e risorse
+## Architettura e limiti preservati
 
-Lo stato della guida arriva dal flusso SSE già esistente. L'overlay non interroga
-nuovamente la memoria. Un controllo visivo viene avviato al massimo ogni 500 ms,
-solo con HOI4 in primo piano e indicazioni disponibili, senza lavori concorrenti.
-OCR e sprite vengono riutilizzati quando i pixel del pannello non cambiano;
-la barra superiore/FPS non invalida da sola la cache.
+- Il percorso nativo comune precede la cattura: WGC e OCR sono inizializzati
+  solo quando serve il riconoscimento visivo. Le cornici identiche rinnovano la
+  validità senza una nuova presentazione della superficie.
+- Il percorso visivo usa Windows Graphics Capture `FrameArrived` su un HWND verificato come
+  appartenente a `hoi4.exe`. Conserva soltanto il frame più recente, con coda
+  limitata e lettura CPU su richiesta. Verifica il ritaglio client con i bordi
+  DWM; cambio finestra, ridimensionamento e coordinate incoerenti invalidano le
+  evidenze. Non installa hook e non si inserisce nel processo del gioco.
+- Il preprocessing Rust riproduce grayscale, contrasto 1.4 e bicubica Pillow
+  12.3.0 a 2x, per tasselli fino a 1280×720. OCR Windows riceve direttamente BGRA
+  tramite SoftwareBitmap. Attribuzione e licenza Pillow sono incluse.
+- Le raccomandazioni SSE, la proiezione del runtime e il riconoscimento OpenCV
+  qualificato, insieme alla lettura GUI, restano in un worker Python. L'overlay
+  non è quindi una rimozione di Python dall'intero programma. L'IPC versionata
+  trasporta ID e rettangoli nel percorso comune, BGRA grezzo soltanto quando
+  serve il matching visivo: nessuna ricodifica PNG/Base64. Le immagini non sono
+  salvate durante l'uso normale.
+- DirectComposition, Direct2D e DirectWrite disegnano contorni arrotondati ambra
+  o ciano, etichette leggibili e sfondo traslucido. Il thread UI controlla
+  indipendentemente PID, foreground, geometria, minimizzazione e scadenza, anche
+  durante un riconoscimento lento. Le evidenziazioni scadono entro 750 ms senza
+  nuova evidenza; il controllo di sicurezza del renderer avviene ogni 50 ms.
+- Nel percorso visivo le scene identiche riusano il riconoscimento; ogni nuova cattura verifica
+  l'intera area sotto la barra delle risorse e tutte le patch di supporto. La
+  fascia superiore di 82 pixel è esclusa dal confronto globale perché le misure
+  WGC locali hanno individuato animazioni fino alla riga 81; eventuali patch
+  ammesse in quella fascia vengono comunque ricontrollate. Un duplicato che
+  compare altrove invalida la cache e richiede una nuova ricerca globale.
+  Altre scale/DPI possono ridurre i riusi, senza rendere ammesse corrispondenze
+  ambigue. Dopo il riconoscimento si confrontano ancora bersagli e supporti con
+  un frame fresco prima del disegno.
+- Guida, nazione del runtime e nazione osservata devono corrispondere. Errori,
+  identità mancante e dati live inutilizzabili sospendono le cornici. La scadenza
+  del collegamento al runtime rimane 12 secondi; le cornici hanno anche la
+  scadenza visiva indipendente più breve descritta sopra.
 
-Le cornici si nascondono uscendo dal gioco, disattivando il controllo, cambiando
-guida/geometria o perdendo lo stato live. Le cornici senza riscontro fresco da
-oltre due secondi vengono scartate; prima del disegno si ricontrollano i pixel
-del bersaglio e, per gli sprite, dei due riscontri di layout. Non è un hook
-sincrono del rendering: durante movimenti o transizioni resta una latenza visiva.
-Testi troppo piccoli, tooltip, occlusioni o ambiguità possono impedire la cornice.
+## Indicazioni e riconoscimento
 
-Le immagini OCR viaggiano in memoria verso un processo Windows locale. L'overlay
-si esclude dalla cattura per non riconoscere i propri testi. Nessuna immagine
-viene inviata a servizi esterni. La diagnostica `--proof percorso.png` salva
-esplicitamente un fotogramma reale con overlay, l'ingresso OCR e misure locali.
-I log in `.local/overlay-*.json` non sono prove di completamento della partita.
+Le ricerche proposte rispettano gli slot liberi osservati e l'ordine del runtime;
+non si riempiono posti con azioni bloccate o sconosciute. Il motore comune non
+sceglie altre tecnologie: proietta gli ID del runtime sul nodo visibile oppure
+sul capitolo nativo corrispondente, se è aperto un altro capitolo.
 
-## Verifiche del 23 ottobre 2026
+Sulle build non supportate, i focus conservano il riscontro testuale esatto e
+univoco e le ricerche mantengono il matching visivo precedente. Politica,
+personaggi e produzioni usano ancora quel riconoscimento, localizzato o inglese.
+Nel percorso visivo le tecnologie senza
+nome richiedono il bersaglio univoco, intestazione e due sprite distinti nel
+layout; immagini riciclate, occlusioni e barre duplicate non vengono accettate.
+La ricerca dei peer delle schede è ora eseguita solo quando necessaria, mantenendo
+soglie, ricerca globale dei bersagli e controlli di ambiguità originali.
 
-Sulla partita polacca reale, in pausa, finestra 2560×1440 DirectX 11:
+Per gli eventi restano necessari evento visibile osservato dal lettore, ID
+esplicito dell'opzione e riscontro del titolo e dell'opzione. L'overlay non
+provoca eventi e non sceglie risposte. Nella produzione evidenzia la linea
+qualificata con il totale di fabbriche richiesto; non identifica il singolo
+pulsante di assegnazione di una fabbrica. Politica e personaggi si basano su ID
+associati e nomi visibili univoci; non equivalgono a una mappatura universale di
+tutti i widget interni del gioco. Nessun riconoscimento visivo completa uno step.
 
-- Cornice gialla effettivamente visibile su **Bloccare Danzica**, riconosciuto
-  dalla dicitura italiana. A zoom più basso il testo non era riconosciuto:
-  l'overlay ha correttamente omesso l'indicazione.
-- Cornice effettivamente visibile sul nodo a icona **Attrezzature di base**, con
-  due riscontri indipendenti nel layout Industria. Misure locali del confronto
-  sprite circa **0,14–0,17 s**, ciclo completo osservato circa **1 s** dopo
-  l'ottimizzazione; non sono garanzie per altri PC o schede.
-- Cornice effettivamente visibile su **Ingegneria elettro-meccanica** nella
-  scheda Ingegneria, con due riscontri di layout. Otto campioni consecutivi
-  dello stato dell'overlay mostravano `visible:true`, soltanto `r01`, nessun errore.
-- Cornice di focus rimossa aprendo Ricerca; `visible:false` e nessuna associazione
-  residua passando alla finestra di controllo.
-- Secondo avvio: una sola finestra di controllo rimasta aperta.
+## Verifiche e prestazioni, 24 ottobre 2026
 
-Le immagini reali sono `.local/overlay-focus-proof.png`,
-`.local/overlay-research-proof.png` e `.local/overlay-engineering-proof.png`
-(non incluse nel repository).
+### Sfarfallio residuo delle schede
 
-Test mirati coprono ammissione del runtime, identità della nazione, dipendenze
-non verificabili, nomi multilinea, ambiguità, eventi osservati, produzione e
-baseline, recupero dopo heartbeat inutilizzabile, cambio guida, sprite duplicati,
-landmark mancanti e rifiuto di URL esterni. Gli sprite dei test sono sintetici.
-Suite eseguite: **327 test Python e 213 JavaScript superati**, nessuno saltato
-sull'ambiente locale con le dipendenze opzionali disponibili.
+Riprodotto in background sul tab nativo `nsb_armour_folder_tab`: il byte di stato
+a `CButtonStandard+0x75` alternava `0x48` e `0xE8`, mantenendo sempre il bit di
+visibilità `0x08`. Il confronto dell'intero byte respingeva campioni validi e
+provocava una breve scomparsa delle cornici. `GuiSample` verifica ora separatamente
+quel bit; gli altri campi, ID, proprietari e geometria mantengono il confronto
+completo. Un cambiamento del bit di visibilità continua a invalidare il campione.
+Il lettore dello stato live e il termine di sicurezza del renderer non cambiano.
 
-**Restano da verificare nella partita:** opzioni evento, menu di leggi/personaggi
-e produzioni con istruzioni attive della guida; altri alberi tecnologici, scale e
-modalità video. Non sono dichiarati validati sulla sola base delle fixture.
+Due acquisizioni da 1.001 letture ciascuna, con HOI4 in background e stessa
+geometria: prima 51 errori residui e 263 letture riuscite al secondo tentativo;
+dopo zero errori e zero secondi tentativi, mediana 5,09 ms. Superati 507 test
+Python, inclusa la riproduzione dei due valori del byte e il rifiuto di una vera
+variazione della visibilità. Il foreground è rimasto invariato anche al riavvio
+dell'overlay. Questa è una verifica dei dati e delle invalidazioni, non una nuova
+osservazione visiva prolungata sopra il gioco in primo piano.
 
-## Navigazione delle ricerche e capacità (23 ottobre 2026)
+Aggancio GUI dei focus: ID e contorno di `GER_oppose_hitler_ww` confrontati con
+lo screenshot reale a 2560×1440; rettangolo `[1645,166,1809,278]`. Verificati anche
+pannelli aperti/chiusi. Dieci letture successive reali dopo la correzione della
+scoperta iniziale sono riuscite: circa 410 ms al primo accesso, poi 0,38–0,61 ms
+con pannello chiuso. Sono tempi della sola lettura GUI, non latenza complessiva.
+Pan e zoom sono coperti da fixture delle matrici native; una prova visiva
+continuativa delle cornici durante il movimento resta da completare. I test del
+renderer verificano che il rinnovo della validità non provochi una nuova
+presentazione della medesima cornice.
 
-Suite aggiornate: **351 Python e 226 JavaScript** superati, nessuno saltato;
-65 output completi delle fixture runtime identici fra Python e JavaScript.
-Coperti zero, uno e tre slot liberi, capacità sconosciuta, ricerche già attive,
-ID ripetuti, ordine del runtime fra schede diverse, raggruppamento dei pulsanti,
-immagini attive/inattive, occlusione e barre duplicate.
-Le icone dei nodi rispettano anche le origini non centrate dichiarate dalla GUI
-(per esempio Artiglieria). La scoperta dei candidati usa lo stesso errore RGB
-assoluto dell'ammissione, eliminando un filtro normalizzato che penalizzava
-icone scure; soglia finale e due riscontri indipendenti restano richiesti.
+Una cattura composta durante il pan ha mostrato una cornice fuori posizione;
+non viene considerata una verifica riuscita. La versione finale compone il
+parent corrente con le coordinate locali risolte dal gioco e ha fixture anche
+con matrice di rendering deliberatamente obsoleta. La diagnostica `--proof`
+attende geometria stabile e richiede letture identiche prima e dopo la cattura;
+il file JSON associato contiene `verified`, senza trasformare una cattura durante
+il movimento in una prova positiva. L'ultima verifica completa eseguita include
+505 test Python, 243 JavaScript e 10 Rust, tutti superati.
 
-Verificata nella partita reale POL la cornice sulla scheda **Artiglieria** mentre
-era aperta **Ingegneria**, con un solo slot libero osservato e le ricerche
-Attrezzature di base e Ingegneria elettro-meccanica già avviate. Prova composita
-reale: `.local/overlay-navigation-proof.png`; diagnostica:
-`.local/overlay-navigation-tab-verification.json`. Il caso di tre slot liberi
-è verificato con fixture, senza annullare ricerche o cambiare partita per provarlo.
-Aprendo Artiglieria è stata verificata la scomparsa dell'indicazione sulla scheda
-e la cornice sul nodo **Artiglieria Interguerra** (`r03`), con due riscontri GUI;
-prova composita `.local/overlay-navigation-node-proof.png` e diagnostica
-`.local/overlay-navigation-node-verification.json`. Nessuna ricerca selezionata.
-Companion riavviato conservando identità della campagna e run attivo.
+Per le tecnologie sono state eseguite 100 letture consecutive del provider con
+la raccomandazione reale `basic_medium_tank_chassis`: nessun errore, mediana
+3,13 ms e 95° percentile 4,22 ms dopo l'apertura iniziale (~530 ms). Un campione
+più ampio, con quattro tecnologie e tutte le schede, ha richiesto 4,8–5,7 ms.
+Con il codice finale (pulsante di sfondo e retry coerente), altre 100 letture su
+quattro tecnologie e tutte le schede sono riuscite senza errori: mediana 5,59 ms,
+95° percentile 6,78 ms, massimo 9,08 ms.
+Questi sono tempi della lettura GUI, non latenza complessiva né misura degli FPS.
+La composizione reale ha permesso di rilevare la differenza fra icona e pulsante;
+il rettangolo finale dello sfondo, confrontato con lo screenshot, è
+`[845,528,1028,612]`. Il test del passaggio effettivo fra capitoli e una lunga
+osservazione del lampeggio restano distinti dai test automatici.
+
+Le misure seguenti riguardano il precedente percorso OCR, tuttora usato per gli
+altri pannelli:
+
+Con gli stessi pixel di ingresso già decodificati, warm-up escluso e tre misure:
+
+| OCR e preprocessing | Percorso precedente | Nativo Rust |
+| --- | ---: | ---: |
+| Scheda ingegneria | 608 ms | 261 ms |
+| Focus nazionali | 1.082 ms | 355 ms |
+
+Testi, parole e coordinate sono identici in tutti i confronti. Otto tasselli
+preparati corrispondono byte per byte al percorso Pillow. Queste misure escludono
+cattura, matching e disegno: non sono la latenza totale né un dato sugli FPS.
+Il matching delle schede, misurato separatamente alternando otto coppie, scende
+da 250 a 138 ms sul caso ingegneria; stessi risultati ed evidenze.
+
+Verificata la composizione reale sopra HOI4 DirectX 11 a 2560×1440: ingegneria
+elettro-meccanica e navigazione verso artiglieria e industria. Il passaggio reale
+dei clic è stato verificato su una finestra sintetica sotto il renderer, senza
+impartire ordini nella partita. Verificato inoltre il blocco della guida polacca
+su una partita tedesca. Non sono validati tutti i pannelli, i DPI, i monitor,
+le modalità video o il comportamento di ogni mod.
+
+Gli artefatti locali `.local/overlay-status.json` e i log descrivono frame,
+riconoscimento, errori e contatori della cache. `--proof PERCORSO.png` cattura una
+sola immagine realmente composta quando sono presenti evidenziazioni valide;
+non genera cornici sintetiche per simulare una prova. Un file di prova va
+richiesto esplicitamente e può contenere informazioni visibili della partita.
