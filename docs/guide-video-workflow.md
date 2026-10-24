@@ -12,27 +12,91 @@ segnalate. Un sorgente già presente nella cache viene riutilizzato.
 
 Il preset conserva la risoluzione fino a 1080p senza ingrandire un 720p:
 15 FPS, H.265, AAC mono 64 kbps. Prima di usare NVENC, QSV o AMF viene eseguita
-una piccola codifica reale. L'encoder CPU è x265 medium CRF 22; i parametri
+una piccola codifica reale. Il preset v4 confronta poi l'encoder hardware
+disponibile e x265 su due campioni di 10 secondi al 20% e 60% del sorgente.
+Preferisce l'hardware se il risultato è entro il 25% dalla dimensione minima;
+altrimenti usa il candidato più piccolo. Questo criterio bilancia velocità e
+dimensione, non certifica equivalenza percettiva. L'encoder CPU è x265 medium CRF 22; i parametri
 hardware di qualità non sono numericamente equivalenti a CRF e possono produrre
 file più grandi. Un errore hardware o tagli non allineati comportano un nuovo
 tentativo con x265. La presenza dell'encoder in una lista non basta a provarne
 l'utilizzabilità.
 
 Ogni parte viene verificata contro **150.000.000 byte**, senza contare su una
-stima di bitrate. Le durate dei segmenti si adattano alla dimensione effettiva.
-Punti IDR regolari consentono il taglio senza ricodificare le parti. Un controllo
+stima di bitrate. Il preset v4 produce segmenti da **5 minuti**, con l'ultima
+parte più breve; se necessario li accorcia per rispettare il limite di dimensione.
+Punti IDR ogni 10 secondi consentono il taglio senza ricodificare le parti;
+anche i tagli adattivi vengono allineati a questa griglia. NVENC usa tre B-frame.
+Un controllo
 della durata rifiuta tagli che partirebbero da un keyframe precedente. Le parti
-condividono 15 secondi sulla timeline originale, con la normale granularità di
+condividono **10 secondi** sulla timeline originale, con la normale granularità di
 timestamp audio/video. L'ultima parte può essere più piccola. Il manifest riporta
 gli intervalli originali: l'IA deve aggiungere `start_seconds` al minuto locale
 e deduplicare gli step nella sovrapposizione. Il prompt scaricabile lo richiede.
 
 I risultati sono in `.local/guide-videos/<job-id>/`; una preparazione completata
 con lo stesso preset viene riaperta senza un altro download o una nuova codifica.
-La cache mantiene sorgente e master; non è inclusa nel repository. Il server
+SHA-256 e dimensioni verificano i file. Il master è salvato una sola volta in
+`_masters/`, con chiave basata sul contenuto del sorgente e sul profilo di
+codifica, indipendente da durata, sovrapposizione e limite delle parti. Cambiare
+soltanto i tagli riutilizza quel master. Un master completato sopravvive a un
+errore di suddivisione; una codifica interrotta a metà viene invece rifatta,
+senza tentare di riaprire un MP4 incompleto.
+La cache mantiene il sorgente registrato per i fotogrammi; non è inclusa nel repository. Il server
 espone soltanto i file finali dichiarati dal job. Gli endpoint di avvio sono
 protetti come le altre scritture locali contro richieste cross-origin. La chiusura
-normale del programma termina i processi di download/codifica di sua proprietà.
+normale del programma termina tutti i processi posseduti, inclusi probe,
+calibrazione, lettura metadati e taglio. Su Windows viene terminato anche
+l'albero del processo yt-dlp per includere l'eventuale merger.
+
+Dopo il successo vengono eliminati i file generati delle preparazioni
+precedenti dello stesso URL e i master superati dello stesso video. La pulizia
+controlla directory gestite, nomi generati e sorgenti ancora registrati;
+file estranei e sorgenti protetti restano. I video di altri URL non sono rimossi.
+Le cartelle che conservano solo un sorgente mantengono un piccolo `job.json`
+per essere riconosciute in una futura pulizia. I file di calibrazione e i
+master parziali vengono rimossi al termine della lavorazione.
+
+La pagina mostra la risoluzione reale del sorgente. Per cercare una versione
+più alta si può selezionare **Riscarica il miglior sorgente fino a 1080p**:
+`refresh_source:true` ignora la cache di download, senza promettere che il
+video disponga effettivamente di 1080p. Il valore predefinito conserva il riuso
+locale ed evita traffico superfluo. I retry azzerano il vecchio avanzamento.
+
+Il preset v3 invalida il riuso delle parti v2, che avevano durate determinate
+dalla dimensione e 15 secondi di sovrapposizione. I sorgenti locali restano
+riutilizzabili. Il manifest v3 dichiara `segment_seconds: 300` e
+`overlap_seconds: 10`; il prompt usa gli intervalli effettivi del manifest.
+
+Verifica del cambio v3: 535 test Python e 245 JavaScript superati. Una prova
+FFmpeg su un video sintetico di 620 secondi ha prodotto gli intervalli nominali
+0–300, 290–590 e 580–620, tutti decodificati integralmente senza errori. Le
+durate dei contenitori sono 300,15, 300,28 e 40,14 secondi per la granularità
+audio/video. Nessun nuovo download YouTube è stato eseguito per questa verifica.
+Il servizio già aperto richiede un riavvio per caricare il nuovo modulo Python.
+
+## Verifica e pulizia preset v4
+
+Ricodificato integralmente il sorgente locale AV1 1280×720, senza nuovo download.
+NVENC: campioni 5.956.093 byte in 2,56 s; CPU x265: 5.502.006 byte in 5,23 s.
+La regola ha scelto NVENC. Master da 589.616.239 byte, contro i precedenti
+942.515.595 byte (circa il 37,4% in meno). Il sorgente AV1 resta più piccolo:
+il requisito H.265/qualità 22 non garantisce di migliorare ogni sorgente già
+compresso. Non sono state dichiarate equivalenza visiva o accuratezza dell'IA.
+
+Prodotte 9 parti; la maggiore pesa 90.244.870 byte. Tutte le parti audio/video
+sono state decodificate integralmente senza errori. Verificati sovrapposizione
+nominale di 10 secondi, durate nominali massime di 300 secondi e tetto di
+150.000.000 byte. Prova separata con tagli da 4 minuti: stesso master riusato,
+11 parti in 2,75 s, senza invocare encoder o calibrazione; output di prova rimossi.
+Riapertura della preparazione completa via HTTP in circa 0,61 s senza ricodifica.
+
+Rimossi automaticamente 5.509.831.850 byte di preparazioni obsolete. Il master
+interrotto e i residui delle immagini (328.945.128 byte) sono stati trasferiti
+al Cestino dopo che la revisione automatica aveva rifiutato l'eliminazione
+definitiva; non sono conteggiati come spazio disco liberato finché il Cestino
+non viene svuotato. Sorgente registrato, guide e avanzamento preservati.
+Artefatti di verifica in `.local/video-preparation-audit/`.
 
 ## Fotogrammi, date e produzione
 

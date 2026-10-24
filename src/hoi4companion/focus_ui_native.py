@@ -150,7 +150,7 @@ class UiReader:
                 pages[page] = process.read(page, 4096)
             return struct.unpack_from('<Q', pages[page], address-page)[0]
 
-        allowed = {'CNationalFocusView', 'CCountryTechnologyView', 'CCountryTechTreeView',
+        allowed = {'CNationalFocusView', 'CCountryTechnologyView', 'CCountryTechTreeView', 'CEventWindow',
                    'CNationalFocusTreeItem', 'CTechnologyTreeTechItem'}
         for raw, dynamic in zip(headers, (False, True)):
             data, capacity, count = struct.unpack('<Qii', raw)
@@ -179,7 +179,9 @@ class UiReader:
         # Candidate discovery is not a sample. Only these bindings are exposed,
         # and identity, ownership and geometry are reread/witnessed below.
         bindings = {'views': {name: values[0] for name, values in views.items()},
-                    'focus': {}, 'research': {}}
+                    'focus': {}, 'research': {},
+                    'events': sorted(a for a, name in owners.items() if name == 'CEventWindow'),
+                    'registry_seen': seen, 'registry_headers': headers}
         trees = []
         for address, name in owners.items():
             if name != 'CCountryTechTreeView':
@@ -374,11 +376,12 @@ class UiReader:
             current = s.number(current+0x118)
         raise LiveReadError('Cartella della tecnologia non qualificata')
 
-    def snapshot(self, *, focus_ids=(), technology_ids=()):
+    def snapshot(self, *, focus_ids=(), technology_ids=(), event_ids=(), event_instances=()):
         started = time.perf_counter()
         for attempt in range(2):
             try:
-                result = self._snapshot(focus_ids=focus_ids, technology_ids=technology_ids)
+                extra = {'event_ids': event_ids, 'event_instances': event_instances} if event_ids or event_instances else {}
+                result = self._snapshot(focus_ids=focus_ids, technology_ids=technology_ids, **extra)
                 result['diagnostics'].update(snapshot_ms=(time.perf_counter()-started)*1000,
                                              retry_count=attempt)
                 return result
@@ -395,7 +398,7 @@ class UiReader:
                 self._cache = None
                 raise
 
-    def _snapshot(self, *, focus_ids=(), technology_ids=()):
+    def _snapshot(self, *, focus_ids=(), technology_ids=(), event_ids=(), event_instances=()):
         started = time.perf_counter()
         p = self.process
         if p.identity() != p.created:
@@ -406,6 +409,8 @@ class UiReader:
         candidate = NativeSample(p)
         candidate_root = self._typed(candidate, candidate.number(p.base+GUI_RVA), 'CGameGui')
         bindings = self._discover(candidate, candidate_root)
+        from .event_ui_native import refresh_candidates, read_event_ui
+        event_owners = refresh_candidates(self, candidate_root, bindings, event_instances)
         s = GuiSample(p)
         root = self._typed(s, s.number(p.base+GUI_RVA), 'CGameGui')
         if root != candidate_root:
@@ -466,7 +471,8 @@ class UiReader:
                     self._cache = None
                     # Discard pre-discovery witnesses; the recursive sample
                     # starts only after candidate discovery has completed.
-                    return self._snapshot(focus_ids=focus_ids, technology_ids=technology_ids)
+                    return self._snapshot(focus_ids=focus_ids, technology_ids=technology_ids,
+                                          event_ids=event_ids, event_instances=event_instances)
             if panel == 'focus':
                 # The frontend has separate viewed/selected/context bindings.
                 # Only the qualified own-country mode is admitted; comparison
@@ -516,9 +522,17 @@ class UiReader:
         active = [key for key, value in panels.items() if value['visible']]
         if len(active) > 1:
             raise LiveReadError('Viste sovrapposte: geometria non esclusiva')
+        events = read_event_ui(self, s, root, event_owners, set(event_ids), resolution)
+        event_visible = bool(events['event_windows'])
+        panels['event'] = {'visible': event_visible, 'clip': [0, 0, *resolution], 'status': events['status']}
+        if event_visible:
+            active = ['event']
+        nodes.extend(events['nodes'])
         s.verify()
         return {'available': True, 'source': 'native_gui', 'pid': p.pid, 'process_created': p.created,
                 'country': country, 'scope': scope, 'resolution': resolution,
                 'active_panel': active[0] if active else None, 'panels': panels, 'nodes': nodes, 'tabs': tabs,
+                'events': {'status': events['status'], 'visible_ids': events['visible_ids']},
+                'event_windows': events['event_windows'],
                 'diagnostics': {'snapshot_ms': (time.perf_counter()-started)*1000,
                                 'discovery_ms': self.discovery_ms, 'bytes': s.used}}

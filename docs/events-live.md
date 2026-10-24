@@ -1,5 +1,97 @@
 # Eventi, politica e promemoria
 
+## HUD nativo degli eventi, 24 ottobre 2026
+
+### Materiale da fornire all'IA esterna
+
+In **Importa guida**, oltre al prompt aggiornato, è disponibile **Scarica catalogo
+eventi a risposta multipla** (`hoi4-companion-eventi-risposte.json`). Contiene gli ID e i
+nomi inglesi/localizzati degli eventi e delle risposte; ogni `event_option`
+conserva `event_id`, il collegamento al proprio evento. Include solo gli eventi
+con almeno due ID di risposta distinti definiti negli script; duplicati dello
+stesso ID non contano come scelte diverse. Le opzioni condizionali possono
+ridurre a una sola le risposte mostrate in una particolare partita. Non applica il filtro
+dell'albero dei focus: la guida può includere eventi di altri paesi. Il catalogo
+ID completo conserva tutte le entità, inclusi gli eventi a risposta unica; non
+occorre allegare entrambi i file per le stesse associazioni.
+
+Per aggiornare soltanto gli eventi, fornire all'IA prompt, video/fonti, catalogo
+eventi e guida attuale chiedendo di conservare i passaggi già corretti. Il prompt
+richiede evento, testo completo della risposta e coppia di ID dal medesimo evento,
+con evidenze e condizioni della fonte. Scelte non leggibili o non identificabili
+devono restare dichiarate irrisolte, senza inventare una strategia.
+
+Il pacchetto API facoltativo conserva l'evento padre e tutte le sue risposte
+quando il testo acquisito ne cita una. Quel contesto è selezionato in base al
+testo, non all'analisi dei fotogrammi: per scelte presenti solo nel video serve il
+catalogo completo o quello dedicato. Verificato il catalogo locale con 6.967
+eventi e 11.481 risposte, senza collegamenti orfani. L'esportazione dedicata
+filtrata contiene 3.193 eventi e 7.832 risposte: 3.343.875 byte rispetto ai
+5.464.103 byte del precedente file completo, con lo stesso formato JSON.
+Il filtro interessa soltanto l'esportazione dedicata, non il catalogo interno,
+la risoluzione degli ID o il rilevamento live. Test dell'esportazione,
+contratto del prompt e chiusura dei riferimenti nel pacchetto inclusi nelle
+suite: 533 Python e 244 JavaScript superati nella verifica iniziale; dopo il
+filtro sono superati 245 test JavaScript e i test Python mirati dell'importer.
+HTTP verificati sulla porta 8766;
+la verifica visiva del browser non è stata eseguita perché il browser locale è
+disabilitato nelle impostazioni Work.
+
+L'overlay prepara in anticipo le associazioni evento/risposta dichiarate nella
+guida con `guide_events.compile_event_plan`. Riusa il catalogo inglese e le
+localizzazioni attive. Una citazione parziale esplicita del pulsante è ammessa
+solo se contiene almeno quattro parole contigue e identifica una sola scelta;
+un ID esplicito errato non viene sostituito tramite testo. La guida originale
+non viene modificata. Associazioni mancanti o ambigue restano irrisolte.
+
+Il piano contiene anche i passaggi futuri, ma le indicazioni mostrate rispettano
+condizioni, percorso e dipendenze valutati dal runtime. Non è una previsione degli
+eventi che si verificheranno. Due risposte diverse ammesse per lo stesso evento
+vengono sospese, senza sceglierne una in base all'ordine. I promemoria con una
+risposta esplicita possono fornire un'indicazione senza acquisire un criterio di
+completamento.
+
+La lettura HUD è indipendente dal vecchio riconoscimento OCR: `event_ui_native.py`
+si collega al registro GUI condiviso di `focus_ui_native.py`. Per ogni finestra
+verifica CEventWindow, root, proprietario, ID evento e griglia corrente. Le scelte
+provengono soltanto dalle righe effettivamente presenti; le opzioni condizionali
+della definizione non diventano pulsanti visibili. CButtonDrag, CEventOption,
+parent e sprite sono verificati; il rettangolo usa lo stesso calcolo del motore
+di focus e tecnologie. Gli indirizzi eventualmente ricevuti dal lettore live sono
+solo candidati e vengono ricontrollati. L'inventario incrementale cerca nuovi
+oggetti quando cambia il registro, senza ripetere una scansione completa a ogni
+frame. Zero finestre note significa sconosciuto, non assenza globale certificata.
+Il riuso di un indirizzo già visto senza cambiamenti del registro può richiedere
+un nuovo candidato dal lettore live.
+
+Un popup qualificato ha priorità sui consigli dell'albero sottostante, anche se
+non riguarda la guida. L'HUD evidenzia soltanto una risposta esatta della guida;
+finestre sovrapposte/ambigue, risposte non mostrate, dati incoerenti o di un'altra
+nazione non producono una scelta evidenziata. Nessuna risposta viene premuta.
+Nessun riconoscimento, chiusura o scomparsa della finestra modifica checklist,
+avanzamento o stato di completamento.
+
+Prova reale in background: nazione GER, evento `lar_news.10`, istanza
+`1d1970e39b0`, unica opzione mostrata `lar_news.10.d` (indice nativo 5). Pulsante
+osservato `[1078,915,1430,963]` in coordinate client LTRB, con root, proprietà,
+griglia e parent verificati. Una proiezione diagnostica non mostrata né installata
+ha confermato l'associazione esatta; la guida tedesca non raccomanda questo evento
+e quindi il piano reale non lo evidenzia. Nessun evento provocato o risposta
+selezionata. La cattura disponibile mostrava un'altra applicazione: l'allineamento
+visivo dell'overlay non è dichiarato verificato.
+
+Nella guida locale della Kaiserin, `o-044` si risolve a
+`wtt_germany.1000:wtt_germany.1000.a` tramite la citazione «We shall send a liaison».
+`o-027` («Gestione eventi SA») rimane irrisolto: contiene soltanto un rinvio al
+video, senza evento o risposta identificabili. Non serve rigenerare le associazioni
+già risolte; quella mancante richiede un riferimento esplicito nella guida.
+
+Verifiche: 531 test Python, 243 JavaScript e 10 Rust superati. Coperti piano e
+citazioni ambigue, applicabilità del runtime, conflitti di risposta, opzioni
+presenti solo nella definizione, proprietari estranei, chiusura e letture
+incoerenti. La geometria copre CEventWindow sulla build supportata; altri tipi di
+popup e tutti i layout introdotti dalle mod non sono qualificati universalmente.
+
 Estensione del 22 ottobre 2026, sola build SHA-256
 `7dc947be34970da1e1c787bcddbe7f62b610ff258aebf8f06aa8b348f3a031d5`.
 Il processo viene aperto solo con le autorizzazioni di lettura esistenti.

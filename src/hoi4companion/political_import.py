@@ -8,6 +8,7 @@ from .jomini_parser import parse_file
 from .installation import collect_files
 from .research_upgrades import exact_matches, normal_name
 from .tooltips import localise
+from .event_country import country_condition, event_condition, political_condition, combine
 import re
 
 
@@ -41,7 +42,8 @@ def political_catalog(game, mods, labels, reference):
                     if not isinstance(node,Node) or identifier in metadata: continue
                     ids=traits(node)
                     rows.append({'kind':'law' if law else 'idea','id':identifier,**names(identifier),
-                                 'group':group_id,'traits':ids,'countries':countries(identifier)})
+                                 'group':group_id,'traits':ids,'countries':countries(identifier),
+                                 'country_condition':political_condition(definitions,node)})
                     rows[-1]['aliases']=list(dict.fromkeys([*rows[-1]['aliases'],*trait_names(ids)]))
     for path,root in read('common/characters'):
         for group in root.blocks('characters'):
@@ -53,28 +55,42 @@ def political_catalog(game, mods, labels, reference):
                     ids=traits(advisor); label=names(node.scalar('name',identifier))
                     rows.append({'kind':'advisor','id':token,**label,'character_id':identifier,
                                  'slot':slot,'traits':ids,'countries':countries(identifier),
+                                 'country_condition':political_condition(node,advisor),
                                  'aliases':list(dict.fromkeys([*label['aliases'],identifier,*trait_names(ids)]))})
     for path,root in read('events'):
         for kind,event in root.entries:
             if kind not in ('country_event','news_event','state_event','unit_leader_event') or not isinstance(event,Node): continue
             identifier=event.scalar('id'); title=event.scalar('title')
             if not identifier: continue
-            rows.append({'kind':'event','id':identifier,**names(title or identifier)})
+            rows.append({'kind':'event','id':identifier,**names(title or identifier),
+                         'country_condition':event_condition(kind,event)})
             for option in event.blocks('option'):
                 key=option.scalar('name')
-                if key: rows.append({'kind':'event_option','id':key,'event_id':identifier,**names(key)})
+                if key: rows.append({'kind':'event_option','id':key,'event_id':identifier,**names(key),
+                                    'country_condition':combine('all',[country_condition(block) for block in option.blocks('trigger')])})
+    categories={}
+    for path,root in read('common/decisions/categories'):
+        for identifier,node in root.entries:
+            if isinstance(node,Node):
+                condition=political_condition(node)
+                categories[identifier]=combine('any',[categories[identifier],condition]) if identifier in categories else condition
     for path,root in read('common/decisions'):
+        if re.search(r'(?:^|/)common/decisions/categories/',path.as_posix(),re.I):continue
         for category,group in root.entries:
             if not isinstance(group,Node): continue
             for identifier,node in group.entries:
                 if isinstance(node,Node) and identifier not in metadata:
-                    rows.append({'kind':'decision','id':identifier,'group':category,**names(identifier)})
+                    condition=political_condition(group,node)
+                    if category in categories:condition=combine('all',[categories[category],condition])
+                    rows.append({'kind':'decision','id':identifier,'group':category,**names(identifier),'country_condition':condition})
     # Repeated scripts/roles with the same token must not create fake ambiguity.
     unique={}
     for row in rows:
         key=(row['kind'],row['id'],row.get('slot'),row.get('event_id'))
         if key in unique:
             old=unique[key]
+            if 'country_condition' in row:
+                old['country_condition']=combine('any',[old['country_condition'],row['country_condition']])
             for field in ('aliases','traits','countries'):
                 if field in row: old[field]=list(dict.fromkeys([*old.get(field,[]),*row[field]]))
         else: unique[key]=row

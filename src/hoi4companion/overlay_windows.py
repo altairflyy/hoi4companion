@@ -36,7 +36,7 @@ class Feed:
     def snapshot(self):
         with self.lock:return self.version,list(self.value),self.updated,self.error,self.guide_title
     def run(self):
-        catalog=None;guide=None;state=None;guide_key=None;event=''
+        catalog=None;guide=None;state=None;guide_key=None;event='';event_plan=None
         while not self.closed.is_set():
             try:
                 if catalog is None:catalog=self.get('/api/import/catalog')['entities']
@@ -57,9 +57,12 @@ class Feed:
                         else:continue
                         suffix='?id='+quote(guide_id,safe='') if guide_id else ''
                         key=(guide_id,state.get('guide_revision'))
-                        if key!=guide_key:guide=self.get('/api/guide'+suffix);guide_key=key
+                        if key!=guide_key:
+                            from .guide_events import compile_event_plan
+                            guide=self.get('/api/guide'+suffix);guide_key=key
+                            event_plan=compile_event_plan(guide,catalog)
                         runtime=self.get('/api/guide/runtime'+suffix)
-                        proposed=targets(guide,runtime,catalog,state)
+                        proposed=targets(guide,runtime,catalog,state,prepare_events=True,event_plan=event_plan)
                         with self.lock:
                             if version!=self.version:continue
                             if self.value!=proposed:self.version+=1
