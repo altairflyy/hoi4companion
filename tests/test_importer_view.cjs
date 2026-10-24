@@ -35,6 +35,179 @@ test('video preparation submits a link and exposes parts and timing manifest ind
  assert.equal(h.requests.some(r=>r.path==='/api/import/install'),false);
 });
 
+test('source refresh is an explicit optional video preparation request',async()=>{
+ const h=harness();await tick();h.get('videoUrl').value='https://www.youtube.com/watch?v=Ht4e89B02Wo';h.get('videoRefreshSource').checked=true;
+ await h.get('prepareVideo').onclick();assert.equal(h.requests.find(r=>r.path==='/api/import/video').body.refresh_source,true);
+});
+
+test('thematic event download includes exact answer to event links independently of selected focus tree',async()=>{
+ const h=harness();h.catalog.push({kind:'focus',id:'focus',scope:'another_tree'},
+  {kind:'event',id:'example.1',name:'Invitation',localized_name:'Invito'},
+  {kind:'event_option',id:'example.1.a',event_id:'example.1',name:'Accept',localized_name:'Accetta'},
+  {kind:'event_option',id:'example.1.b',event_id:'example.1',name:'Decline',localized_name:'Rifiuta'});
+ await tick();h.get('treeScope').value='unrelated_tree';h.get('treeScope').onchange();h.get('catalogSection').value='events';h.get('catalogSection').onchange();h.get('downloadSection').onclick();
+ const value=JSON.parse(await h.downloads[0].text());
+ assert.equal(value.catalog_scope,'events');assert.equal(value.reference_language,'english');
+ assert.equal(value.event_filter.minimum_distinct_options,2);
+ assert.equal(value.catalog.length,3);
+ assert.equal(value.catalog.find(e=>e.id==='example.1.a').event_id,'example.1');
+ assert.equal(value.catalog.find(e=>e.id==='example.1.a').localized_name,'Accetta');
+ assert.equal(h.requests.some(r=>r.path.endsWith('/install')||r.path.endsWith('/extract')),false);
+ const html=fs.readFileSync('src/hoi4companion/web/importer.html','utf8');
+ assert.match(html,/id="downloadSection"/);
+});
+
+test('thematic catalogs partition every entity once, retain reference fields, and keep unknown kinds',()=>{
+ const catalog=['focus','technology','equipment','building','state','project','law','idea','advisor','decision','event','event_option','future_kind'].map((kind,i)=>({kind,id:String(i),scope:kind==='focus'?'tree':undefined,event_id:kind==='event_option'?'10':undefined}));
+ const before=JSON.stringify(catalog),sections=model.catalogSections(catalog);
+ assert.equal(sections.flatMap(s=>s.catalog).length,catalog.length);
+ for(const entry of catalog)assert.equal(sections.filter(s=>s.catalog.includes(entry)).length,1);
+ assert.deepEqual(sections.find(s=>s.id==='research').catalog.map(e=>e.kind),['technology']);
+ assert.deepEqual(sections.find(s=>s.id==='production').catalog.map(e=>e.kind),['equipment']);
+ assert.deepEqual(sections.find(s=>s.id==='construction').catalog.map(e=>e.kind),['building','state']);
+ assert.deepEqual(sections.find(s=>s.id==='politics').catalog.map(e=>e.kind),['law','idea','advisor','decision']);
+ assert.equal(sections.find(s=>s.id==='events').catalog[1].event_id,'10');
+ assert.equal(sections.find(s=>s.id==='other').catalog[0].kind,'future_kind');
+ assert.equal(JSON.stringify(catalog),before);
+});
+
+test('section exports scope only focuses, preserve all other topics, and permit single-answer events',async()=>{
+ const h=harness();h.catalog.push({kind:'focus',id:'a',scope:'selected'},{kind:'focus',id:'b',scope:'other'},
+  {kind:'technology',id:'tech',upgrade_successors:['next']},{kind:'equipment',id:'rifles',family_id:'infantry'},
+  {kind:'event',id:'single'},{kind:'event_option',id:'single.a',event_id:'single'});
+ await tick();h.get('treeScope').value='selected';h.get('treeScope').onchange();
+ h.get('catalogSection').value='focus';h.get('catalogSection').onchange();h.get('downloadSection').onclick();
+ let value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog.map(e=>e.id),['a']);assert.equal(value.reference_language,'english');
+ h.get('catalogSection').value='research';h.get('catalogSection').onchange();h.get('downloadSection').onclick();
+ value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog,[h.catalog[2]]);
+ h.get('catalogSection').value='events';h.get('catalogSection').onchange();assert.equal(h.get('downloadSection').disabled,true);
+ h.get('eventsMultiple').checked=false;h.get('eventsMultiple').onchange();assert.equal(h.get('downloadSection').disabled,false);h.get('downloadSection').onclick();
+ value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog.map(e=>e.id),['single','single.a']);assert.equal(value.event_filter,undefined);
+ h.get('downloadCatalog').onclick();value=JSON.parse(await h.downloads.at(-1).text());assert.equal(value.catalog.length,5);
+ assert.equal(h.requests.some(r=>r.path.endsWith('/install')||r.path.endsWith('/extract')),false);
+});
+
+test('event export removes single-answer events, duplicate IDs and orphan answers do not count as choices',()=>{
+ const catalog=[{kind:'event',id:'single'},{kind:'event_option',id:'single.a',event_id:'single'},
+  {kind:'event_option',id:'single.a',event_id:'single'},
+  {kind:'event',id:'empty'},{kind:'event',id:'multi'},
+  {kind:'event_option',id:'multi.a',event_id:'multi'},
+  {kind:'event_option',id:'multi.b',event_id:'multi'},
+  {kind:'event_option',id:'orphan.a',event_id:'orphan'},
+  {kind:'event_option',id:'orphan.b',event_id:'orphan'}];
+ const before=JSON.stringify(catalog),result=model.eventCatalog(catalog);
+ assert.deepEqual(result.catalog.map(e=>e.id),['multi','multi.a','multi.b']);
+ assert.equal(result.event_filter.basis,'defined_option_ids');
+ assert.equal(JSON.stringify(catalog),before);
+});
+
+test('country event filtering uses recipient conditions, retains uncertainty, and preserves parent-answer links',()=>{
+ const tag=value=>({op:'tag',value}),catalog=[{kind:'focus',id:'start',scope:'german_focus',countries:['GER']},
+  {kind:'event',id:'foreign_name',country_condition:tag('GER')},
+  {kind:'event_option',id:'foreign.a',event_id:'foreign_name',country_condition:tag('GER')},
+  {kind:'event_option',id:'foreign.b',event_id:'foreign_name',country_condition:tag('FRA')},
+  {kind:'event',id:'GER_wrong',country_condition:tag('FRA')},
+  {kind:'event_option',id:'wrong.a',event_id:'GER_wrong'},
+  {kind:'event',id:'uncertain',country_condition:{op:'any',args:[tag('FRA'),{op:'unknown'}]}},
+  {kind:'event_option',id:'uncertain.a',event_id:'uncertain'},
+  {kind:'event',id:'shared',country_condition:{op:'true'}},
+  {kind:'event_option',id:'shared.a',event_id:'shared'},
+  {kind:'event',id:'legacy_no_metadata'},{kind:'event_option',id:'legacy.a',event_id:'legacy_no_metadata'}];
+ const before=JSON.stringify(catalog),sections=model.catalogSections(catalog,'german_focus'),events=sections.find(s=>s.id==='events');
+ assert.deepEqual(events.catalog.map(e=>e.id),['foreign_name','foreign.a','uncertain','uncertain.a','shared','shared.a','legacy_no_metadata','legacy.a']);
+ assert.deepEqual(events.country_filter.countries,['GER']);assert.equal(events.country_filter.excluded_events,1);assert.equal(events.country_filter.retained_unknown_events,2);
+ assert.equal(model.catalogSections(catalog).find(s=>s.id==='events').catalog.length,11);
+ assert.equal(JSON.stringify(catalog),before);
+ // A shared focus tree may represent several countries: include matches to any of them.
+ catalog[0].countries.push('FRA');assert.equal(model.catalogSections(catalog,'german_focus').find(s=>s.id==='events').catalog.length,11);
+});
+
+test('country condition evaluation keeps unknown scopes and supports conjunction and negation',()=>{
+ const tag=value=>({op:'tag',value});
+ assert.equal(model.countryCompatibility({op:'all',args:[tag('FRA'),{op:'unknown'}]},'GER'),false);
+ assert.equal(model.countryCompatibility({op:'any',args:[tag('FRA'),{op:'unknown'}]},'GER'),null);
+ assert.equal(model.countryCompatibility({op:'not',arg:tag('FRA')},'GER'),true);
+ assert.equal(model.countryCompatibility({op:'not',arg:{op:'unknown'}},'GER'),null);
+ assert.equal(model.countryCompatibility({op:'future_operator'},'GER'),null);
+});
+
+test('politics export filters declared national constraints without filtering by ID prefixes',()=>{
+ const tag=value=>({op:'tag',value}),original=value=>({op:'original_tag',value});
+ const catalog=[{kind:'focus',id:'g',scope:'germany',countries:['GER']},
+  {kind:'law',id:'global',country_condition:{op:'unknown'}},
+  {kind:'advisor',id:'GER_foreign',country_condition:original('FRA')},
+  {kind:'advisor',id:'FRA_shared',country_condition:{op:'unknown'},countries:['FRA']},
+  {kind:'idea',id:'GER_name',country_condition:tag('FRA')},
+  {kind:'decision',id:'local',country_condition:original('GER')},
+  {kind:'decision',id:'not_local',country_condition:original('FRA')},
+  {kind:'idea',id:'unknown_legacy'}];
+ const before=JSON.stringify(catalog),s=model.catalogSections(catalog,'germany').find(s=>s.id==='politics');
+ assert.deepEqual(s.catalog.map(e=>e.id),['global','FRA_shared','local','unknown_legacy']);
+ assert.equal(s.country_filter.excluded_entries,3);assert.equal(s.country_filter.retained_unknown_entries,3);
+ assert.equal(s.country_filter.original_tag_basis,'selected_nation');
+ assert.equal(model.countryCompatibility(original('FRA'),'GER'),null);
+ assert.equal(model.catalogSections(catalog).find(s=>s.id==='politics').catalog.length,7);
+ assert.equal(JSON.stringify(catalog),before);
+});
+
+test('the politics selector, summary and complete export share the active national filter',async()=>{
+ const h=harness();h.catalog.push({kind:'focus',id:'g',scope:'germany',countries:['GER']},
+  {kind:'law',id:'shared',country_condition:{op:'unknown'}},
+  {kind:'advisor',id:'german',country_condition:{op:'original_tag',value:'GER'}},
+  {kind:'decision',id:'french',country_condition:{op:'original_tag',value:'FRA'}});
+ await tick();h.get('treeScope').value='germany';h.get('treeScope').onchange();h.get('catalogSection').value='politics';h.get('catalogSection').onchange();
+ assert.match(h.get('catalogSummary').textContent,/2 voci/);assert.match(h.get('catalogSummary').textContent,/Nazione: GER/);
+ h.get('downloadSection').onclick();let value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog.map(e=>e.id),['shared','german']);
+ h.get('downloadCatalog').onclick();value=JSON.parse(await h.downloads.at(-1).text());assert.equal(value.catalog.length,3);
+});
+
+test('legacy political metadata blocks only the affected thematic export and complete export',async()=>{
+ const h=harness();h.catalog.push({kind:'focus',id:'g',scope:'germany',countries:['GER']},{kind:'advisor',id:'old'});
+ await tick();h.get('treeScope').value='germany';h.get('treeScope').onchange();
+ assert.equal(h.get('downloadSection').disabled,false);assert.equal(h.get('downloadCatalog').disabled,true);assert.equal(h.get('catalogWarning').hidden,false);
+ h.get('catalogSection').value='politics';h.get('catalogSection').onchange();assert.equal(h.get('downloadSection').disabled,true);h.get('downloadSection').onclick();assert.equal(h.downloads.length,0);
+ h.get('treeScope').value='';h.get('treeScope').onchange();assert.equal(h.get('downloadSection').disabled,false);
+});
+
+test('selected country filters thematic and complete exports before counting multiple responses',async()=>{
+ const h=harness(),tag=value=>({op:'tag',value});h.catalog.push({kind:'focus',id:'start',scope:'tree',countries:['GER']},
+  {kind:'event',id:'e',country_condition:tag('GER')},{kind:'event_option',id:'e.a',event_id:'e'},
+  {kind:'event_option',id:'e.b',event_id:'e',country_condition:tag('FRA')},
+  {kind:'event',id:'f',country_condition:tag('FRA')},{kind:'event_option',id:'f.a',event_id:'f'});
+ await tick();h.get('treeScope').value='tree';h.get('treeScope').onchange();h.get('catalogSection').value='events';h.get('catalogSection').onchange();
+ assert.equal(h.get('downloadSection').disabled,true);h.get('eventsMultiple').checked=false;h.get('eventsMultiple').onchange();h.get('downloadSection').onclick();
+ let value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog.map(e=>e.id),['e','e.a']);
+ h.get('downloadCatalog').onclick();value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog.map(e=>e.id),['start','e','e.a']);
+});
+
+test('event menu and summary count the downloaded events and answers after both filters',async()=>{
+ const h=harness(),tag=value=>({op:'tag',value});h.catalog.push({kind:'focus',id:'g',scope:'tree',countries:['GER']},
+  {kind:'event',id:'e',country_condition:tag('GER')},{kind:'event_option',id:'e.a',event_id:'e'},
+  {kind:'event_option',id:'e.b',event_id:'e'},
+  {kind:'event',id:'single',country_condition:tag('GER')},{kind:'event_option',id:'single.a',event_id:'single'},
+  {kind:'event',id:'f',country_condition:tag('FRA')},{kind:'event_option',id:'f.a',event_id:'f'},
+  {kind:'event_option',id:'f.b',event_id:'f'});
+ await tick();const label=()=>h.get('catalogSection').children.find(n=>n.value==='events').textContent;
+ assert.match(label(),/eventi: 2.*risposte: 4/);
+ h.get('treeScope').value='tree';h.get('treeScope').onchange();h.get('catalogSection').value='events';h.get('catalogSection').onchange();
+ assert.match(label(),/eventi: 1.*risposte: 2/);assert.match(h.get('catalogSummary').textContent,/eventi: 1.*risposte: 2/);
+ h.get('eventsMultiple').checked=false;h.get('eventsMultiple').onchange();
+ assert.match(label(),/eventi: 2.*risposte: 3/);assert.match(h.get('catalogSummary').textContent,/eventi: 2.*risposte: 3/);
+ h.get('downloadSection').onclick();const file=JSON.parse(await h.downloads.at(-1).text());assert.equal(file.catalog.length,5);
+});
+
+test('old server catalog visibly marks national filtering inactive and does not export a falsely scoped event catalog',async()=>{
+ const h=harness();h.catalog.push({kind:'focus',id:'g',scope:'tree',countries:['GER']},
+  {kind:'event',id:'e'},{kind:'event_option',id:'e.a',event_id:'e'},{kind:'event_option',id:'e.b',event_id:'e'});
+ await tick();h.get('treeScope').value='tree';h.get('treeScope').onchange();h.get('catalogSection').value='events';h.get('catalogSection').onchange();
+ assert.equal(h.get('catalogWarning').hidden,false);assert.match(h.get('catalogWarning').textContent,/Filtro nazionale non attivo/);
+ assert.doesNotMatch(h.get('catalogSummary').textContent,/Nazione non determinabile/);
+ assert.equal(h.get('downloadSection').disabled,true);h.get('downloadSection').onclick();assert.equal(h.downloads.length,0);
+ assert.equal(h.get('downloadCatalog').disabled,true);
+ h.get('treeScope').value='';h.get('treeScope').onchange();assert.equal(h.get('catalogWarning').hidden,true);
+ assert.equal(h.get('downloadSection').disabled,false);h.get('downloadSection').onclick();assert.equal(h.downloads.length,1);
+});
+
 test('construction correction uses catalog selectors and revalidates the in-memory draft',async()=>{
  const h=harness();h.catalog.push({kind:'state',id:'91',name:'Lwow'},{kind:'state',id:'762',name:'Katowice'},{kind:'building',id:'infrastructure',name:'Infrastructure'});await tick();
  const row={key:'infra',action:{kind:'manual',params:{category:'construction',state_id:91,building_id:'infrastructure',quantity:1,quantity_mode:'additional',instructions:['Build in Lwow']}},completion:{op:'fact',key:'guide.construction.infra.added',test:'gte',value:1},note:'Original note',evidence:[]};

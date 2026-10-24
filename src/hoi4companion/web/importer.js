@@ -2,12 +2,36 @@
 (()=>{
  const $=id=>document.getElementById(id),m=HoiImporter;
  const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
- let sources=[],report=null,busy=false,aiConfigured=false,generation=0,entities=[];
- const buttons=['acquire','packet','extract','validate','saveDraft','exportGuide','install','copyPrompt','downloadPrompt','downloadCatalog'];
+ let sources=[],report=null,busy=false,aiConfigured=false,generation=0,entities=[],eventExport={catalog:[]},sections=[];
+ const buttons=['acquire','packet','extract','validate','saveDraft','exportGuide','install','copyPrompt','downloadPrompt','downloadCatalog','downloadSection'];
+ function exportedCatalog(section){return section?.id==='events'&&$('eventsMultiple').checked?{...section,...eventExport,catalog_scope:section.id}:section;}
+ function selectedCatalog(){return exportedCatalog(sections.find(s=>s.id===$('catalogSection').value));}
+ function missingCountryMetadata(sectionId){return sections.some(section=>(!sectionId||section.id===sectionId)&&section.country_filter?.metadata_available===false&&section.catalog.length>0);}
+ function catalogLabel(section){if(section.id!=='events')return `${section.title} · ${section.catalog.length} voci`;let events=0,answers=0;for(const item of section.catalog){if(item.kind==='event')events++;else if(item.kind==='event_option')answers++;}return `${section.title} · eventi: ${events} · risposte: ${answers}`;}
+ function catalogView(){
+  const section=selectedCatalog(),events=$('catalogSection').value==='events';
+  $('eventsFilter').hidden=!events;
+  for(const option of $('catalogSection').children){const value=sections.find(s=>s.id===option.value);if(value)option.textContent=catalogLabel(exportedCatalog(value));}
+  $('catalogSummary').textContent=section?catalogLabel(section)+'. '+(events&&$('eventsMultiple').checked?'Solo eventi con almeno due risposte distinte definite negli script.':''):'';
+  const missing=sections.filter(s=>missingCountryMetadata(s.id)).map(s=>s.title);
+  $('catalogWarning').hidden=!missing.length;$('catalogWarning').textContent=missing.length?'Filtro nazionale non attivo per '+missing.join('; ')+': il servizio usa ancora il catalogo precedente. Chiudi e riapri HOI4 Companion, poi ricarica questa pagina. I download delle sezioni interessate e del catalogo completo per nazione sono sospesi; puoi selezionare Tutte le nazioni per esportare il catalogo globale.':'';
+  if(events&&section?.country_filter?.metadata_available){const filter=section.country_filter;$('catalogSummary').textContent+=` Nazione: ${filter.countries.join(', ')}. Esclusi ${filter.excluded_events} eventi incompatibili prima del filtro sulle risposte multiple. Copertura statica parziale: conservati gli eventi condivisi e con destinatario incerto.`;}
+  else if(section?.id==='politics'&&section.country_filter?.metadata_available){const filter=section.country_filter;$('catalogSummary').textContent+=` Nazione: ${filter.countries.join(', ')}. Escluse ${filter.excluded_entries} voci incompatibili; conservate ${filter.retained_unknown_entries} con applicabilità incerta. Il tag originale è assunto dalla nazione selezionata. Copertura statica parziale.`;}
+  else if(['events','politics'].includes(section?.id)&&!section.country_filter&&$('treeScope').value)$('catalogSummary').textContent+=' Nazione non determinabile dall’albero selezionato: sezione non filtrata per paese.';
+  controls();
+ }
+ function rebuildSections(){
+  const selected=$('catalogSection').value;sections=m.catalogSections(entities,$('treeScope').value);$('catalogSection').replaceChildren();
+  for(const section of sections){if(section.id==='other'&&!section.catalog.length)continue;const option=node('option',`${section.title} · ${section.catalog.length}`);option.value=section.id;$('catalogSection').append(option);}
+  eventExport=m.eventCatalog(sections.find(s=>s.id==='events').catalog);
+  $('catalogSection').value=sections.some(s=>s.id===selected)?selected:'focus';catalogView();
+ }
  function controls(){for(const id of buttons)$(id).disabled=busy;
   $('packet').disabled=busy||!sources.length;$('extract').disabled=busy||!sources.length||!aiConfigured;
   $('copyPrompt').disabled=$('downloadPrompt').disabled=busy||!$('importPrompt').value;
-  $('downloadCatalog').disabled=busy||!entities.length;
+  $('downloadCatalog').disabled=busy||!entities.length||missingCountryMetadata();
+  $('downloadSection').disabled=busy||!selectedCatalog()?.catalog.length||missingCountryMetadata($('catalogSection').value);
+  $('catalogSection').disabled=busy||!entities.length;$('eventsMultiple').disabled=busy;$('treeScope').disabled=busy||!entities.length;
   for(const id of ['exportGuide','install'])$(id).disabled=!m.canPublish(report,$('reviewed').checked,busy);
   $('draftFile').disabled=busy;
  }
@@ -17,13 +41,14 @@
  let videoTimer=null;
  function videoView(job){
   $('videoStatus').textContent=job.message+(job.encoded_seconds!==undefined&&job.status==='running'?` · ${Math.floor(job.encoded_seconds)} / ${Math.ceil(job.duration_seconds||0)} secondi codificati`:'');
+  if(job.source_width&&job.source_height)$('videoStatus').textContent+=` · Sorgente reale: ${job.source_width}×${job.source_height}`;
   $('prepareVideo').disabled=job.status==='running';$('videoFiles').replaceChildren();
   const clock=n=>Math.floor(n/60)+':'+String(Math.floor(n%60)).padStart(2,'0');
   for(const part of job.parts||[]){const p=node('p'),a=node('a',`${part.name} · ${(part.bytes/1e6).toFixed(1)} MB · ${clock(part.start_seconds)}–${clock(part.end_seconds)}`);a.href=part.url;a.download=part.name;p.append(a);$('videoFiles').append(p);}
   for(const [field,label]of [['manifest_url','Scarica indice dei tempi da allegare all’IA'],['description_url','Scarica descrizione del video']])if(job[field]){const p=node('p'),a=node('a',label);a.href=job[field];p.append(a);$('videoFiles').append(p);}
  }
  async function watchVideo(id){try{const job=await request('/api/import/video/status?id='+encodeURIComponent(id));videoView(job);if(job.status==='running')videoTimer=setTimeout(()=>watchVideo(id),2000);}catch(e){$('videoStatus').textContent=e.message;$('prepareVideo').disabled=false;}}
- $('prepareVideo').onclick=async()=>{if(videoTimer)clearTimeout(videoTimer);$('prepareVideo').disabled=true;try{const job=await request('/api/import/video',{url:$('videoUrl').value.trim()});try{localStorage.setItem('hoi4-video-job',job.id);}catch{}videoView(job);watchVideo(job.id);}catch(e){$('videoStatus').textContent=e.message;$('prepareVideo').disabled=false;}};
+ $('prepareVideo').onclick=async()=>{if(videoTimer)clearTimeout(videoTimer);$('prepareVideo').disabled=true;try{const job=await request('/api/import/video',{url:$('videoUrl').value.trim(),...($('videoRefreshSource').checked?{refresh_source:true}:{})});try{localStorage.setItem('hoi4-video-job',job.id);}catch{}videoView(job);watchVideo(job.id);}catch(e){$('videoStatus').textContent=e.message;$('prepareVideo').disabled=false;}};
  try{const id=localStorage.getItem('hoi4-video-job');if(id)watchVideo(id);}catch{}
  async function run(task){if(busy)return;busy=true;$('error').hidden=true;controls();try{await task();}catch(e){error(e);}finally{busy=false;controls();}}
  function download(name,value,text=false){const url=URL.createObjectURL(new Blob([text?value:JSON.stringify(value,null,2)+'\n'],{type:text?'text/plain;charset=utf-8':'application/json'})),a=node('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
@@ -127,7 +152,12 @@
   const value=await request('/api/import/preview',{guide,sources});if(version===generation)showReport(value);}
  $('copyPrompt').onclick=()=>run(async()=>{if(!navigator.clipboard?.writeText)throw Error('Copia dagli appunti non disponibile: usa Scarica prompt .txt');await navigator.clipboard.writeText($('importPrompt').value);$('notice').textContent='Prompt copiato: incollalo nella tua IA e aggiungi la guida da convertire.';});
  $('downloadPrompt').onclick=()=>download('hoi4-companion-prompt.txt',$('importPrompt').value,true);
- $('downloadCatalog').onclick=()=>download('hoi4-companion-catalogo-id.json',{catalog:entities.filter(item=>item.kind!=='focus'||!$('treeScope').value||item.scope===$('treeScope').value)});
+ $('downloadCatalog').onclick=()=>{if(missingCountryMetadata())return;download('hoi4-companion-catalogo-id.json',{catalog_schema_version:1,reference_language:'english',catalog_scope:'all',
+  ...($('treeScope').value?{focus_tree_id:$('treeScope').value}:{}),...(sections.find(s=>s.id==='events')?.country_filter?{country_filter:sections.find(s=>s.id==='events').country_filter,
+   section_country_filters:Object.fromEntries(sections.filter(s=>s.country_filter).map(s=>[s.id,s.country_filter]))}:{}),catalog:sections.flatMap(s=>s.catalog)});};
+ $('eventsMultiple').checked=true;
+ $('catalogSection').onchange=catalogView;$('eventsMultiple').onchange=catalogView;$('treeScope').onchange=rebuildSections;
+ $('downloadSection').onclick=()=>{const section=selectedCatalog();if(!section?.catalog.length||missingCountryMetadata(section.id))return;download(`hoi4-companion-catalogo-${section.id}.json`,section);};
  $('sourceText').maxLength=180000;
  $('acquire').onclick=()=>run(async()=>{const source=await request('/api/import/source',{url:$('sourceUrl').value.trim(),text:$('sourceText').value});if(sources.some(src=>src.id===source.id))throw Error('Questa fonte è già acquisita');if(sources.length>=8)throw Error('Massimo 8 fonti');sources.push(source);invalidate();sourceList();$('sourceText').value='';$('sourceUrl').value='';});
  $('packet').onclick=()=>run(async()=>{download('guide-import.packet.json',await request('/api/import/packet',{sources,tree_id:$('treeScope').value||null}));$('notice').textContent='Pacchetto pronto: forniscilo alla tua IA e carica qui il JSON della guida restituito.';});
@@ -143,5 +173,6 @@
   entities=catalog.entities;$('notice').textContent=catalog.demo?'Catalogo dimostrativo: configura HOI4 per risolvere gli ID reali.':'Catalogo locale caricato · '+catalog.entities.length+' entità disponibili.';
   $('aiStatus').textContent=aiConfigured?'API OpenAI configurata · modello '+status.model:'API non configurata. Il percorso con pacchetto esterno è disponibile. Per l’API imposta OPENAI_API_KEY e HOI4_IMPORT_MODEL nell’ambiente locale del server.';
   for(const scope of [...new Set(catalog.entities.map(item=>item.scope).filter(Boolean))].sort()){const option=node('option',scope);option.value=scope;$('treeScope').append(option);}
+  rebuildSections();
  }catch(e){error(e);}finally{controls();}})();
 })();

@@ -43,6 +43,29 @@ class ScreenOverlayTests(unittest.TestCase):
         self.assertEqual(rectangles(image|{'lines':[line('Accetta la proposta')]},proposed),[])
         self.state['sample']['country_overview']['country']='OTHER'
         self.assertEqual(targets(self.guide,self.runtime,self.catalog,self.state),[])
+
+    def test_native_event_watchlist_prepares_ids_but_obeys_runtime_conditions(self):
+        self.guide['tracks']={'operations':[{'key':'ev','tracking':'reminder','action':{
+            'kind':'manual','params':{'event_id':'e.1','event_option_id':'e.1.a'}}}]}
+        self.catalog=[{'kind':'event','id':'e.1','name':'Invitation'},
+                      {'kind':'event_option','id':'e.1.a','event_id':'e.1','name':'Send the envoy'}]
+        self.runtime['steps']=[{'key':'ev','status':'ready'}]
+        result=targets(self.guide,self.runtime,self.catalog,self.state,prepare_events=True)
+        self.assertEqual(result[0]['identity'],'e.1:e.1.a');self.assertFalse(result[0]['live_visible'])
+        frame={'width':800,'height':600,'lines':[line('Invitation',y=20),line('Send the envoy')]}
+        self.assertEqual(rectangles(frame,result),[])  # No unobserved OCR fallback.
+        for status,reason in [('waiting','condition_false'),('not_applicable','skip_condition_true'),
+                              ('completed','completion_true'),('unverifiable','condition_unknown')]:
+            self.runtime['steps']=[{'key':'ev','status':status,'reason':reason}]
+            self.assertEqual(targets(self.guide,self.runtime,self.catalog,self.state,prepare_events=True),[])
+
+    def test_conflicting_event_choices_are_not_both_recommended(self):
+        self.guide['tracks']={'operations':[{'key':key,'action':{'kind':'manual','params':{
+            'event_id':'e.1','event_option_id':'e.1.'+key}}} for key in ('a','b')]}
+        self.catalog=[{'kind':'event','id':'e.1','name':'Invitation'}]+[
+            {'kind':'event_option','id':'e.1.'+key,'event_id':'e.1','name':'Answer '+key} for key in ('a','b')]
+        self.runtime['steps']=[{'key':key,'status':'ready'} for key in ('a','b')]
+        self.assertEqual(targets(self.guide,self.runtime,self.catalog,self.state,prepare_events=True),[])
     def test_laws_advisors_and_production_use_resolved_ids_not_prose(self):
         self.guide['tracks']={'operations':[
             {'key':'law','action':{'kind':'manual','params':{'category':'politics','law_id':'law','law_group':'economy'}}},

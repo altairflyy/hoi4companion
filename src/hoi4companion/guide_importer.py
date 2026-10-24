@@ -298,6 +298,7 @@ class Importer:
         selected=[row for row in catalog if row['kind'] in political and mentioned(row)]
         events={row.get('event_id',row['id']) for row in selected if row['kind'] in ('event','event_option')}
         catalog=[row for row in catalog if row['kind'] not in political or row in selected
+                 or row['kind']=='event' and row['id'] in events
                  or row['kind']=='event_option' and row.get('event_id') in events]
         packet = {'import_schema_version': 1, 'instructions': self.prompt(), 'sources': deepcopy(sources), 'catalog': catalog}
         if tree_id:

@@ -119,5 +119,34 @@ class NativeGeometryProviderTests(unittest.TestCase):
         self.assertEqual(len(self.read()['matches']),1)
         self.assertTrue(old.closed)
 
+    def event(self):
+        self.proposals=[{'key':'ev','panel':'event','identity':'e.1:e.1.a','event_id':'e.1',
+                         'option_id':'e.1.a','country':'GER','labels':['Answer']}]
+        self.reader.value.update(active_panel='event',events={'status':'observed'},
+            event_windows=[{'event_id':'e.1','instance_id':'abc123','visible':True,
+                            'rect':[10,60,300,240],'clip':[10,60,300,240]}])
+        self.reader.value['nodes'].append({'panel':'event','identity':'e.1:e.1.a','event_id':'e.1',
+            'option_id':'e.1.a','instance_id':'abc123','visible':True,'rect':[30,190,200,30],
+            'clip':[10,60,300,240]})
+
+    def test_event_popup_has_priority_and_exact_native_choice_without_text(self):
+        self.event();self.proposals.append({'key':'f','panel':'focus','identity':'F','country':'GER','scope':'german_focus'})
+        result=self.read()
+        self.assertEqual(result['active_panel'],'event')
+        self.assertIn('event',result['handled_panels'])
+        self.assertEqual([m['panel'] for m in result['matches']],['event'])
+        self.assertEqual(result['matches'][0]['rect'],[30,190,230,220])
+
+    def test_unrendered_foreign_unknown_closed_and_ambiguous_events_never_highlight(self):
+        self.event();original=copy.deepcopy(self.reader.value)
+        mutations=[lambda r:r['nodes'][-1].update(identity='e.1:e.1.b'),
+                   lambda r:r['nodes'][-1].update(instance_id='another'),
+                   lambda r:r.update(country='POL'),lambda r:r.update(events={'status':'unknown'}),
+                   lambda r:r.update(event_windows=[]),
+                   lambda r:r['event_windows'].append({**r['event_windows'][0],'instance_id':'other'})]
+        for mutate in mutations:
+            self.reader.value=copy.deepcopy(original);mutate(self.reader.value)
+            self.assertEqual(self.read()['matches'],[])
+
 
 if __name__=='__main__':unittest.main()

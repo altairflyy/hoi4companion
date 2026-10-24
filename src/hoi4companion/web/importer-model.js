@@ -1,6 +1,75 @@
 'use strict';
 ((root)=>{
  const c=typeof module!=='undefined'&&module.exports?require('./contracts.js'):root.HoiContracts;
+ function countryCompatibility(condition,country,originalCountry=null,depth=0){
+  if(!condition||depth>40)return null;
+  if(condition.op==='tag')return typeof condition.value==='string'?condition.value===country:null;
+  if(condition.op==='original_tag')return typeof condition.value==='string'&&originalCountry?condition.value===originalCountry:null;
+  if(condition.op==='true')return true;if(condition.op==='false')return false;
+  if(condition.op==='not'){const value=countryCompatibility(condition.arg,country,originalCountry,depth+1);return value===null?null:!value;}
+  if(['all','any'].includes(condition.op)&&Array.isArray(condition.args)){
+   const values=condition.args.map(arg=>countryCompatibility(arg,country,originalCountry,depth+1));
+   if(condition.op==='all')return values.includes(false)?false:values.includes(null)?null:true;
+   return values.includes(true)?true:values.includes(null)?null:false;
+  }
+  return null;
+ }
+ function countryPolitics(entities,countries){
+  let excluded=0,unknown=0;
+  const catalog=entities.filter(e=>{
+   const values=countries.map(country=>countryCompatibility(e.country_condition,country,country));
+   if(values.includes(true))return true;
+   if(values.includes(null)){unknown++;return true;}
+   excluded++;return false;
+  });
+  return {catalog,country_filter:{countries,basis:'static_political_conditions',coverage:'partial',unknown:'included',
+   original_tag_basis:'selected_nation',excluded_entries:excluded,retained_unknown_entries:unknown,
+   metadata_available:entities.some(e=>e.country_condition)}};
+ }
+ function countryEvents(entities,countries){
+  const eligible=new Set(),results=new Map();let excluded=0,unknown=0;
+  const compatible=condition=>{const values=countries.map(country=>countryCompatibility(condition,country));return values.includes(true)?true:values.includes(null)?null:false;};
+  for(const e of entities)if(e.kind==='event'){
+   const value=compatible(e.country_condition),previous=results.get(e.id);
+   results.set(e.id,!results.has(e.id)?value:previous===true||value===true?true:previous===null||value===null?null:false);
+  }
+  for(const [id,value] of results){if(value===false)excluded++;else{eligible.add(id);if(value===null)unknown++;}}
+  return {catalog:entities.filter(e=>e.kind==='event'?eligible.has(e.id):e.kind==='event_option'&&eligible.has(e.event_id)&&compatible(e.country_condition)!==false),
+   country_filter:{countries,basis:'static_recipient_conditions',coverage:'partial',unknown:'included',excluded_events:excluded,retained_unknown_events:unknown,
+    metadata_available:entities.some(e=>e.kind==='event'&&e.country_condition)}};
+ }
+ function catalogSections(entities,treeId=''){
+  const definitions=[['focus','Focus nazionali',['focus']],['research','Ricerche tecnologiche',['technology']],
+   ['production','Produzione ed equipaggiamenti',['equipment']],['construction','Costruzioni e regioni',['building','state']],
+   ['projects','Progetti speciali',['project']],['politics','Politica, personaggi e decisioni',['law','idea','advisor','decision']],
+   ['events','Eventi e risposte',['event','event_option']],['other','Altri identificatori',[]]];
+  const sections=definitions.map(([id,title])=>({id,title,catalog_schema_version:1,catalog_scope:id,reference_language:'english',catalog:[]}));
+  const byKind=new Map(definitions.flatMap(([id,,kinds])=>kinds.map(kind=>[kind,sections.find(s=>s.id===id)])));
+  for(const entity of entities){
+   if(entity.kind==='focus'&&treeId&&entity.scope!==treeId)continue;
+   (byKind.get(entity.kind)||sections.at(-1)).catalog.push(entity);
+  }
+  if(treeId){
+   sections[0].focus_tree_id=treeId;
+   const countries=[...new Set(sections[0].catalog.flatMap(e=>e.countries||[]))].sort();
+   const events=sections.find(s=>s.id==='events');
+   if(countries.length){
+    Object.assign(events,countryEvents(events.catalog,countries));
+    const politics=sections.find(s=>s.id==='politics');Object.assign(politics,countryPolitics(politics.catalog,countries));
+   }
+  }
+  return sections;
+ }
+ function eventCatalog(entities){
+  const events=new Set(entities.filter(e=>e.kind==='event').map(e=>e.id)),options=new Map();
+  for(const e of entities)if(e.kind==='event_option'&&events.has(e.event_id)&&typeof e.id==='string'&&e.id){
+   if(!options.has(e.event_id))options.set(e.event_id,new Set());options.get(e.event_id).add(e.id);
+  }
+  const multiple=new Set([...options].filter(([,ids])=>ids.size>=2).map(([id])=>id));
+  return {catalog_schema_version:1,catalog_scope:'events_and_options',reference_language:'english',
+   event_filter:{minimum_distinct_options:2,basis:'defined_option_ids'},
+   catalog:entities.filter(e=>e.kind==='event'?multiple.has(e.id):e.kind==='event_option'&&multiple.has(e.event_id))};
+ }
  function draftShape(value){if(!value||typeof value!=='object'||Array.isArray(value)||!value.tracks||typeof value.tracks!=='object'||Array.isArray(value.tracks)||value.schema_version!==undefined&&value.schema_version!==1)throw Error('Definizione guida v1 necessaria');}
  function readDraft(text){
   if(typeof text!=='string'||text.length>2000000)throw Error('File JSON troppo grande');
@@ -51,6 +120,6 @@
   step.action.params=params;
   return result;
  }
- const api={readDraft,editStep,editConstruction,normalise:c.guide,canPublish:(report,reviewed,busy)=>report?.valid===true&&reviewed===true&&!busy};
+ const api={readDraft,editStep,editConstruction,eventCatalog,catalogSections,countryCompatibility,normalise:c.guide,canPublish:(report,reviewed,busy)=>report?.valid===true&&reviewed===true&&!busy};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiImporter=api;
 })(typeof window!=='undefined'?window:globalThis);

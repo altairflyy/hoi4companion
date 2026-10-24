@@ -1,7 +1,7 @@
 # Overlay Windows nativo (sperimentale)
 
 `avvia-overlay.vbs` avvia un processo Rust esterno che evidenzia le indicazioni
-ammesse dal Guide Runtime. Focus, tecnologie e capitoli usano un unico lettore
+ammesse dal Guide Runtime. Focus, tecnologie, capitoli ed eventi usano un unico lettore
 GUI nativo e il renderer Direct2D/DirectWrite, senza cattura o OCR nel loro
 percorso attivo. Il riconoscimento visivo degli altri pannelli usa WGC e WinRT;
 non usa Tkinter, ImageGrab, PNG/Base64 o PowerShell.
@@ -49,7 +49,9 @@ trasferire pixel. La scoperta iniziale del registro è memorizzata; non viene
 ripetuta a ogni fotogramma. Il ciclo è limitato a circa 16 ms per iterazione per
 evitare una lettura continua senza attesa: non sono notifiche interne emesse dal
 gioco. Le raccomandazioni continuano ad arrivare dal runtime tramite SSE.
-Eventi, politica e produzione conservano il riconoscimento visivo precedente.
+Gli eventi usano la stessa geometria nativa quando la guida associa una risposta
+e la griglia corrente la contiene: [contratti, prova reale e limiti](events-live.md).
+Politica e produzione conservano il riconoscimento visivo precedente.
 
 ## Avvio
 
@@ -144,9 +146,11 @@ layout; immagini riciclate, occlusioni e barre duplicate non vengono accettate.
 La ricerca dei peer delle schede è ora eseguita solo quando necessaria, mantenendo
 soglie, ricerca globale dei bersagli e controlli di ambiguità originali.
 
-Per gli eventi restano necessari evento visibile osservato dal lettore, ID
-esplicito dell'opzione e riscontro del titolo e dell'opzione. L'overlay non
-provoca eventi e non sceglie risposte. Nella produzione evidenzia la linea
+Per gli eventi nativi restano necessari una finestra qualificata e l'ID esatto
+della risposta prevista dalla guida nella griglia corrente. Il percorso visivo
+delle build non supportate richiede ancora la finestra osservata dal lettore e
+il riscontro del titolo e dell'opzione. L'overlay non provoca eventi e non sceglie
+risposte. Nella produzione evidenzia la linea
 qualificata con il totale di fabbriche richiesto; non identifica il singolo
 pulsante di assegnazione di una fabbrica. Politica e personaggi si basano su ID
 associati e nomi visibili univoci; non equivalgono a una mappatura universale di

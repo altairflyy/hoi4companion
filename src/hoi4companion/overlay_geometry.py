@@ -51,11 +51,14 @@ class NativeGeometry:
         process=getattr(self.reader,'process',None)
         if process is not None and process.pid!=view[1]:self.close()
         if not self._open():return {**result,'error':self.error,'suspend_visual':self.supported}
-        result.update(available=True,handled_panels=['focus','research'])
+        result.update(available=True,handled_panels=['focus','research','event'])
         focus_ids={p['identity'] for p in proposals if p['panel']=='focus'}
         tech_ids={p['identity'] for p in proposals if p['panel']=='research'}
+        event_ids={p.get('event_id') or p['identity'].split(':',1)[0] for p in proposals if p['panel']=='event'}
+        instances={instance for p in proposals if p['panel']=='event' for instance in p.get('instances',[])}
         try:
-            raw=self.reader.snapshot(focus_ids=focus_ids,technology_ids=tech_ids)
+            raw=self.reader.snapshot(focus_ids=focus_ids,technology_ids=tech_ids,
+                                     event_ids=event_ids,event_instances=instances)
             result['diagnostics']=raw.get('diagnostics',{})
             if not raw.get('available'):return {**result,'suspend_visual':True,'error':raw.get('error','GUI non verificabile')}
             if raw.get('pid')!=view[1] or raw.get('resolution')!=view[4:]:
@@ -63,11 +66,29 @@ class NativeGeometry:
                 return {**result,'suspend_visual':True,'error':'Processo o risoluzione GUI non corrispondenti'}
             panels=raw.get('panels',{})
             active=raw.get('active_panel')
+            windows=[w for w in raw.get('event_windows',[]) if w.get('visible') is True]
+            if windows:active='event'
             if active in ('focus','research') and panels.get(active,{}).get('visible') is True:
                 result['active_panel']=active
+            elif active=='event':result['active_panel']='event'
             country=raw.get('country')
             for proposal in proposals:
                 panel=proposal['panel'];info=panels.get(panel,{})
+                if active=='event' and panel!='event':continue
+                if panel=='event':
+                    if (country!=proposal.get('country') or raw.get('events',{}).get('status')!='observed'
+                            or len(windows)!=1):continue
+                    window=windows[0];event_id=proposal.get('event_id') or proposal['identity'].split(':',1)[0]
+                    if window.get('event_id')!=event_id:continue
+                    nodes=[n for n in raw.get('nodes',[]) if n.get('panel')=='event'
+                           and n.get('identity')==proposal['identity'] and n.get('visible') is True
+                           and n.get('event_id')==event_id and n.get('instance_id')==window.get('instance_id')]
+                    if len(nodes)!=1:continue
+                    rect=_rectangle(nodes[0],window,view)
+                    if rect is not None:
+                        result['matches'].append({**proposal,'rect':rect,'instance_id':window['instance_id'],
+                                                  'basis':'native_gui_identity'})
+                    continue
                 if (panel not in ('focus','research') or info.get('visible') is not True
                         or not country or proposal.get('country')!=country):continue
                 if panel=='focus' and proposal.get('scope') and proposal['scope']!=raw.get('scope'):continue

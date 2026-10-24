@@ -82,9 +82,9 @@ fn view_json(view:&TargetWindow)->Value {json!([view.hwnd,view.pid,view.x,view.y
 fn native_route(snapshot:&Value,geometry:&Value)->bool {
     if geometry["suspend_visual"]==true{return true;}
     if geometry["native_available"]!=true{return false;}
-    // An exclusive native tree covers the other game panels, even when the
-    // guide also proposes political/event actions. They are not visible here.
-    if matches!(geometry["active_panel"].as_str(),Some("focus"|"research")){return true;}
+    // Native trees and event popups route through the same renderer. A popup
+    // takes priority over recommendations in the tree underneath it.
+    if matches!(geometry["active_panel"].as_str(),Some("focus"|"research"|"event")){return true;}
     let handled=geometry["handled_panels"].as_array();
     snapshot["proposed"].as_array().is_some_and(|rows| !rows.is_empty()&&rows.iter().all(|row|
         handled.is_some_and(|panels|panels.iter().any(|panel|panel==&row["panel"]))))
@@ -93,7 +93,7 @@ fn marks(rows:&[Value],width:u32,height:u32)->Vec<Highlight> {
     rows.iter().filter_map(|row|{
         let rect=evidence::valid_rectangle(&row["rect"],width,height)?;
         let panel=row["panel"].as_str().unwrap_or("").to_owned();
-        let title=if panel=="research"||panel=="focus" {row["labels"][0].as_str().or_else(||row["title"].as_str())}
+        let title=if panel=="research"||panel=="focus"||panel=="event" {row["labels"][0].as_str().or_else(||row["title"].as_str())}
             else{row["title"].as_str()}.unwrap_or("Indicazione della guida");
         let count=row["count"].as_u64().unwrap_or(1);
         let caption=if panel=="research_tab" {format!("{} · {} {}",title,count,if count==1{"ricerca"}else{"ricerche"})}
@@ -325,6 +325,8 @@ mod tests {
         let mut geometry=json!({"native_available":true,"active_panel":"focus","handled_panels":["focus","research"]});
         assert!(native_route(&mixed,&geometry));
         geometry["active_panel"]=json!("research");
+        assert!(native_route(&mixed,&geometry));
+        geometry["active_panel"]=json!("event");
         assert!(native_route(&mixed,&geometry));
         geometry["active_panel"]=Value::Null;
         assert!(!native_route(&mixed,&geometry));

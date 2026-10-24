@@ -21,7 +21,7 @@ from hoi4companion.api import make_handler
 from hoi4companion.country import CountryReader
 from hoi4companion.live import LiveReadError
 from hoi4companion.guide_frames import frame_reference, GuideFrames
-from hoi4companion.guide_media import VideoJobs, split_video, choose_encoder
+from hoi4companion.guide_media import VideoJobs, split_video, choose_encoder, PRESET_VERSION, ENCODING_PROFILE
 from test_native_fixture import Fixture
 
 
@@ -92,7 +92,7 @@ class OperationalImprovementsTests(unittest.TestCase):
     def test_video_http_resume_download_origin_guard_and_source_frame(self):
         with TemporaryDirectory() as d:
             root=Path(d);key='a'*32;folder=root/key;folder.mkdir();part=folder/'parte-01.mp4';part.write_bytes(b'video')
-            manifest={'preset_version':2,'source_url':'https://www.youtube.com/watch?v=Ht4e89B02Wo','fps':15,'max_part_bytes':150000000,'overlap_seconds':15,'parts':[{'name':part.name,'bytes':5,'start_seconds':0,'end_seconds':30,'url':f'/api/import/video/file?id={key}&name={part.name}'}]}
+            manifest={'preset_version':PRESET_VERSION,'encoding_profile':ENCODING_PROFILE,'source_url':'https://www.youtube.com/watch?v=Ht4e89B02Wo','fps':15,'max_part_bytes':150000000,'overlap_seconds':10,'segment_seconds':300,'parts':[{'name':part.name,'bytes':5,'start_seconds':0,'end_seconds':30,'url':f'/api/import/video/file?id={key}&name={part.name}'}]}
             (folder/'manifest.json').write_text(json.dumps(manifest));(folder/'descrizione.txt').write_text('description')
             jobs=VideoJobs(root);frames=GuideFrames(root/'frames');image=root/'image.jpg';image.write_bytes(b'jpeg')
             guide=definition({'source_seconds':10});guide['sources']=[{'id':'s','type':'youtube','url':manifest['source_url']}]
@@ -102,6 +102,13 @@ class OperationalImprovementsTests(unittest.TestCase):
                 try:
                     request=Request(base+'/api/import/video',data=json.dumps({'url':manifest['source_url']}).encode(),headers={'Content-Type':'application/json'})
                     with urlopen(request) as response:self.assertEqual(json.load(response)['status'],'completed')
+                    refreshed=Request(base+'/api/import/video',data=json.dumps({'url':manifest['source_url'],'refresh_source':True}).encode(),headers={'Content-Type':'application/json'})
+                    with patch.object(jobs,'start',return_value=jobs.status(key)) as start:
+                        with urlopen(refreshed) as response:self.assertEqual(json.load(response)['status'],'completed')
+                        start.assert_called_once_with(manifest['source_url'],refresh_source=True)
+                    invalid=Request(base+'/api/import/video',data=json.dumps({'url':manifest['source_url'],'refresh_source':'yes'}).encode(),headers={'Content-Type':'application/json'})
+                    with self.assertRaises(HTTPError) as error:urlopen(invalid)
+                    self.assertEqual(error.exception.code,400)
                     with urlopen(base+f'/api/import/video/file?id={key}&name={part.name}') as response:self.assertEqual(response.read(),b'video')
                     request.add_header('Origin','https://untrusted.example')
                     with self.assertRaises(HTTPError) as error:urlopen(request)
@@ -203,8 +210,32 @@ class OperationalImprovementsTests(unittest.TestCase):
                 parts=split_video('ffmpeg',master,root,200,limit=1000)
             self.assertEqual(parts[0]['start_seconds'],0);self.assertEqual(parts[-1]['end_seconds'],200)
             self.assertTrue(all(p['bytes']<=1000 for p in parts))
-            self.assertTrue(all(a['end_seconds']-b['start_seconds']==15 for a,b in zip(parts,parts[1:])))
+            self.assertTrue(all(a['end_seconds']-b['start_seconds']==10 for a,b in zip(parts,parts[1:])))
             self.assertGreater(len(calls),len(parts))
+
+    def test_video_parts_are_five_minutes_with_ten_second_overlap_even_below_size_cap(self):
+        cases=[(30,[(0,30)]),(300,[(0,300)]),(301,[(0,300),(290,301)]),
+               (590,[(0,300),(290,590)]),(620,[(0,300),(290,590),(580,620)])]
+        for seconds,expected in cases:
+            with self.subTest(seconds=seconds),TemporaryDirectory() as d:
+                root=Path(d);master=root/'master.mp4';master.write_bytes(b'small source')
+                lengths=[]
+                def cut(args,timeout):
+                    lengths.append(float(args[args.index('-t')+1]));Path(args[-1]).write_bytes(b'part')
+                with patch('hoi4companion.guide_media.command',side_effect=cut),patch('hoi4companion.guide_media.duration',side_effect=lambda *args:lengths[-1]):
+                    parts=split_video('ffmpeg',master,root,seconds)
+                self.assertEqual([(p['start_seconds'],p['end_seconds']) for p in parts],expected)
+
+    def test_video_cache_does_not_reuse_previous_segment_preset(self):
+        with TemporaryDirectory() as d:
+            root=Path(d);key='a'*32;folder=root/key;folder.mkdir();(folder/'parte-01.mp4').write_bytes(b'part')
+            (folder/'manifest.json').write_text(json.dumps({'preset_version':2,'source_url':'https://www.youtube.com/watch?v=Ht4e89B02Wo',
+                'fps':15,'max_part_bytes':150000000,'overlap_seconds':15,'parts':[{'name':'parte-01.mp4','bytes':4}]}))
+            jobs=VideoJobs(root)
+            with patch('hoi4companion.guide_media.threading.Thread') as worker:
+                job=jobs.start('https://youtu.be/Ht4e89B02Wo')
+                self.assertEqual(job['status'],'running');self.assertNotEqual(job['id'],key)
+                worker.return_value.start.assert_called_once()
 
     def test_video_rejects_a_cut_that_seeks_to_an_earlier_keyframe(self):
         with TemporaryDirectory() as d:

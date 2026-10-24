@@ -29,7 +29,7 @@ def build(destination):
     executable=destination/'hoi4-overlay.exe'
     shutil.copyfile(target/'release/hoi4-overlay.exe',executable)
     manifest={'schema_version':1,'engine':'native-gui-direct2d','bridge_schema':1,
-              'native_panels':['focus','research','research_tab'],'visual_fallback':'wgc-winrtocr',
+              'native_panels':['focus','research','research_tab','event'],'visual_fallback':'wgc-winrtocr',
               'files':{'hoi4-overlay.exe':hashlib.sha256(executable.read_bytes()).hexdigest()}}
     (destination/'provenance.json').write_text(json.dumps(manifest,indent=2),encoding='utf8')
     return destination

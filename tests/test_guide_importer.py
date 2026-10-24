@@ -92,6 +92,24 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(packet['catalog'], ENTITIES)
         self.assertNotIn('live', packet)
 
+    def test_ai_packet_keeps_parent_event_and_all_its_options_when_one_answer_is_mentioned(self):
+        event={'kind':'event','id':'example.100','name':'A diplomatic invitation'}
+        options=[{'kind':'event_option','id':'example.100.a','event_id':'example.100','name':'Accept this invitation'},
+                 {'kind':'event_option','id':'example.100.b','event_id':'example.100','name':'Refuse this invitation'}]
+        unrelated={'kind':'event','id':'example.200','name':'Unrelated event'}
+        importer=Importer(lambda:[*ENTITIES,event,*options,unrelated])
+        for text in ('Choose example.100.a.', 'Accept this invitation.'):
+            packet=importer.packet([acquire_source(text=text)])
+            self.assertEqual({row['id'] for row in packet['catalog']},
+                             {'basic_machine_tools','example.100','example.100.a','example.100.b'})
+            self.assertEqual([row['event_id'] for row in packet['catalog'] if row['kind']=='event_option'],
+                             ['example.100','example.100'])
+
+    def test_prompt_explains_event_parent_link_and_requires_catalog_ids_when_available(self):
+        prompt=Importer(lambda:[]).prompt()
+        for required in ('kind:"event_option"','event_id','event_option_id','stesso evento','testo completo'):
+            self.assertIn(required,prompt)
+
     def test_standalone_prompt_is_available_before_acquiring_sources(self):
         importer = Importer(lambda: ENTITIES, Path('unused'))
         prompt = importer.prompt()

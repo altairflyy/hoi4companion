@@ -784,9 +784,10 @@ def make_handler(store: Store):
             try:
                 update = json.loads(self.rfile.read(length))
                 if url.path=='/api/import/video':
-                    if not isinstance(update,dict) or set(update)!={'url'} or not isinstance(update['url'],str):
+                    if (not isinstance(update,dict) or 'url' not in update or set(update)-{'url','refresh_source'} or
+                            not isinstance(update['url'],str) or type(update.get('refresh_source',False)) is not bool):
                         raise ValueError('Indica il link a un video YouTube')
-                    self.json(store.video_jobs.start(update['url']))
+                    self.json(store.video_jobs.start(update['url'],refresh_source=update.get('refresh_source',False)))
                     return
                 if url.path=='/api/guide/associations':
                     self.json(store.associations(update=update))

@@ -11,7 +11,51 @@ qui sotto. Non devi sviluppare software, collegare API o inventare una strategia
 - Facoltativamente, il catalogo ID esportato da HOI4 Companion: un JSON con
   `catalog`/`entities`, contenente `kind`, `id`, `name`, `localized_name`,
   `aliases`, `scope` e, per i focus, `countries` quando noti.
+- In alternativa al catalogo completo, posso fornire **cataloghi tematici non
+  sovrapposti**, con `catalog_schema_version:1`, `catalog_scope` e `catalog`:
+  `focus` (focus nazionali), `research` (tecnologie), `production` (equipaggiamenti),
+  `construction` (edifici e regioni), `projects` (progetti speciali), `politics`
+  (leggi, idee, consiglieri e decisioni), `events` (eventi e risposte).
+  Eventuali tipi futuri non classificati vengono conservati in `other`.
+  Ogni entità appartiene a una sola sezione: i riferimenti a un'altra sezione
+  restano ID, senza duplicare le definizioni. Il filtro dell'albero nazionale
+  limita `focus` e applica alle voci `events` le condizioni nazionali esplicite
+  compatibili con i paesi associati all'albero. Anche `politics` è filtrato:
+  leggi, idee, consiglieri e decisioni con vincoli nazionali incompatibili sono
+  esclusi, comprese le condizioni della categoria di decisione e dell'incarico.
+  Per queste voci `original_tag_basis:"selected_nation"` dichiara l'assunzione
+  che la nazione selezionata sia quella d'origine: non è un fatto osservato live.
+  Un `always=no` di disponibilità non prova incompatibilità nazionale, perché
+  alcune leggi o idee possono essere assegnate tramite script. Le voci condivise,
+  trasferibili senza vincoli espliciti o incerte restano. I prefissi non sono
+  condizioni di applicabilità. Le altre sezioni restano globali.
+  Gli eventi esportati possono includere `country_condition`: è una proiezione
+  statica parziale, non una valutazione live. `country_filter` indica i paesi,
+  gli eventi esclusi e quelli conservati perché non determinabili. Eventi
+  condivisi, notizie e destinatari incerti rimangono: non dedurre che appariranno
+  davvero né usare il prefisso dell'ID per stabilire la nazione destinataria.
+- Per compilare le risposte degli eventi, usa la sezione **«Eventi e risposte»**
+  oppure il catalogo completo. Il filtro predefinito della sezione eventi
+  include solo eventi con almeno due ID di risposta distinti definiti negli script
+  (`event_filter.minimum_distinct_options:2`): durante la partita le condizioni
+  possono ridurre le opzioni effettivamente mostrate. L'assenza da questo catalogo
+  ridotto non dimostra che un evento non esista. Ogni `kind:"event"`
+  contiene l'`id` dell'evento; ogni `kind:"event_option"` contiene l'`id` della
+  risposta e **`event_id` che la collega al suo evento**. `name` è il riferimento
+  inglese e `localized_name` è la traduzione dell'installazione locale.
 - Eventuali indicazioni su nazione, percorso, anno iniziale, versione e DLC.
+
+Se ricevi sezioni separate, consulta soltanto quelle pertinenti alla fase:
+focus nazionali → `focus`; ricerche e UP → `research`; linee e quantità di
+produzione → `production`; costruzioni e infrastrutture → `construction`;
+progetti speciali → `projects`; leggi, nomine e decisioni → `politics`;
+scelte degli eventi → `events`. Riunisci poi gli step nello stesso file guida,
+preservando chiavi uniche, evidenze e dipendenze fra tracce. Se un riferimento
+richiede un'altra sezione, consulta quella specifica. Un'entità assente dalla
+sezione corrente non è necessariamente assente dal gioco: non inventare ID e
+segnala l'associazione mancante. Il catalogo completo è un'alternativa alle
+sezioni: non serve allegare entrambi. La separazione non garantisce che il
+modello ignori automaticamente gli altri allegati già caricati nel contesto.
 
 Se non ho ancora fornito la guida, chiedimi soltanto il link o il materiale.
 Sei tu a esaminare le fonti con gli strumenti disponibili nella tua sessione.
@@ -125,6 +169,32 @@ attivi sono verificabili live. Il lettore riconosce evento aperto e scelte
 mostrate: queste osservazioni non provano quale risposta sia stata scelta.
 Per l'esito serve una condizione dichiarata supportata oppure una conferma.
 La sola scomparsa di un evento o decisione non dimostra completamento.
+
+### Eventi rilevanti e risposte per l'HUD
+
+Riesamina tutti i segmenti della fonte che mostrano o descrivono un evento e una
+scelta consigliata, anche se l'evento arriverà più avanti nella partita. Non
+includere eventi estranei alla guida e non decidere tu quale risposta convenga.
+Per ogni scelta esplicita crea uno step distinto, conservando momento, eventuale
+percorso/condizione e timestamp o evidenza del pulsante selezionato.
+
+Se il catalogo contiene una corrispondenza certa, compila **entrambi**
+`action.params.event_id` e `action.params.event_option_id`: il primo è l'`id`
+dell'entità `kind:"event"`, il secondo l'`id` di `kind:"event_option"`.
+Controlla che `event_option.event_id` corrisponda esattamente allo **stesso evento**.
+Non ricavare il collegamento dal prefisso dell'ID o dal nome della nazione.
+Conserva anche `event_name` e il **testo completo** inglese della risposta in
+`event_option`; usa la localizzazione solo come riferimento aggiuntivo. Due
+risposte con la stessa dicitura possono appartenere a eventi diversi: non
+scegliere la prima occorrenza e non inventare ID per risolvere l'ambiguità.
+
+«Scegli le opzioni mostrate nel video» non identifica una risposta. Leggi il
+pulsante e l'evento nel fotogramma, oppure dichiara esplicitamente in `note` cosa
+non è leggibile e mantieni i parametri mancanti a `null`. Un nome di risposta
+leggibile senza ID certo va conservato comunque: il programma potrà tentare
+l'associazione e segnalerà gli irrisolti. Non dichiarare estratti tutti gli eventi
+se non hai esaminato i segmenti pertinenti. Non usare la presenza del popup o la
+sua chiusura come prova che la risposta sia stata selezionata.
 
 ## 3. Risolvi le identità con prudenza
 
@@ -359,7 +429,10 @@ Se è illeggibile ometti il campo: non convertirla dal minutaggio né inventarla
 
 Se ricevi video divisi e un manifest, converti tutti i tempi in secondi del
 video ORIGINALE: `tempo_originale = start_seconds della parte + tempo locale`.
-Le parti condividono 15 secondi: deduplica le stesse istruzioni presenti nella
+Il preset attuale produce parti da 5 minuti con 10 secondi in comune (ultima
+parte più breve, oppure tagli più brevi per rispettare il limite di 150 MB).
+Usa sempre gli intervalli effettivi del manifest, anche per video di preset
+precedenti. Deduplica le stesse istruzioni presenti nella
 sovrapposizione, preservando le evidenze e senza raddoppiare quantità o step.
 Non usare l'evidenza per affermare che il giocatore ha eseguito l'azione.
 
