@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from .import_sources import youtube_url, ytdlp_path
 from .video_cache import MasterCache, digest
+from .paths import module_command, bundled_node
 
 MAX_PART_BYTES = 150_000_000
 OVERLAP = 10
@@ -372,8 +373,9 @@ class VideoJobs:
             except ValueError:cached=None
             module_available=importlib.util.find_spec('yt_dlp') is not None
             if not ytdlp and not module_available and cached is None:raise ValueError('yt-dlp non trovato: installa le dipendenze video o configura HOI4_YTDLP')
-            launcher=[ytdlp] if os.environ.get('HOI4_YTDLP') or not module_available else [sys.executable,'-m','yt_dlp']
+            launcher=[ytdlp] if os.environ.get('HOI4_YTDLP') or not module_available else module_command('yt_dlp')
             base=[*launcher,'--ignore-config','--no-plugin-dirs','--no-playlist','--socket-timeout','20','--retries','2']
+            if bundled_node():base+=['--js-runtimes','node:'+str(bundled_node())]
             self.update(key,stage='metadata',message='Lettura delle informazioni YouTube')
             metadata={'title':url,'description':'',**frames.metadata(url),'duration':duration(ffmpeg,cached,runner)} if cached else json.loads(runner([*base,'--skip-download','--dump-single-json','--',url],timeout=120))
             seconds=metadata.get('duration')

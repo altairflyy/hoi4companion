@@ -5,8 +5,9 @@ import os
 from pathlib import Path
 import re
 import tempfile
+from .paths import data_directory
 
-DIRECTORY=Path(__file__).resolve().parents[2]/'.local'/'guide-associations'
+DIRECTORY=data_directory()/'guide-associations'
 
 
 def _path(guide_id,directory):
