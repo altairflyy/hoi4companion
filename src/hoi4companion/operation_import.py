@@ -6,10 +6,12 @@ from copy import deepcopy
 from .clausewitz import Node
 from .jomini_parser import parse_file
 from .installation import collect_files
-from .research_upgrades import exact_matches, normal_name
+from .research_upgrades import normal_name
 from .tooltips import localise
 from .construction_progress import BUILDING_FACTS
 from .political_import import political_catalog, bind_political
+from .geography import state_geography, building_scope
+from .resolution import catalog_index, ResolutionContext
 
 
 def operation_catalog(game, mods, labels, reference):
@@ -31,13 +33,17 @@ def operation_catalog(game, mods, labels, reference):
                 root=parse_file(path)
                 if kind=='building':
                     for group in root.blocks('buildings'):
-                        result.extend({'kind':kind,'id':key,**names(key)}
-                                      for key,node in group.entries if isinstance(node,Node))
+                        for key,node in group.entries:
+                            if isinstance(node,Node):
+                                scope=building_scope(node)
+                                result.append({'kind':kind,'id':key,**names(key),
+                                               **({'location_scope':scope} if scope else {})})
                 else:
                     for state in root.blocks('state'):
                         key=state.scalar('id')
                         if key.isdigit() and int(key)>0:
-                            result.append({'kind':kind,'id':str(int(key)),**names(state.scalar('name','STATE_'+key))})
+                            result.append({'kind':kind,'id':str(int(key)),**names(state.scalar('name','STATE_'+key)),
+                                           'geography':state_geography(state,names)})
             except (OSError,ValueError,RecursionError) as exc:
                 warnings.append(f'Catalogo operazioni non leggibile ({Path(path).name}): {exc}')
     equipment_files, issues = collect_files(game,mods,'common/units/equipment','.txt'); warnings.extend(issues)
@@ -119,6 +125,8 @@ def _integer(value,minimum=0):
 
 def bind_operations(guide,catalog):
     reports=[]
+    catalog=catalog_index(catalog)
+    geography=catalog.geography
     variants={}
     country=guide.get('applies_to',{}).get('country')
     # A guide can explicitly name a custom model, then refer to that same model
@@ -134,10 +142,9 @@ def bind_operations(guide,catalog):
                     matches=variants.setdefault(normal_name(params['variant_name']),[])
                     if selector not in matches: matches.append(selector)
     def match(kind,identifier,name):
-        rows=[entry for entry in catalog if entry['kind']==kind]
         query=str(identifier) if identifier is not None else name
         if not isinstance(query,str) or not query: return None
-        matches=exact_matches(query,rows)
+        matches=catalog.matches(query,(kind,),explicit=identifier is not None)
         return matches[0] if len(matches)==1 else None
     for rows in guide['tracks'].values():
         for step in rows:
@@ -149,6 +156,8 @@ def bind_operations(guide,catalog):
                 continue
             params=step['action'].get('params',{})
             reason='no_supported_live_binding'
+            location=None
+            bindings=[]
             agency=params.get('operation_id')=='create_intelligence_agency' or (normal_name(str(params.get('project_name',''))) in ('intelligenceagency','agenziadiintelligence') and params.get('target_quantity') in (None,1) and not params.get('upgrade_count'))
             if agency:
                 params['operation_id']='create_intelligence_agency'
@@ -170,26 +179,32 @@ def bind_operations(guide,catalog):
                     reason='project_live_state'
             elif params.get('category')=='construction':
                 building=match('building',params.get('building_id'),params.get('building_name'))
-                region=match('state',params.get('state_id'),params.get('state_name'))
+                provincial=building is not None and building.get('location_scope')=='province'
+                location=geography.resolve(params,provincial)
+                region=location.get('state_id')
                 reason='building_or_state_not_resolved'
-                if building and not region and not params.get('state_id') and not params.get('state_name'):
+                if building and not region and all(params.get(k) is None for k in ('state_id','state_name','province_id')):
                     params['building_id']=building['id']
                     step.setdefault('started_when',_fact('construction.queued','contains','building:'+building['id']))
                     reason='building_start_without_location'
+                elif building and not region:
+                    reason=location['reason']
                 if building and region:
-                    params['building_id'],params['state_id']=building['id'],int(region['id'])
-                    step.setdefault('started_when',_fact('construction.queued','contains',f"state:{region['id']}:{building['id']}"))
+                    params['building_id'],params['state_id']=building['id'],region
+                    if provincial:params['province_id']=location['province_id']
+                    queue=f"province:{params['province_id']}:{building['id']}" if provincial else f"state:{region}:{building['id']}"
+                    step.setdefault('started_when',_fact('construction.queued','contains',queue))
                     target=params.get('target_level')
                     if not _integer(target,1): target=params.get('target_quantity')
                     if not _integer(target,1):
                         if params.get('quantity_mode')=='target_total': target=params.get('quantity')
                         elif params.get('quantity_mode')=='additional' and _integer(params.get('baseline_level')) and _integer(params.get('quantity'),1):
                             target=params['baseline_level']+params['quantity']
-                    field=BUILDING_FACTS.get(building['id'])
+                    field=BUILDING_FACTS.get(building['id']) if not provincial else None
                     reason='additional_baseline_missing' if params.get('quantity_mode')=='additional' else 'target_not_defined'
                     if not field: reason='building_completion_not_observed'
                     elif _integer(target,1):
-                        step.setdefault('completion',_fact(f"country.states.items.{region['id']}.{field}",'gte',target))
+                        step.setdefault('completion',_fact(f"country.states.items.{region}.{field}",'gte',target))
                         reason='observed_building_level'
                     elif params.get('quantity_mode')=='additional' and _integer(params.get('quantity'),1):
                         step.setdefault('completion',_fact('guide.construction.'+step['key']+'.added','gte',params['quantity']))
@@ -197,16 +212,19 @@ def bind_operations(guide,catalog):
             elif params.get('category')=='production':
                 reason = _bind_production(step,catalog,country,variants)
             else:
-                reason=bind_political(step,catalog,country) or reason
+                reason=bind_political(step,catalog,country,audit=bindings) or reason
             started,completed=_automatic(step.get('started_when')),_automatic(step.get('completion'))
             if started and not completed and 'completion' in step: reason='declared_manual_completion'
             reports.append({'key':step['key'],'title':step.get('title',step['key']),
                             'monitoring':'automatic' if completed else 'start_only' if started else 'manual',
-                            'automatic_start':started,'automatic_completion':completed,'reason':reason})
+                            'automatic_start':started,'automatic_completion':completed,'reason':reason,
+                            **({'bindings':bindings} if bindings else {}),
+                            **({'location':location} if location and 'state_id' in location else {})})
     return reports
 
 
 def _bind_production(step,catalog,country,known_variants=None):
+    catalog=catalog_index(catalog)
     params=step['action'].get('params',{})
     targets=params.get('production_targets')
     if targets is not None:
@@ -234,11 +252,11 @@ def _bind_production(step,catalog,country,known_variants=None):
             if condition.get('op')=='fact' and condition.get('key') in keys: step.pop(field)
         params.pop('production_selector')
     if params.get('mio_name') is not None: return 'production_mio_not_observed'
-    entries=[{**e,'aliases':[*e.get('aliases',[]),*e.get('country_aliases',{}).get(country,[])]}
-             for e in catalog if e['kind']=='equipment']
+    context=ResolutionContext(country=country)
+    entries=catalog.rows(('equipment',),context)
     query=params.get('equipment_id') if params.get('equipment_id') is not None else params.get('equipment_name')
     if not isinstance(query,str) or not query: return 'production_equipment_unresolved'
-    matches=[e for e in entries if e['id']==query] if params.get('equipment_id') is not None else exact_matches(query,entries)
+    matches=catalog.matches(query,('equipment',),context,explicit=params.get('equipment_id') is not None)
     # Generic labels shared by a family and its first level denote the family.
     roots=[e for e in matches if e.get('is_archetype')]
     if len(roots)==1 and all(e.get('family_id')==roots[0]['id'] for e in matches): matches=roots
@@ -254,7 +272,7 @@ def _bind_production(step,catalog,country,known_variants=None):
     if variant is not None:
         if not isinstance(variant,str) or not variant.strip() or ';' in variant: return 'production_variant_ambiguous'
         variants=[variant]
-        named=exact_matches(variant,entries)
+        named=catalog.matches(variant,('equipment',),context)
         if len(named)>1: return 'production_variant_ambiguous'
         if named:
             chosen=named[0]; selected=chosen.get('equipment_ids',[chosen['id']])

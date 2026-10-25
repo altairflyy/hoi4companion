@@ -22,6 +22,7 @@ def for_ai(entries, reference=None, localized=None):
     result=[]
     for entry in entries:
         row=deepcopy(entry)
+        row.pop('geography',None)  # City/province resolution runs locally.
         display=row.pop('localized_name',None)
         name=row.get('name','')
         same_name=' '.join(name.split()).casefold()

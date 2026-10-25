@@ -39,6 +39,19 @@ tabella usata per convalidare i campi del compilatore.
 
 - `focus`, `research`, `special_project`: target; eventuale upgrade_from per research.
 - `build`: edificio, regione e quantità add/total; baseline solo se documentata.
+  `state` può contenere il nome di una città: l'importatore usa localizzazioni,
+  punti vittoria e appartenenza delle province del gioco e delle mod attive per
+  trovare la regione (per esempio Berlin → provincia 6521 → Brandenburg).
+  Le traduzioni sono riconosciute quando presenti nelle localizzazioni installate.
+  Le fabbriche usano il conteggio regionale; forti e altri edifici provinciali
+  richiedono la città univoca o `province` esplicita. Nomi ambigui e ID in conflitto
+  restano da correggere. La coda provinciale prova soltanto l'avvio; non certifica
+  il livello finale se il lettore non lo espone. Le relazioni geografiche sono
+  locali e non vengono aggiunte agli allegati per l'IA.
+  La copertura dei nomi riguarda città con punti vittoria nominati nei file
+  installati; non è un atlante di ogni località. Le relazioni sono statiche:
+  non provano proprietà/controllo attuali o trasferimenti provinciali eseguiti
+  da script durante la campagna. Non implicano che un ordine sia consentito.
 - `production`: una linea oppure lines; quantità requested/assigned e incrementi
   soltanto per una singola linea. Le linee multiple indicano totali.
 - `law`, `idea`, `appoint`, `event`, `decision`: identità specifiche; due nomine
@@ -68,6 +81,32 @@ riscritti gli ID di guide installate o trasferite conferme fra guide/campagne.
 Condizioni, evidenze, fasi e dipendenze dichiarate passano al validatore v1.
 La creazione automatica dei criteri supportati resta nei binder. Non devono
 essere inseriti selector, binding politici o fatti guide.* nei details.
+
+## Risoluzione contestuale e indici locali
+
+L'importatore usa un indice condiviso per tipo/ID, nome inglese, localizzazione,
+alias, evento/risposte e geografia. I nomi uguali conservano tutti i candidati.
+Filtri di nazione, albero, evento padre, gruppo di legge e ruolo vengono applicati
+prima della scelta del nome. I focus mantengono inoltre la propagazione dei
+prerequisiti ed esclusioni del percorso dichiarato. Gli ID espliciti sconosciuti
+o incompatibili non vengono sostituiti con un'altra identità.
+
+Le condizioni nazionali riconosciute sono conservative: `tag` e combinazioni
+booleane; `original_tag`, ambiti e trigger non supportati restano sconosciuti.
+Restano compatibili i metadati nazionali già usati dagli advisor; una condizione
+nazionale certa dello script prevale sulle indicazioni del namespace.
+La selezione non valuta disponibilità attuale, date, risorse o progressi live:
+un obiettivo futuro rimane un'identità valida. I cataloghi caricati hanno già
+il filtro statico di DLC/mod; il resolver non tenta di simulare altri trigger.
+
+L'indice appartiene alla generazione di catalogo del servizio. Alla ricarica
+dei dati/impostazioni (installazione, mod, lingua, nazione o DLC riletti) viene
+ricostruito. Non c'è una scansione automatica continua dei file esterni.
+Ogni guida mantiene risultati e percorso propri: si riusano gli indici, non le
+decisioni di un'altra guida o partita. I domini contestuali hanno una cache
+limitata e sincronizzata; nomi sconosciuti non incrementano gli indici.
+L'anteprima espone le esclusioni in dettagli chiusi «Perché questa associazione?».
+Cataloghi esportati e risultati delle anteprime non possono alterare gli indici.
 
 L'anteprima e i file installati sono sempre Guide Schema v1: non ci sono due
 runtime o due sistemi di salvataggio. Nessuna guida installata viene migrata

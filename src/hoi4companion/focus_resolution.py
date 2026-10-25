@@ -1,5 +1,5 @@
 """Deterministic propagation of authored focus routes; no live facts or strategy."""
-from .research_upgrades import exact_matches, name_matches
+from .resolution import catalog_index, ResolutionContext
 
 
 def _identity(row):
@@ -81,9 +81,10 @@ def resolve_focus_routes(guide, catalog):
     Conditional steps/phases/dependencies cannot assert a mandatory branch.
     Missing ancestors and cycles remain unknown; omitted focuses are not false.
     """
+    index=catalog_index(catalog)
     rows = {row['key']:row for lane in guide['tracks'].values() for row in lane}
     phases = {phase['id']:phase for phase in guide.get('phases',[])}
-    nodes = {_identity(entry):entry for entry in catalog if entry['kind']=='focus'}
+    nodes = {_identity(entry):entry for entry in index.rows(('focus',))}
     domains, mandatory = {}, {}
 
     def conditional(key, stack=frozenset()):
@@ -98,10 +99,7 @@ def resolve_focus_routes(guide, catalog):
         ref = row['action']['entity']
         scope = ref.get('scope') or guide['applies_to'].get('tree_id')
         country = guide['applies_to'].get('country')
-        candidates = [entry for entry in nodes.values() if
-                      (not scope or entry.get('scope')==scope) and
-                      (not country or not entry.get('countries') or country in entry['countries'])]
-        domains[key] = name_matches(ref['id'],candidates)
+        domains[key] = index.matches(ref['id'],('focus',),ResolutionContext(country=country,scope=scope),typos=True)
         mandatory[key] = not conditional(key)
 
     anchors = {_identity(matches[0]) for key,matches in domains.items() if mandatory[key] and len(matches)==1}
@@ -130,8 +128,8 @@ def resolve_focus_routes(guide, catalog):
         audit = list(matches)
         if len(matches)==1:
             # Keep the explanation after the guide has been compiled to native IDs.
-            siblings = [entry for entry in nodes.values() if entry.get('scope')==matches[0].get('scope')]
-            for sibling in exact_matches(matches[0]['name'],siblings):
+            siblings=index.matches(matches[0]['name'],('focus',),ResolutionContext(scope=matches[0].get('scope')))
+            for sibling in siblings:
                 if _identity(sibling)!=_identity(matches[0]): audit.append(sibling)
         for entry in audit:
             status,witness = route.check(_identity(entry)) if mandatory[key] and not route.conflicts else (None,set())

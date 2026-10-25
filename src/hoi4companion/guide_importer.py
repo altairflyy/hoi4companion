@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from contextlib import nullcontext
 import difflib
 import hashlib
 import json
@@ -15,10 +16,11 @@ from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 from .guide import normalise_guide, GUIDES, LOCAL_GUIDES
 from .import_sources import MAX_TEXT, MAX_BYTES
-from .research_upgrades import normal_name, exact_matches, name_matches, upgrade_successors, resolve_research_upgrades
+from .research_upgrades import normal_name, upgrade_successors, resolve_research_upgrades
 from .tooltips import localise
 from .focus_resolution import resolve_focus_routes
 from .operation_import import bind_operations
+from .resolution import catalog_index, ResolutionContext
 
 AUTHORING_PROVIDER_INSTRUCTIONS = '''Return ONLY the hoi4-guide-authoring JSON document
 specified above, using the exact IDs and quotes of the supplied sources. Your
@@ -102,6 +104,8 @@ def preview(guide, sources, entities, research_context=None):
               'draft': deepcopy(guide) if isinstance(guide, dict) else None,
               'errors': [], 'warnings': [], 'resolutions': []}
     try:
+        index=catalog_index(entities)
+        entities=index
         acquired = validate_sources(sources)
         if not isinstance(guide, dict) or not isinstance(guide.get('id'), str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,160}', guide['id']):
             raise ValueError('ID guida necessario: usa lettere, numeri, trattino o underscore')
@@ -129,7 +133,7 @@ def preview(guide, sources, entities, research_context=None):
         value['sources'] = [{k: src[k] for k in ('id', 'type', 'title', 'url', 'content_sha256') if k in src}
                             for key, src in acquired.items() if key in declared]
         value.pop('default', None)
-        upgrades = resolve_research_upgrades(value, entities, research_context)
+        upgrades = resolve_research_upgrades(value, entities, research_context, resolver=index)
         if research_context:
             report['research_context'] = deepcopy(research_context)
         focus_matches, report['focus_route'], route_errors = resolve_focus_routes(value,entities)
@@ -161,14 +165,13 @@ def preview(guide, sources, entities, research_context=None):
             if action['kind'] in ('select_focus', 'research', 'special_project'):
                 scope = ref.get('scope') or (value['applies_to'].get('tree_id') if ref['kind'] == 'focus' else None)
                 country = value['applies_to'].get('country') if ref['kind'] == 'focus' else None
-                candidates = [entry for entry in entities if entry['kind'] == ref['kind'] and
-                              (not scope or entry.get('scope') == scope) and
-                              (not country or not entry.get('countries') or country in entry['countries'])]
+                context=ResolutionContext(country=country,scope=scope)
+                candidates=index.rows((ref['kind'],),context)
                 needle = normal_name(ref['id'])
                 upgrade = upgrades.get(key)
                 original_query = ref['id']
-                exact = exact_matches(original_query,candidates)
-                matches = exact or name_matches(original_query,candidates)
+                exact = index.matches(original_query,(ref['kind'],),context)
+                matches = exact or index.matches(original_query,(ref['kind'],),context,typos=True)
                 basis = 'catalog_name_or_id' if exact else 'minor_typo'
                 supporting = []
                 route_match = focus_matches.get(key)
@@ -202,6 +205,8 @@ def preview(guide, sources, entities, research_context=None):
                         report['errors'][-1] = f'{key}: percorso focus non verificabile: prerequisiti mancanti o ciclici ({ref["id"]})'
                 if route_match and route_match['excluded_candidates']:
                     resolution['excluded_candidates'] = deepcopy(route_match['excluded_candidates'])
+                excluded=index.excluded(original_query,(ref['kind'],),context)
+                if excluded:resolution['context_exclusions']=excluded
                 if upgrade:
                     resolution.update({field:upgrade[field] for field in ('query','interpretation','upgrade_from','reason')})
                     if upgrade['reason'] != 'upgrade_resolved':
@@ -218,7 +223,7 @@ def preview(guide, sources, entities, research_context=None):
         report['valid'] = not report['errors']
     except (ValueError, TypeError, KeyError, AttributeError, RecursionError) as exc:
         report['errors'].append(str(exc) or 'Documento non valido')
-    return report
+    return deepcopy(report)  # Callers cannot corrupt the reusable catalog index.
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -227,10 +232,12 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 class Importer:
-    def __init__(self, catalog, directory=LOCAL_GUIDES, research_context=None, catalog_export=None):
+    def __init__(self, catalog, directory=LOCAL_GUIDES, research_context=None, catalog_export=None, resolution_index=None, catalog_lock=None):
         self.catalog, self.directory = catalog, Path(directory)
         self.research_context = research_context
         self.catalog_export = catalog_export
+        self.resolution_index=resolution_index
+        self.catalog_lock=catalog_lock
 
     def ai_catalog(self, entries=None):
         from .catalog_export import for_ai
@@ -238,8 +245,12 @@ class Importer:
         return self.catalog_export(rows) if self.catalog_export else for_ai(rows)
 
     def preview(self, guide, sources):
-        context = self.research_context(guide) if self.research_context and isinstance(guide,dict) else None
-        return preview(guide, sources, self.catalog(), research_context=context)
+        # Snapshot initial research and the catalog in the same generation.
+        # Evaluation then runs outside the Store lock, without blocking live IO.
+        with self.catalog_lock if self.catalog_lock is not None else nullcontext():
+            context = self.research_context(guide) if self.research_context and isinstance(guide,dict) else None
+            index=self.resolution_index() if self.resolution_index else self.catalog()
+        return preview(guide, sources,index,research_context=context)
 
     def status(self):
         return {'import_schema_version': 1, 'ai_configured': bool(os.environ.get('OPENAI_API_KEY') and os.environ.get('HOI4_IMPORT_MODEL')),

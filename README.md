@@ -296,7 +296,7 @@ per attribuire ricerche completate. Le dottrine del nuovo sistema restano fuori 
 
 Il repository dispone di una suite completa di test automatizzati per il backend Python e per i modelli frontend:
 
-### Test Python (573 test)
+### Test Python (593 test)
 Tramite lo script batch (Windows):
 ```cmd
 test.bat
@@ -308,7 +308,7 @@ py -3 -m hoi4companion --test
 ```
 (in alternativa: `python -m unittest discover -s tests -p "test_*.py"`).
 
-### Test frontend JavaScript / Node.js (265 test)
+### Test frontend JavaScript / Node.js (268 test)
 I modelli logici del client sono verificati tramite il test runner nativo di Node.js (`node:test`):
 ```powershell
 Get-ChildItem -Path "tests" -Filter "*.cjs" | ForEach-Object { node $_.FullName }
