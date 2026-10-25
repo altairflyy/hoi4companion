@@ -19,3 +19,14 @@ main{max-width:1240px;margin:auto;padding:28px 32px 60px}.hero{display:flex;just
  .operation-frame img{display:block;width:100%;height:auto;margin-top:1rem;border:1px solid #647052}
  .production-targets{width:100%;border-collapse:collapse;margin:1rem 0}
  .production-targets td,.production-targets th{text-align:left;padding:.5rem;border-bottom:1px solid #4a503d}
+.operational-summary{margin:24px 0 30px}.operational-summary h2{margin-bottom:5px}
+.summary-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.summary-card{background:var(--panel);border:1px solid var(--line);border-left:4px solid #8fa18d;border-radius:7px;padding:16px 18px;overflow-wrap:anywhere}
+.summary-card h3{font-size:17px;line-height:1.35;margin:9px 0}.summary-card p{margin:8px 0}
+.summary-card .badge{display:inline-block;font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.summary-attention{border-left-color:var(--gold)}.summary-attention .badge{color:var(--gold)}
+.summary-active{border-left-color:var(--blue)}.summary-active .badge{color:var(--blue)}
+.summary-unknown{border-left-color:#b5a7b5}.summary-goal,.summary-evidence,.summary-comparisons{font-size:12px;color:var(--muted)}
+.summary-evidence{margin:10px 0}.summary-card>a{display:inline-block;margin-top:8px}
+.hud-view .operational-summary{display:none}
+@media(max-width:700px){.summary-cards{grid-template-columns:1fr}.summary-card{padding:14px}}

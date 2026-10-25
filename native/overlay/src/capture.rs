@@ -2,12 +2,13 @@
 //! The event callback retains at most one frame; CPU readback happens on demand.
 use std::marker::PhantomData;
 use std::rc::Rc;
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use windows::core::{factory, Error, Interface, Result, HRESULT};
 use windows::Foundation::TypedEventHandler;
-use windows::Graphics::Capture::{Direct3D11CaptureFrame, Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCaptureSession};
+use windows::Graphics::Capture::{Direct3D11CaptureFrame, Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCaptureSession, GraphicsCaptureAccess, GraphicsCaptureAccessKind};
+use windows::Security::Authorization::AppCapabilityAccess::AppCapabilityAccessStatus;
 use windows::Graphics::DirectX::{DirectXPixelFormat, Direct3D11::IDirect3DDevice};
 use windows::Graphics::SizeInt32;
 use windows::Win32::Foundation::{E_FAIL, E_INVALIDARG, HMODULE, HWND, POINT, RECT};
@@ -22,6 +23,12 @@ use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemIntero
 use windows::Win32::UI::WindowsAndMessaging::GetClientRect;
 
 pub(crate) fn error(message: impl AsRef<str>) -> Error { Error::new(E_FAIL, message.as_ref()) }
+
+pub(crate) fn borderless_access() -> bool {
+    static ACCESS:OnceLock<bool>=OnceLock::new();
+    *ACCESS.get_or_init(||GraphicsCaptureAccess::RequestAccessAsync(GraphicsCaptureAccessKind::Borderless)
+        .and_then(|request|request.get()).is_ok_and(|status|status==AppCapabilityAccessStatus::Allowed))
+}
 
 /// Must stay on its creating thread, and balances our own COM initialization.
 pub(crate) struct Apartment { owned: bool, _thread: PhantomData<Rc<()>> }
@@ -70,6 +77,7 @@ pub struct Capture {
     signal: Arc<Signal>,
     size: SizeInt32,
     staging: Option<ID3D11Texture2D>,
+    pub borderless_allowed: bool,
     _apartment: Apartment,
 }
 
@@ -119,11 +127,16 @@ impl Capture {
             closed_signal.changed.notify_all();Ok(())
         }))?;
         let session=pool.CreateCaptureSession(&item)?;
+        // Ask Windows once for the borderless mode. Merely setting the property
+        // without consent can succeed while Windows keeps drawing the border.
+        // Older Windows versions may not expose the optional borderless API.
+        // Keep their existing capture functional rather than terminating HUD.
+        let borderless_allowed=borderless_access()&&session.SetIsBorderRequired(false).is_ok();
         // Cursor pixels are not evidence about a GUI control.
         session.SetIsCursorCaptureEnabled(false)?;
         session.StartCapture()?;
         Ok(Self {hwnd,device,context,winrt_device,pool,session,item,frame_token,close_token,
-            signal,size,staging:None,_apartment:apartment})
+            signal,size,staging:None,borderless_allowed,_apartment:apartment})
     }
 
     pub fn wait_latest(&mut self, timeout:Duration) -> Result<Option<Frame>> {

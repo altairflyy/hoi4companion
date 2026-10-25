@@ -107,6 +107,10 @@ Non serve un programma di installazione né privilegi di amministratore di siste
 | **Importa Guida** | 📥 | Generatore di prompt per LLM, cataloghi tematici esportati, preparatore video YouTube e risolutore contestuale di associazioni. |
 | **Analisi Script** | 🔍 | Diagnostica avanzata degli script di gioco e delle mod tramite integrazione nativa con CWTools (.NET 9). |
 
+Il Walkthrough comprende un [riepilogo operativo contestuale](docs/operational-summary.md): confronta obiettivi e dati disponibili, distinguendo fabbriche richieste/assegnate, attività in corso e condizioni non verificabili, senza modificare i completamenti del runtime.
+
+Il Focus Explorer ricava spaziatura, composizione e ancoraggi dai file GUI installati, con [texture originali dei collegamenti e gestione esplicita dei limiti](docs/focus-fidelity.md).
+
 ---
 
 ## 🧭 Workflow Guide & Intelligenza Artificiale

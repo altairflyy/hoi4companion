@@ -2,7 +2,7 @@
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
 <title>HOI4 Companion — Piano operativo</title>
 <link rel="stylesheet" href="/guide.css"><link rel="stylesheet" href="/live-state.css">
-<script defer src="/contracts.js"></script><script defer src="/production-progress.js"></script><script defer src="/guide-runtime.js"></script><script defer src="/guide-model.js"></script><script defer src="/guide-presentation.js"></script><script defer src="/live-state.js"></script><script defer src="/guide-session.js"></script><script defer src="/guide.js"></script>
+<script defer src="/contracts.js"></script><script defer src="/production-progress.js"></script><script defer src="/guide-runtime.js"></script><script defer src="/guide-model.js"></script><script defer src="/guide-presentation.js"></script><script defer src="/operational-summary.js"></script><script defer src="/live-state.js"></script><script defer src="/guide-session.js"></script><script defer src="/guide.js"></script>
 </head><body>
 <header class="topbar"><nav aria-label="Viste"><a href="/">Focus nazionali</a><a href="/technologies">Tecnologie</a><a href="/country">Nazione</a><a href="/walkthrough" aria-current="page">Walkthrough</a><a href="/importer">Importa guida</a> <a href="/analysis">Analisi script</a></nav><span>HOI4 COMPANION</span></header>
 <main>
@@ -18,6 +18,11 @@
 <a id="focusTreeLink" class="tree-shortcut" href="/"><span class="shortcut-icon" aria-hidden="true">◈</span><span><strong>Focus nazionali</strong><small>Prossimo focus illuminato nel suo albero</small></span><span aria-hidden="true">↗</span></a>
 <a id="researchTreeLink" class="tree-shortcut" href="/technologies"><span class="shortcut-icon" aria-hidden="true">⚙</span><span><strong>Ricerche tecnologiche</strong><small>Prossima ricerca illuminata nella sua scheda</small></span><span aria-hidden="true">↗</span></a>
 </nav>
+<section id="operationalSummary" class="operational-summary" aria-labelledby="operationalSummaryTitle">
+<h2 id="operationalSummaryTitle">Situazione attuale della partita</h2>
+<p class="section-note">Obiettivi della guida a confronto con i dati disponibili. Questo riepilogo spiega il piano: non cambia priorità o completamenti.</p>
+<p id="summaryNotice" role="status"></p><div id="summaryCards" class="summary-cards"></div><p id="summaryRemaining" class="section-note" hidden></p>
+</section>
 <section id="nextOperation" class="next-operation" aria-label="Prossima istruzione operativa"></section>
 <section id="operationsPlan"><div class="section-head"><div><p class="eyebrow">COSA FARE E QUANDO</p><h2>Istruzioni operative <span id="operationProgress"></span> <span id="operationActive" role="status"></span></h2></div><label class="filter"><input type="checkbox" id="hideDone" checked>Nascondi completate</label></div>
 <p class="section-note">Avvio e completamento si rilevano automaticamente quando esistono criteri live, anche in pausa. Per le costruzioni aggiuntive il programma registra il conteggio iniziale e segue il totale da raggiungere. Annullare la coda senza raggiungere quel totale non completa l’istruzione. Leggi e incarichi sono verificati sullo stato attuale. Eventi aperti e scelte della guida vengono evidenziati. I promemoria sul metodo non richiedono conferme e non entrano nel conteggio. Le conferme manuali restano per i criteri non osservabili. Il minutaggio dei riferimenti è quello del video.</p>

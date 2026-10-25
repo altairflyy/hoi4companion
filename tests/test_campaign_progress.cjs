@@ -17,7 +17,7 @@ test('shared browser session accepts server restart and never resets progress on
  let subscriber;const posts=[];
  let progress={...fixtures.progress,run_revision:3,revision:100,server_id:'old-server',history:[]};
  const window={hoiLive:{enabled:true,subscribe(fn){subscriber=fn;}}};
- const fetch=async(url,options)=>{
+ const fetch=async(url,options)=>{if(url==='/api/guide/active')return {ok:true,json:async()=>options?{guide_id:JSON.parse(options.body).guide_id,revision:1}:{}};
   if(options){posts.push(JSON.parse(options.body));progress={...progress,checks:posts.at(-1).checks,run_revision:progress.run_revision+1};}
   return {ok:true,json:async()=>url==='/api/guides'?{guides:[{id:'campaign-test',title:'Test'}]}:url.startsWith('/api/guide/progress')?progress:fixtures.guide};
  };

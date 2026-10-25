@@ -42,5 +42,27 @@ class OverlayFeedTests(unittest.TestCase):
         self.assertGreater(feed.version,version)
         self.assertEqual(feed.snapshot()[1],[]);self.assertEqual(feed.snapshot()[2],0)
 
+    def test_server_selection_invalidates_old_targets_and_rejects_older_updates(self):
+        feed=Feed('http://127.0.0.1:8766','a');feed.value=[{'key':'old'}];feed.updated=10
+        feed.sync_selection({'active_guide_id':'b','active_guide_revision':2,'guide_server_id':'server'})
+        self.assertEqual(feed.guide_id,'b');self.assertEqual(feed.snapshot()[1],[])
+        version=feed.version
+        feed.sync_selection({'active_guide_id':'a','active_guide_revision':1,'guide_server_id':'server'})
+        self.assertEqual(feed.guide_id,'b');self.assertEqual(feed.version,version)
+        feed.sync_selection({'active_guide_id':'a','active_guide_revision':0,'guide_server_id':'new-server'})
+        self.assertEqual(feed.guide_id,'a')
+
+    def test_hud_selection_is_confirmed_by_server_before_local_activation(self):
+        feed=Feed('http://127.0.0.1:8766','a');feed.value=[{'key':'old'}]
+        class Response:
+            def __enter__(self):return self
+            def __exit__(self,*args):pass
+            def read(self):return b'{"guide_id":"b","revision":3,"server_id":"s"}'
+        with patch('hoi4companion.overlay_windows.urlopen',return_value=Response()) as call:feed.activate('b')
+        request=call.call_args.args[0]
+        self.assertEqual(request.method,'POST');self.assertEqual(json.loads(request.data),{'guide_id':'b'})
+        self.assertEqual(feed.guide_id,'b');self.assertEqual(feed.value,[])
+        self.assertEqual(feed.selection_revision,3)
+
 
 if __name__=='__main__':unittest.main()

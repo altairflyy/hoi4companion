@@ -14,9 +14,9 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  let subscriber;const requests=[];let run={schema_version:1,guide_id:'two',run_id:'first',session_id:null,checks:{},started:{},revision:0};const history={first:run};
  const window={hoiLive:{enabled:true,subscribe(fn){subscriber=fn;}}};
  const document={getElementById:get,createElement:()=>new Node(),createTextNode:text=>({textContent:text}),querySelectorAll:()=>[],body:{classList:{add(){}}}};
- const fetch=async(url,options)=>{requests.push(url);if(url.startsWith('/api/guide/frame'))return {ok:true,blob:async()=>new Blob(['image'])};if(url.startsWith('/api/guide/progress')&&options){const body=JSON.parse(options.body);run=body.run_id?history[body.run_id]:(history.second={...run,run_id:'second',checks:{},started:{}});if(body.checks)run.checks=body.checks;if(body.started)run.started=body.started;run.revision++;}
+ const fetch=async(url,options)=>{if(url==='/api/guide/active')return {ok:true,json:async()=>options?{guide_id:JSON.parse(options.body).guide_id,revision:1}:{}};requests.push(url);if(url.startsWith('/api/guide/frame'))return {ok:true,blob:async()=>new Blob(['image'])};if(url.startsWith('/api/guide/progress')&&options){const body=JSON.parse(options.body);run=body.run_id?history[body.run_id]:(history.second={...run,run_id:'second',checks:{},started:{}});if(body.checks)run.checks=body.checks;if(body.started)run.started=body.started;run.revision++;}
   return {ok:true,json:async()=>url.startsWith('/api/guide/progress')?run:url==='/api/guides'?{guides:[{id:'two',title:'Generic'}]}:guide};};
- const context={window,document,fetch,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{pathname:'/walkthrough',search:'?guide=two',href:'http://localhost/walkthrough?guide=two'},HoiContracts:require('../src/hoi4companion/web/contracts.js'),HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js')};
+ const context={window,document,fetch,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{pathname:'/walkthrough',search:'?guide=two',href:'http://localhost/walkthrough?guide=two'},HoiContracts:require('../src/hoi4companion/web/contracts.js'),HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js'),HoiOperationalSummary:require('../src/hoi4companion/web/operational-summary.js')};
  vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);
  vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide.js','utf8'),context);await new Promise(setImmediate);
  assert.equal(get('error').textContent,'');assert.equal(get('guideTitle').textContent,'Generic');assert.equal(get('sourceLink').hidden,true);
@@ -24,6 +24,7 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  assert.ok(get('operationCards').textContent.includes('Construction'));assert.ok(get('operationCards').textContent.includes('Quando: 1936'));
  assert.equal(get('operationCards').textContent.includes('NATIVE'),false);
  assert.equal(get('nextOperation').textContent.includes('NATIVE'),false);
+ assert.equal(get('summaryCards').textContent.includes('NATIVE'),false);assert.match(get('summaryNotice').textContent,/non disponibile/);
  const descendants=node=>[node,...(node.children||[]).flatMap(descendants)];
  const controls=descendants(get('operationCards')).filter(node=>node['data-check']);
  assert.deepEqual(controls.map(node=>node['data-check']).sort(),['done','phase_open']);
@@ -55,11 +56,13 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  const line={id:'line',building_id:'arms_factory',name:'Military factory',state_id:22,state_name:'Region',province_id:null,amount:3,active_factories:0,built_level:0,repair_levels:0,conversion:false,location_status:'observed'};
  const live=lines=>({usable:true,sample:{country:'GER',native_tick:10,country_overview:{country:'GER',construction:{status:'observed',lines}}}});
  subscriber(live([line]));
+ assert.match(get('summaryCards').textContent,/Costruzione avviata/);
  assert.equal(get('operationActive').textContent,'1 in corso');assert.equal(get('operationProgress').textContent,'0/1');
  assert.equal(start(),undefined);assert.match(get('operationCards').textContent,/In corso · avvio rilevato live/);assert.match(get('operationCards').textContent,/3 in coda · 0 fabbriche attive/);
  subscriber(live([{...line,amount:4}]));assert.match(get('operationCards').textContent,/4 in coda/);
  subscriber(live([]));assert.equal(get('operationActive').textContent,'');assert.equal(get('operationProgress').textContent,'0/1');assert.match(get('operationCards').textContent,/Nessun ordine rilevato/);
  subscriber({...live([line]),usable:false});assert.equal(get('operationActive').textContent,'');assert.match(get('operationCards').textContent,/Avvio non verificabile/);assert.equal(get('operationCards').textContent.includes('ORDINI LETTI LIVE'),false);
+ assert.equal(get('summaryCards').textContent,'');assert.match(get('summaryNotice').textContent,/non disponibile/);
  guide.tracks.operations.push({key:'method',tracking:'reminder',title:'Follow supply hubs',action:{kind:'manual',params:{category:'army',instructions:['Keep railways connected']}}});
  subscriber(live([]));
  const reminder=descendants(get('operationCards')).find(node=>node.dataset?.step==='method');

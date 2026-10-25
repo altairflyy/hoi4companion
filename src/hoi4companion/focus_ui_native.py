@@ -128,6 +128,30 @@ class UiReader:
             raise LiveReadError('Tipo GUI inatteso: '+name)
         return address
 
+    @lru_cache(maxsize=256)
+    def _primary_base(self, vtable, required):
+        """Qualify a nonvirtual base from immutable, build-checked MSVC RTTI."""
+        p=self.profile
+        locator=struct.unpack('<Q',p.bytes(vtable-self.process.base-8,8))[0]-p.image_base
+        signature,displacement,_,_,hierarchy,self_rva=struct.unpack('<6I',p.bytes(locator,24))
+        if signature!=1 or self_rva!=locator or displacement!=0:return False
+        _,_,count,descriptors=struct.unpack('<4I',p.bytes(hierarchy,16))
+        if not 1<=count<=128:return False
+        for i in range(count):
+            descriptor=struct.unpack('<I',p.bytes(descriptors+i*4,4))[0]
+            type_rva,_,mdisp,pdisp,vdisp,_,_=struct.unpack('<IIiiiII',p.bytes(descriptor,28))
+            name=p.bytes(type_rva+16,128).split(b'\0',1)[0].decode('ascii')
+            if name=='.?AV'+required+'@@':return (mdisp,pdisp,vdisp)==(0,-1,0)
+        return False
+
+    def _sprite(self,s,address,base='CSprite'):
+        vtable=s.number(address);kind=self._rtti(vtable)
+        animated={'CSprite':'CFrameAnimatedSprite','CSpriteType':'CFrameAnimatedSpriteType'}[base]
+        if kind==('.?AV'+base+'@@',0):return address
+        if kind==('.?AV'+animated+'@@',0) and self._primary_base(vtable,base):
+            return address
+        raise LiveReadError('Tipo sprite GUI non qualificato')
+
     def _discover(self, s, root):
         headers = tuple(s.read(root+off, 16) for off in (0x108, 0x120))
         # Registry occupancy changes with unrelated transient UI widgets. The
@@ -260,10 +284,10 @@ class UiReader:
         return s.read(pointer+0xA4, 2)[1] & 8 != 0
 
     def _sprite_bounds(self, s, sprite, parent, transform, clip):
-        self._typed(s, sprite, 'CSprite')
+        self._sprite(s, sprite)
         if s.number(sprite+0x118) != parent:
             raise LiveReadError('Ancoraggio sprite estraneo al widget')
-        sprite_type = self._typed(s, s.number(sprite+0x180), 'CSpriteType')
+        sprite_type = self._sprite(s, s.number(sprite+0x180), 'CSpriteType')
         columns, rows = struct.unpack('<ii', s.read(sprite_type+0x90, 8))
         width, height = struct.unpack('<ii', s.read(sprite_type+0xA4, 8))
         if s.number(sprite_type+0x10C, '<i') == 1:
@@ -285,7 +309,7 @@ class UiReader:
                 continue
             if s.number(button+0x68) != root or s.number(button+0x50) != observer:
                 raise LiveReadError('Pulsante focus di un altro proprietario')
-            sprite = self._typed(s, s.number(button+0xF0), 'CSprite')
+            sprite = self._sprite(s, s.number(button+0xF0))
             if s.number(button+0x1B0) != parent or s.number(sprite+0x118) != parent:
                 raise LiveReadError('Ancoraggio pulsante estraneo al focus')
             parts[name] = self._sprite_bounds(s, sprite, parent, transform, clip)
@@ -329,7 +353,7 @@ class UiReader:
                 continue
             if s.number(icon+0x68) != root or s.number(icon+0x50) != observer:
                 raise LiveReadError('Icona ricerca di un altro proprietario')
-            sprite = self._typed(s, s.number(icon+0xE8), 'CSprite')
+            sprite = self._sprite(s, s.number(icon+0xE8))
             if s.number(icon+0xF0) != parent or s.number(sprite+0x118) != parent:
                 raise LiveReadError('Ancoraggio icona estraneo alla ricerca')
             result = self._sprite_bounds(s, sprite, parent, transform, clip)
@@ -353,7 +377,7 @@ class UiReader:
                 continue
             if s.number(button+0x68) != root or s.number(button+0x50) != observer:
                 raise LiveReadError('Scheda ricerca di un altro proprietario')
-            sprite = self._typed(s, s.number(button+0xF0), 'CSprite')
+            sprite = self._sprite(s, s.number(button+0xF0))
             if s.number(button+0x1B0) != parent or s.number(sprite+0x118) != parent:
                 raise LiveReadError('Ancoraggio scheda ricerca non qualificato')
             data = self._sprite_bounds(s, sprite, parent, transform, clip)
