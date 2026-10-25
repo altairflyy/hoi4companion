@@ -30,12 +30,13 @@ from .operation_import import operation_catalog
 from .jomini_parser import backend_info
 from .guide_media import VideoJobs
 from .guide_frames import GuideFrames, frame_reference
+from .paths import data_directory
 
 BASE = Path(__file__).resolve().parent
 PROJECT = BASE.parent.parent
 DEMO = BASE / 'examples' / 'demo_focus.txt'
 WEB = BASE / 'web'
-SETTINGS = PROJECT / '.local' / 'settings.json'
+SETTINGS = data_directory() / 'settings.json'
 
 
 class Store:
@@ -155,7 +156,7 @@ class Store:
                 warnings += self.technologies['warnings']
                 asset_roots = [game / Path(x['descriptor']).parent for x in self.dlcs.items
                                if x['status'] in ('enabled', 'integrated')]
-                self.sprites = SpriteLibrary(game, [*asset_roots, *mods], PROJECT / '.local' / 'sprite-cache')
+                self.sprites = SpriteLibrary(game, [*asset_roots, *mods], SETTINGS.parent / 'sprite-cache')
                 warnings += self.sprites.warnings
                 gfx_files, warns = collect_files(game, mods, 'interface', '.gfx')
                 warnings += warns
@@ -194,6 +195,7 @@ class Store:
     def overview(self):
         with self.lock:
             return {
+                'application':'hoi4companion',
                 'settings': self.settings.copy(), 'demo': self.demo,
                 'parser': self.parser_info.copy(),
                 'warnings': self.warnings[:70],

@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 from urllib.request import urlopen
+from .paths import runtime_executable
 
 ROOT=Path(__file__).resolve().parent
 
@@ -20,6 +21,7 @@ def native_executable():
 
 
 def _console_python():
+    if getattr(sys,'frozen',False):return runtime_executable()
     executable=Path(sys.executable)
     if executable.name.casefold().startswith('pythonw'):
         candidate=executable.with_name('python'+executable.name[len('pythonw'):])

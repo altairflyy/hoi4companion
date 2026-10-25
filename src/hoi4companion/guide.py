@@ -11,10 +11,11 @@ from urllib.parse import urlencode
 from .tooltips import localise
 from .contracts import VERSION, entity, is_json_number, validate_action, validate_condition
 from .guide_schema import validate_guide_extensions
+from .paths import data_directory
 
 
 GUIDES = Path(__file__).parent / 'guides'
-LOCAL_GUIDES = Path(__file__).resolve().parents[2] / '.local' / 'guides'
+LOCAL_GUIDES = data_directory() / 'guides'
 
 
 def normalise_guide(guide):

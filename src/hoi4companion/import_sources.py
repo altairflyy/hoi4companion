@@ -14,6 +14,8 @@ import socket
 import ssl
 import subprocess
 import tempfile
+import sys
+from .paths import module_command,bundled_node
 from urllib.parse import urlsplit, urljoin, parse_qs
 
 MAX_TEXT = 180_000
@@ -121,12 +123,14 @@ def ytdlp_path():
 def youtube_source(url):
     canonical = youtube_url(url)
     executable = ytdlp_path()
-    if not executable:
+    launcher=module_command('yt_dlp') if getattr(sys,'frozen',False) and not os.environ.get('HOI4_YTDLP') else [executable] if executable else []
+    if not launcher:
         raise ValueError('yt-dlp non trovato: configura HOI4_YTDLP oppure incolla descrizione e trascrizione')
     # No user arguments, configs, plugins, cookies, playlist or media download.
     with tempfile.TemporaryFile() as output:
         try:
-            result = subprocess.run([executable, '--ignore-config', '--no-plugin-dirs', '--no-playlist',
+            result = subprocess.run([*launcher, '--ignore-config', '--no-plugin-dirs', '--no-playlist',
+                *(['--js-runtimes','node:'+str(bundled_node())] if bundled_node() else []),
                 '--skip-download', '--dump-single-json', '--socket-timeout', '12', '--retries', '1', '--', canonical],
                 stdout=output, stderr=subprocess.DEVNULL, timeout=55,
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))

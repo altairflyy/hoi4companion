@@ -1,0 +1,95 @@
+name: Windows distribution
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: native/cwtools/global.json
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          rustup default stable
+          python -m venv .venv-build
+          & .venv-build/Scripts/python.exe -m pip install -r packaging/requirements-windows.lock
+          exit $LASTEXITCODE
+      - name: Build self-contained application
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            & .venv-build/Scripts/python.exe -c "import os,tomllib; v=tomllib.load(open('pyproject.toml','rb'))['project']['version']; assert os.environ['GITHUB_REF_NAME']=='v'+v, 'Tag e versione non corrispondenti'"
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+          & .venv-build/Scripts/python.exe scripts/build-windows.py
+          exit $LASTEXITCODE
+      - name: Test source modules with the compiled components
+        shell: pwsh
+        run: |
+          Copy-Item -Path build/windows-native/* -Destination src/hoi4companion/_native -Recurse -Force
+          $env:PYTHONPATH = "$PWD/src"
+          & .venv-build/Scripts/python.exe -m unittest discover -s tests -p 'test_*.py'
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node --test tests/*.cjs
+          exit $LASTEXITCODE
+      - name: Test packaged application
+        shell: pwsh
+        run: |
+          $archive = (Get-ChildItem dist/HOI4Companion-*-windows-x64.zip | Select-Object -First 1).FullName
+          & .venv-build/Scripts/python.exe scripts/smoke-windows.py $archive --output dist/windows-smoke-results.json
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HOI4Companion-windows-x64
+          if-no-files-found: error
+          path: |
+            dist/HOI4Companion-*-windows-x64.zip
+            dist/HOI4Companion-*-windows-x64.zip.sha256
+            dist/windows-smoke-results.json
+  draft-release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: HOI4Companion-windows-x64
+          path: release
+      - name: Prepare reviewable release draft
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $notes = 'Pacchetto Windows x64: estrai tutta la cartella e avvia HOI4 Companion.exe. Non richiede runtime installati separatamente. Build sperimentale non firmata; la lettura live resta limitata alle build HOI4 supportate. Risultati smoke test allegati.'
+          $existing = gh release view $env:RELEASE_TAG --json isDraft 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            if (-not ($existing | ConvertFrom-Json).isDraft) { throw 'Release gia pubblicata: usa una nuova versione.' }
+            gh release upload $env:RELEASE_TAG release/* --clobber
+          } else {
+            gh release create $env:RELEASE_TAG release/* --verify-tag --draft --title "HOI4 Companion $env:RELEASE_TAG - Windows x64" --notes $notes
+          }
+          exit $LASTEXITCODE
