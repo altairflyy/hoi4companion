@@ -4,6 +4,28 @@ La pagina Importa guida permette di scegliere una sezione e scaricarla come JSON
 Il catalogo completo resta un'alternativa: allegarlo insieme alle sezioni
 duplicherebbe gli identificatori forniti al modello.
 
+Gli allegati e il pacchetto IA usano ora `localization_policy:"local_lookup"`:
+`localized_name` e gli alias riconosciuti come traduzioni vengono omessi.
+Il catalogo interno, la ricerca nell'interfaccia e l'importazione conservano
+tutte le localizzazioni. Nomi inglesi, ID e relazioni restano negli export.
+`alias_policy:"english_reference_only"` conserva soltanto alias distinti dal
+nome principale e presenti nei riferimenti inglesi del gioco, inclusi i nomi
+nazionali. Traduzioni e alias non classificati restano nel catalogo interno.
+La verifica usa la provenienza dai dizionari, non un'ipotesi sulla lingua.
+Una mod senza un nome inglese leggibile può esporre un `fallback_name` locale.
+Questa eccezione evita di perdere l'unica etichetta utile disponibile.
+
+La UI carica la proiezione di export solo al primo download e la riutilizza
+per le altre sezioni della stessa pagina. Il download completo e quelli
+tematici applicano gli stessi filtri nazionali già presenti. La sezione eventi
+mantiene la propria opzione sulle risposte multiple; il completo conserva
+anche eventi a risposta singola. Non vengono trasmessi dati live.
+
+`/api/import/catalog` rimane completo e localizzato. Soltanto
+`/api/import/catalog?export=ai` restituisce la proiezione per gli allegati.
+Anche il pacchetto IA individua prima le voci menzionate usando tutti gli
+alias interni e rimuove le traduzioni soltanto nel risultato da inviare.
+
 | `catalog_scope` | Tipi di entità |
 | --- | --- |
 | `focus` | `focus` |
@@ -16,8 +38,9 @@ duplicherebbe gli identificatori forniti al modello.
 | `other` | Eventuali tipi futuri non riconosciuti |
 
 Gli export dichiarano `catalog_schema_version:1`, `reference_language:"english"`
-e un array `catalog`. Le entità e i campi originali vengono preservati, inclusi
-nomi localizzati, alias, prerequisiti, successori e collegamenti `event_id`.
+e un array `catalog`. Le entità mantengono nomi di riferimento, alias utili,
+prerequisiti, successori e collegamenti `event_id`; le traduzioni vengono
+gestite localmente secondo la proiezione descritta sopra.
 I riferimenti fra sezioni restano ID, senza copiare l'entità referenziata.
 La partizione completa assegna ogni voce a una sola sezione; non modifica il
 catalogo interno, la risoluzione degli ID o le guide già importate.

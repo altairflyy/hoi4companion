@@ -55,8 +55,10 @@ def media_info(ffmpeg, path, runner=None):
         raise ValueError('Durata del video non leggibile')
     video=next((line for line in output.splitlines() if 'Video:' in line),'')
     dimensions=re.search(r'\b(\d{2,5})x(\d{2,5})\b',video)
+    audio=re.search(r'Audio:\s*([^\s,(]+)',output)
     return {'duration_seconds':int(match[1])*3600+int(match[2])*60+float(match[3]),
-            'width':int(dimensions[1]) if dimensions else None,'height':int(dimensions[2]) if dimensions else None}
+            'width':int(dimensions[1]) if dimensions else None,'height':int(dimensions[2]) if dimensions else None,
+            'audio_codec':audio[1] if audio else None}
 
 
 def duration(ffmpeg,path,runner=None):
@@ -221,9 +223,16 @@ class VideoJobs:
                                 and (manifest_path.parent/part['name']).is_file()
                                 and (manifest_path.parent/part['name']).stat().st_size==part['bytes']<=MAX_PART_BYTES
                                 and (not part.get('sha256') or digest(manifest_path.parent/part['name'])==part['sha256']) for part in saved['parts'])):
-                        return self.status(manifest_path.parent.name)
+                        cached_key=manifest_path.parent.name;job=self.status(cached_key);audio=job.get('audio')
+                        valid_audio=(isinstance(audio,dict) and audio.get('name') in ('audio.m4a','audio.opus','audio.mp3')
+                                     and (manifest_path.parent/audio['name']).is_file()
+                                     and digest(manifest_path.parent/audio['name'])==audio.get('sha256'))
+                        if not valid_audio and job.get('audio_status') not in ('running','absent'):
+                            self.update(cached_key,audio_status='running',audio=None)
+                            threading.Thread(target=self._audio_job,args=(cached_key,),daemon=True).start()
+                        return self.status(cached_key)
                 except (ValueError,OSError,KeyError,TypeError):continue
-            if any(job['status']=='running' for job in self.jobs.values()):
+            if any(job['status']=='running' or job.get('audio_status')=='running' for job in self.jobs.values()):
                 raise ValueError('Una preparazione video è già in corso')
             key = uuid4().hex
             self.jobs[key] = {'id':key,'url':canonical,'status':'running','stage':'queued',
@@ -234,6 +243,42 @@ class VideoJobs:
     def update(self, key, **values):
         with self.lock:
             self.jobs[key].update(values)
+
+    def _prepare_audio(self,key,source,info):
+        codec=info.get('audio_codec')
+        if not codec:
+            self.update(key,audio_status='absent',audio_warning='Il sorgente non contiene una traccia audio.')
+            return None
+        suffix={'aac':'m4a','opus':'opus','mp3':'mp3'}.get(codec,'m4a');copy=codec in ('aac','opus','mp3')
+        folder=self.root/key;target=folder/f'audio.{suffix}';temporary=folder/f'audio.part.{suffix}'
+        args=['-c:a','copy'] if copy else ['-c:a','aac','-b:a','128k','-ac','2']
+        try:
+            self._command(key,[ffmpeg_path(),'-v','error','-nostdin','-y','-i',str(source),'-vn','-map','0:a:0',
+                              *args,'-map_metadata','-1',*(['-movflags','+faststart'] if suffix=='m4a' else []),str(temporary)],timeout=300)
+            temporary.replace(target)
+            audio={'name':target.name,'bytes':target.stat().st_size,'sha256':digest(target),'codec':codec if copy else 'aac',
+                   'transcoded':not copy,'url':f'/api/import/video/file?id={key}&name={target.name}'}
+            self.update(key,audio_status='completed',audio_warning=None)
+            return audio
+        except (OSError,ValueError) as exc:
+            self.update(key,audio_status='failed',audio_warning='Audio separato non disponibile: '+str(exc)[:300])
+            return None
+        finally:
+            if temporary.is_file():temporary.unlink()
+
+    def _audio_job(self,key):
+        try:
+            path=self.root/key/'manifest.json';manifest=json.loads(path.read_text(encoding='utf8'))
+            from .guide_frames import GuideFrames
+            source=GuideFrames(self.root.parent/'guide-frames').source(manifest['source_url'])
+            if manifest.get('source_sha256') and digest(source)!=manifest['source_sha256']:
+                raise ValueError('Il sorgente è cambiato: prepara nuovamente il video')
+            info=media_info(ffmpeg_path(),source,lambda args,**kw:self._command(key,args,**kw))
+            audio=self._prepare_audio(key,source,info)
+            fields={field:self.status(key).get(field) for field in ('audio_status','audio_warning')};fields['audio']=audio
+            manifest.update(fields);temporary=path.with_suffix('.json.tmp');temporary.write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding='utf8');temporary.replace(path)
+            self.update(key,**fields)
+        except (OSError,ValueError,KeyError) as exc:self.update(key,audio_status='failed',audio_warning='Audio separato non disponibile: '+str(exc)[:300])
 
     def _encode(self, key, ffmpeg, source, target, args):
         folder=target.parent
@@ -294,11 +339,12 @@ class VideoJobs:
     def cleanup(self,url,keep,protected=()):
         """Delete only generated files in superseded same-URL job directories."""
         removed=0;root=self.root.resolve();protected={Path(p).resolve() for p in protected}
-        generated=re.compile(r'(?:parte-\d+\.mp4|master\.mp4|source\.(?:mp4|mkv|webm)|encoding-progress\.txt|encoding\.log|download\.log|manifest\.json|descrizione\.txt|job\.json|calibration-\d+\.mp4)')
+        generated=re.compile(r'(?:parte-\d+\.mp4|master\.mp4|source\.(?:mp4|mkv|webm)|audio(?:\.part)?\.(?:m4a|opus|mp3)|encoding-progress\.txt|encoding\.log|download\.log|manifest\.json|descrizione\.txt|job\.json|calibration-\d+\.mp4)')
         for folder in self.root.iterdir():
             if folder.name==keep or not re.fullmatch('[0-9a-f]{32}',folder.name) or folder.is_symlink() or folder.resolve().parent!=root:continue
             with self.lock:
-                if self.jobs.get(folder.name,{}).get('status')=='running':continue
+                state=self.jobs.get(folder.name,{})
+                if state.get('status')=='running' or state.get('audio_status')=='running':continue
             try:
                 record=folder/'manifest.json'
                 if not record.is_file():record=folder/'job.json'
@@ -351,6 +397,8 @@ class VideoJobs:
             if len(sources)!=1:raise ValueError('Sorgente video scaricato non identificabile')
             frames.register(url,sources[0],metadata)
             info=media_info(ffmpeg,sources[0],runner)
+            self.update(key,stage='audio',message='Preparazione della traccia audio separata')
+            audio=self._prepare_audio(key,sources[0],info)
             self.update(key,source_width=info['width'],source_height=info['height'])
             cache_key,identity=self.cache.identity(sources[0]);hit=self.cache.load(cache_key)
             if hit:
@@ -392,11 +440,12 @@ class VideoJobs:
                       'quality_mode':self.status(key)['quality_mode'],'source_width':info['width'],'source_height':info['height'],
                       'source_sha256':identity['source_sha256'],'master_key':cache_key,'encoding_profile':ENCODING_PROFILE,
                       'encoder_measurements':details.get('encoder_measurements',[])}
+            manifest.update(audio=audio,audio_status=self.status(key).get('audio_status'),audio_warning=self.status(key).get('audio_warning'))
             (folder/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding='utf8')
             self.update(key,status='completed',stage='completed',message='Video pronto: ogni parte è stata verificata sotto 150 MB',parts=parts,
                         manifest_url=f'/api/import/video/file?id={key}&name=manifest.json',
                         description_url=f'/api/import/video/file?id={key}&name=descrizione.txt',
-                        source_width=info['width'],source_height=info['height'])
+                        source_width=info['width'],source_height=info['height'],audio=audio)
             try:
                 registry=json.loads((frames.root/'sources.json').read_text(encoding='utf8'))
                 protected=[item['path'] if isinstance(item,dict) else item for item in registry.values()]
@@ -413,6 +462,7 @@ class VideoJobs:
     def file(self,key,name):
         job=self.status(key)
         allowed={p['name'] for p in job['parts']} | {'manifest.json','descrizione.txt'}
+        if isinstance(job.get('audio'),dict) and job['audio'].get('name') in ('audio.m4a','audio.opus','audio.mp3'):allowed.add(job['audio']['name'])
         if job['status']!='completed' or name not in allowed:
             raise ValueError('File video non disponibile')
         return self.root/key/name

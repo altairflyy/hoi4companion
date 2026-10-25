@@ -16,6 +16,7 @@
 <p id="catalogWarning" role="alert" hidden></p>
 <p id="catalogSummary" class="hint" role="status"></p>
 <div class="actions"><button id="downloadSection" type="button" disabled>Scarica sezione selezionata</button></div>
+<p class="hint">I file per l’IA conservano ID, nomi inglesi, relazioni e solo alias distinti attestati nei riferimenti inglesi del gioco. Traduzioni e alias non verificati restano nel programma.</p>
 <p class="hint">Le sezioni non si sovrappongono: focus; ricerche; produzione ed equipaggiamenti; costruzioni e regioni; progetti speciali; politica, personaggi e decisioni; eventi e risposte. Allega soltanto quelle necessarie alla fase di analisi. L’albero selezionato filtra i focus e, quando la nazione è nota, esclude eventi, risposte, leggi, idee, consiglieri e decisioni con condizioni nazionali incompatibili. Per politica e decisioni si assume che la nazione selezionata sia anche quella d’origine; vengono rispettati i vincoli della categoria e dell’incarico. Le voci condivise e incerte restano incluse: non è una previsione completa della partita. Nomi e prefissi degli ID non sono prove della nazione. Le altre sezioni restano globali. Eventi e risposte restano collegati tramite event_id. Deseleziona il filtro eventi per includere anche quelli a risposta unica. Senza catalogo, gli ID incerti restano da risolvere.</p>
 <details><summary>Catalogo completo, in alternativa alle sezioni</summary><p class="hint">Contiene tutte le categorie, compresi gli eventi a risposta unica. Non allegarlo insieme alle sezioni: duplicherebbe le stesse voci.</p><button id="downloadCatalog" type="button">Scarica catalogo ID completo</button></details>
 <h3>Prepara il video da allegare all’IA</h3>
@@ -25,7 +26,7 @@
 <button id="prepareVideo" type="button">Scarica e prepara video</button><p id="videoStatus" role="status"></p><div id="videoFiles"></div>
 </section>
 <section class="import-section" aria-labelledby="fileHeading"><p class="eyebrow">02 · RISPOSTA DELL’IA</p><h2 id="fileHeading">Carica il file restituito dall’IA</h2>
-<label for="draftFile">File .hoi4-guide.json, bozza o pacchetto precedente</label><input id="draftFile" type="file" accept=".json,application/json"><p>Il file contiene istruzioni e fonti. I checksum vengono calcolati automaticamente dal programma. Puoi anche incollare l’intero JSON nell’editor qui sotto.</p>
+<label for="draftFile">File .hoi4-guide.json, bozza o pacchetto precedente</label><input id="draftFile" type="file" accept=".json,application/json"><p>Il nuovo prompt usa azioni semplici: costruire, ricercare, nominare e scegliere risposte. Il programma le converte nella guida utilizzata dal runtime. I file precedenti restano compatibili. Se manca un campo, il file resta nell’editor per correggerlo. Puoi anche incollare l’intero JSON qui sotto.</p>
 </section>
 <details class="import-section"><summary>Opzioni aggiuntive: acquisizione nel programma e API IA</summary><section aria-labelledby="sourceHeading"><h2 id="sourceHeading">Acquisizione facoltativa</h2>
 <label for="sourceUrl">Link YouTube o pagina web</label><input id="sourceUrl" type="url" placeholder="https://www.youtube.com/watch?v=…">

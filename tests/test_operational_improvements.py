@@ -92,7 +92,7 @@ class OperationalImprovementsTests(unittest.TestCase):
     def test_video_http_resume_download_origin_guard_and_source_frame(self):
         with TemporaryDirectory() as d:
             root=Path(d);key='a'*32;folder=root/key;folder.mkdir();part=folder/'parte-01.mp4';part.write_bytes(b'video')
-            manifest={'preset_version':PRESET_VERSION,'encoding_profile':ENCODING_PROFILE,'source_url':'https://www.youtube.com/watch?v=Ht4e89B02Wo','fps':15,'max_part_bytes':150000000,'overlap_seconds':10,'segment_seconds':300,'parts':[{'name':part.name,'bytes':5,'start_seconds':0,'end_seconds':30,'url':f'/api/import/video/file?id={key}&name={part.name}'}]}
+            manifest={'preset_version':PRESET_VERSION,'encoding_profile':ENCODING_PROFILE,'audio_status':'absent','source_url':'https://www.youtube.com/watch?v=Ht4e89B02Wo','fps':15,'max_part_bytes':150000000,'overlap_seconds':10,'segment_seconds':300,'parts':[{'name':part.name,'bytes':5,'start_seconds':0,'end_seconds':30,'url':f'/api/import/video/file?id={key}&name={part.name}'}]}
             (folder/'manifest.json').write_text(json.dumps(manifest));(folder/'descrizione.txt').write_text('description')
             jobs=VideoJobs(root);frames=GuideFrames(root/'frames');image=root/'image.jpg';image.write_bytes(b'jpeg')
             guide=definition({'source_seconds':10});guide['sources']=[{'id':'s','type':'youtube','url':manifest['source_url']}]
