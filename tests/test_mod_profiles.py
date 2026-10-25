@@ -40,7 +40,7 @@ class ModProfileTests(unittest.TestCase):
         self.assertIn('ambiguo', result['warnings'][0])
 
     def test_reloads_profile_order_and_never_reuses_disabled_or_other_users_mods(self):
-        folders = [self.root / name for name in ('one', 'two', 'disabled')]
+        folders = [(self.root / name).resolve() for name in ('one', 'two', 'disabled')]
         for folder in folders:
             folder.mkdir()
         refs = [self.descriptor(folder.name, folder.as_posix()) for folder in folders]
