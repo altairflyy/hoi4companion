@@ -96,7 +96,9 @@ class Bridge:
             guide=request.get('guide_id')
             if not isinstance(guide,str) or guide not in {row['id'] for row in self._guides()}:
                 raise ValueError('Guida non installata')
-            self.feed.select(guide);self.cached_key=None;self.cached_matches=[]
+            if hasattr(self.feed,'activate'):self.feed.activate(guide)
+            else:self.feed.select(guide)
+            self.cached_key=None;self.cached_matches=[]
             return {**base,**self.snapshot(),'guides':self._guides()}
         if kind=='close':
             self.close()
@@ -238,11 +240,11 @@ def main():
     feed=Feed('http://127.0.0.1:'+str(args.port),args.guide)
     from .overlay_geometry import NativeGeometry
     bridge=Bridge(feed,geometry=NativeGeometry(feed.get))
-    # Preserve the previous selector's default: an omitted --guide selects the
-    # first installed guide; a requested ID is never replaced by another one.
+    # Browser and HUD share the server selection, including across restarts.
     try:
         guides=bridge._guides()
-        if not args.guide and guides:feed.select(guides[0]['id'])
+        if args.guide:feed.activate(args.guide)
+        else:feed.select(feed.get('/api/guide/active')['guide_id'])
     except Exception:
         # Server outages remain explicit in Feed; the binary protocol survives.
         bridge.guides=[]

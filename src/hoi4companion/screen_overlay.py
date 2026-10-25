@@ -54,7 +54,9 @@ def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
         action=row['action'];params=action.get('params',{});ref=action.get('entity',{});panel=None;entries=[];labels=[];identity=None
         kind=action['kind']
         if kind in ('select_focus','research'):
-            if item['key'] not in native:continue
+            # Active native steps are still highlighted by the tree views.
+            # Only NEW choices consume the runtime's free parallel capacity.
+            if item['key'] not in native and status!='active':continue
             panel='focus' if kind=='select_focus' else 'research';identity=ref.get('id')
             entries=[e for e in catalog if e['kind']==ref.get('kind') and e['id']==identity and (not ref.get('scope') or e.get('scope')==ref['scope'])]
         elif params.get('event_id'):

@@ -19,6 +19,7 @@ from .technologies import load_technologies
 from .live import LiveMonitor, NativeProvider
 from .stream import LiveEventHub, SubscriberLimitError
 from .technology_visuals import load_technology_visuals
+from .focus_visuals import load_focus_visuals
 from .guide import load_guide, list_guides, default_guide_id, enrich_guide, update_checks, manual_keys
 from .guide_progress import RunStore
 from .guide_runtime import evaluate as evaluate_guide
@@ -95,6 +96,12 @@ class Store:
         except (OSError, ValueError):
             # Optional content must never prevent the live framework starting.
             self.default_guide_id = None
+        self.active_guide_id=self.default_guide_id
+        self.active_guide_revision=0
+        try:
+            selection=json.loads(SETTINGS.with_name('active-guide.json').read_text(encoding='utf-8'))
+            self.active_guide_id=load_guide(selection.get('guide_id'))['id']
+        except (OSError, ValueError, AttributeError):pass
         self._sync_progress()
         self.live_hub = LiveEventHub(lambda: self.live_state(force=True), interval=.25,
                                      on_idle=self.live_idle)
@@ -115,6 +122,7 @@ class Store:
                                   'source': '', 'basis': 'launcher_profile', 'items': [], 'roots': [], 'warnings': []}
             self.technologies = {'folders': {}, 'technologies': {}, 'warnings': [], 'excluded_folders': []}
             self.technology_visuals = {'templates': {}, 'folders': {}}
+            self.focus_visuals = {}
             self.operation_entities = []
             self.demo = not bool(game and (game / 'common' / 'national_focus').is_dir())
             if self.demo:
@@ -150,6 +158,7 @@ class Store:
                 warnings += warns
                 gui_files, warns = collect_files(game, mods, 'interface', '.gui')
                 warnings += warns
+                focus_gui_files = gui_files
                 gui_files = [file for file in gui_files if file.name.lower().startswith('countrytechtree')]
                 self.technologies = load_technologies(tech_files, tag_files, labels, self.dlcs, scripts,
                                                       config['country'].upper(), gui_files=gui_files)
@@ -162,6 +171,8 @@ class Store:
                 warnings += warns
                 self.technology_visuals = load_technology_visuals(gui_files, gfx_files, self.sprites)
                 warnings += self.technology_visuals['warnings']
+                self.focus_visuals = load_focus_visuals(focus_gui_files, self.sprites)
+                warnings += self.focus_visuals['warnings']
             self.warnings = warnings
             self.labels = labels
             self.reference_labels = reference_labels
@@ -223,6 +234,7 @@ class Store:
                     error = str(exc)
             statuses = evaluate(tree, set(snapshot.completed), snapshot.current) if snapshot else {}
             result = tree.to_json()
+            result['visuals'] = getattr(self, 'focus_visuals', {})
             if self.sprites:
                 texts = []
                 for focus in result['focuses']:
@@ -300,6 +312,8 @@ class Store:
             if default_id:
                 states[default_id] = checks
             return {**self.live_cache, 'guide_id': default_id, 'guide_checks': checks,
+                    'active_guide_id':getattr(self,'active_guide_id',None),
+                    'active_guide_revision':getattr(self,'active_guide_revision',0),
                     'guide_states': states,
                     'guide_started': {key: self._progress_store().get(key)['started']
                                       for key in self._progress_store().metadata()},
@@ -309,6 +323,25 @@ class Store:
                     'guide_server_id':self._server_identity(),
                     'guide_storage':self._storage_status(),
                     'guide_revision': getattr(self,'guide_revision',0)}
+
+    def active_guide(self,update=None):
+        """One selection shared by browser pages and native HUD, not progress."""
+        with self.lock:
+            if update is not None:
+                if not isinstance(update,dict) or set(update)!={'guide_id'} or not isinstance(update['guide_id'],str):
+                    raise ValueError('Selezione guida non valida')
+                definition=load_guide(update['guide_id'])
+                if definition['id']!=getattr(self,'active_guide_id',None):
+                    path=SETTINGS.with_name('active-guide.json');temporary=path.with_suffix('.json.tmp')
+                    path.parent.mkdir(parents=True,exist_ok=True)
+                    temporary.write_text(json.dumps({'guide_id':definition['id']}),encoding='utf-8')
+                    temporary.replace(path)
+                    self.active_guide_id=definition['id']
+                    self.active_guide_revision=getattr(self,'active_guide_revision',0)+1
+            else:
+                definition=load_guide(getattr(self,'active_guide_id',None))
+            return {'schema_version':VERSION,'guide_id':definition['id'],'title':definition['title'],
+                    'revision':getattr(self,'active_guide_revision',0),'server_id':self._server_identity()}
 
     def _progress_store(self):
         if not hasattr(self, 'guide_runs'):
@@ -723,6 +756,10 @@ def make_handler(store: Store):
                 except (OSError, ValueError) as exc:
                     self.json({'error': str(exc)}, 400)
                 return
+            if url.path == '/api/guide/active':
+                try:self.json(store.active_guide())
+                except (OSError,ValueError) as exc:self.json({'error':str(exc)},400)
+                return
             if url.path == '/api/guide':
                 try:
                     self.json(store.walkthrough(parse_qs(url.query).get('id', [None])[0]))
@@ -768,6 +805,8 @@ def make_handler(store: Store):
                       '/walkthrough': 'guide.html', '/hud': 'guide.html', '/guide-model.js': 'guide-model.js',
                       '/guide.js': 'guide.js', '/guide.css': 'guide.css',
                       '/guide-runtime.js': 'guide-runtime.js',
+                      '/operational-summary.js':'operational-summary.js',
+                      '/focus-layout.js':'focus-layout.js',
                       '/production-progress.js': 'production-progress.js',
                       '/guide-presentation.js': 'guide-presentation.js', '/guide-session.js': 'guide-session.js',
                       '/guide-assist.js': 'guide-assist.js', '/guide-assist.css': 'guide-assist.css',
@@ -787,7 +826,7 @@ def make_handler(store: Store):
         def do_POST(self):
             url = urlparse(self.path)
             import_paths = {'/api/import/source', '/api/import/packet', '/api/import/extract', '/api/import/preview', '/api/import/install', '/api/import/document'}
-            if url.path not in ('/api/config', '/api/refresh', '/api/guide/checks', '/api/guide/progress','/api/guide/associations','/api/import/video') and url.path not in import_paths:
+            if url.path not in ('/api/config', '/api/refresh', '/api/guide/active', '/api/guide/checks', '/api/guide/progress','/api/guide/associations','/api/import/video') and url.path not in import_paths:
                 self.json({'error': 'Not found'}, 404)
                 return
             # Blocca richieste cross-origin da siti terzi verso il servizio locale.
@@ -840,6 +879,9 @@ def make_handler(store: Store):
                     else:
                         result = importer.install(update.get('guide'), update.get('sources'), reviewed=update.get('reviewed'))
                     self.json(result)
+                    return
+                if url.path == '/api/guide/active':
+                    self.json(store.active_guide(update))
                     return
                 if url.path == '/api/guide/checks':
                     self.json(store.walkthrough_checks(update, parse_qs(url.query).get('id', [None])[0]))

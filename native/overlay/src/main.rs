@@ -23,11 +23,12 @@ struct Options {
     port:u16, guide:String, python:String, start:bool, proof:Option<PathBuf>,
     ocr_image:Option<PathBuf>, ocr_scale:u32, ocr_repeat:usize, ocr_prepared:bool,
     prepare_dir:Option<PathBuf>,
+    capture_access_check:bool,
     status:PathBuf,
 }
 fn options()->Result<Options,String> {
     let mut result=Options {port:8766,guide:String::new(),python:"python.exe".into(),start:false,
-        proof:None,ocr_image:None,ocr_scale:2,ocr_repeat:3,ocr_prepared:false,prepare_dir:None,
+        proof:None,ocr_image:None,ocr_scale:2,ocr_repeat:3,ocr_prepared:false,prepare_dir:None,capture_access_check:false,
         status:PathBuf::from(".local/overlay-status.json")};
     let mut args=std::env::args().skip(1);
     while let Some(arg)=args.next() {
@@ -38,6 +39,7 @@ fn options()->Result<Options,String> {
             "--start"=>result.start=true,
             "--proof"=>result.proof=Some(args.next().ok_or("Missing proof path")?.into()),
             "--status-file"=>result.status=args.next().ok_or("Missing status path")?.into(),
+            "--capture-access-check"=>result.capture_access_check=true,
             "--ocr-image"=>result.ocr_image=Some(args.next().ok_or("Missing image path")?.into()),
             "--ocr-scale"=>result.ocr_scale=args.next().ok_or("Missing scale")?.parse().map_err(|_|"Invalid OCR scale")?,
             "--ocr-repeat"=>result.ocr_repeat=args.next().ok_or("Missing repetitions")?.parse().map_err(|_|"Invalid repetitions")?,
@@ -151,6 +153,11 @@ fn benchmark(options:&Options)->Result<(),String> {
 }
 
 fn run(options:Options)->Result<(),String> {
+    if options.capture_access_check {
+        let _apartment=capture::Apartment::new().map_err(|e|e.to_string())?;
+        save_status(&options.status,&json!({"capture_borderless_allowed":capture::borderless_access(),"capture_active":false}));
+        return Ok(());
+    }
     if options.ocr_image.is_some(){return benchmark(&options);}
     let Some(_instance)=singleton()? else {return Ok(());};
     unsafe {let _=SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);}
@@ -183,7 +190,7 @@ fn run(options:Options)->Result<(),String> {
             let message=if renderer.is_paused(){"Overlay in pausa"}else if current.is_none(){"Passa a HOI4 per mostrare le indicazioni"}
                 else{snapshot["error"].as_str().filter(|s|!s.is_empty()).unwrap_or("Nessuna indicazione attuale della guida")};
             if last_status.elapsed()>Duration::from_millis(500) {
-                renderer.set_status(message);save_status(&options.status,&json!({"engine":"rust-wgc-winrtocr-direct2d","visible":false,"error":message,"memory_access":false,"host_pid":std::process::id()}));last_status=Instant::now();
+                renderer.set_status(message);save_status(&options.status,&json!({"engine":"rust-wgc-winrtocr-direct2d","visible":false,"error":message,"memory_access":false,"host_pid":std::process::id(),"guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],"capture_active":false}));last_status=Instant::now();
             }
             std::thread::sleep(Duration::from_millis(100));continue;
         }
@@ -220,6 +227,7 @@ fn run(options:Options)->Result<(),String> {
                     .unwrap_or_else(||format!("{} indicazioni · ID e geometria GUI · {:.0} ms",last_matches.len(),ms));
                 renderer.set_status(&message);
                 save_status(&options.status,&json!({"engine":"rust-native-gui-direct2d","host_pid":std::process::id(),
+                    "guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],
                     "visible":!last_matches.is_empty(),"overlay_window":renderer.overlay_window(),"control_window":renderer.control_window(),
                     "game_window":view.hwnd,"target_count":snapshot["proposed"].as_array().map_or(0,Vec::len),
                     "matches":last_matches,"geometry_ms":ms,"native_frames":native_frames,"frames_observed":total_frames,
@@ -292,6 +300,7 @@ fn run(options:Options)->Result<(),String> {
         if last_status.elapsed()>Duration::from_millis(500){
             renderer.set_status(&format!("{} indicazioni · OCR {:.0} ms · riconoscimento {:.0} ms",last_matches.len(),ocr_ms,matching_ms));
             save_status(&options.status,&json!({"engine":"rust-wgc-winrtocr-direct2d","host_pid":std::process::id(),"visible":!last_matches.is_empty(),
+                "guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],"capture_active":true,"capture_borderless_allowed":source.borderless_allowed,
                 "overlay_window":renderer.overlay_window(),"control_window":renderer.control_window(),"game_window":view.hwnd,"target_count":snapshot["proposed"].as_array().map_or(0,Vec::len),
                 "matches":last_matches,"ocr_ms":ocr_ms,"matching_ms":matching_ms,"iteration_ms":started.elapsed().as_secs_f64()*1000.,
                 "frames_observed":total_frames,"ocr_calls":total_ocr,"frame_generation":frame.generation,

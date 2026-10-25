@@ -14,7 +14,7 @@ import threading
 import time
 import traceback
 from urllib.parse import quote
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 
 from .screen_overlay import targets,rectangles
 from .overlay_sprites import ResearchSprites
@@ -26,13 +26,34 @@ class Feed:
     def __init__(self,base,guide_id):
         self.base,self.guide_id=base,guide_id;self.lock=threading.Lock();self.closed=threading.Event();self.version=0
         self.value=[];self.updated=0;self.error='Collegamento al runtime…';self.guide_title=''
+        self.selection_revision=-1;self.selection_server=None
     def get(self,path):
         with urlopen(self.base+path,timeout=10) as response:return json.load(response)
     def get_bytes(self,path):
         if not path.startswith('/api/sprite/'):raise ValueError('Percorso asset non valido')
         with urlopen(self.base+path,timeout=10) as response:return response.read()
     def select(self,guide_id):
-        with self.lock:self.guide_id=guide_id;self.version+=1;self.value=[];self.updated=0
+        with self.lock:
+            if self.guide_id==guide_id:return
+            self.guide_id=guide_id;self.version+=1;self.value=[];self.updated=0;self.guide_title=''
+    def activate(self,guide_id):
+        request=Request(self.base+'/api/guide/active',data=json.dumps({'guide_id':guide_id}).encode(),
+                        headers={'Content-Type':'application/json'},method='POST')
+        with urlopen(request,timeout=10) as response:selection=json.load(response)
+        if selection.get('guide_id')!=guide_id:raise ValueError('Guida attiva non confermata dal server')
+        if type(selection.get('revision')) is not int:raise ValueError('Revisione selezione non valida')
+        self.sync_selection({'active_guide_id':guide_id,'active_guide_revision':selection['revision'],
+                             'guide_server_id':selection.get('server_id')})
+    def sync_selection(self,payload):
+        guide=payload.get('active_guide_id');revision=payload.get('active_guide_revision')
+        if not isinstance(guide,str) or not guide or type(revision) is not int:return
+        with self.lock:
+            server=payload.get('guide_server_id')
+            if server and server!=self.selection_server:self.selection_revision=-1;self.selection_server=server
+            if revision<self.selection_revision:return
+            self.selection_revision=revision
+            if self.guide_id!=guide:
+                self.guide_id=guide;self.version+=1;self.value=[];self.updated=0;self.guide_title=''
     def snapshot(self):
         with self.lock:return self.version,list(self.value),self.updated,self.error,self.guide_title
     def run(self):
@@ -46,6 +67,7 @@ class Feed:
                         if raw.startswith(b'event:'):event=raw[6:].strip().decode();continue
                         if not raw.startswith(b'data:'):continue
                         payload=json.loads(raw[5:])
+                        if event=='state':self.sync_selection(payload)
                         with self.lock:guide_id=self.guide_id;version=self.version
                         if event=='heartbeat':
                             with self.lock:

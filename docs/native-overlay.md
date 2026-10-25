@@ -20,6 +20,15 @@ permessi di interrogazione e lettura; non chiama funzioni del gioco. Focus,
 tecnologie e capitoli riusano lo stesso calcolo degli sprite ancorati al parent
 corrente, lo stesso contratto di geometria e lo stesso ciclo di disegno.
 
+Le ricerche in corso possono utilizzare `CFrameAnimatedSprite` e
+`CFrameAnimatedSpriteType`, oltre alle varianti statiche. Il lettore ammette
+queste due classi soltanto se la RTTI del PE qualificato dimostra rispettivamente
+una base non virtuale `CSprite` o `CSpriteType` allo stesso indirizzo. Non accetta
+genericamente qualsiasi sottoclasse. Gli stessi controlli su parent, proprietario,
+identità, dimensioni, visibilità e ritaglio continuano a valere. Il caso reale è
+stato riprodotto su sfondi animati delle ricerche: il vecchio controllo sul solo
+tipo statico respingeva il campione prima del disegno.
+
 L'albero tecnologico è `CCountryTechTreeView`, distinto dal pannello laterale
 `CCountryTechnologyView`. La cornice segue il vero pulsante `Background`, non
 l'illustrazione interna o le dimensioni del contenitore. L'ID della cartella è
@@ -64,6 +73,48 @@ ricaricare l'elenco, sospendere/riprendere e chiudere l'overlay. Una guida ancor
 in anteprima nell'importer deve essere installata prima. Il controllo si apre
 senza sottrarre il focus; puoi raggiungerlo dalla barra applicazioni o Alt-Tab.
 Le cornici trasparenti ai clic compaiono solo quando HOI4 è in primo piano.
+
+### Guida condivisa e ricerche in corso
+
+Il browser e l'HUD condividono la selezione attraverso `/api/guide/active`.
+Cambiare guida in una pagina visibile o nel controllo HUD aggiorna la stessa
+selezione; le altre viste seguono il cambiamento tramite il flusso SSE esistente.
+La preferenza è conservata in `active-guide.json` nella cartella dati del
+programma, separata da definizioni delle guide e avanzamento della partita.
+L'HUD non sceglie più automaticamente la prima guida installata. Le revisioni
+respingono aggiornamenti precedenti e un cambio di guida invalida le vecchie
+cornici. Una pagina nascosta non pubblica la guida di un vecchio URL al caricamento.
+Con un servizio precedente ancora in esecuzione, il browser mantiene la propria
+selezione locale fino all'aggiornamento del servizio.
+
+Le tecnologie e i focus già in corso rimangono evidenziati in azzurro anche
+quando non ci sono slot liberi. Le nuove tecnologie proposte restano limitate
+agli slot liberi ammessi dal runtime. Non vengono aggiunte ricerche future
+solo perché uno slot è occupato. Le schede tecnologiche distinguono un gruppo
+di sole ricerche attive da nuove scelte disponibili. Restano invariati i controlli
+su nazione, ID, DLC, cartella, visibilità e validità del campione.
+
+### Indicatore di cattura di Windows
+
+Focus, tecnologie e capitoli qualificati continuano a utilizzare la geometria
+nativa senza cattura dello schermo. Per gli altri pannelli, il motore WGC
+richiede una volta il modo `GraphicsCaptureAccessKind.Borderless` e imposta
+`IsBorderRequired=false` prima di avviare la cattura. Non aggiunge cornici
+intorno al desktop nel renderer. Lo stato diagnostico include guida attiva,
+uso della cattura e autorizzazione Windows alla modalità senza bordo.
+
+L'assenza del bordo deve essere verificata sulla macchina reale: Windows può
+ignorare la proprietà se l'accesso non è concesso o mostrare un indicatore
+richiesto da un'altra applicazione. Si veda la
+[documentazione Microsoft](https://learn.microsoft.com/en-us/uwp/api/windows.graphics.capture.graphicscapturesession.isborderrequired).
+
+Il controllo diagnostico `--capture-access-check --status-file <file>` verifica
+l'autorizzazione senza avviare una cattura o un secondo HUD. Nella verifica locale
+Windows ha restituito accesso concesso; la cattura WGC effettiva ha riportato
+`capture_borderless_allowed=true` e lo screenshot successivo non mostrava il bordo
+giallo. Il supporto ai widget animati è stato verificato anche sui widget reali
+conservati dal gioco a scheda chiusa: questo verifica la decodifica, non la loro
+visibilità o l'allineamento delle cornici dopo l'ultima correzione.
 
 Avvio equivalente:
 

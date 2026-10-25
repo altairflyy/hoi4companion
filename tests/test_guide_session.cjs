@@ -3,9 +3,14 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 
 const activeGuideKey='hoi4-active-guide';
 const storage=values=>({getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value)});
-async function openGuidePage({persistent=new Map(),session=new Map(),search='',blocked=false,missing=new Set()}={}){
- const requests=[],window={},catalog=['first','second'].map(id=>({id,title:id}));
- const context={window,URL,URLSearchParams,localStorage:blocked?{getItem(){throw Error('blocked');},setItem(){throw Error('blocked');}}:storage(persistent),sessionStorage:storage(session),location:{href:'http://localhost/walkthrough'+search,search},HoiGuidePresentation:{evaluate:()=>({})},fetch:async url=>{
+async function openGuidePage({persistent=new Map(),session=new Map(),search='',blocked=false,missing=new Set(),shared=null,visibility='visible'}={}){
+ let subscriber,selection=shared,selectionRevision=0;const selections=[];
+ const requests=[],window={hoiLive:{enabled:true,subscribe(fn){subscriber=fn;}}},catalog=['first','second'].map(id=>({id,title:id}));
+ const context={window,document:{visibilityState:visibility},URL,URLSearchParams,localStorage:blocked?{getItem(){throw Error('blocked');},setItem(){throw Error('blocked');}}:storage(persistent),sessionStorage:storage(session),location:{href:'http://localhost/walkthrough'+search,search},HoiGuidePresentation:{evaluate:()=>({})},fetch:async(url,options)=>{
+  if(url==='/api/guide/active'){
+   if(options){selection=JSON.parse(options.body).guide_id;selectionRevision++;selections.push(selection);}
+   return {ok:true,json:async()=>selection?{guide_id:selection,revision:selectionRevision}:{}};
+  }
   requests.push(url);
   if(url==='/api/guides')return {ok:true,json:async()=>({guides:catalog})};
   const id=new URL(url,'http://localhost').searchParams.get('id')||'first';
@@ -13,8 +18,29 @@ async function openGuidePage({persistent=new Map(),session=new Map(),search='',b
   return {ok:true,json:async()=>url.startsWith('/api/guide/progress')?{guide_id:id,checks:{},revision:0}:{id,tracks:{operations:[]}}};
  }};
  vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await new Promise(setImmediate);
- return {api:window.hoiGuide,requests,persistent,session};
+ return {api:window.hoiGuide,requests,persistent,session,selections,emit:subscriber};
 }
+
+test('server active guide wins over old browser preferences and explicit selection updates the shared guide',async()=>{
+ const page=await openGuidePage({shared:'second',persistent:new Map([[activeGuideKey,'first']])});
+ assert.equal(page.api.value.guide.id,'second');
+ await page.api.select('first');assert.equal(page.selections.at(-1),'first');
+ const explicit=await openGuidePage({shared:'first',search:'?guide=second'});
+ assert.equal(explicit.api.value.guide.id,'second');assert.equal(explicit.selections.at(-1),'second');
+});
+
+test('server selection events update the page without a POST feedback loop and reject old revisions',async()=>{
+ const page=await openGuidePage({shared:'first'}),before=page.selections.length;
+ page.emit({active_guide_id:'second',active_guide_revision:3,guide_server_id:'server'});await new Promise(setImmediate);
+ assert.equal(page.api.value.guide.id,'second');assert.equal(page.selections.length,before);
+ page.emit({active_guide_id:'first',active_guide_revision:2,guide_server_id:'server'});await new Promise(setImmediate);
+ assert.equal(page.api.value.guide.id,'second');
+});
+
+test('a hidden page cannot override the shared guide merely because an older URL is loaded',async()=>{
+ const page=await openGuidePage({shared:'first',search:'?guide=second',visibility:'hidden'});
+ assert.equal(page.selections.length,0);
+});
 
 test('a successful guide selection survives a fresh tab and browser session',async()=>{
  const persistent=new Map(),page=await openGuidePage({persistent});
@@ -56,7 +82,7 @@ test('an explicitly missing guide reports an error without overwriting the previ
 test('editing split legacy confirmations preserves sibling activities and rolls back rejected writes',async()=>{
  const definition={id:'g',title:'Generic',tracks:{operations:['build','train'].map(key=>({key,action:{kind:'manual',params:{legacy_key:'old'}}}))},milestones:[{key:'old',title:'Old'}]};
  let saved={schema_version:1,guide_id:'g',run_id:'run',session_id:null,checks:{old:true},revision:0},reject=false;
- const window={};const context={window,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{href:'http://localhost/walkthrough',search:''},HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js'),fetch:async(url,options)=>{
+ const window={};const context={window,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{href:'http://localhost/walkthrough',search:''},HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js'),fetch:async(url,options)=>{if(url==='/api/guide/active')return {ok:true,json:async()=>options?{guide_id:JSON.parse(options.body).guide_id,revision:1}:{}};
   if(options){if(reject)return {ok:false,status:400,json:async()=>({error:'Changed run'})};const body=JSON.parse(options.body);saved={...saved,...body,revision:saved.revision+1};}
   return {ok:true,json:async()=>url==='/api/guides'?{guides:[definition]}:url.startsWith('/api/guide/progress')?saved:definition};
  }};
@@ -78,7 +104,7 @@ test('server baseline events reach the shared presentation without a manual star
  const example=require('./fixtures/construction-progress.json')[0],definition=example.guide;
  let subscriber;const requests=[],window={hoiLive:{enabled:true,subscribe(fn){subscriber=fn;}}};
  const saved={...example.progress,baselines:{},revision:0};
- const context={window,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{href:'http://localhost/walkthrough',search:''},HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js'),fetch:async url=>{
+ const context={window,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{href:'http://localhost/walkthrough',search:''},HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js'),fetch:async(url,options)=>{if(url==='/api/guide/active')return {ok:true,json:async()=>options?{guide_id:JSON.parse(options.body).guide_id,revision:1}:{}};
   requests.push(url);return {ok:true,json:async()=>url==='/api/guides'?{guides:[definition]}:url.startsWith('/api/guide/progress')?saved:definition};
  }};
  vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await new Promise(setImmediate);

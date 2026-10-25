@@ -120,7 +120,8 @@ class NativeGeometry:
                     if rect is None:continue
                     result['matches'].append({'key':'research-tab:'+folder,'panel':'research_tab',
                         'identity':folder,'folder':folder,'title':steps[0].get('folder_name') or folder,
-                        'status':'ready','rect':rect,'step_keys':[p['key'] for p in steps],
+                        'status':'active' if all(p.get('status')=='active' for p in steps) else 'ready',
+                        'rect':rect,'step_keys':[p['key'] for p in steps],
                         'count':len(steps),'basis':'native_gui_identity'})
             return result
         except (OSError,ValueError,RuntimeError) as exc:

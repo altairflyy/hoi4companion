@@ -67,6 +67,25 @@
   $('focusTreeLink').href=window.hoiGuide.withGuide(focus?.href||baseFocus);$('researchTreeLink').href=window.hoiGuide.withGuide(tech?.href||'/technologies');$('hudLink').href=window.hoiGuide.withGuide('/walkthrough');
   for(const a of document.querySelectorAll('.topbar a'))a.href=window.hoiGuide.withGuide(a.getAttribute('href'));
  }
+ function renderSummary(){
+  const result=HoiOperationalSummary.project(value.guide,value.view.model.runtime,value.state),cards=$('summaryCards');cards.replaceChildren();
+  $('summaryNotice').textContent=result.notice;$('summaryNotice').hidden=!result.notice;
+  $('summaryRemaining').hidden=!result.hidden_count;$('summaryRemaining').textContent=result.hidden_count?`Altre ${result.hidden_count} attività sono consultabili nel piano completo qui sotto.`:'';
+  const tones={attention:'Attenzione',active:'In corso',ready:'Da verificare',waiting:'In attesa',unknown:'Non verificabile'},origins={observed:'Osservato',calculated:'Calcolato',unknown:'Non disponibile'};
+  for(const item of result.items){
+   const card=el('article','summary-card summary-'+item.tone);card.dataset.step=item.step_key;
+   card.append(el('span','badge',tones[item.tone]),el('h3','',item.title),el('p','',item.message));
+   card.append(el('p','summary-goal','Obiettivo della guida · '+item.guide_goal));
+   if(item.comparisons?.length>1){const list=el('ul','summary-comparisons');for(const p of item.comparisons)list.append(el('li','',`${p.name}: obiettivo ${p.target??'non verificabile'} · richieste ${p.requested??'non verificabili'} · assegnate ${p.assigned??'non verificabili'}`));card.append(list);}
+   if(item.evidence?.length){const details=el('details','summary-evidence');details.append(el('summary','','Dati della partita'));
+    for(const fact of item.evidence){const display=fact.status==='unknown'?'non disponibile':typeof fact.value==='boolean'?(fact.value?'sì':'no'):Array.isArray(fact.value)?`${fact.value.length} elementi rilevati`:String(fact.value);
+     details.append(el('p','',fact.label+': '+display+' · '+(origins[fact.status]||'Dato del runtime')));
+    }card.append(details);
+   }
+   const link=el('a','',item.link_label);link.href=item.href.startsWith('#')?item.href:window.hoiGuide.withGuide(item.href);
+   if(item.href.startsWith('#'))link.onclick=()=>{filter='all';$('hideDone').checked=false;render(value);};card.append(link);cards.append(card);
+  }
+ }
  function render(next){value=next;if(!value.guide){$('error').hidden=false;$('error').textContent=value.error||'Caricamento della guida…';return;}
   const {guide,view}=value;$('error').hidden=!value.error;$('error').textContent=value.error;
   if(lastGuide!==guide){if(lastGuide?.id!==guide.id){for(const pending of frameCache.values())pending.then(url=>URL.revokeObjectURL(url)).catch(()=>{});frameCache.clear();expandedFrames.clear();}lastGuide=guide;filter='all';$('guideTitle').textContent=guide.title;$('subtitle').textContent=guide.subtitle;
@@ -76,6 +95,7 @@
    $('chapters').replaceChildren(...(guide.source?.chapters||[]).map(chapter=>{const li=el('li'),a=el('a','',clock(chapter.start_time)+' · '+chapter.title);a.href=sourceLink(chapter.start_time);a.target='_blank';a.rel='noopener noreferrer';li.append(a);return li;}));
   }
   $('guideSelect').disabled=value.pending>0;$('reset').disabled=value.pending>0;links();
+  renderSummary();
   $('mode').textContent={live:'Percorso collegato · '+(view.country||'partita corrente'),preview:'Anteprima della guida',wrong_country:'Guida sospesa · nazione diversa',wrong_tree:'Guida sospesa · albero diverso'}[view.mode];
   $('modeNote').textContent=view.mode==='live'?'Focus e ricerche si aggiornano nei rispettivi alberi. Le operazioni con criteri live avanzano automaticamente; i promemoria restano consultabili senza conferme. Conferma solo i criteri non osservabili.':'Le istruzioni restano consultabili. Senza una partita compatibile non viene dedotto alcun avanzamento.';
   const p=value.progress,storage=p.storage||{},campaign=p.campaign_id;

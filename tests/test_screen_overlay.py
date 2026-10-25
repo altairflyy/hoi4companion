@@ -117,7 +117,11 @@ class ScreenOverlayTests(unittest.TestCase):
             self.assertEqual(len(result),len(keys))
         self.runtime['steps'][1]['status']='active'
         self.runtime['parallel']={'research':{'capacity':1,'steps':['0']}}
-        self.assertEqual([r['key'] for r in targets(self.guide,self.runtime,self.catalog,self.state)],['0'])
+        result=targets(self.guide,self.runtime,self.catalog,self.state)
+        self.assertEqual([r['key'] for r in result],['0','1'])
+        self.assertEqual(result[1]['status'],'active')
+        self.runtime['parallel']={'research':{'capacity':0,'steps':[]}}
+        self.assertEqual([r['key'] for r in targets(self.guide,self.runtime,self.catalog,self.state)],['1'])
 
 
 if __name__=='__main__':unittest.main()

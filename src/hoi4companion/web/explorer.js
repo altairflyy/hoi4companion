@@ -1,8 +1,8 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const state = {overview:null,tree:null,selected:null,goal:null,search:'',zoom:.78,manual:new Set(),poll:false,coords:new Map(),treeRequest:0};
-const NODE_W=174, NODE_H=154, UNIT_X=100, UNIT_Y=190, GAP=74;
 const statusLabels={completed:'Completato',active:'In corso',ready:'Prerequisiti soddisfatti',locked:'Prerequisiti mancanti',excluded:'Percorso escluso',verify:'Condizioni da verificare',unknown:'Non verificato'};
+let focusLabelContext;
 async function getJson(url,options){const response=await fetch(url,options),data=await response.json();if(!response.ok)throw new Error(data.error||response.statusText);return data;}
 function clear(node){node.replaceChildren();}
 function el(tag,cls,text){const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=String(text??'');return node;}
@@ -93,7 +93,7 @@ function showTooltip(focus,node){
 }
 function centerFocus(id){
   const position=state.coords.get(id);if(!position)return;
-  const viewport=$('graphViewport');viewport.scrollLeft=(position.x+NODE_W/2)*state.zoom-viewport.clientWidth/2;viewport.scrollTop=(position.y+NODE_H/2)*state.zoom-viewport.clientHeight/2;
+  const node=state.geometry.node,viewport=$('graphViewport');viewport.scrollLeft=(position.x+node.width/2)*state.zoom-viewport.clientWidth/2;viewport.scrollTop=(position.y+node.height/2)*state.zoom-viewport.clientHeight/2;
 }
 function selectFocus(id){const keepFocus=Boolean(document.activeElement?.dataset.focusId);state.selected=id;render();$('inspectorContent').scrollTop=0;if(keepFocus){const node=[...$('nodes').children].find(x=>x.dataset.focusId===id);node?.focus({preventScroll:true});}}
 function render(){
@@ -102,42 +102,79 @@ function render(){
   $('graphTitle').textContent=tree.id.toUpperCase();$('graphCounter').textContent=tree.focuses.length+' NODI';
   $('assetInfo').textContent=tree.asset_coverage?`Icone originali: ${tree.asset_coverage.resolved}/${tree.asset_coverage.total}${tree.asset_coverage.conditional?' · '+tree.asset_coverage.conditional+' variabili':''}`:'Icone dimostrative';
   const byId=new Map(tree.focuses.map(f=>[f.id,f])),status=statuses();
-  const minX=Math.min(...tree.focuses.map(f=>f.x),0),minY=Math.min(...tree.focuses.map(f=>f.y),0);
-  const coords=new Map(tree.focuses.map(f=>[f.id,{x:(f.x-minX)*UNIT_X+GAP,y:(f.y-minY)*UNIT_Y+GAP}]));state.coords=coords;
-  const width=Math.max(...[...coords.values()].map(p=>p.x+NODE_W+GAP),500),height=Math.max(...[...coords.values()].map(p=>p.y+NODE_H+GAP),410);
+  const geometry=HoiFocusLayout.layout(tree),{coords,width,height}=geometry;state.geometry=geometry;state.coords=coords;
+  $('assetInfo').textContent+=' · '+(geometry.native?'Geometria GUI locale':'Geometria di ripiego');
   const world=$('world');world.style.width=width+'px';world.style.height=height+'px';world.style.transform=`scale(${state.zoom})`;
   $('worldSizer').style.width=(width*state.zoom)+'px';$('worldSizer').style.height=(height*state.zoom)+'px';
   const wires=$('wires');clear(wires);wires.setAttribute('viewBox',`0 0 ${width} ${height}`);wires.setAttribute('width',width);wires.setAttribute('height',height);
   const route=state.goal?ancestors(state.goal):null,exclusive=new Set();
   const pathFor=(d,cls)=>{const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',d);path.setAttribute('class',cls);wires.append(path);};
+  const imageFor=(sprite,x,y,w,h,cls='')=>{if(!sprite?.url)return;const image=document.createElementNS('http://www.w3.org/2000/svg','image');for(const [k,v]of Object.entries({href:sprite.url,x,y,width:w,height:h,preserveAspectRatio:'none',class:cls}))image.setAttribute(k,v);wires.append(image);};
   for(const focus of tree.focuses){
-    const dest=coords.get(focus.id);
+    const dest=coords.get(focus.id);if(!dest)continue;
     for(const group of focus.prerequisites)for(const prev of group){
-      if(!coords.has(prev))continue;const src=coords.get(prev),x1=src.x+NODE_W/2,y1=src.y+NODE_H,x2=dest.x+NODE_W/2,y2=dest.y;
-      const midway=y2>y1?(y1+y2)/2:y1+18;
-      pathFor(`M ${x1} ${y1} V ${midway} H ${x2} V ${y2}`,'wire'+(route&&route.has(prev)&&route.has(focus.id)?' goal':route?' dim':''));
+      if(!coords.has(prev))continue;
+      const edge=HoiFocusLayout.edge(coords.get(prev),dest,geometry,tree.visuals),marked=route&&route.has(prev)&&route.has(focus.id);
+      const completed=status[prev]==='completed'&&status[focus.id]==='completed',active=status[prev]==='completed'&&status[focus.id]==='active';
+      const variant=completed?(group.length>1?'completed_alternative':'completed'):(group.length>1?'alternative':'neutral');
+      const assets=tree.visuals?.link_states?.[variant]||tree.visuals?.links;
+      const pieces=geometry.native?HoiFocusLayout.tiles(edge.points,assets,tree.visuals.positions.link_spacing):[];
+      for(const p of pieces)imageFor(p.sprite,p.x,p.y,p.width,p.height,'focus-link-art'+(!completed&&!active?' focus-link-unverified':'')+(route&&!marked?' dim':''));
+      if(!pieces.length||marked)pathFor(edge.path,'wire'+(marked?' goal':route?' dim':''));
     }
     for(const id of focus.mutually_exclusive){
       if(!coords.has(id))continue;const key=[focus.id,id].sort().join('|');if(exclusive.has(key))continue;exclusive.add(key);
-      const other=coords.get(id),x1=dest.x+NODE_W/2,y1=dest.y+NODE_H/2,x2=other.x+NODE_W/2,y2=other.y+NODE_H/2;
-      pathFor(`M ${x1} ${y1} L ${x2} ${y2}`,'wire mutex'+(route?' dim':''));
-      if(tree.theme?.exclusive){const image=document.createElementNS('http://www.w3.org/2000/svg','image');image.setAttribute('href',tree.theme.exclusive.url);image.setAttribute('x',(x1+x2)/2-12);image.setAttribute('y',(y1+y2)/2-12);image.setAttribute('width',24);image.setAttribute('height',24);wires.append(image);}
+      const link=HoiFocusLayout.exclusive(dest,coords.get(id),geometry,tree.visuals),{start,end}=link,c=link.children||{},mid=(start.x+end.x)/2,cls='focus-link-art'+(route?' dim':'');
+      if(link.native&&c.mid?.sprite&&c.link1?.sprite&&c.link2?.sprite){
+        const sprite=c.mid.sprite,w=sprite.width||24,h=sprite.height||24;
+        for(const [key,left,right]of [['link1',start.x+(c.link1?.position.x||0),mid-w/2],['link2',mid+w/2,end.x]]){
+          const part=c[key];if(right>left&&part?.sprite)imageFor(part.sprite,left,start.y+(part.position.y||0),right-left,part.sprite.height||4,cls);
+        }
+        imageFor(sprite,mid-w/2,start.y,w,h,cls);
+        if(end.x-start.x>=w*3){for(const [key,x]of [['left',start.x],['right',end.x-w]])if(c[key]?.sprite)imageFor(c[key].sprite,x,start.y,w,h,cls);}
+      }else{
+        pathFor(`M ${start.x} ${start.y} L ${end.x} ${end.y}`,'wire mutex'+(route?' dim':''));
+        if(tree.theme?.exclusive)imageFor(tree.theme.exclusive,mid-12,(start.y+end.y)/2-12,24,24,cls);
+      }
     }
   }
-  const nodes=$('nodes');clear(nodes);
+  const nodes=$('nodes'),labels=[];clear(nodes);
   for(const focus of tree.focuses){
-    const position=coords.get(focus.id),code=status[focus.id]||'unknown';
+    const position=coords.get(focus.id),code=status[focus.id]||'unknown';if(!position)continue;
     const node=el('button','focus-node '+code);node.type='button';node.dataset.focusId=focus.id;node.style.left=position.x+'px';node.style.top=position.y+'px';
+    node.style.width=geometry.node.width+'px';node.style.height=geometry.node.height+'px';node.style.minHeight=geometry.node.height+'px';
     const match=!state.search||focus.id.toLowerCase().includes(state.search)||plain(focus.name).toLowerCase().includes(state.search);
     if(!match||(route&&!route.has(focus.id)))node.classList.add('dim');if(route?.has(focus.id))node.classList.add('on-route');if(state.selected===focus.id)node.classList.add('selected');
     const emblem=el('div','focus-emblem');emblem.append(spriteImage(focus.sprite||focus.variant_sprites?.[0]));
     if(focus.icon_variants?.length)emblem.append(el('span','variant-badge','?'));
     if(code==='completed'||code==='active')emblem.append(el('span','completion-badge',code==='completed'?'✓':'◉'));
-    const title=el('div','focus-nameplate');if(tree.theme?.[code])title.append(spriteImage(tree.theme[code],'focus-titlebar'));
-    title.append(richText(focus.name,'focus-name'));
+    const title=el('div','focus-nameplate'),frame=tree.visuals?.states?.[code]||tree.theme?.[code];if(frame)title.append(spriteImage(frame,'focus-titlebar'));
+    const name=richText(focus.name,'focus-name');title.append(name);
+    if(geometry.native){
+      const children=tree.visuals.templates.national_focus_item.children;
+      const symbol=HoiFocusLayout.component(children.symbol,geometry.node),bg=HoiFocusLayout.component(children.bg,geometry.node),text=HoiFocusLayout.component(children.name,geometry.node);
+      if(symbol&&bg&&text){node.classList.add('native-focus');
+        emblem.style.left=symbol.x+'px';emblem.style.top=symbol.y+'px';emblem.style.setProperty('--symbol-transform',`${symbol.center?'translate(-50%,-50%) ':''}scale(${symbol.scale})`);
+        title.style.left=bg.x+'px';title.style.top=bg.y+'px';title.style.width=(frame?.width||geometry.node.width)+'px';title.style.height=(frame?.height||40)+'px';
+        name.style.left=(text.x-bg.x)+'px';name.style.top=(text.y-bg.y)+'px';name.style.width=(children.name.width||147)+'px';name.style.height=(children.name.height||20)+'px';name.style.textAlign=children.name.align||'center';
+        const fontSize=Number(children.name.font?.match(/_(\d{1,2})/)?.[1]);if(fontSize>=8&&fontSize<=32)name.style.fontSize=fontSize+'px';
+        labels.push(name);
+      }
+    }
     node.append(emblem,title,el('span','focus-duration',`${Math.round(focus.cost*7)}d*`));
     node.setAttribute('aria-label',`${plain(focus.name)}: ${statusLabels[code]||'stato non verificato'}`);
     node.addEventListener('click',()=>selectFocus(focus.id));node.addEventListener('pointerenter',()=>showTooltip(focus,node));node.addEventListener('pointerleave',hideTooltip);node.addEventListener('focus',()=>showTooltip(focus,node));node.addEventListener('blur',hideTooltip);nodes.append(node);
+  }
+  // Browser glyphs differ from the game's font. Fit the declared text box.
+  if(labels.length&&typeof getComputedStyle==='function'){
+    focusLabelContext??=document.createElement('canvas').getContext('2d');
+    if(focusLabelContext){const font=getComputedStyle(labels[0]);
+      for(const name of labels){const nominal=parseFloat(name.style.fontSize)||13,width=parseFloat(name.style.width);
+        focusLabelContext.font=`${font.fontWeight} ${nominal}px ${font.fontFamily}`;
+        const measured=focusLabelContext.measureText(plain(name.textContent)).width;
+        if(measured>width)name.style.fontSize=Math.max(10,Math.floor(nominal*width/measured*10)/10)+'px';
+      }
+    }
   }
   renderInspector(byId,status);
   window.hoiGuideTree?.paint(document.querySelectorAll('.focus-node'),tree.id);

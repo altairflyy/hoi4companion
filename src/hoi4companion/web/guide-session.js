@@ -3,9 +3,10 @@
 (()=>{
  const listeners=[];
  let guide=null,catalog=[],progress={checks:{},started:{}},live=null,error='',pending=0,revision=-1,sequence=0,server=null,queue=Promise.resolve();
+ let activation=Promise.resolve(),activating=0,activeRevision=-1,activeSync=false,activeServer=null;
  const endpoint=path=>path+'?id='+encodeURIComponent(guide.id);
  async function json(url,options){const r=await fetch(url,options),data=await r.json();if(!r.ok)throw Error(data.error||'HTTP '+r.status);return data;}
- function publish(){const view=guide?HoiGuidePresentation.evaluate(guide,window.hoiLive?.enabled?live:null,progress):null;api.value={guide,catalog,progress,view,error,pending};for(const fn of listeners)fn(api.value);}
+ function publish(){const state=window.hoiLive?.enabled?live:null,view=guide?HoiGuidePresentation.evaluate(guide,state,progress):null;api.value={guide,catalog,progress,view,state,error,pending};for(const fn of listeners)fn(api.value);}
  function remember(id){
   try{localStorage.setItem('hoi4-active-guide',id);}catch{}
   try{sessionStorage.setItem('hoi4-active-guide',id);}catch{}
@@ -17,13 +18,25 @@
   try{id=sessionStorage.getItem('hoi4-active-guide');}catch{id=null;}
   return catalog.some(item=>item.id===id)?id:null;
  }
- async function select(id){
+ async function select(id,announce=true){
   const current=++sequence;error='';
   try{
    const definition=await json('/api/guide'+(id?'?id='+encodeURIComponent(id):''));
    const saved=await json('/api/guide/progress?id='+encodeURIComponent(definition.id));
    if(current!==sequence)return;
-   guide=definition;progress=saved;revision=saved.revision;server=saved.server_id||null;remember(guide.id);publish();
+   guide=definition;progress=saved;revision=saved.revision;server=saved.server_id||null;remember(guide.id);
+   if(typeof history!=='undefined'&&history.replaceState){const url=new URL(location.href);url.searchParams.set('guide',guide.id);history.replaceState(null,'',url.pathname+url.search+url.hash);}
+   if(activeSync&&announce&&(typeof document==='undefined'||document.visibilityState!=='hidden')){
+    activating++;
+    const task=activation.catch(()=>{}).then(async()=>{
+     if(current!==sequence)return;
+     const selected=await json('/api/guide/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({guide_id:definition.id})});
+     if(selected.guide_id!==definition.id)throw Error('Guida attiva non confermata dal server');
+     if(current===sequence){activeRevision=selected.revision;if(selected.server_id)activeServer=selected.server_id;}
+    });activation=task;
+    try{await task;}finally{activating--;}
+   }
+   if(current===sequence)publish();
   }catch(e){if(current===sequence){error='Guida non disponibile: '+e.message;publish();}}
  }
  function write(payload){
@@ -61,6 +74,12 @@
  window.hoiLive?.subscribe(value=>{
   live=value;
   if(value?.guide_server_id&&value.guide_server_id!==server){server=value.guide_server_id;revision=-1;}
+  if(value?.guide_server_id&&value.guide_server_id!==activeServer){activeServer=value.guide_server_id;activeRevision=-1;}
+  const shared=value?.active_guide_id;
+  if(shared)activeSync=true;
+  if(!activating&&guide&&shared&&shared!==guide.id&&value.active_guide_revision>=activeRevision&&catalog.some(g=>g.id===shared)){
+   activeRevision=value.active_guide_revision;select(shared,false);return;
+  }
   if(guide&&value?.guide_revision!==undefined&&value.guide_revision>=revision&&!pending){
    revision=value.guide_revision;progress={...progress,...value.guide_runs?.[guide.id],server_id:server,storage:value.guide_storage||progress.storage,checks:value.guide_states?.[guide.id]||(value.guide_id===guide.id?value.guide_checks:{} )||{},started:value.guide_started?.[guide.id]||{},baselines:value.guide_baselines?.[guide.id]||{}};
   }
@@ -68,5 +87,11 @@
   // A browser tab never resets shared progress from a local comparison.
   publish();
  });
- (async()=>{try{const data=await json('/api/guides');catalog=data.guides;await select(new URLSearchParams(location.search).get('guide')||stored());}catch(e){error=e.message;publish();}})();
+ (async()=>{try{const data=await json('/api/guides');catalog=data.guides;let shared=null;
+  try{const selected=await json('/api/guide/active');if(catalog.some(g=>g.id===selected.guide_id)){shared=selected.guide_id;activeRevision=selected.revision;activeServer=selected.server_id||null;activeSync=true;}}catch{}
+  await select(new URLSearchParams(location.search).get('guide')||shared||stored());
+ }catch(e){error=e.message;publish();}})();
+ if(typeof document!=='undefined'&&document.addEventListener)document.addEventListener('visibilitychange',()=>{
+  if(activeSync&&guide&&document.visibilityState==='visible')select(guide.id);
+ });
 })();
