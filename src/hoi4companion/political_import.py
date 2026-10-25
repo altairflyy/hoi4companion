@@ -6,9 +6,10 @@ association proves identity, not availability or completion in a live campaign.
 from .clausewitz import Node
 from .jomini_parser import parse_file
 from .installation import collect_files
-from .research_upgrades import exact_matches, normal_name
+from .research_upgrades import normal_name
 from .tooltips import localise
 from .event_country import country_condition, event_condition, political_condition, combine
+from .resolution import catalog_index, ResolutionContext
 import re
 
 
@@ -101,9 +102,11 @@ def _fact(key,value):
     return {'op':'fact','key':key,'test':'contains','value':value}
 
 
-def bind_political(step,catalog,country):
+def bind_political(step,catalog,country,audit=None):
     """Compile explicit IDs/names to qualified memberships. No prose strategy."""
     params=step['action'].get('params',{})
+    catalog=catalog_index(catalog)
+    context=ResolutionContext(country=country)
     if params.get('category')=='projects':return None
     previous=params.pop('political_binding',{})
     if isinstance(previous,dict):
@@ -113,13 +116,16 @@ def bind_political(step,catalog,country):
         if field not in step:
             step[field]=condition
             params.setdefault('political_binding',{})[field]=condition.copy()
-    def matches(kinds,identifier,name):
-        entries=[row for row in catalog if row['kind'] in kinds and
-                 (not country or not row.get('countries') or country in row['countries'])]
+    def matches(kinds,identifier,name,**filters):
         # Explicit IDs must exist verbatim: no fallback to a different name.
-        return [row for row in entries if row['id']==identifier] if identifier is not None else exact_matches(name,entries) if isinstance(name,str) and name else []
+        query=identifier if identifier is not None else name
+        if audit is not None and isinstance(query,str) and query:
+            audit.append(catalog.audit(query,kinds,context,explicit=identifier is not None,**filters))
+        return catalog.matches(query,kinds,context,
+                               explicit=identifier is not None,**filters)
     def identity(kinds,id_key,name_key):
-        found=matches(kinds,params.get(id_key),params.get(name_key))
+        filters={'group':params['law_group']} if kinds==('law',) and params.get('law_group') else {}
+        found=matches(kinds,params.get(id_key),params.get(name_key),**filters)
         return found[0] if len(found)==1 else None, 'politics_identity_ambiguous' if found else 'politics_identity_unresolved'
     if params.get('law_id') is not None or params.get('law_name') is not None:
         item,reason=identity(('law',),'law_id','law_name')
@@ -129,15 +135,15 @@ def bind_political(step,catalog,country):
         return 'politics_live_law'
     if any(params.get(key) is not None for key in ('advisor_id','person_id','person_name','trait_name','role')):
         identifier=params.get('advisor_id'); query=params.get('person_id') or params.get('person_name') or params.get('trait_name') or params.get('role')
-        found=matches(('advisor',),identifier,query)
+        slot=params.get('role')
+        slots={normal_name(row['slot']):row['slot'] for row in catalog.rows(('advisor',),context)}
+        filters={'slot':slots[normal_name(slot)]} if isinstance(slot,str) and normal_name(slot) in slots else {}
+        found=matches(('advisor',),identifier,query,**filters)
         concerns=matches(('idea',),None,query) if identifier is None and params.get('person_id') is None else []
         concerns=[row for row in concerns if row.get('group') in ('industrial_concern','theorist','political_advisor','army_chief','navy_chief','air_chief','high_command')]
         if not found and len(concerns)==1:
             item=concerns[0];params['idea_id']=item['id'];attach('completion',_fact('politics.ideas',item['id']))
             return 'politics_live_idea'
-        slot=params.get('role')
-        slots={normal_name(row['slot']):row['slot'] for row in catalog if row['kind']=='advisor'}
-        if isinstance(slot,str) and normal_name(slot) in slots: found=[r for r in found if r['slot']==slots[normal_name(slot)]]
         if len(found)!=1: return 'politics_identity_ambiguous' if found else 'politics_identity_unresolved'
         item=found[0]; params['advisor_id']=item['id']; params['person_id']=item['character_id']; params['role']=item['slot']
         attach('completion',_fact('politics.advisors',item['id']))
@@ -146,8 +152,8 @@ def bind_political(step,catalog,country):
         events=matches(('event',),params.get('event_id'),params.get('event_name'))
         if (params.get('event_id') is not None or params.get('event_name') is not None) and len(events)!=1:
             return 'event_identity_ambiguous' if events else 'event_identity_unresolved'
-        options=matches(('event_option',),params.get('event_option_id'),params.get('event_option'))
-        if events: options=[row for row in options if row['event_id']==events[0]['id']]
+        options=matches(('event_option',),params.get('event_option_id'),params.get('event_option'),
+                        **({'event_id':events[0]['id']} if events else {}))
         if len(options)==1:
             option=options[0]; params['event_id']=option['event_id']; params['event_option_id']=option['id']
             params['event_option_name']=option.get('localized_name',option['name'])

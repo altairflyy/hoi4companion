@@ -251,6 +251,16 @@ test('construction correction uses catalog selectors and revalidates the in-memo
  assert.equal(h.get('reviewed').checked,false);assert.equal(h.requests.some(r=>r.path.endsWith('/install')),false);
 });
 
+test('context exclusions are explained in closed details without requesting a new confirmation',async()=>{
+ const h=harness();await tick();
+ h.report.resolutions[0].context_exclusions=[{entity:{kind:'technology',id:'other',name:'Other Tools'},reason:'country_or_scope_conflict'}];
+ h.get('guideJson').value=JSON.stringify(definition);await h.get('validate').onclick();
+ const details=descendants(h.get('preview')).find(n=>n.className==='resolution-context');
+ assert.ok(details);assert.notEqual(details.open,true);
+ assert.match(details.textContent,/Other Tools.*nazione o albero/i);
+ assert.equal(h.requests.some(r=>r.path.endsWith('/install')),false);
+});
+
 test('resolved associations are grouped closed and editors appear only on demand',async()=>{
  const h=harness();await tick();h.get('sourceText').value='Research tools.';await h.get('acquire').onclick();
  h.get('guideJson').value=JSON.stringify(definition);await h.get('validate').onclick();

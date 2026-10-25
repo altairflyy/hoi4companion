@@ -86,13 +86,14 @@
   stateOptions();stateSearch.oninput=stateOptions;
   const empty=node('option','Scegli un edificio…');empty.value='';buildingSelect.append(empty);
   for(const item of buildings){const option=node('option',label(item));option.value=item.id;buildingSelect.append(option);}buildingSelect.value=params.building_id||'';
+  const province=field('ID provincia (per edifici provinciali)',node('input'));province.type='number';province.min='1';province.step='1';province.value=params.province_id??'';
   const mode=field('Obiettivo',node('select'));
   for(const [value,text]of [['additional','Aggiungi rispetto al conteggio iniziale'],['target_total','Raggiungi il totale / livello']]){const option=node('option',text);option.value=value;mode.append(option);}
   mode.value=params.target_level||params.target_quantity?'target_total':params.quantity_mode||'additional';
   const quantity=field('Quantità / livello',node('input'));quantity.type='number';quantity.min='1';quantity.step='1';quantity.value=params.target_level??params.target_quantity??params.quantity??'';
   const instruction=field('Istruzione corretta',node('textarea'));instruction.rows=3;instruction.value=(params.instructions||[]).join('\n');
   const apply=node('button','Applica correzione e verifica');apply.type='button';apply.onclick=()=>run(async()=>{
-   const next=m.editConstruction(readGuide(),row.key,{state:states.find(item=>item.id===stateSelect.value),building:buildings.find(item=>item.id===buildingSelect.value),quantity:Number(quantity.value),quantity_mode:mode.value,instruction:instruction.value});
+   const next=m.editConstruction(readGuide(),row.key,{state:states.find(item=>item.id===stateSelect.value),building:buildings.find(item=>item.id===buildingSelect.value),province_id:String(province.value).trim()?Number(province.value):null,quantity:Number(quantity.value),quantity_mode:mode.value,instruction:instruction.value});
    writeGuide(next);invalidate();await validate();
   });details.append(apply);return details;
  }
@@ -112,6 +113,8 @@
    const monitoring={automatic:'completamento automatico',start_only:'avvio automatico · esito da verificare',manual:'criterio ancora manuale',reminder:'promemoria · nessuna conferma'};
    card.append(node('p',lane+' · '+row.key+' · '+(operation?monitoring[operation.monitoring]:resolution?.status==='unresolved_route'?'percorso non verificabile':resolution?.status||'verifica manuale')));
    const reasons={additional_baseline_missing:'Per contare le costruzioni aggiuntive serve il numero di edifici prima dell’ordine oppure il totale da raggiungere.',building_completion_not_observed:'Il lettore rileva la coda; il livello finale di questo edificio non è ancora esposto.',target_not_defined:'La guida non specifica un totale o un livello da raggiungere.',building_or_state_not_resolved:'Edificio o regione non identificati univocamente.',declared_manual_completion:'Il criterio dichiarato nella guida richiede una conferma.'};
+   Object.assign(reasons,{location_unresolved:'Città, provincia o regione non trovata nel catalogo locale. Un ID esplicito sconosciuto non viene sostituito con un altro luogo.',location_ambiguous:'Il luogo corrisponde a più destinazioni: specifica regione e, per un edificio provinciale, provincia.',location_conflict:'La città, la provincia e la regione indicate non sono compatibili. Correggi la destinazione.',province_required:'Questo edificio richiede una provincia precisa: indica una città univoca o l’ID della provincia, oltre alla regione.'});
+   if(operation?.location){const p=operation.location;card.append(node('p','Destinazione: '+p.state_name+' · regione '+p.state_id+(p.province_id?' · provincia '+p.province_id:'')+(p.via==='city'?' · risolta dalla città indicata':'')));}
    Object.assign(reasons,{production_equipment_unresolved:'Tipo di equipaggiamento non associato a un ID del gioco. Specifica equipment_id o un nome inglese/localizzato univoco.',production_equipment_ambiguous:'Il nome corrisponde a più tipi di equipaggiamento: serve un ID univoco.',production_variant_ambiguous:'Modello ambiguo o più modelli nella stessa istruzione: separa le assegnazioni.',production_variant_incompatible:'Il modello indicato appartiene a un tipo diverso dall’equipaggiamento richiesto.',production_target_missing:'Linea identificata: avvio automatico disponibile, ma manca il numero di fabbriche da assegnare.',production_category_invalid:'Specifica military oppure naval per il tipo di linea.',production_mio_not_observed:'L’assegnazione del MIO non è esposta dal lettore di produzione.'});
    if(operation?.reason==='production_live_assignment')card.append(node('p','Controllo live sulle fabbriche effettivamente assegnate al tipo/modello richiesto; il solo numero richiesto non completa l’istruzione.'));
    if(operation?.reason==='production_relative_assignment')card.append(node('p','Il programma registra le fabbriche già assegnate quando l’istruzione diventa disponibile e verifica l’aumento richiesto.'));
@@ -119,6 +122,11 @@
    if(operation?.monitoring!=='automatic'&&reasons[operation?.reason])card.append(node('p',reasons[operation.reason]));
    if(resolution?.supporting_focus_ids?.length)card.append(node('p','Percorso della guida: '+resolution.supporting_focus_ids.join(', ')));
    for(const excluded of resolution?.excluded_candidates||[]){const entry=excluded.entity;card.append(node('p','Escluso dal percorso: '+(entry.localized_name||entry.name||entry.id)+' ('+entry.id+') · incompatibile con '+excluded.conflicting_focus_ids.join(', ')));}
+   const contextExclusions=[...(resolution?.context_exclusions||[]),...(operation?.bindings||[]).flatMap(binding=>binding.excluded_candidates||[])];
+   if(contextExclusions.length){const details=node('details');details.className='resolution-context';details.append(node('summary','Perché questa associazione?'));
+    for(const excluded of contextExclusions){const entry=excluded.entity;details.append(node('p',(entry.name||entry.id)+' ('+entry.id+') · '+(excluded.reason==='declared_parent_or_role_conflict'?'evento, gruppo o ruolo diverso da quello indicato':'nazione o albero incompatibile con il contesto dichiarato')));}
+    card.append(details);
+   }
    const upgrade=row.research_upgrade;
    if(upgrade)card.append(node('p','Prossimo livello del ramo: '+(upgrade.from_id||'inizio del ramo')+' → '+row.action.entity.id));
    const label=node('label','Titolo'),title=node('input');title.value=row.title||row.name||row.key;label.append(title);card.append(label);

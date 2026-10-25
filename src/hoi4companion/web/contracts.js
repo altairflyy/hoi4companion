@@ -31,7 +31,7 @@
   for(const row of section.lines){
    if(!row||typeof row!=='object'||Array.isArray(row)||['id','building_id'].some(key=>typeof row[key]!=='string'||!row[key])||identities.has(row.id)||row.location_status!=='observed'||!integer(row.state_id,1)||!Object.hasOwn(row,'province_id')||row.province_id!==null&&!integer(row.province_id,1)||['amount','active_factories','built_level','repair_levels'].some(key=>!integer(row[key]))||typeof row.conversion!=='boolean')return null;
    identities.add(row.id);
-   if(row.amount>0&&row.repair_levels===0&&!row.conversion){keys.add('building:'+row.building_id);keys.add('state:'+row.state_id+':'+row.building_id);}
+    if(row.amount>0&&row.repair_levels===0&&!row.conversion){keys.add('building:'+row.building_id);keys.add('state:'+row.state_id+':'+row.building_id);if(row.province_id!==null)keys.add('province:'+row.province_id+':'+row.building_id);}
   }
   return [...keys].sort((a,b)=>{const left=Array.from(a,c=>c.codePointAt(0)),right=Array.from(b,c=>c.codePointAt(0));for(let i=0;i<Math.min(left.length,right.length);i++)if(left[i]!==right[i])return left[i]-right[i];return left.length-right.length;});
  }

@@ -112,8 +112,11 @@ def upgrade_successors(tech, technologies):
     return aligned or targets
 
 
-def resolve_research_upgrades(guide, entities, research_context=None):
-    catalog = [item for item in entities if item['kind'] == 'technology']
+def resolve_research_upgrades(guide, entities, research_context=None, resolver=None):
+    # Local import keeps the low-level name helpers independent of the index.
+    from .resolution import catalog_index
+    resolver=resolver or catalog_index(entities)
+    catalog = resolver.rows(('technology',))
     by_id = {item['id']: item for item in catalog}
     country = guide.get('applies_to',{}).get('country')
     if research_context and country and country != research_context.get('country'):
@@ -143,7 +146,7 @@ def resolve_research_upgrades(guide, entities, research_context=None):
             relative = re.fullmatch(r'\s*(.+?)\s+UP\s*(?:\([^)]*\))?\s*', query, re.I)
             params = step['action'].get('params', {})
             explicit = params.get('upgrade_from')
-            matched = name_matches(query, catalog)
+            matched = resolver.matches(query,('technology',),typos=True)
             target = matched[0]['id'] if len(matched) == 1 else None
             family = tokens(relative[1] if relative else query)
             family_key = frozenset(family)

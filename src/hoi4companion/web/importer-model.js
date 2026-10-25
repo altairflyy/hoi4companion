@@ -109,18 +109,21 @@
   if(patch.building?.kind!=='building'||!patch.building.id)throw Error('Scegli un edificio del catalogo');
   if(!Number.isSafeInteger(patch.quantity)||patch.quantity<1)throw Error('La quantità deve essere un intero positivo');
   if(!['additional','target_total'].includes(patch.quantity_mode))throw Error('Modalità quantità non valida');
+  if(patch.province_id!=null&&(!Number.isSafeInteger(patch.province_id)||patch.province_id<1))throw Error('La provincia deve essere un ID intero positivo');
   if(typeof patch.instruction!=='string'||!patch.instruction.trim())throw Error('Inserisci l’istruzione corretta');
   const started=step.started_when,completed=step.completion;
   const counter={infrastructure:'infrastructure',arms_factory:'military_factories',industrial_complex:'civilian_factories',dockyard:'dockyards'}[before.building_id];
   const target=before.target_level??before.target_quantity??(before.quantity_mode==='target_total'?before.quantity:before.quantity_mode==='additional'&&Number.isSafeInteger(before.baseline_level)?before.baseline_level+before.quantity:undefined);
   // Rebuild only recognisable construction bindings. Preserve custom conditions.
-  if(started?.op==='fact'&&started.key==='construction.queued'&&started.test==='contains'&&started.value===`state:${before.state_id}:${before.building_id}`)delete step.started_when;
+  if(started?.op==='fact'&&started.key==='construction.queued'&&started.test==='contains'&&
+   (started.value===`state:${before.state_id}:${before.building_id}`||Number.isSafeInteger(before.province_id)&&started.value===`province:${before.province_id}:${before.building_id}`))delete step.started_when;
   if(completed?.op==='fact'&&completed.test==='gte'&&
    ((completed.key===`guide.construction.${key}.added`&&completed.value===before.quantity)||
     (counter&&completed.key===`country.states.items.${before.state_id}.${counter}`&&completed.value===target)))delete step.completion;
   if(step.started_when||step.completion)throw Error('Il passaggio contiene criteri personalizzati: rivedili nell’editor JSON prima di cambiare la costruzione. Nessuna correzione applicata.');
   const params={...before,state_id:Number(patch.state.id),state_name:patch.state.name,building_id:patch.building.id,building_name:patch.building.name,quantity:patch.quantity,quantity_mode:patch.quantity_mode,instructions:[patch.instruction.trim()]};
-  for(const field of ['baseline_level','target_level','target_quantity'])delete params[field];
+  for(const field of ['baseline_level','target_level','target_quantity','province_id'])delete params[field];
+  if(patch.province_id!=null)params.province_id=patch.province_id;
   step.action.params=params;
   return result;
  }

@@ -101,6 +101,7 @@ class Store:
 
     def refresh(self):
         with self.lock:
+            self._resolution_generation=None
             self.research_start_cache = {}
             config = self.settings
             game = Path(config['game_dir']).expanduser() if config['game_dir'] else None
@@ -487,7 +488,8 @@ class Store:
         with self.lock:
             if not hasattr(self, '_importer'):
                 self._importer = Importer(self.import_catalog, research_context=self.research_start,
-                                         catalog_export=self.export_catalog)
+                                         catalog_export=self.export_catalog,resolution_index=self.resolution_index,
+                                         catalog_lock=self.lock)
             return self._importer
 
     def research_start(self, guide):
@@ -504,9 +506,18 @@ class Store:
             return self.research_start_cache[key]
 
     def import_catalog(self):
+        return self.resolution_index().export()
+
+    def resolution_index(self):
+        from .resolution import CatalogIndex
         with self.lock:
-            return catalog_entities(self.trees, self.technologies['technologies'], self.labels,
-                                    getattr(self, 'reference_labels', {})) + getattr(self,'operation_entities',[])
+            generation=getattr(self,'_analysis_generation',0)
+            if getattr(self,'_resolution_generation',None)!=generation:
+                entries=catalog_entities(self.trees,self.technologies['technologies'],self.labels,
+                    getattr(self,'reference_labels',{}))+getattr(self,'operation_entities',[])
+                self._resolution_index=CatalogIndex(entries)
+                self._resolution_generation=generation
+            return self._resolution_index
 
     def export_catalog(self, entries):
         from .catalog_export import for_ai

@@ -202,6 +202,10 @@ veicolo disegnato. Impianto, scienziato e requisiti possono stare in `details`.
 `baseline` facoltativa è il conteggio iniziale DOCUMENTATO dalla fonte. Se non
 noto, omettila: per una quantità aggiuntiva il programma lo registra dalla
 partita prima dell'ordine. `province` e `queue_priority` sono facoltativi.
+Se la fonte indica una città invece di una regione, conserva il nome in `state`:
+il programma risolve città → provincia → regione dai file locali. Non inventare
+una regione o un ID. Per un edificio provinciale serve una città univoca oppure
+`province` documentata; un semplice nome regionale non individua la provincia.
 L'ordine in coda indica avvio; il completamento richiede il conteggio costruito.
 
 `production`: una linea con `equipment` e `factories`, oppure `lines:[...]`.

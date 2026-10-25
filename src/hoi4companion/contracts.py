@@ -385,6 +385,8 @@ def _queued_construction(section):
         if row['amount'] > 0 and row['repair_levels'] == 0 and not row['conversion']:
             keys.add('building:' + row['building_id'])
             keys.add(f"state:{int(row['state_id'])}:{row['building_id']}")
+            if row['province_id'] is not None:
+                keys.add(f"province:{int(row['province_id'])}:{row['building_id']}")
     return sorted(keys)
 
 
