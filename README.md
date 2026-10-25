@@ -4,7 +4,7 @@
 
 ### L'assistente esterno per Hearts of Iron IV: alberi interattivi, guide strategiche con supporto AI, monitoraggio live in memoria e HUD overlay in-game.
 
-[![Release](https://img.shields.io/github/v/release/altairflyy/hoi4companion?color=0969da&label=Latest%20Release&logo=github&style=flat-square)](https://github.com/altairflyy/hoi4companion/releases)
+[![Release](https://img.shields.io/github/v/release/altairflyy/hoi4companion?logo=github&label=Latest%20Release&color=0969da&style=flat-square)](https://github.com/altairflyy/hoi4companion/releases)
 [![Downloads](https://img.shields.io/github/downloads/altairflyy/hoi4companion/total?color=blue&label=Downloads&logo=github&style=flat-square)](https://github.com/altairflyy/hoi4companion/releases)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/altairflyy/hoi4companion/windows-release.yml?branch=main&label=CI%20Build&logo=githubactions&logoColor=white&style=flat-square)](https://github.com/altairflyy/hoi4companion/actions)
 [![Piattaforma](https://img.shields.io/badge/Platform-Windows%20x64-0078D6?logo=windows&logoColor=white&style=flat-square)](https://github.com/altairflyy/hoi4companion/releases/latest)
