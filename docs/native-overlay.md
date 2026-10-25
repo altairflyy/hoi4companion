@@ -38,6 +38,13 @@ stesso capitolo producono una sola cornice con il relativo numero. Le varianti
 DLC nascoste non sono ammesse. In una scheda aperta un nodo fuori dal ritaglio
 non viene sostituito da un invito a premere nuovamente quella stessa scheda.
 
+I template compatti, inclusi Armi di supporto e Logistica, chiamano il pulsante
+di sfondo `bg` anziché `Background`. Entrambi i nomi vengono riconosciuti sulla
+stessa classe `CButtonDrag`, mantenendo l'unicità, il proprietario e l'ancoraggio
+qualificati. Il caso `bg` è coperto da un test di regressione, compreso il rifiuto
+di un pulsante appartenente a un altro proprietario. Prima della correzione un
+solo widget di questo tipo poteva sospendere l'intero campione tecnologico.
+
 L'ammissione verifica processo, nazione corrente, albero, proprietario GUI,
 visibilità, ritaglio e corrispondenza della risoluzione fisica. Le letture sono
 ripetute per respingere campioni cambiati durante l'osservazione. I candidati
