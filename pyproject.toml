@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hoi4companion"
-version = "0.1.0"
+version = "0.1.1"
 description = "Open source National Focus Explorer for Hearts of Iron IV"
 readme = "README.md"
 requires-python = ">=3.11"
