@@ -1,3 +1,5 @@
 # Keep pinned upstream bytes intact on Windows checkouts (SHA-256 provenance).
 native/cwtools/vendor/** -text
 src/hoi4companion/rules/cwtools/** -text
+native/parser/tests/fixtures/** -text
+tests/fixtures/** -text
