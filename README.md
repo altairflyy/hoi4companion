@@ -75,7 +75,7 @@ Non serve un programma di installazione né privilegi di amministratore di siste
 1. **Scarica il pacchetto**:
    Accedi alla sezione **[Releases](https://github.com/altairflyy/hoi4companion/releases/latest)** e scarica l'archivio:
    ```text
-   HOI4Companion-0.1.0-windows-x64.zip
+   HOI4Companion-0.1.1-windows-x64.zip
    ```
    *(I file denominati "Source code" contengono solo il codice sorgente, non il runtime completo).*
 2. **Estrai l'archivio**:
