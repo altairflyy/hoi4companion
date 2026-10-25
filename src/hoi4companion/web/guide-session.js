@@ -6,8 +6,17 @@
  const endpoint=path=>path+'?id='+encodeURIComponent(guide.id);
  async function json(url,options){const r=await fetch(url,options),data=await r.json();if(!r.ok)throw Error(data.error||'HTTP '+r.status);return data;}
  function publish(){const view=guide?HoiGuidePresentation.evaluate(guide,window.hoiLive?.enabled?live:null,progress):null;api.value={guide,catalog,progress,view,error,pending};for(const fn of listeners)fn(api.value);}
- function remember(id){try{sessionStorage.setItem('hoi4-active-guide',id);}catch{}}
- function stored(){try{return sessionStorage.getItem('hoi4-active-guide');}catch{return null;}}
+ function remember(id){
+  try{localStorage.setItem('hoi4-active-guide',id);}catch{}
+  try{sessionStorage.setItem('hoi4-active-guide',id);}catch{}
+ }
+ function stored(){
+  // A new launcher tab shares the browser preference, not the old tab's session.
+  let id=null;try{id=localStorage.getItem('hoi4-active-guide');}catch{}
+  if(catalog.some(item=>item.id===id))return id;
+  try{id=sessionStorage.getItem('hoi4-active-guide');}catch{id=null;}
+  return catalog.some(item=>item.id===id)?id:null;
+ }
  async function select(id){
   const current=++sequence;error='';
   try{

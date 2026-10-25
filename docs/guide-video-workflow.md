@@ -63,6 +63,26 @@ più alta si può selezionare **Riscarica il miglior sorgente fino a 1080p**:
 video disponga effettivamente di 1080p. Il valore predefinito conserva il riuso
 locale ed evita traffico superfluo. I retry azzerano il vecchio avanzamento.
 
+## Traccia audio separata
+
+La preparazione include anche la traccia audio completa del sorgente, con
+download distinto dalle parti video. AAC viene copiato in `audio.m4a`, Opus
+in `audio.opus` e MP3 in `audio.mp3`, senza ricodifica. Gli altri codec vengono
+convertiti in AAC 128 kbps stereo per un file M4A. Il manifest include `audio`
+con nome, dimensione, SHA-256, codec, indicatore `transcoded` e URL locale.
+Il file conserva la timeline del sorgente completo, senza ripetere le
+sovrapposizioni delle parti video. L'assenza di una traccia audio o un errore
+di estrazione viene segnalato e non invalida le parti video già preparate.
+
+Una preparazione precedente può ricevere il solo audio premendo nuovamente
+Prepara sullo stesso link: l'estrazione avviene in background, senza encoder
+video o nuovo download. `audio_status` permette al client di seguire questa
+fase anche mentre il video è già `completed`. I formati audio serviti sono
+limitati ai tre nomi dichiarati e rientrano nella pulizia dei job superati.
+
+Verifica reale sul video Germania: AAC originale copiato senza ricodifica,
+38.755.868 byte, durata 2.396,35 secondi, decodifica completa riuscita.
+
 Il preset v3 invalida il riuso delle parti v2, che avevano durate determinate
 dalla dimensione e 15 secondi di sovrapposizione. I sorgenti locali restano
 riutilizzabili. Il manifest v3 dichiara `segment_seconds: 300` e

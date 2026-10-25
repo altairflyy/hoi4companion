@@ -3,6 +3,7 @@
  const $=id=>document.getElementById(id),m=HoiImporter;
  const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
  let sources=[],report=null,busy=false,aiConfigured=false,generation=0,entities=[],eventExport={catalog:[]},sections=[];
+ let aiCatalogPromise=null;
  const buttons=['acquire','packet','extract','validate','saveDraft','exportGuide','install','copyPrompt','downloadPrompt','downloadCatalog','downloadSection'];
  function exportedCatalog(section){return section?.id==='events'&&$('eventsMultiple').checked?{...section,...eventExport,catalog_scope:section.id}:section;}
  function selectedCatalog(){return exportedCatalog(sections.find(s=>s.id===$('catalogSection').value));}
@@ -38,16 +39,25 @@
  function invalidate(){generation++;report=null;$('reviewed').checked=false;$('validation').textContent='Bozza modificata: risolvi gli ID e valida di nuovo.';$('openGuide').hidden=true;controls();}
  function error(e){$('error').hidden=false;$('error').textContent=e.message||String(e);}
  async function request(path,body){const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const value=await response.json();if(!response.ok)throw Error(value.error||'Richiesta fallita');return value;}
+ async function aiSections(){
+  if(!aiCatalogPromise)aiCatalogPromise=request('/api/import/catalog?export=ai').then(value=>{
+   if(value.localization_policy!=='local_lookup'||value.alias_policy!=='english_reference_only'||!Array.isArray(value.entities))throw Error('Il servizio usa ancora il vecchio export: riavvia HOI4 Companion e ricarica la pagina.');return value.entities;
+  }).catch(error=>{aiCatalogPromise=null;throw error;});
+  return m.catalogSections(await aiCatalogPromise,$('treeScope').value).map(section=>({...section,localization_policy:'local_lookup',alias_policy:'english_reference_only'}));
+ }
  let videoTimer=null;
  function videoView(job){
   $('videoStatus').textContent=job.message+(job.encoded_seconds!==undefined&&job.status==='running'?` · ${Math.floor(job.encoded_seconds)} / ${Math.ceil(job.duration_seconds||0)} secondi codificati`:'');
   if(job.source_width&&job.source_height)$('videoStatus').textContent+=` · Sorgente reale: ${job.source_width}×${job.source_height}`;
-  $('prepareVideo').disabled=job.status==='running';$('videoFiles').replaceChildren();
+  if(job.audio_status==='running')$('videoStatus').textContent+=' · Preparazione audio separato…';
+  if(job.audio_warning)$('videoStatus').textContent+=' · '+job.audio_warning;
+  $('prepareVideo').disabled=job.status==='running'||job.audio_status==='running';$('videoFiles').replaceChildren();
   const clock=n=>Math.floor(n/60)+':'+String(Math.floor(n%60)).padStart(2,'0');
   for(const part of job.parts||[]){const p=node('p'),a=node('a',`${part.name} · ${(part.bytes/1e6).toFixed(1)} MB · ${clock(part.start_seconds)}–${clock(part.end_seconds)}`);a.href=part.url;a.download=part.name;p.append(a);$('videoFiles').append(p);}
+  if(job.audio){const p=node('p'),a=node('a',`Scarica traccia audio completa · ${job.audio.name} · ${(job.audio.bytes/1e6).toFixed(1)} MB`);a.href=job.audio.url;a.download=job.audio.name;p.append(a);$('videoFiles').append(p);}
   for(const [field,label]of [['manifest_url','Scarica indice dei tempi da allegare all’IA'],['description_url','Scarica descrizione del video']])if(job[field]){const p=node('p'),a=node('a',label);a.href=job[field];p.append(a);$('videoFiles').append(p);}
  }
- async function watchVideo(id){try{const job=await request('/api/import/video/status?id='+encodeURIComponent(id));videoView(job);if(job.status==='running')videoTimer=setTimeout(()=>watchVideo(id),2000);}catch(e){$('videoStatus').textContent=e.message;$('prepareVideo').disabled=false;}}
+ async function watchVideo(id){try{const job=await request('/api/import/video/status?id='+encodeURIComponent(id));videoView(job);if(job.status==='running'||job.audio_status==='running')videoTimer=setTimeout(()=>watchVideo(id),2000);}catch(e){$('videoStatus').textContent=e.message;$('prepareVideo').disabled=false;}}
  $('prepareVideo').onclick=async()=>{if(videoTimer)clearTimeout(videoTimer);$('prepareVideo').disabled=true;try{const job=await request('/api/import/video',{url:$('videoUrl').value.trim(),...($('videoRefreshSource').checked?{refresh_source:true}:{})});try{localStorage.setItem('hoi4-video-job',job.id);}catch{}videoView(job);watchVideo(job.id);}catch(e){$('videoStatus').textContent=e.message;$('prepareVideo').disabled=false;}};
  try{const id=localStorage.getItem('hoi4-video-job');if(id)watchVideo(id);}catch{}
  async function run(task){if(busy)return;busy=true;$('error').hidden=true;controls();try{await task();}catch(e){error(e);}finally{busy=false;controls();}}
@@ -152,20 +162,20 @@
   const value=await request('/api/import/preview',{guide,sources});if(version===generation)showReport(value);}
  $('copyPrompt').onclick=()=>run(async()=>{if(!navigator.clipboard?.writeText)throw Error('Copia dagli appunti non disponibile: usa Scarica prompt .txt');await navigator.clipboard.writeText($('importPrompt').value);$('notice').textContent='Prompt copiato: incollalo nella tua IA e aggiungi la guida da convertire.';});
  $('downloadPrompt').onclick=()=>download('hoi4-companion-prompt.txt',$('importPrompt').value,true);
- $('downloadCatalog').onclick=()=>{if(missingCountryMetadata())return;download('hoi4-companion-catalogo-id.json',{catalog_schema_version:1,reference_language:'english',catalog_scope:'all',
-  ...($('treeScope').value?{focus_tree_id:$('treeScope').value}:{}),...(sections.find(s=>s.id==='events')?.country_filter?{country_filter:sections.find(s=>s.id==='events').country_filter,
-   section_country_filters:Object.fromEntries(sections.filter(s=>s.country_filter).map(s=>[s.id,s.country_filter]))}:{}),catalog:sections.flatMap(s=>s.catalog)});};
+ $('downloadCatalog').onclick=()=>{if(missingCountryMetadata())return;return run(async()=>{const groups=await aiSections();download('hoi4-companion-catalogo-id.json',{catalog_schema_version:1,reference_language:'english',catalog_scope:'all',localization_policy:'local_lookup',alias_policy:'english_reference_only',
+  ...($('treeScope').value?{focus_tree_id:$('treeScope').value}:{}),...(groups.find(s=>s.id==='events')?.country_filter?{country_filter:groups.find(s=>s.id==='events').country_filter,
+   section_country_filters:Object.fromEntries(groups.filter(s=>s.country_filter).map(s=>[s.id,s.country_filter]))}:{}),catalog:groups.flatMap(s=>s.catalog)});});};
  $('eventsMultiple').checked=true;
  $('catalogSection').onchange=catalogView;$('eventsMultiple').onchange=catalogView;$('treeScope').onchange=rebuildSections;
- $('downloadSection').onclick=()=>{const section=selectedCatalog();if(!section?.catalog.length||missingCountryMetadata(section.id))return;download(`hoi4-companion-catalogo-${section.id}.json`,section);};
+ $('downloadSection').onclick=()=>{const selected=selectedCatalog();if(!selected?.catalog.length||missingCountryMetadata(selected.id))return;return run(async()=>{let section=(await aiSections()).find(s=>s.id===selected.id);if(section.id==='events'&&$('eventsMultiple').checked)section={...section,...m.eventCatalog(section.catalog),catalog_scope:section.id};download(`hoi4-companion-catalogo-${section.id}.json`,section);});};
  $('sourceText').maxLength=180000;
  $('acquire').onclick=()=>run(async()=>{const source=await request('/api/import/source',{url:$('sourceUrl').value.trim(),text:$('sourceText').value});if(sources.some(src=>src.id===source.id))throw Error('Questa fonte è già acquisita');if(sources.length>=8)throw Error('Massimo 8 fonti');sources.push(source);invalidate();sourceList();$('sourceText').value='';$('sourceUrl').value='';});
  $('packet').onclick=()=>run(async()=>{download('guide-import.packet.json',await request('/api/import/packet',{sources,tree_id:$('treeScope').value||null}));$('notice').textContent='Pacchetto pronto: forniscilo alla tua IA e carica qui il JSON della guida restituito.';});
  $('extract').onclick=()=>run(async()=>{const version=generation;const value=await request('/api/import/extract',{sources,tree_id:$('treeScope').value||null});if(version===generation){$('reviewed').checked=false;showReport(value);}});
  $('guideJson').oninput=invalidate;$('reviewed').onchange=controls;
  $('validate').onclick=()=>run(validate);
- $('saveDraft').onclick=()=>run(async()=>download('guide-import.draft.json',{import_schema_version:1,guide:$('guideJson').value.trim()?readGuide():null,sources}));
- $('draftFile').onchange=()=>run(async()=>{const file=$('draftFile').files[0];if(!file)return;if(file.size>2000000)throw Error('File oltre 2 MB');invalidate();const version=generation,draft=await loadDocument(await file.text());if(version!==generation)return;if(draft.sources)sources=draft.sources;if(draft.guide)writeGuide(draft.guide);sourceList();if(draft.guide)await validate();});
+ $('saveDraft').onclick=()=>run(async()=>{const parsed=$('guideJson').value.trim()?m.readDraft($('guideJson').value):null;download('guide-import.draft.json',parsed?.authoring?parsed.document:{import_schema_version:1,guide:parsed?.guide||null,sources});});
+ $('draftFile').onchange=()=>run(async()=>{const file=$('draftFile').files[0];if(!file)return;if(file.size>2000000)throw Error('File oltre 2 MB');invalidate();const text=await file.text();$('guideJson').value=text;const version=generation,draft=await loadDocument(text);if(version!==generation)return;if(draft.sources)sources=draft.sources;if(draft.guide)writeGuide(draft.guide);sourceList();if(draft.guide)await validate();});
  $('exportGuide').onclick=()=>{if(m.canPublish(report,$('reviewed').checked,busy))download(report.guide.id+'.json',report.guide);};
  $('install').onclick=()=>run(async()=>{if(!report?.valid||!$('reviewed').checked)throw Error('Validazione e revisione necessarie');const result=await request('/api/import/install',{guide:report.guide,sources,reviewed:true});$('notice').textContent='Guida aggiunta alle guide locali: '+result.id;$('openGuide').href=result.href;$('openGuide').hidden=false;});
  (async()=>{try{const [status,catalog,prompt]=await Promise.all([request('/api/import/status'),request('/api/import/catalog'),request('/api/import/prompt')]);aiConfigured=status.ai_configured;

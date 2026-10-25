@@ -7,15 +7,18 @@ dal runtime universale esistente.
 
 ## Uso principale: prompt → tua IA → file importabile
 
-1. Premi **Copia prompt completo** o **Scarica prompt .txt**. Il prompt è
-   disponibile anche nel [file del progetto](../src/hoi4companion/guide-import-prompt.md).
+1. Premi **Copia prompt completo** o **Scarica prompt .txt**. Il testo completo
+   include la tabella generata delle azioni supportate; il modello di base è nel
+   [file del progetto](../src/hoi4companion/guide-import-prompt.md).
    Non serve acquisire fonti nel programma e non servono credenziali API.
 2. Dai il prompt alla tua IA insieme al link o al materiale della guida.
    Facoltativamente allega il **catalogo ID** esportato dalla pagina:
    selezionare l’albero riduce il contesto e aiuta le corrispondenze.
 3. L’IA deve restituire un file autocontenuto `nome.hoi4-guide.json`, con
-   `format:"hoi4-guide-import"`, `import_schema_version:1`, `sources` (testi,
-   segmenti ed evidenze) e `guide` (Guide Schema v1). Il prompt specifica tutti
+   `format:"hoi4-guide-authoring"`, `authoring_schema_version:1`, `sources` e
+   `guide.steps`: azioni come build, production, appoint ed event vengono
+   convalidate e compilate nel Guide Schema v1 interno. Il precedente formato
+   `hoi4-guide-import` resta compatibile. Il prompt specifica tutti
    i campi, le categorie operative e come segnalare dati mancanti. Non chiede
    hash all’IA: il programma li calcola e rimappa gli ID delle fonti.
 4. Carica il file restituito o incollalo integralmente nell’editor. La risposta
@@ -60,12 +63,18 @@ pulsante **Estrai con API IA**: inviano fonti e catalogo e possono consumare
 credito. Nessuna installazione automatica della risposta. Errori HTTP, timeout,
 rifiuti e risposte incomplete vengono segnalati senza esporre la chiave.
 
-Il contratto del provider è basato sulla [documentazione ufficiale degli output
+Il provider usa lo stesso prompt di compilazione e conserva i testi delle fonti
+fornite, senza sostituirli con quelli riscritti dal modello. Il contratto del provider è basato sulla [documentazione ufficiale degli output
 strutturati](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses).
 Il JSON mode non garantisce da solo conformità semantica: la risposta passa
 comunque dal validatore v1 e dalle verifiche dell’importatore.
 
 ## Contratti e limiti
+
+La compilazione semplificata è descritta in [guide-authoring.md](guide-authoring.md).
+Campi indispensabili mancanti producono errori con la chiave dello step; il file
+rimane nell'editor e può essere corretto o scaricato come bozza. L'anteprima e
+l'installazione usano sempre il formato v1. Le guide esistenti non vengono migrate.
 
 ### Collegamento delle istruzioni operative al monitoraggio live
 

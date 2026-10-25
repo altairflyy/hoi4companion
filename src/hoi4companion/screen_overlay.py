@@ -18,7 +18,9 @@ PANELS={
 
 def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
     """Project only the engine's admitted steps; never reinterpret prose or timing."""
-    country=state.get('sample',{}).get('country')
+    sample=state.get('sample')
+    if not state.get('usable') or not isinstance(sample,dict):return []
+    country=sample.get('country')
     required_country=guide.get('applies_to',{}).get('country')
     if (runtime.get('guide_id')!=guide.get('id') or runtime.get('mode')!='live'
             or not state.get('usable') or not country or runtime.get('country')!=country

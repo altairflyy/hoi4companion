@@ -11,6 +11,41 @@ from hoi4companion.guide_media import VideoJobs
 
 
 class VideoPipelineTests(unittest.TestCase):
+    def test_audio_export_copies_aac_and_is_served_only_by_its_declared_name(self):
+        with TemporaryDirectory() as d:
+            root=Path(d);jobs=VideoJobs(root);key='a'*32;(root/key).mkdir();source=root/'source.mp4';source.write_bytes(b'source')
+            jobs.jobs[key]={'status':'running','parts':[]}
+            def extract(job,args,**kwargs):Path(args[-1]).write_bytes(b'audio')
+            with patch.object(jobs,'_command',side_effect=extract) as runner:
+                audio=jobs._prepare_audio(key,source,{'audio_codec':'aac'})
+            self.assertEqual(audio['name'],'audio.m4a');self.assertFalse(audio['transcoded'])
+            self.assertIn('copy',runner.call_args.args[1]);self.assertEqual(audio['bytes'],5)
+            jobs.jobs[key].update(status='completed',audio=audio)
+            self.assertEqual(jobs.file(key,audio['name']),root/key/'audio.m4a')
+            with self.assertRaises(ValueError):jobs.file(key,'../source.mp4')
+
+    def test_audio_absent_does_not_fail_the_video(self):
+        with TemporaryDirectory() as d:
+            jobs=VideoJobs(d);key='a'*32;jobs.jobs[key]={'status':'running','parts':[]}
+            with patch.object(jobs,'_command',side_effect=AssertionError('No extraction expected')):
+                self.assertIsNone(jobs._prepare_audio(key,Path(d)/'silent.mp4',{'audio_codec':None}))
+            self.assertEqual(jobs.jobs[key]['audio_status'],'absent')
+
+    def test_audio_backfill_preserves_existing_video_and_persists_download_metadata(self):
+        from hoi4companion.guide_frames import GuideFrames
+        with TemporaryDirectory() as d:
+            root=Path(d);source=root/'source.mp4';source.write_bytes(b'source');url='https://www.youtube.com/watch?v=abcdefghijk'
+            GuideFrames(root/'guide-frames').register(url,source)
+            jobs=VideoJobs(root/'guide-videos');key='a'*32;folder=jobs.root/key;folder.mkdir(parents=True)
+            part=folder/'parte-01.mp4';part.write_bytes(b'video')
+            manifest=folder/'manifest.json';manifest.write_text(json.dumps({'source_url':url,'parts':[{'name':part.name}]}))
+            jobs.jobs[key]={'status':'completed','parts':[{'name':part.name}]}
+            with patch('hoi4companion.guide_media.media_info',return_value={'audio_codec':'aac'}),patch.object(jobs,'_command',side_effect=lambda key,args,**kw:Path(args[-1]).write_bytes(b'audio')),patch.object(jobs,'_encode',side_effect=AssertionError('Video must not be re-encoded')):
+                jobs._audio_job(key)
+            self.assertEqual(part.read_bytes(),b'video')
+            self.assertEqual(json.loads(manifest.read_text())['audio']['name'],'audio.m4a')
+            self.assertEqual(jobs.jobs[key]['audio_status'],'completed')
+
     def test_retry_does_not_report_progress_from_the_previous_encode(self):
         with TemporaryDirectory() as d:
             root=Path(d);(root/'encoding-progress.txt').write_text('out_time_us=999999000\n')
@@ -32,6 +67,7 @@ class VideoPipelineTests(unittest.TestCase):
             GuideFrames(root/'guide-frames').register(url,source)
             jobs=VideoJobs(root/'guide-videos');key='a'*32;folder=jobs.root/key;folder.mkdir(parents=True);part=folder/'parte-01.mp4';part.write_bytes(b'part')
             manifest={'preset_version':PRESET_VERSION,'encoding_profile':ENCODING_PROFILE,'source_url':url,'fps':15,
+                'audio_status':'absent',
                 'source_sha256':digest(source),'max_part_bytes':150000000,'overlap_seconds':10,'segment_seconds':300,
                 'parts':[{'name':part.name,'bytes':4,'sha256':digest(part)}]}
             (folder/'manifest.json').write_text(json.dumps(manifest))

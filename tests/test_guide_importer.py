@@ -1,5 +1,6 @@
 import copy
 import json
+import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -9,6 +10,7 @@ from unittest.mock import patch
 from hoi4companion.guide_importer import Importer, catalog_entities, preview
 from hoi4companion.import_sources import acquire_source, public_url, parse_html, parse_captions
 from hoi4companion.guide import load_guide, list_guides
+from hoi4companion.guide_runtime import evaluate
 
 
 def source():
@@ -27,6 +29,31 @@ ENTITIES = [{'kind': 'technology', 'id': 'basic_machine_tools', 'name': 'Basic M
 
 
 class ImportTests(unittest.TestCase):
+    def test_prompt_monitoring_examples_import_without_manual_gates_and_respect_unknown_state(self):
+        prompt=Importer(lambda:[]).prompt()
+        match=re.search(r'<!-- esempi-authoring-v1 -->\s*```json\s*(.*?)```',prompt,re.S)
+        self.assertIsNotNone(match,'Il prompt deve fornire esempi verificabili di monitoraggio')
+        steps=json.loads(match[1]);text='\n'.join(s['instructions'][0] for s in steps)
+        src=acquire_source(text=text)
+        for step in steps:step['evidence']=[{'source_id':src['id'],'basis':'explicit','quote':step['instructions'][0]}]
+        loaded=Importer(lambda:[]).document({'format':'hoi4-guide-authoring','authoring_schema_version':1,'sources':[src],
+            'guide':{'id':'prompt-examples','title':'Examples','steps':steps}})
+        guide=loaded['guide'];steps=guide['tracks']['operations']
+        catalog=[{'kind':'building','id':'arms_factory','name':'Military Factory'},{'kind':'state','id':'123','name':'Example State'},
+                 {'kind':'equipment','id':'infantry_equipment_1','name':'Infantry Equipment I'},
+                 {'kind':'law','id':'war_economy','name':'War Economy','group':'economy'}]
+        report=preview(guide,[src],catalog);self.assertTrue(report['valid'],report['errors'])
+        self.assertEqual([s['monitoring'] for s in report['operations']],['automatic','automatic','automatic','reminder','automatic'])
+        self.assertEqual(report['operations'][0]['reason'],'baseline_from_live')
+        self.assertEqual(report['guide']['tracks']['operations'][1]['action']['params']['requested_factories'],10)
+        for step in steps[:3]:self.assertNotIn('completion',step)
+        for step in report['guide']['tracks']['operations']:
+            if step.get('completion'):self.assertNotEqual(step['completion']['op'],'check')
+        isolated=copy.deepcopy(report['guide']);isolated['tracks']['operations']=[isolated['tracks']['operations'][-1]]
+        known={'schema_version':1,'usable':True,'facts':{'country.divisions.total':{'value':48,'status':'calculated','source':'fixture'}}}
+        self.assertEqual(evaluate(isolated,known)['steps'][0]['status'],'completed')
+        self.assertNotEqual(evaluate(isolated,{'schema_version':1,'usable':True,'facts':{}})['steps'][0]['status'],'completed')
+
     def test_importing_another_guide_keeps_existing_guides(self):
         src = source()
         with TemporaryDirectory() as root:
@@ -89,7 +116,8 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(packet['import_schema_version'], 1)
         self.assertEqual(packet['sources'][0]['text'], src['text'])
         self.assertIn('JSON', packet['instructions'])
-        self.assertEqual(packet['catalog'], ENTITIES)
+        self.assertEqual(packet['catalog'], [{'kind':'technology','id':'basic_machine_tools','name':'Basic Machine Tools'}])
+        self.assertEqual(ENTITIES[0]['aliases'], [])
         self.assertNotIn('live', packet)
 
     def test_ai_packet_keeps_parent_event_and_all_its_options_when_one_answer_is_mentioned(self):

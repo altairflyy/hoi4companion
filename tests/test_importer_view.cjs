@@ -12,26 +12,43 @@ function harness(){
   click(){this.onclick?.();}remove(){}
  }
  const nodes=new Map(),get=id=>{if(!nodes.has(id))nodes.set(id,new Node());return nodes.get(id);};
- const requests=[],downloads=[],clipboard=[],catalog=[];let release;
+ const requests=[],downloads=[],clipboard=[],catalog=[];let release,documentError='';
  const source={id:'src',type:'manual',title:'Fixture',text:'Research tools.',warnings:[]};
  const report={valid:true,guide:definition,errors:[],warnings:[],resolutions:[{key:'tools',status:'resolved',candidates:[{kind:'technology',id:'tools',name:'Tools'}]}]};
  const fetch=async(path,options)=>{
   const body=options?.body?JSON.parse(options.body):null;requests.push({path,body});
+  if(path.endsWith('/document')&&documentError)return {ok:false,json:async()=>({error:documentError})};
   if(path.endsWith('/preview')&&release)await new Promise(resolve=>release(resolve));
-  const video={id:'a'.repeat(32),status:'completed',message:'Video pronto',parts:[{name:'parte-01.mp4',bytes:149000000,start_seconds:0,end_seconds:400,url:'/api/import/video/file?id=a&name=parte-01.mp4'}],manifest_url:'/manifest',description_url:'/description'};
-  const value=path==='/api/import/video'||path.startsWith('/api/import/video/status?')?video:path.endsWith('/prompt')?{prompt:fs.readFileSync('src/hoi4companion/guide-import-prompt.md','utf8')}:path.endsWith('/document')?{guide:body.document.guide,sources:body.document.sources}:path.endsWith('/status')?{ai_configured:false}:path.endsWith('/catalog')?{entities:catalog,demo:false}:path.endsWith('/source')?source:path.endsWith('/preview')?report:path.endsWith('/install')?{id:'opening',href:'/walkthrough?guide=opening'}:{};
+  const video={id:'a'.repeat(32),status:'completed',message:'Video pronto',parts:[{name:'parte-01.mp4',bytes:149000000,start_seconds:0,end_seconds:400,url:'/api/import/video/file?id=a&name=parte-01.mp4'}],audio:{name:'audio.m4a',bytes:1000000,url:'/audio'},manifest_url:'/manifest',description_url:'/description'};
+  const compact=()=>catalog.map(e=>{const row=structuredClone(e);delete row.localized_name;if(row.aliases)row.aliases=row.aliases.filter(a=>a!==e.localized_name);return row;});
+  const value=path==='/api/import/video'||path.startsWith('/api/import/video/status?')?video:path.endsWith('/prompt')?{prompt:fs.readFileSync('src/hoi4companion/guide-import-prompt.md','utf8')}:path.endsWith('/document')?{guide:body.document.format==='hoi4-guide-authoring'?definition:body.document.guide,sources:body.document.sources}:path.endsWith('/status')?{ai_configured:false}:path==='/api/import/catalog?export=ai'?{entities:compact(),demo:false,localization_policy:'local_lookup',alias_policy:'english_reference_only'}:path.endsWith('/catalog')?{entities:catalog,demo:false}:path.endsWith('/source')?source:path.endsWith('/preview')?report:path.endsWith('/install')?{id:'opening',href:'/walkthrough?guide=opening'}:{};
   return {ok:true,json:async()=>value};
  };
  const document={getElementById:get,createElement:tag=>new Node(tag),body:new Node('body')};
  vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/importer.js','utf8'),{HoiImporter:model,document,fetch,
-  navigator:{clipboard:{async writeText(text){clipboard.push(text);}}},Blob,URL:{createObjectURL(blob){downloads.push(blob);return 'blob:fixture';},revokeObjectURL(){}},setTimeout:fn=>fn()});
- return {get,requests,downloads,clipboard,source,report,catalog,document,setRelease:fn=>release=fn};
+  navigator:{clipboard:{async writeText(text){clipboard.push(text);}}},structuredClone,Blob,URL:{createObjectURL(blob){downloads.push(blob);return 'blob:fixture';},revokeObjectURL(){}},setTimeout:fn=>fn()});
+ return {get,requests,downloads,clipboard,source,report,catalog,document,setRelease:fn=>release=fn,setDocumentError:value=>documentError=value};
 }
+
+test('simplified file is compiled on server and a malformed original stays editable and downloadable',async()=>{
+ const h=harness();await tick();
+ const value={format:'hoi4-guide-authoring',authoring_schema_version:1,sources:[h.source],guide:{id:'opening',title:'Opening',steps:[{key:'build',type:'build'}]}};
+ const original=JSON.stringify(value);h.setDocumentError('build: manca state');
+ h.get('draftFile').files=[{size:original.length,text:async()=>original}];await h.get('draftFile').onchange();
+ assert.match(h.get('error').textContent,/build: manca state/);
+ assert.deepEqual(JSON.parse(h.get('guideJson').value),value);
+ await h.get('saveDraft').onclick();assert.deepEqual(JSON.parse(await h.downloads[0].text()),value);
+ h.setDocumentError('');await h.get('validate').onclick();
+ assert.equal(h.requests.filter(x=>x.path==='/api/import/document').length,2);
+ assert.equal(JSON.parse(h.get('guideJson').value).tracks.research[0].key,'tools');
+ assert.equal(h.requests.some(x=>x.path==='/api/import/install'),false);
+});
 
 test('video preparation submits a link and exposes parts and timing manifest independently of guide import',async()=>{
  const h=harness();await tick();h.get('videoUrl').value='https://www.youtube.com/watch?v=Ht4e89B02Wo';await h.get('prepareVideo').onclick();await tick();
  assert.deepEqual(h.requests.find(r=>r.path==='/api/import/video').body,{url:'https://www.youtube.com/watch?v=Ht4e89B02Wo'});
  assert.match(h.get('videoFiles').textContent,/parte-01.mp4.*149.0 MB/);assert.match(h.get('videoFiles').textContent,/indice dei tempi/);assert.equal(h.get('prepareVideo').disabled,false);
+ assert.match(h.get('videoFiles').textContent,/traccia audio.*audio.m4a/i);
  assert.equal(h.requests.some(r=>r.path==='/api/import/install'),false);
 });
 
@@ -45,13 +62,14 @@ test('thematic event download includes exact answer to event links independently
   {kind:'event',id:'example.1',name:'Invitation',localized_name:'Invito'},
   {kind:'event_option',id:'example.1.a',event_id:'example.1',name:'Accept',localized_name:'Accetta'},
   {kind:'event_option',id:'example.1.b',event_id:'example.1',name:'Decline',localized_name:'Rifiuta'});
- await tick();h.get('treeScope').value='unrelated_tree';h.get('treeScope').onchange();h.get('catalogSection').value='events';h.get('catalogSection').onchange();h.get('downloadSection').onclick();
+ await tick();h.get('treeScope').value='unrelated_tree';h.get('treeScope').onchange();h.get('catalogSection').value='events';h.get('catalogSection').onchange();await h.get('downloadSection').onclick();
  const value=JSON.parse(await h.downloads[0].text());
  assert.equal(value.catalog_scope,'events');assert.equal(value.reference_language,'english');
  assert.equal(value.event_filter.minimum_distinct_options,2);
  assert.equal(value.catalog.length,3);
  assert.equal(value.catalog.find(e=>e.id==='example.1.a').event_id,'example.1');
- assert.equal(value.catalog.find(e=>e.id==='example.1.a').localized_name,'Accetta');
+ assert.equal(value.catalog.find(e=>e.id==='example.1.a').localized_name,undefined);
+ assert.equal(h.catalog.find(e=>e.id==='example.1.a').localized_name,'Accetta');
  assert.equal(h.requests.some(r=>r.path.endsWith('/install')||r.path.endsWith('/extract')),false);
  const html=fs.readFileSync('src/hoi4companion/web/importer.html','utf8');
  assert.match(html,/id="downloadSection"/);
@@ -71,19 +89,31 @@ test('thematic catalogs partition every entity once, retain reference fields, an
  assert.equal(JSON.stringify(catalog),before);
 });
 
+test('AI export is fetched once, retains national aliases, and leaves local display data intact',async()=>{
+ const h=harness();h.catalog.push({kind:'equipment',id:'rifles',name:'Infantry Equipment I',localized_name:'Fucili I',aliases:['Fucili I','Karabiner 98k'],equipment_ids:['rifles'],country_aliases:{GER:['Karabiner 98k']}});
+ await tick();h.get('catalogSection').value='production';h.get('catalogSection').onchange();
+ await h.get('downloadSection').onclick();await h.get('downloadCatalog').onclick();
+ const section=JSON.parse(await h.downloads[0].text()),all=JSON.parse(await h.downloads[1].text());
+ assert.equal(section.localization_policy,'local_lookup');assert.equal(all.localization_policy,'local_lookup');
+ assert.equal(section.alias_policy,'english_reference_only');assert.equal(all.alias_policy,'english_reference_only');
+ assert.equal(section.catalog[0].localized_name,undefined);assert.deepEqual(section.catalog[0].aliases,['Karabiner 98k']);
+ assert.deepEqual(section.catalog[0].equipment_ids,['rifles']);assert.equal(h.catalog[0].localized_name,'Fucili I');
+ assert.equal(h.requests.filter(r=>r.path==='/api/import/catalog?export=ai').length,1);
+});
+
 test('section exports scope only focuses, preserve all other topics, and permit single-answer events',async()=>{
  const h=harness();h.catalog.push({kind:'focus',id:'a',scope:'selected'},{kind:'focus',id:'b',scope:'other'},
   {kind:'technology',id:'tech',upgrade_successors:['next']},{kind:'equipment',id:'rifles',family_id:'infantry'},
   {kind:'event',id:'single'},{kind:'event_option',id:'single.a',event_id:'single'});
  await tick();h.get('treeScope').value='selected';h.get('treeScope').onchange();
- h.get('catalogSection').value='focus';h.get('catalogSection').onchange();h.get('downloadSection').onclick();
+ h.get('catalogSection').value='focus';h.get('catalogSection').onchange();await h.get('downloadSection').onclick();
  let value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog.map(e=>e.id),['a']);assert.equal(value.reference_language,'english');
- h.get('catalogSection').value='research';h.get('catalogSection').onchange();h.get('downloadSection').onclick();
+ h.get('catalogSection').value='research';h.get('catalogSection').onchange();await h.get('downloadSection').onclick();
  value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog,[h.catalog[2]]);
  h.get('catalogSection').value='events';h.get('catalogSection').onchange();assert.equal(h.get('downloadSection').disabled,true);
- h.get('eventsMultiple').checked=false;h.get('eventsMultiple').onchange();assert.equal(h.get('downloadSection').disabled,false);h.get('downloadSection').onclick();
+ h.get('eventsMultiple').checked=false;h.get('eventsMultiple').onchange();assert.equal(h.get('downloadSection').disabled,false);await h.get('downloadSection').onclick();
  value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog.map(e=>e.id),['single','single.a']);assert.equal(value.event_filter,undefined);
- h.get('downloadCatalog').onclick();value=JSON.parse(await h.downloads.at(-1).text());assert.equal(value.catalog.length,5);
+ await h.get('downloadCatalog').onclick();value=JSON.parse(await h.downloads.at(-1).text());assert.equal(value.catalog.length,5);
  assert.equal(h.requests.some(r=>r.path.endsWith('/install')||r.path.endsWith('/extract')),false);
 });
 
@@ -157,15 +187,15 @@ test('the politics selector, summary and complete export share the active nation
   {kind:'decision',id:'french',country_condition:{op:'original_tag',value:'FRA'}});
  await tick();h.get('treeScope').value='germany';h.get('treeScope').onchange();h.get('catalogSection').value='politics';h.get('catalogSection').onchange();
  assert.match(h.get('catalogSummary').textContent,/2 voci/);assert.match(h.get('catalogSummary').textContent,/Nazione: GER/);
- h.get('downloadSection').onclick();let value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog.map(e=>e.id),['shared','german']);
- h.get('downloadCatalog').onclick();value=JSON.parse(await h.downloads.at(-1).text());assert.equal(value.catalog.length,3);
+ await h.get('downloadSection').onclick();let value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog.map(e=>e.id),['shared','german']);
+ await h.get('downloadCatalog').onclick();value=JSON.parse(await h.downloads.at(-1).text());assert.equal(value.catalog.length,3);
 });
 
 test('legacy political metadata blocks only the affected thematic export and complete export',async()=>{
  const h=harness();h.catalog.push({kind:'focus',id:'g',scope:'germany',countries:['GER']},{kind:'advisor',id:'old'});
  await tick();h.get('treeScope').value='germany';h.get('treeScope').onchange();
  assert.equal(h.get('downloadSection').disabled,false);assert.equal(h.get('downloadCatalog').disabled,true);assert.equal(h.get('catalogWarning').hidden,false);
- h.get('catalogSection').value='politics';h.get('catalogSection').onchange();assert.equal(h.get('downloadSection').disabled,true);h.get('downloadSection').onclick();assert.equal(h.downloads.length,0);
+ h.get('catalogSection').value='politics';h.get('catalogSection').onchange();assert.equal(h.get('downloadSection').disabled,true);await h.get('downloadSection').onclick();assert.equal(h.downloads.length,0);
  h.get('treeScope').value='';h.get('treeScope').onchange();assert.equal(h.get('downloadSection').disabled,false);
 });
 
@@ -175,9 +205,9 @@ test('selected country filters thematic and complete exports before counting mul
   {kind:'event_option',id:'e.b',event_id:'e',country_condition:tag('FRA')},
   {kind:'event',id:'f',country_condition:tag('FRA')},{kind:'event_option',id:'f.a',event_id:'f'});
  await tick();h.get('treeScope').value='tree';h.get('treeScope').onchange();h.get('catalogSection').value='events';h.get('catalogSection').onchange();
- assert.equal(h.get('downloadSection').disabled,true);h.get('eventsMultiple').checked=false;h.get('eventsMultiple').onchange();h.get('downloadSection').onclick();
+ assert.equal(h.get('downloadSection').disabled,true);h.get('eventsMultiple').checked=false;h.get('eventsMultiple').onchange();await h.get('downloadSection').onclick();
  let value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog.map(e=>e.id),['e','e.a']);
- h.get('downloadCatalog').onclick();value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog.map(e=>e.id),['start','e','e.a']);
+ await h.get('downloadCatalog').onclick();value=JSON.parse(await h.downloads.at(-1).text());assert.deepEqual(value.catalog.map(e=>e.id),['start','e','e.a']);
 });
 
 test('event menu and summary count the downloaded events and answers after both filters',async()=>{
@@ -193,7 +223,7 @@ test('event menu and summary count the downloaded events and answers after both 
  assert.match(label(),/eventi: 1.*risposte: 2/);assert.match(h.get('catalogSummary').textContent,/eventi: 1.*risposte: 2/);
  h.get('eventsMultiple').checked=false;h.get('eventsMultiple').onchange();
  assert.match(label(),/eventi: 2.*risposte: 3/);assert.match(h.get('catalogSummary').textContent,/eventi: 2.*risposte: 3/);
- h.get('downloadSection').onclick();const file=JSON.parse(await h.downloads.at(-1).text());assert.equal(file.catalog.length,5);
+ await h.get('downloadSection').onclick();const file=JSON.parse(await h.downloads.at(-1).text());assert.equal(file.catalog.length,5);
 });
 
 test('old server catalog visibly marks national filtering inactive and does not export a falsely scoped event catalog',async()=>{
@@ -202,10 +232,10 @@ test('old server catalog visibly marks national filtering inactive and does not 
  await tick();h.get('treeScope').value='tree';h.get('treeScope').onchange();h.get('catalogSection').value='events';h.get('catalogSection').onchange();
  assert.equal(h.get('catalogWarning').hidden,false);assert.match(h.get('catalogWarning').textContent,/Filtro nazionale non attivo/);
  assert.doesNotMatch(h.get('catalogSummary').textContent,/Nazione non determinabile/);
- assert.equal(h.get('downloadSection').disabled,true);h.get('downloadSection').onclick();assert.equal(h.downloads.length,0);
+ assert.equal(h.get('downloadSection').disabled,true);await h.get('downloadSection').onclick();assert.equal(h.downloads.length,0);
  assert.equal(h.get('downloadCatalog').disabled,true);
  h.get('treeScope').value='';h.get('treeScope').onchange();assert.equal(h.get('catalogWarning').hidden,true);
- assert.equal(h.get('downloadSection').disabled,false);h.get('downloadSection').onclick();assert.equal(h.downloads.length,1);
+ assert.equal(h.get('downloadSection').disabled,false);await h.get('downloadSection').onclick();assert.equal(h.downloads.length,1);
 });
 
 test('construction correction uses catalog selectors and revalidates the in-memory draft',async()=>{

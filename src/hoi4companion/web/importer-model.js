@@ -75,6 +75,10 @@
   if(typeof text!=='string'||text.length>2000000)throw Error('File JSON troppo grande');
   const value=JSON.parse(text);
   if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Documento JSON non valido');
+  if(value.format==='hoi4-guide-authoring'){
+   if(value.authoring_schema_version!==1||!Array.isArray(value.sources)||!value.guide||typeof value.guide!=='object'||!Array.isArray(value.guide.steps))throw Error('Documento authoring v1 non valido');
+   return {guide:value.guide,sources:value.sources,authoring:true,document:value};
+  }
   if('import_schema_version'in value){
    if(value.import_schema_version!==1||!Array.isArray(value.sources))throw Error('Versione bozza non supportata');
    if(value.guide)draftShape(value.guide);

@@ -22,7 +22,7 @@ Applicazione **gratuita e open source** per esplorare i focus nazionali di *Hear
    il parser nel checkout, seguito da `powershell -NoProfile -File
    scripts/build-cwtools.ps1` per il motore semantico. I componenti sono individuati automaticamente; non
    richiede variabili d'ambiente. [Dettagli](docs/jomini-migration.md).
-4. Su Windows puoi avviare direttamente con un doppio clic su **`avvia.bat`**. Verrà aperta l'interfaccia nel browser su `http://127.0.0.1:8766`.
+4. Su Windows fai doppio clic su **`AVVIA COMPANION E HUD.bat`** per avviare il programma e le evidenziazioni native sopra HOI4. Si apre il walkthrough su `http://127.0.0.1:8766/walkthrough`; scegli la guida nel controllo HUD. Le istruzioni sono in **`COME AVVIARE.txt`**. Per avviare soltanto il programma resta disponibile `avvia.bat`.
 5. Apri **Configurazione** dall'interfaccia e imposta:
    - Percorso della cartella principale di Hearts of Iron IV (dove risiede `hoi4.exe`).
    - (Opzionale) Percorso della cartella documenti di HOI4 (per leggere mod attive da `dlc_load.json`).
@@ -82,7 +82,9 @@ Altri argomenti: `--docs-dir`, `--snapshot`, `--country AUS`, `--port 8766`, `--
   prove reali e limiti in [docs/native-overlay.md](docs/native-overlay.md).
 
 - **Guide Importer MVP** (`/importer`): prompt completo da dare alla propria
-  IA insieme alla guida; importazione diretta del file restituito, risoluzione ID, citazioni,
+  IA con azioni tipizzate semplici, compilate nel formato interno v1; i file
+  precedenti restano compatibili. [Formato di compilazione](docs/guide-authoring.md).
+  Importazione diretta del file restituito, risoluzione ID, citazioni,
   anteprima modificabile ed esportazione/installazione di guide v1.
   Acquisizione YouTube/web e API restano opzioni aggiuntive.
   [Istruzioni e limiti](docs/guide-importer.md).
@@ -294,7 +296,7 @@ per attribuire ricerche completate. Le dottrine del nuovo sistema restano fuori 
 
 Il repository dispone di una suite completa di test automatizzati per il backend Python e per i modelli frontend:
 
-### Test Python (545 test)
+### Test Python (573 test)
 Tramite lo script batch (Windows):
 ```cmd
 test.bat
@@ -306,7 +308,7 @@ py -3 -m hoi4companion --test
 ```
 (in alternativa: `python -m unittest discover -s tests -p "test_*.py"`).
 
-### Test frontend JavaScript / Node.js (256 test)
+### Test frontend JavaScript / Node.js (265 test)
 I modelli logici del client sono verificati tramite il test runner nativo di Node.js (`node:test`):
 ```powershell
 Get-ChildItem -Path "tests" -Filter "*.cjs" | ForEach-Object { node $_.FullName }

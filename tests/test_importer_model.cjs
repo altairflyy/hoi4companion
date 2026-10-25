@@ -2,6 +2,14 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const m=require('../src/hoi4companion/web/importer-model.js');
 const guide={schema_version:1,id:'opening',title:'Opening',tracks:{research:[{key:'tools',action:{kind:'research',entity:{kind:'technology',id:'basic_machine_tools'}}}]}};
+
+test('authoring documents are delegated intact to the server rather than interpreted as runtime guides',()=>{
+ const value={format:'hoi4-guide-authoring',authoring_schema_version:1,sources:[{id:'s'}],guide:{id:'new',steps:[{type:'build'}]}};
+ const result=m.readDraft(JSON.stringify(value));
+ assert.equal(result.authoring,true);assert.deepEqual(result.document,value);
+ assert.equal(result.guide.steps[0].type,'build');
+ for(const version of [2,true,'1'])assert.throws(()=>m.readDraft(JSON.stringify({...value,authoring_schema_version:version})));
+});
 test('imports plain guides and versioned editable drafts without mixing progress',()=>{
  assert.equal(m.readDraft(JSON.stringify(guide)).guide.id,'opening');
  const packet=m.readDraft(JSON.stringify({import_schema_version:1,guide,sources:[{id:'source'}]}));

@@ -486,7 +486,8 @@ class Store:
     def importer(self):
         with self.lock:
             if not hasattr(self, '_importer'):
-                self._importer = Importer(self.import_catalog, research_context=self.research_start)
+                self._importer = Importer(self.import_catalog, research_context=self.research_start,
+                                         catalog_export=self.export_catalog)
             return self._importer
 
     def research_start(self, guide):
@@ -506,6 +507,11 @@ class Store:
         with self.lock:
             return catalog_entities(self.trees, self.technologies['technologies'], self.labels,
                                     getattr(self, 'reference_labels', {})) + getattr(self,'operation_entities',[])
+
+    def export_catalog(self, entries):
+        from .catalog_export import for_ai
+        with self.lock:
+            return for_ai(entries,getattr(self,'reference_labels',{}),self.labels)
 
     def technology_catalog(self):
         with self.lock:
@@ -637,7 +643,13 @@ def make_handler(store: Store):
                 self.json({'prompt': store.importer().prompt()})
                 return
             if url.path == '/api/import/catalog':
-                self.json({'entities': store.importer().catalog(), 'demo': store.demo})
+                mode=parse_qs(url.query).get('export',[''])[0]
+                if mode not in ('','ai'):
+                    self.json({'error':'Formato export catalogo sconosciuto'},400)
+                    return
+                importer=store.importer()
+                self.json({'entities': importer.ai_catalog() if mode=='ai' else importer.catalog(), 'demo': store.demo,
+                           **({'localization_policy':'local_lookup','alias_policy':'english_reference_only'} if mode=='ai' else {})})
                 return
             if url.path == '/api/state/events':
                 origin, host = self.headers.get('Origin', ''), self.headers.get('Host', '')

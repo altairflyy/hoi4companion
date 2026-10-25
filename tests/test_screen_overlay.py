@@ -8,6 +8,11 @@ def line(text,x=20,y=100,width=200,height=18):
 
 
 class ScreenOverlayTests(unittest.TestCase):
+    def test_disconnected_null_or_invalid_sample_suspends_without_exception(self):
+        for sample in (None,{},[],True):
+            self.assertEqual(targets(self.guide,self.runtime,self.catalog,{'usable':False,'sample':sample}),[])
+        self.assertEqual(targets(self.guide,self.runtime,self.catalog,{'usable':True,'sample':None}),[])
+
     def setUp(self):
         self.guide={'id':'universal','applies_to':{'country':'TST'},'tracks':{'focus':[{'key':'f','action':{'kind':'select_focus','entity':{'kind':'focus','id':'focus','scope':'tree'}}}]}}
         self.runtime={'guide_id':'universal','mode':'live','country':'TST','parallel':{'focus':{'steps':['f']}},'steps':[{'key':'f','status':'ready'}]}
