@@ -334,7 +334,9 @@ class UiReader:
         for button in s.array(container+0x10D8, maximum=64):
             self._typed(s, button, 'CButtonDrag')
             definition = self._typed(s, s.number(button+0x60), 'CButtonType')
-            if s.string(definition+0x28) != 'Background':
+            # Installed compact/support templates name this same CButtonDrag
+            # "bg", whereas equipment templates call it "Background".
+            if s.string(definition+0x28) not in ('Background','bg'):
                 continue
             if s.number(button+0x68) != root or s.number(button+0x50) != observer:
                 raise LiveReadError('Sfondo ricerca di un altro proprietario')

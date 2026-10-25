@@ -332,6 +332,16 @@ class FocusUiSnapshotTests(unittest.TestCase):
         with self.assertRaisesRegex(LiveReadError, 'Sfondo'):
             FixtureReader(process=f).snapshot(technology_ids=['construction4'])
 
+    def test_compact_technology_bg_name_uses_the_same_qualified_background_geometry(self):
+        f=UiFixture();f.visible_research()
+        definition=struct.unpack('<Q',f.read(f.research_background+0x60,8))[0]
+        f.string(definition+0x28,'bg')
+        reader=FixtureReader(process=f)
+        self.assertEqual(reader.snapshot(technology_ids=['construction4'])['nodes'][0]['rect'],[235.,315.,72.,72.])
+        # Name compatibility never replaces ownership qualification.
+        f.put(f.research_background+0x50,'<Q',f.object('CTechnologyTreeTechItem'))
+        with self.assertRaisesRegex(LiveReadError,'proprietario'):reader.snapshot(technology_ids=['construction4'])
+
     def test_foreign_or_duplicate_research_background_fails_closed(self):
         f = UiFixture(); f.visible_research()
         f.put(f.research_background+0x50, '<Q', f.item+40)
