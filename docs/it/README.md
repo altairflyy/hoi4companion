@@ -24,7 +24,7 @@
     <img src="https://img.shields.io/badge/GitHub-TUTTE_LE_RELEASE-0969da?style=for-the-badge&logo=github&logoColor=white" alt="Releases" height="42" />
   </a>
   &nbsp;&nbsp;
-  <a href="docs/windows-distribution.md">
+  <a href="windows-distribution.md">
     <img src="https://img.shields.io/badge/GUIDA-DOCUMENTAZIONE_SETUP-6f42c1?style=for-the-badge&logo=gitbook&logoColor=white" alt="Docs" height="42" />
   </a>
 </p>
