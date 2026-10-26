@@ -4,6 +4,39 @@ import struct
 from .live import LiveReadError
 
 
+def _breakthroughs(r, status):
+    """CProgramStatus::GetBreakthroughPoints uses this token-keyed tree.
+
+    Values are progress units: 10000 units make one spendable point. Never
+    round fractional progress up or equate a completed facility with a point.
+    """
+    r.typed(status+0x50, 'CBreakthroughProgress@NProject')
+    head=r.pointer(status+0x58)
+    count=struct.unpack('<Q',r.track(status+0x60,8))[0]
+    if count>64 or r.track(head+0x19,1)!=b'\x01':
+        raise LiveReadError('Contatore scoperte non qualificato')
+    root=r.pointer(head+8);seen=set();rows=[]
+    def visit(node,parent,lower=-1,upper=1_000_001):
+        if node==head:return
+        if node in seen or len(seen)>=count:
+            raise LiveReadError('Albero scoperte ciclico o duplicato')
+        seen.add(node)
+        if r.track(node+0x19,1)!=b'\0' or r.pointer(node+8)!=parent:
+            raise LiveReadError('Proprietà nodo scoperte incoerente')
+        token,progress=struct.unpack('<ii',r.track(node+0x1C,8))
+        if not lower<token<upper or not 0<=progress<=1_000_000_000:
+            raise LiveReadError('Punti scoperta fuori intervallo')
+        key=r.token_name(token)
+        visit(r.pointer(node),node,lower,token)
+        rows.append({'id':key,'available':progress//10000,'progress':progress%10000/10000})
+        visit(r.pointer(node+0x10),node,token,upper)
+    visit(root,head)
+    if len(rows)!=count or len({row['id'] for row in rows})!=count:
+        raise LiveReadError('Elenco scoperte incompleto')
+    return {'status':'observed','items':rows,
+            'reason':'Punti spendibili separati dal progresso frazionario; contatore della nazione corrente.'}
+
+
 def read_projects(reader):
     r=reader
     status=r.typed(r.pointer(r.country+0xFA8),'CProgramStatus@NProject')
@@ -49,5 +82,8 @@ def read_projects(reader):
         active=linked and not completed
         rows.append({'id':key,'active':active,'completed':completed,
                      **({'facility':programs[handle]['facility']} if active else {})})
-    return {'status':'observed','items':rows,
+    try:breakthroughs=_breakthroughs(r,status)
+    except (LiveReadError,OSError,ValueError,struct.error,KeyError) as exc:
+        breakthroughs={'status':'unavailable','reason':str(exc)}
+    return {'status':'observed','items':rows,'breakthroughs':breakthroughs,
             'reason':'Progetti della nazione corrente; impianto associato distinto dallo stato finale di ricerca.'}

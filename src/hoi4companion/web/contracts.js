@@ -56,6 +56,10 @@
   f['construction.queued']=queued===null?unknown('Coda costruzioni non qualificata'):known(queued,'construction_adapter',true);
   const projects=overview.projects,items=projects?.items,projectsKnown=Boolean(s.country)&&overview.country===s.country&&projects?.status==='observed'&&Array.isArray(items)&&items.length<=1024&&items.every(row=>row&&typeof row.id==='string'&&row.id&&typeof row.active==='boolean'&&typeof row.completed==='boolean'&&!(row.active&&row.completed))&&new Set(items.map(row=>row.id)).size===items.length;
   for(const field of ['active','completed'])f['projects.'+field]=projectsKnown?known(items.filter(row=>row[field]).map(row=>row.id),'projects_adapter',true):unknown('Progetti speciali non qualificati');
+  const points=projects?.breakthroughs?.items;
+  if(Boolean(s.country)&&overview.country===s.country&&projects?.breakthroughs?.status==='observed'&&Array.isArray(points)&&points.length<=64&&points.every(row=>row&&typeof row.id==='string'&&row.id&&Number.isInteger(row.available)&&row.available>=0&&row.available<=100000)&&new Set(points.map(row=>row.id)).size===points.length)for(const row of points)f['projects.points.'+row.id]=known(row.available,'breakthrough_points_adapter',true);
+  const power=overview.politics?.power;
+  f['country.politics.political_power']=Boolean(s.country)&&overview.country===s.country&&power?.status==='observed'&&typeof power.available==='number'&&Number.isFinite(power.available)?known(power.available,source):unknown('Potere politico non qualificato');
   const production=overview.production,productionKnown=typeof s.country==='string'&&s.country&&overview.country===s.country&&production?.status==='observed'&&validProductionLines(production.lines);
   f['production.lines']=productionKnown?known(production.lines.map(row=>({...row})),'production_adapter',true):unknown('Linee di produzione non qualificate');
   Object.assign(f,politicalFacts(typeof s.country==='string'&&s.country&&overview.country===s.country?overview:{}));
@@ -168,9 +172,13 @@
    if(!Array.isArray(deps)||deps.length>64||deps.some(dep=>typeof dep!=='string'||!keys.has(dep)||dep===step.key)||new Set(deps).size!==deps.length)throw Error('Dipendenze non valide: '+step.key);
    if(deps.some(dep=>reminders.has(dep)))throw Error('Dipendenza da promemoria non completabile: '+step.key);
    pending.set(step.key,deps.length);for(const dep of deps)successors.get(dep).push(step.key);
-   if((Object.hasOwn(step,'political_power_cost')||Object.hasOwn(step,'requirements'))&&(!['manual','special_project'].includes(step.action.kind)||step.tracking==='reminder'))throw Error('Requisiti di azione incompatibili');
+   if(['political_power_cost','resource_costs','requirements'].some(f=>Object.hasOwn(step,f))&&(!['manual','special_project'].includes(step.action.kind)||step.tracking==='reminder'))throw Error('Requisiti di azione incompatibili');
    if(Object.hasOwn(step,'political_power_cost')&&(!jsonNumber(step.political_power_cost)||step.political_power_cost<0))throw Error('Costo politico non valido');
    if(Object.hasOwn(step,'requirements'))validateCondition(step.requirements);
+   if(Object.hasOwn(step,'resource_costs')){
+    const costs=step.resource_costs;
+    if(!record(costs)||Object.keys(costs).length>64||Object.entries(costs).some(([k,v])=>!k||k.length>256||!jsonNumber(v)||v<0))throw Error('Costi risorse non validi');
+   }
    if(Object.hasOwn(step,'phase')&&(typeof step.phase!=='string'||!phases.has(step.phase)))throw Error('Fase sconosciuta: '+step.key);
    if(Object.hasOwn(step,'completion'))validateCondition(step.completion);
    if(Object.hasOwn(step,'started_when')){

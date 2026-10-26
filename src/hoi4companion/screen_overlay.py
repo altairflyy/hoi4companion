@@ -38,29 +38,34 @@ def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
     native=set(k for lane in runtime.get('parallel',{}).values() for k in lane.get('steps',[]))
     overview=state.get('sample',{}).get('country_overview',{})
     events=overview.get('events',{}) if overview.get('country')==country else {}
-    visible={r.get('event_id') for r in events.get('visible',[])} if events.get('status')=='observed' else set()
-    if prepare_events and event_plan is None:
+    # Both the native watch list and the visual path use the same scoped
+    # event/answer binding. A plan cached for another guide must never supply
+    # its answer to a step whose key happens to be reused by the new guide.
+    if event_plan is None or event_plan.get('guide_id')!=guide.get('id'):
         from .guide_events import compile_event_plan
         event_plan=compile_event_plan(guide,catalog)
-    bindings=(event_plan or {}).get('bindings',{}) if prepare_events else {}
+    bindings=event_plan.get('bindings',{})
     result=[];seen=set()
     # Preserve the runtime's priority order, including across research folders.
     order={key:index for index,key in enumerate(runtime.get('parallel',{}).get('research',{}).get('steps',[]))}
     for item in sorted(runtime.get('steps',[]),key=lambda item:order.get(item['key'],len(order))):
         row=rows.get(item['key']);status=item.get('status');reason=item.get('reason')
-        if not row or (row.get('tracking')=='reminder' and item['key'] not in bindings) or status not in ('ready','active','unverifiable'):continue
+        if not row or (row.get('tracking')=='reminder' and not (prepare_events and item['key'] in bindings)) or status not in ('ready','active','unverifiable'):continue
         if status=='unverifiable' and reason!='manual_confirmation_required':continue
-        if prepare_events and item['key'] in bindings:
-            binding=bindings[item['key']]
+        action=row['action'];params=action.get('params',{});ref=action.get('entity',{});panel=None;entries=[];labels=[];identity=None
+        if any(k in params for k in ('event_id','event_name','event_option_id','event_option')):
+            binding=bindings.get(item['key'])
+            if not binding:continue
             identity=binding['identity']
             if ('event',identity) not in seen:
                 rows_visible=[e for e in events.get('visible',[]) if e.get('event_id')==binding['event_id']] if events.get('status')=='observed' else []
-                result.append({**binding,'status':status,'country':country,'watch':True,
+                live_visible=any(binding['option_id'] in e.get('option_ids',[]) for e in rows_visible)
+                if not prepare_events and not live_visible:continue
+                result.append({**binding,'status':status,'country':country,'watch':prepare_events,
                     'instances':[e['instance_id'] for e in rows_visible if isinstance(e.get('instance_id'),str)],
-                    'live_visible':any(binding['option_id'] in e.get('option_ids',[]) for e in rows_visible)})
+                    'live_visible':live_visible})
                 seen.add(('event',identity))
             continue
-        action=row['action'];params=action.get('params',{});ref=action.get('entity',{});panel=None;entries=[];labels=[];identity=None
         kind=action['kind']
         if kind in ('select_focus','research'):
             # Active native steps are still highlighted by the tree views.
@@ -68,11 +73,6 @@ def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
             if item['key'] not in native and status!='active':continue
             panel='focus' if kind=='select_focus' else 'research';identity=ref.get('id')
             entries=[e for e in catalog if e['kind']==ref.get('kind') and e['id']==identity and (not ref.get('scope') or e.get('scope')==ref['scope'])]
-        elif params.get('event_id'):
-            if params['event_id'] not in visible or not params.get('event_option_id'):continue
-            panel='event';identity=params['event_id']+':'+params['event_option_id']
-            entries=[e for e in catalog if e['kind']=='event_option' and e['id']==params['event_option_id']]
-            labels=[params.get('event_option_name'),params.get('event_option')]
         elif kind=='special_project':
             if status=='active':continue
             panel='projects';identity=ref.get('id')
@@ -98,6 +98,9 @@ def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
                      and (not params.get('law_group') or e.get('group')==params['law_group'])]
             labels=[params.get('person_name')] if params.get('person_name') else []
         if not panel or not identity or (panel,identity) in seen:continue
+        if panel in ('politics','projects'):
+            from .action_readiness import hud_resource_ready
+            if not hud_resource_ready(item.get('action_readiness')):continue
         if len(entries)>1:continue
         if panel in ('politics','projects') and len(entries)!=1:continue
         for entry in entries:labels.extend([entry.get('localized_name'),entry.get('name'),*(entry.get('aliases',[]) if panel not in ('politics','projects') else [])])

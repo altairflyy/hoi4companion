@@ -99,7 +99,9 @@ def operation_catalog(game, mods, labels, reference):
     project_files,issues=collect_files(game,mods,'common/special_projects/projects','.txt');warnings.extend(issues)
     for path in project_files:
         try:
-            result.extend({'kind':'project','id':key,**names(key), 'specialization':node.scalar('specialization')} for key,node in parse_file(path).entries if isinstance(node,Node))
+            from .action_resources import project_costs
+            result.extend({'kind':'project','id':key,**names(key), 'specialization':node.scalar('specialization'),
+                           'resource_costs':project_costs(node)} for key,node in parse_file(path).entries if isinstance(node,Node))
         except (OSError,ValueError,RecursionError) as exc:
             warnings.append(f'Catalogo progetti non leggibile ({path.name}): {exc}')
     political,issues=political_catalog(game,mods,labels,reference)

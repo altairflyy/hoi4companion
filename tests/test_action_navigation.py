@@ -9,7 +9,7 @@ from test_guide_runtime import state
 
 class NavigationTests(unittest.TestCase):
     def test_access_slot_entity_are_exclusive_and_role_scoped(self):
-        target={'key':'a','panel':'politics','country':'GER','identity':'infantry','entity_kind':'advisor','category_id':'high_command'}
+        target={'key':'a','panel':'politics','country':'GER','identity':'infantry','entity_kind':'advisor','category_id':'high_command','action_readiness':{'resources_available':True,'blocked':[],'unknown':[]}}
         controls=[{'root':'topbar','name':'player_flag','visible':True,'rect':[1,2,3,4]},
                   {'root':'countrypoliticsview','name':'open_roster_button','visible':True,'category_id':'high_command','rect':[10,20,30,40]},
                   {'root':'political_ideas_window','name':'idea_entry_bg','entity_kind':'advisor','visible':True,'category_id':'high_command','entity_id':'infantry','rect':[100,200,30,40]}]
@@ -25,7 +25,7 @@ class NavigationTests(unittest.TestCase):
         raw['active_panel']='event';self.assertEqual(admit(),[])
 
     def test_facility_compatibility_is_required_even_for_exact_project_id(self):
-        target={'key':'p','panel':'projects','country':'GER','identity':'vehicles','specialization':'specialization_land'}
+        target={'key':'p','panel':'projects','country':'GER','identity':'vehicles','specialization':'specialization_land','action_readiness':{'resources_available':True,'blocked':[],'unknown':[]}}
         control={'root':'program_window','visible':True,'entity_id':'vehicles','entity_kind':'project','specialization':'specialization_naval','rect':[1,2,3,4]}
         raw={'country':'GER','action_ui':{'status':'observed','panels':dict.fromkeys(['topbar','program_window','facilities_view','countrytechnologyview'],True),'controls':[control]}}
         self.assertEqual(navigation_matches(raw,[target],lambda c,p:c['rect']),[])
@@ -38,7 +38,7 @@ class NavigationTests(unittest.TestCase):
         catalog=[{'kind':'project','id':'vehicles','name':'Vehicles','specialization':'specialization_land'},
                  {'kind':'advisor','id':'infantry','name':'Infantry Expert','slot':'high_command'},
                  {'kind':'advisor','id':'monarchist','name':'Monarchist','slot':'political_advisor'}]
-        live=state(**{'projects.active':['vehicles'],'projects.completed':[],'politics.advisors':[]})
+        live=state(**{'projects.active':['vehicles'],'projects.completed':[],'politics.advisors':[],'country.politics.political_power':200})
         raw={'usable':True,'sample':{'country':'GER','session_id':'session'}}
         runtime=evaluate(guide,live)
         proposed=targets(guide,runtime,catalog,raw)

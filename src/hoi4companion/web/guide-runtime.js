@@ -31,13 +31,23 @@
  function actionDomain(step){const p=step.action.params||{};if(step.tracking==='reminder')return null;if(step.action.kind==='special_project')return 'project';if(p.commander_id||['corps_commander','navy_leader'].includes(p.role))return 'appointment';return Object.hasOwn(step,'political_power_cost')||['law_id','law_name','idea_id','idea_name','advisor_id','person_id','person_name','trait_name','role'].some(k=>p[k])?'political':null;}
  function actionReadiness(step,state,checks){
   const domain=actionDomain(step);if(!domain)return null;
-  const missing=[],blocked=[],value={domain,unknown:missing,blocked};
+  const missing=[],blocked=[],resources=[],affordability=[],value={domain,unknown:missing,blocked,resources,requirements_declared:Object.hasOwn(step,'requirements')};
   if(domain==='political'||Object.hasOwn(step,'political_power_cost')){
    const cost=step.political_power_cost??null,f=c.fact(state,'country.politics.political_power'),amount=typeof f.value==='number'&&Number.isFinite(f.value)?f.value:null;
    const affordable=cost===null||amount===null?null:amount>=cost;
    value.political_power={cost,available:amount,affordable,cost_basis:cost===null?'unknown':'guide_declared'};
    if(cost===null)missing.push('political_cost_unknown');if(amount===null)missing.push('political_power_unknown');if(affordable===false)blocked.push('insufficient_political_power');
+   affordability.push(affordable);
   }
+  const costs=step.resource_costs;
+  if(domain==='project'&&costs===undefined){missing.push('project_cost_unknown');affordability.push(null);}
+  for(const [key,cost] of Object.entries(costs||{})){
+   const f=c.fact(state,key),amount=typeof f.value==='number'&&Number.isFinite(f.value)?f.value:null,affordable=amount===null?null:amount>=cost;
+   resources.push({key,cost,available:amount,affordable});affordability.push(affordable);
+   if(affordable===false&&!blocked.includes('insufficient_resource'))blocked.push('insufficient_resource');
+   else if(affordable===null&&!missing.includes('resource_balance_unknown'))missing.push('resource_balance_unknown');
+  }
+  value.resources_available=affordability.includes(false)?false:affordability.includes(null)?null:true;
   if(Object.hasOwn(step,'requirements')){const eligible=c.condition(step.requirements,state,checks);if(eligible===false)blocked.push('action_requirements_false');else if(eligible===null)missing.push('action_requirements_unknown');}
   else missing.push('action_requirements_unknown');
   if(domain==='appointment')missing.push('commander_assignment_unobserved');

@@ -24,7 +24,7 @@ export type GuideStep = {
   key: string; action: Action; title?: string; note?: string; confirmation?: string;
   tracking?: 'action'|'reminder';
   when?: Condition; priority_when?: Condition; priority?: number; skip_when?: Condition;
-  phase?: string; depends_on?: string[]; depends_on_started?: string[]; political_power_cost?: number; requirements?: Condition; completion?: Condition; started_when?: Condition;
+  phase?: string; depends_on?: string[]; depends_on_started?: string[]; political_power_cost?: number; resource_costs?: Record<string, number>; requirements?: Condition; completion?: Condition; started_when?: Condition;
   evidence?: GuideEvidence[];
 };
 /** Evaluated rows retain the legacy completion fact; the definition stays separate. */
@@ -61,7 +61,7 @@ export type RuntimeStep = {
   completion: Fact<boolean>; selection: Fact<boolean>; availability: Fact<boolean>;
   construction?: {baseline: number|null; current: number|null; target: number|null};
   production?: ProductionProgress | ProductionLayout;
-  action_readiness?: {domain: 'political'|'project'|'appointment'; value: boolean|null; unknown: string[]; blocked: string[]; political_power?: {cost: number|null; available: number|null; affordable: boolean|null; cost_basis: 'guide_declared'|'unknown'}};
+  action_readiness?: {domain: 'political'|'project'|'appointment'; value: boolean|null; unknown: string[]; blocked: string[]; resources_available: boolean|null; requirements_declared: boolean; resources: {key: string; cost: number; available: number|null; affordable: boolean|null}[]; political_power?: {cost: number|null; available: number|null; affordable: boolean|null; cost_basis: 'guide_declared'|'unknown'}};
   completion_basis: 'native_membership'|'manual'|'condition'|'free'|'reminder'; priority: number; priority_known: boolean;
 };
 export type RuntimeTrack = {keys: string[]; order: string[]; next: string|null};

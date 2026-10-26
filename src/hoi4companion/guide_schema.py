@@ -111,12 +111,18 @@ def validate_guide_extensions(guide: dict) -> None:
         for dep in deps:
             successors[dep].append(key)
 
-        if ('political_power_cost' in step or 'requirements' in step) and (step['action']['kind'] not in ('manual','special_project') or step.get('tracking')=='reminder'):
+        if any(field in step for field in ('political_power_cost','resource_costs','requirements')) and (step['action']['kind'] not in ('manual','special_project') or step.get('tracking')=='reminder'):
             raise ValueError(f'Requisiti di azione incompatibili: {key}')
         if 'political_power_cost' in step and (not is_json_number(step['political_power_cost']) or step['political_power_cost'] < 0):
             raise ValueError(f'Costo politico non valido: {key}')
         if 'requirements' in step:
             validate_condition(step['requirements'])
+        if 'resource_costs' in step:
+            costs=step['resource_costs']
+            if (not isinstance(costs,dict) or len(costs)>64
+                    or any(not isinstance(k,str) or not k or len(k)>256
+                           or not is_json_number(v) or v<0 for k,v in costs.items())):
+                raise ValueError(f'Costi risorse non validi: {key}')
         if 'phase' in step and (not isinstance(step['phase'], str) or step['phase'] not in phases):
             raise ValueError(f'Fase sconosciuta: {key}')
         if 'completion' in step:
