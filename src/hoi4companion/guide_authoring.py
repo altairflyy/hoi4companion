@@ -36,7 +36,7 @@ SPECS = {
     'free': ('free', None, 'lane', ''),
     'advanced_v1': (None, None, 'step', 'step'),
 }
-POLICIES = {'title','note','confirmation','phase','depends_on','depends_on_started','political_power_cost','requirements','when','skip_when','priority','priority_when','completion','started_when'}
+POLICIES = {'title','note','confirmation','phase','depends_on','depends_on_started','political_power_cost','resource_costs','requirements','when','skip_when','priority','priority_when','completion','started_when'}
 COMMON = POLICIES | {'key','type','evidence','timing','instructions','source_seconds','game_date','details'}
 GENERATED = {'verification','production_selector','political_binding','kind','entity','target','completion','started_when'}
 IDENTITIES = {'building_id','building_name','state_id','state_name','quantity','quantity_mode','target_level','target_quantity',

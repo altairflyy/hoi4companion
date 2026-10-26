@@ -117,6 +117,7 @@ class GuideStep(TypedDict):
     depends_on: NotRequired[list[str]]
     depends_on_started: NotRequired[list[str]]
     political_power_cost: NotRequired[int | float]
+    resource_costs: NotRequired[dict[str, int | float]]
     requirements: NotRequired[Condition]
     completion: NotRequired[Condition]
     started_when: NotRequired[Condition]
@@ -232,6 +233,9 @@ class ActionReadiness(TypedDict):
     unknown: list[str]
     blocked: list[str]
     political_power: NotRequired[PoliticalPowerRequirement]
+    resources_available: bool | None
+    resources: list[dict]
+    requirements_declared: bool
 
 
 class ActionSequence(TypedDict):
@@ -484,6 +488,19 @@ def normalise_state(value: dict) -> LiveState:
                     and len({row['id'] for row in items})==len(items))
     for field in ('active','completed'):
         facts['projects.'+field]=fact([row['id'] for row in items if row[field]],'calculated','projects_adapter') if projects_known else fact(reason='Progetti speciali non qualificati')
+    breakthroughs=projects.get('breakthroughs',{}) if isinstance(projects,dict) else {}
+    points=breakthroughs.get('items')
+    if (overview.get('country')==sample.get('country') and bool(sample.get('country'))
+            and breakthroughs.get('status')=='observed' and isinstance(points,list) and len(points)<=64
+            and all(isinstance(row,dict) and isinstance(row.get('id'),str) and row['id']
+                    and type(row.get('available')) is int and 0<=row['available']<=100000 for row in points)
+            and len({row['id'] for row in points})==len(points)):
+        for row in points:facts['projects.points.'+row['id']]=fact(row['available'],'calculated','breakthrough_points_adapter')
+    power=overview.get('politics',{}).get('power',{}) if isinstance(overview.get('politics'),dict) else {}
+    amount=power.get('available')
+    facts['country.politics.political_power']=(fact(amount,'observed',source)
+        if overview.get('country')==sample.get('country') and bool(sample.get('country'))
+        and power.get('status')=='observed' and is_json_number(amount) else fact(reason='Potere politico non qualificato'))
     facts.update(_political_facts(overview if isinstance(sample.get('country'),str) and sample['country'] and overview.get('country')==sample['country'] else {}))
     if overview.get('country') == sample.get('country'):
         # These fields are derivations in country.py, not direct observations.

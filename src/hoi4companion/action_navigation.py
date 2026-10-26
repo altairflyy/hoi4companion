@@ -10,6 +10,8 @@ def navigation_matches(raw, proposals, rectangle):
     for target in proposals:
         panel=target.get('panel')
         if panel not in ('politics','projects') or target.get('country')!=raw.get('country'):continue
+        from .action_readiness import hud_resource_ready
+        if not hud_resource_ready(target.get('action_readiness')):continue
         required={'topbar','countrypoliticsview','political_ideas_window'} if panel=='politics' else {'topbar','countrytechnologyview','facilities_view','program_window'}
         if not required<=panels.keys():continue
         category=target.get('category_id');stage=None

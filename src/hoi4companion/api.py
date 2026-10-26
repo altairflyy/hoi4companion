@@ -481,6 +481,8 @@ class Store:
                                   self.labels, self.technologies['folders'])
             result['catalog_country'] = self.settings['country'].upper()
             result['demo'] = self.demo
+            from .action_resources import enrich_resource_costs
+            enrich_resource_costs(result,getattr(self,'operation_entities',[]))
             return result
 
     def associations(self,guide_id=None,update=None):

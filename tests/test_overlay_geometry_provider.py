@@ -20,7 +20,7 @@ class Reader:
 
 class NativeGeometryProviderTests(unittest.TestCase):
     def test_common_action_geometry_uses_live_control_and_role_then_discards_duplicates(self):
-        self.proposals=[{'key':'a','panel':'politics','identity':'expert','entity_kind':'advisor','category_id':'high_command','country':'GER'}]
+        self.proposals=[{'key':'a','panel':'politics','identity':'expert','entity_kind':'advisor','category_id':'high_command','country':'GER','action_readiness':{'resources_available':True,'blocked':[],'unknown':[]}}]
         self.reader.value['active_panel']=None
         control={'root':'topbar','name':'player_flag','visible':True,'rect':[10,10,40,40],'clip':[0,0,400,300]}
         actions={'status':'observed','coverage':{'politics':True,'projects':False},'panels':{'topbar':True,'countrypoliticsview':False,'political_ideas_window':False},'controls':[control]}
@@ -158,6 +158,7 @@ class NativeGeometryProviderTests(unittest.TestCase):
     def test_unrendered_foreign_unknown_closed_and_ambiguous_events_never_highlight(self):
         self.event();original=copy.deepcopy(self.reader.value)
         mutations=[lambda r:r['nodes'][-1].update(identity='e.1:e.1.b'),
+                   lambda r:r['nodes'][-1].update(option_id='e.1.b'),
                    lambda r:r['nodes'][-1].update(instance_id='another'),
                    lambda r:r.update(country='POL'),lambda r:r.update(events={'status':'unknown'}),
                    lambda r:r.update(event_windows=[]),

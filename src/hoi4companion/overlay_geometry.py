@@ -84,7 +84,8 @@ class NativeGeometry:
                     if window.get('event_id')!=event_id:continue
                     nodes=[n for n in raw.get('nodes',[]) if n.get('panel')=='event'
                            and n.get('identity')==proposal['identity'] and n.get('visible') is True
-                           and n.get('event_id')==event_id and n.get('instance_id')==window.get('instance_id')]
+                           and n.get('event_id')==event_id and n.get('option_id')==proposal.get('option_id')
+                           and n.get('instance_id')==window.get('instance_id')]
                     if len(nodes)!=1:continue
                     rect=_rectangle(nodes[0],window,view)
                     if rect is not None:

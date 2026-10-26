@@ -39,9 +39,9 @@ class ScreenOverlayTests(unittest.TestCase):
     def test_events_need_observed_window_and_localized_event_and_choice(self):
         self.guide['tracks']={'operations':[{'key':'event','action':{'kind':'manual','params':{'category':'politics','event_id':'evt.1','event_option_id':'evt.1.a','event_name':'An Event'}}}]}
         self.runtime['steps']=[{'key':'event','status':'active'}]
-        self.catalog=[{'kind':'event','id':'evt.1','name':'An Event','localized_name':'Un evento'},{'kind':'event_option','id':'evt.1.a','name':'Accept the proposal','localized_name':'Accetta la proposta'}]
+        self.catalog=[{'kind':'event','id':'evt.1','name':'An Event','localized_name':'Un evento'},{'kind':'event_option','id':'evt.1.a','event_id':'evt.1','name':'Accept the proposal','localized_name':'Accetta la proposta'}]
         self.assertEqual(targets(self.guide,self.runtime,self.catalog,self.state),[])
-        self.state['sample']={'country':'TST','country_overview':{'country':'TST','events':{'status':'observed','visible':[{'event_id':'evt.1'}]}}}
+        self.state['sample']={'country':'TST','country_overview':{'country':'TST','events':{'status':'observed','visible':[{'event_id':'evt.1','option_ids':['evt.1.a']}]}}}
         proposed=targets(self.guide,self.runtime,self.catalog,self.state);self.assertEqual(len(proposed),1)
         image={'width':800,'height':600,'lines':[line('Un evento',y=20),line('Accetta la proposta')]}
         self.assertEqual(len(rectangles(image,proposed)),1)
@@ -77,7 +77,7 @@ class ScreenOverlayTests(unittest.TestCase):
             {'key':'advisor','action':{'kind':'manual','params':{'category':'characters','advisor_id':'advisor','person_id':'person','role':'chief'}}},
             {'key':'production','action':{'kind':'manual','params':{'category':'production','variant_name':'Custom Model','production_selector':{'equipment_ids':['equipment']},'assigned_factories':5}}},
             {'key':'future','action':{'kind':'manual','params':{'category':'politics','law_id':'later','law_group':'economy'}}}]}
-        self.runtime['steps']=[{'key':key,'status':'unverifiable','reason':'manual_confirmation_required'} for key in ('law','advisor','production','future')]
+        self.runtime['steps']=[{'key':key,'status':'unverifiable','reason':'manual_confirmation_required','action_readiness':{'resources_available':True,'blocked':[],'unknown':[]}} for key in ('law','advisor','production','future')]
         self.catalog=[{'kind':'law','id':'law','name':'War Economy','group':'economy'},{'kind':'law','id':'later','name':'Other Law','group':'economy'},{'kind':'advisor','id':'advisor','name':'Example Person','slot':'chief'}]
         self.runtime['action_sequence']={'political':'law'}
         result=targets(self.guide,self.runtime,self.catalog,self.state)

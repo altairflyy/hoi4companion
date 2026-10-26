@@ -53,10 +53,18 @@ def _advisors(r):
     return {'status': 'observed', 'items': rows}
 
 
+def _power(r):
+    manager=r.typed(r.pointer(r.country+0xF90),'CPoliticalStatus')
+    amount=struct.unpack('<q',r.track(manager+0xE0,8))[0]
+    if not -100_000_000_000<=amount<=100_000_000_000:
+        raise LiveReadError('Potere politico fuori intervallo')
+    return {'status':'observed','available':amount/100000}
+
+
 def read_politics(reader):
     """Independently qualify laws/ideas and appointments; never publish a prefix."""
     result = {}
-    for key, read in (('ideas', _ideas), ('advisors', _advisors)):
+    for key, read in (('ideas', _ideas), ('advisors', _advisors), ('power',_power)):
         try:
             if reader.integer(reader.country + 8, 8191) != reader.tag:
                 raise LiveReadError('Identità della nazione cambiata')
