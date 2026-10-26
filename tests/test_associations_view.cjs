@@ -10,7 +10,7 @@ function harness(){
  const fetch=async(path,options)=>{const body=options?.body?JSON.parse(options.body):null;requests.push({path,body});
   if(body){if(reject)return {ok:false,json:async()=>({error:'Percorso incompatibile'})};data={guide:structuredClone(source),changes:body.entity?[{key:'r',original:source.tracks.research[0].action.entity,entity:body.entity}]:[],revision:data.revision+1};data.guide.tracks.research[0].action.entity=body.entity||source.tracks.research[0].action.entity;}
   return {ok:true,json:async()=>path==='/api/guides'?{guides:[source]}:path==='/api/import/catalog'?{entities:catalog}:data};};
- vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/associations.js','utf8'),{document:{getElementById:get,createElement:tag=>new Node(tag)},fetch,location:{search:'?guide=example&step=r'},URLSearchParams});
+ runLocalized(fs.readFileSync('src/hoi4companion/web/associations.js','utf8'),{document:{getElementById:get,createElement:tag=>new Node(tag)},fetch,location:{search:'?guide=example&step=r'},URLSearchParams});
  return {get,requests,setReject:()=>reject=true};
 }
 test('association editor searches compatible types and saves/restores only explicit corrections',async()=>{
@@ -26,3 +26,5 @@ test('failed correction is shown without claiming success or losing current iden
  const h=harness();await tick();h.get('associationSearch').value='Nuova';h.get('associationSearch').oninput();h.get('associationMatches').value=h.get('associationMatches').children[0].value;h.get('associationMatches').onchange();h.setReject();
  await h.get('saveAssociation').onclick();assert.equal(h.get('associationError').hidden,false);assert.match(h.get('associationError').textContent,/incompatibile/);assert.doesNotMatch(h.get('associationNotice').textContent,/salvata/);
 });
+
+function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}

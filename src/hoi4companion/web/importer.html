@@ -1,54 +1,54 @@
 <!doctype html>
-<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
-<title>HOI4 Companion — Guide Importer</title><link rel="stylesheet" href="/guide.css"><link rel="stylesheet" href="/importer.css">
+<html lang="en"><head><script src="/i18n.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
+<title>HOI4 Companion — Guide Importer</title><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/guide.css"><link rel="stylesheet" href="/importer.css">
 <script defer src="/contracts.js"></script><script defer src="/importer-model.js"></script><script defer src="/importer.js"></script></head>
-<body><header class="topbar"><nav aria-label="Viste"><a href="/">Focus nazionali</a><a href="/technologies">Tecnologie</a><a href="/country">Nazione</a><a href="/walkthrough">Walkthrough</a><a href="/importer" aria-current="page">Importa guida</a> <a href="/analysis">Analisi script</a></nav><span>HOI4 COMPANION</span></header>
-<main><p class="eyebrow">PROMPT → IA ESTERNA → FILE GUIDA</p><h1>Importa una guida</h1><p class="intro">Copia il prompt completo e dallo alla tua IA insieme al link o al materiale della guida. Carica qui il file .hoi4-guide.json restituito: il programma ne controlla formato, evidenze e ID.</p>
-<p>Questa schermata prepara la guida e collega le istruzioni ai controlli live disponibili. Dopo averla aggiunta, apri il walkthrough: lì le operazioni collegate passano a «In corso» e «Completato» quando i dati del gioco ne confermano i criteri.</p>
-<p id="notice" role="status">Caricamento del catalogo…</p><p id="error" role="alert" hidden></p>
-<section class="import-section" aria-labelledby="promptHeading"><p class="eyebrow">01 · DA DARE ALLA TUA IA</p><h2 id="promptHeading">Prompt completo per creare la guida</h2>
-<p>Apri una conversazione con l’IA che preferisci, incolla questo prompt e aggiungi il link YouTube/web oppure gli allegati. Chiedile di restituire il file indicato dal prompt. Puoi partire subito, senza acquisire fonti nel programma.</p>
-<div class="actions"><button id="copyPrompt" type="button" disabled>Copia prompt completo</button><button id="downloadPrompt" type="button" disabled>Scarica prompt .txt</button></div>
-<details><summary>Leggi il prompt</summary><label for="importPrompt">Istruzioni da copiare nella tua IA</label><textarea id="importPrompt" rows="12" readonly spellcheck="false"></textarea></details>
-<label for="treeScope">Filtra focus, eventi e politica per albero nazionale</label><select id="treeScope"><option value="">Tutte le nazioni e gli alberi</option></select>
-<label for="catalogSection">Sezione del catalogo da fornire all’IA</label><select id="catalogSection" aria-describedby="catalogSummary" disabled></select>
-<label id="eventsFilter" class="review" hidden><input id="eventsMultiple" type="checkbox" checked>Solo eventi con almeno due risposte distinte</label>
+<body><header class="topbar"><nav aria-label="Views"><a href="/">National focuses</a><a href="/technologies">Technologies</a><a href="/country">Country</a><a href="/walkthrough">Walkthrough</a><a href="/importer" aria-current="page">Import guide</a> <a href="/analysis">Script analysis</a></nav><span>HOI4 COMPANION</span></header>
+<main><p class="eyebrow">PROMPT → EXTERNAL AI → GUIDE FILE</p><h1>Import a guide</h1><p class="intro">Copy the complete prompt and give it to your AI with the guide link or source material. Upload the returned .hoi4-guide.json file here: the application checks its format, evidence and IDs.</p>
+<p>This page prepares the guide and connects instructions to available live checks. After adding it, open the walkthrough: bound operations become In progress and Completed when game data confirms their criteria.</p>
+<p id="notice" role="status">Loading catalog…</p><p id="error" role="alert" hidden></p>
+<section class="import-section" aria-labelledby="promptHeading"><p class="eyebrow">01 · GIVE THIS TO YOUR AI</p><h2 id="promptHeading">Complete guide creation prompt</h2>
+<p>Open a conversation with your preferred AI, paste this prompt and add the YouTube/web link or attachments. Ask it to return the file specified by the prompt. You can start immediately without acquiring sources in the application.</p>
+<div class="actions"><button id="copyPrompt" type="button" disabled>Copy complete prompt</button><button id="downloadPrompt" type="button" disabled>Download prompt .txt</button></div>
+<details><summary>Read the prompt</summary><label for="importPrompt">Instructions to copy into your AI</label><textarea id="importPrompt" rows="12" readonly spellcheck="false"></textarea></details>
+<label for="treeScope">Filter focuses, events and politics by national tree</label><select id="treeScope"><option value="">All countries and trees</option></select>
+<label for="catalogSection">Catalog section to give to the AI</label><select id="catalogSection" aria-describedby="catalogSummary" disabled></select>
+<label id="eventsFilter" class="review" hidden><input id="eventsMultiple" type="checkbox" checked>Only events with at least two distinct choices</label>
 <p id="catalogWarning" role="alert" hidden></p>
 <p id="catalogSummary" class="hint" role="status"></p>
-<div class="actions"><button id="downloadSection" type="button" disabled>Scarica sezione selezionata</button></div>
-<p class="hint">I file per l’IA conservano ID, nomi inglesi, relazioni e solo alias distinti attestati nei riferimenti inglesi del gioco. Traduzioni e alias non verificati restano nel programma.</p>
-<p class="hint">Le sezioni non si sovrappongono: focus; ricerche; produzione ed equipaggiamenti; costruzioni e regioni; progetti speciali; politica, personaggi e decisioni; eventi e risposte. Allega soltanto quelle necessarie alla fase di analisi. L’albero selezionato filtra i focus e, quando la nazione è nota, esclude eventi, risposte, leggi, idee, consiglieri e decisioni con condizioni nazionali incompatibili. Per politica e decisioni si assume che la nazione selezionata sia anche quella d’origine; vengono rispettati i vincoli della categoria e dell’incarico. Le voci condivise e incerte restano incluse: non è una previsione completa della partita. Nomi e prefissi degli ID non sono prove della nazione. Le altre sezioni restano globali. Eventi e risposte restano collegati tramite event_id. Deseleziona il filtro eventi per includere anche quelli a risposta unica. Senza catalogo, gli ID incerti restano da risolvere.</p>
-<details><summary>Catalogo completo, in alternativa alle sezioni</summary><p class="hint">Contiene tutte le categorie, compresi gli eventi a risposta unica. Non allegarlo insieme alle sezioni: duplicherebbe le stesse voci.</p><button id="downloadCatalog" type="button">Scarica catalogo ID completo</button></details>
-<h3>Prepara il video da allegare all’IA</h3>
-<label for="videoUrl">Link YouTube</label><input id="videoUrl" type="url" placeholder="https://www.youtube.com/watch?v=…">
-<p class="hint">Risoluzione originale fino a 1080p · 15 FPS · H.265 · audio mono 64 kbps. Confronto GPU/CPU su campioni reali: preferenza hardware se il file è entro il 25% dal più piccolo; altrimenti x265 CRF 22. Master compatibili riutilizzati senza ricodifica. Parti da 5 minuti, con 10 secondi in comune; ultima parte più breve. Ogni file resta entro 150 MB: se necessario le parti vengono accorciate. Il valore di qualità hardware 22 non equivale esattamente a CRF 22. Il sorgente per i fotogrammi viene conservato; le preparazioni precedenti dello stesso video vengono ripulite dopo il completamento della nuova.</p>
-<label class="review"><input id="videoRefreshSource" type="checkbox">Riscarica il miglior sorgente fino a 1080p, ignorando la cache (può consumare banda; non garantisce 1080p se assente nel video).</label>
-<button id="prepareVideo" type="button">Scarica e prepara video</button><p id="videoStatus" role="status"></p><div id="videoFiles"></div>
+<div class="actions"><button id="downloadSection" type="button" disabled>Download selected section</button></div>
+<p class="hint">AI files retain IDs, English names, relationships and only distinct aliases supported by English game references. Translations and unverified aliases remain inside the application.</p>
+<p class="hint">Sections do not overlap: focuses; research; production and equipment; construction and states; special projects; politics, characters and decisions; events and choices. Attach only sections needed for the current analysis phase. The selected tree filters focuses and, when its country is known, excludes events, choices, laws, ideas, advisers and decisions with incompatible country conditions. For politics and decisions, the selected country is also assumed to be the original country; category and appointment restrictions are respected. Shared and uncertain entries remain included: this is not a complete prediction of the campaign. Names and ID prefixes do not prove country scope. Other sections remain global. Events and choices remain linked through event_id. Disable the event filter to include single-choice events. Without a catalog, uncertain IDs remain unresolved.</p>
+<details><summary>Full catalog, as an alternative to sections</summary><p class="hint">Contains every category, including single-choice events. Do not attach it together with sections: this duplicates the same entries.</p><button id="downloadCatalog" type="button">Download full ID catalog</button></details>
+<h3>Prepare a video to attach to your AI</h3>
+<label for="videoUrl">YouTube link</label><input id="videoUrl" type="url" placeholder="https://www.youtube.com/watch?v=…">
+<p class="hint">Original resolution up to 1080p · 15 FPS · H.265 · mono audio at 64 kbps. GPU/CPU comparison uses actual samples: hardware is preferred when its file is within 25% of the smallest result; otherwise x265 CRF 22 is used. Compatible masters are reused without re-encoding. Five-minute parts overlap by 10 seconds; the last part may be shorter. Each file stays within 150 MB: parts are shortened when needed. Hardware quality 22 is not exactly equivalent to CRF 22. The source is retained for frame extraction; earlier preparations of the same video are cleaned up after the new preparation succeeds.</p>
+<label class="review"><input id="videoRefreshSource" type="checkbox">Download the best source again up to 1080p, ignoring the cache (uses bandwidth; cannot provide 1080p when the source does not have it).</label>
+<button id="prepareVideo" type="button">Download and prepare video</button><p id="videoStatus" role="status"></p><div id="videoFiles"></div>
 </section>
-<section class="import-section" aria-labelledby="fileHeading"><p class="eyebrow">02 · RISPOSTA DELL’IA</p><h2 id="fileHeading">Carica il file restituito dall’IA</h2>
-<label for="draftFile">File .hoi4-guide.json, bozza o pacchetto precedente</label><input id="draftFile" type="file" accept=".json,application/json"><p>Il nuovo prompt usa azioni semplici: costruire, ricercare, nominare e scegliere risposte. Il programma le converte nella guida utilizzata dal runtime. I file precedenti restano compatibili. Se manca un campo, il file resta nell’editor per correggerlo. Puoi anche incollare l’intero JSON qui sotto.</p>
+<section class="import-section" aria-labelledby="fileHeading"><p class="eyebrow">02 · AI RESPONSE</p><h2 id="fileHeading">Upload the file returned by your AI</h2>
+<label for="draftFile">.hoi4-guide.json file, draft or previous package</label><input id="draftFile" type="file" accept=".json,application/json"><p>The prompt uses simple actions: build, research, appoint and choose event answers. The application compiles them into the runtime guide. Previous files remain compatible. If a field is missing, the file stays in the editor for correction. You can also paste the complete JSON below.</p>
 </section>
-<details class="import-section"><summary>Opzioni aggiuntive: acquisizione nel programma e API IA</summary><section aria-labelledby="sourceHeading"><h2 id="sourceHeading">Acquisizione facoltativa</h2>
-<label for="sourceUrl">Link YouTube o pagina web</label><input id="sourceUrl" type="url" placeholder="https://www.youtube.com/watch?v=…">
-<label for="sourceText">Oppure incolla descrizione e trascrizione / testo della guida</label><textarea id="sourceText" rows="5" placeholder="Con un testo incollato il link è soltanto un riferimento: non viene scaricato."></textarea>
-<div class="actions"><button id="acquire" type="button">Acquisisci fonte</button><span id="sourceCount">Nessuna fonte</span></div><div id="sources"></div>
-<p class="hint">YouTube: descrizione e sottotitoli disponibili, senza login né download del video. Web: testo HTML statico. I fotogrammi e le immagini non sono analizzati.</p></section>
-<section aria-labelledby="extractHeading"><h2 id="extractHeading">API IA facoltativa</h2>
-<p id="aiStatus" class="hint"></p><div class="actions"><button id="packet" type="button">Scarica pacchetto per IA</button><button id="extract" type="button" disabled>Estrai con API IA</button></div>
-<p class="hint">Il pacchetto contiene istruzioni, fonti e ID pertinenti al testo acquisito; per un evento incluso conserva evento e relative risposte. Se le scelte si vedono soltanto nel video, usa la sezione Eventi e risposte per le associazioni mancanti. Evita di allegare cataloghi già contenuti nel pacchetto. Nessun dato della partita è incluso. Il pulsante API invia queste fonti a OpenAI e può consumare credito API.</p>
+<details class="import-section"><summary>Additional options: in-app acquisition and AI API</summary><section aria-labelledby="sourceHeading"><h2 id="sourceHeading">Optional acquisition</h2>
+<label for="sourceUrl">YouTube or web page link</label><input id="sourceUrl" type="url" placeholder="https://www.youtube.com/watch?v=…">
+<label for="sourceText">Or paste the description and transcript / guide text</label><textarea id="sourceText" rows="5" placeholder="When text is pasted, the link is only a reference and is not downloaded."></textarea>
+<div class="actions"><button id="acquire" type="button">Acquire source</button><span id="sourceCount">No sources</span></div><div id="sources"></div>
+<p class="hint">YouTube: available description and subtitles, without login or video download. Web: static HTML text. Frames and images are not analyzed.</p></section>
+<section aria-labelledby="extractHeading"><h2 id="extractHeading">Optional AI API</h2>
+<p id="aiStatus" class="hint"></p><div class="actions"><button id="packet" type="button">Download AI package</button><button id="extract" type="button" disabled>Extract using AI API</button></div>
+<p class="hint">The package contains instructions, sources and IDs relevant to the acquired text; included events retain their choices. If choices appear only in the video, use the Events and choices section for missing bindings. Do not attach catalogs already present in the package. No game-state data is included. The API button sends these sources to OpenAI and may use API credit.</p>
 </section></details>
-<section class="import-section" aria-labelledby="previewHeading"><p class="eyebrow">03 · REVISIONE</p><h2 id="previewHeading">Anteprima modificabile</h2>
-      <p>Modifica titoli e corrispondenze nelle schede. Per le costruzioni apri «Correggi costruzione»: puoi scegliere regione, edificio, quantità e istruzione senza scrivere JSON. L’editor JSON resta disponibile per gli altri parametri. Ogni modifica richiede una nuova validazione.</p>
-<label for="guideJson">File dell’IA o definizione Guide Schema v1</label><textarea id="guideJson" rows="12" spellcheck="false" placeholder="Incolla qui l’intero JSON restituito dall’IA"></textarea>
-<div class="actions"><button id="validate" type="button">Risolvi ID e valida</button><button id="saveDraft" type="button">Salva bozza modificabile</button></div>
-<p id="validation" role="status">Nessuna bozza validata.</p><ul id="issues"></ul>
+<section class="import-section" aria-labelledby="previewHeading"><p class="eyebrow">03 · REVIEW</p><h2 id="previewHeading">Editable preview</h2>
+      <p>Edit titles and bindings in the cards. For construction, open Correct construction to select the state, building, quantity and instruction without writing JSON. The JSON editor remains available for other parameters. Every edit requires validation again.</p>
+<label for="guideJson">AI file or Guide Schema v1 definition</label><textarea id="guideJson" rows="12" spellcheck="false" placeholder="Paste the complete JSON returned by your AI here"></textarea>
+<div class="actions"><button id="validate" type="button">Resolve IDs and validate</button><button id="saveDraft" type="button">Save editable draft</button></div>
+<p id="validation" role="status">No validated draft.</p><ul id="issues"></ul>
 <p id="monitoringSummary" role="status"></p><p id="reviewSummary"></p>
-<details><summary>Dettagli delle fonti e correzioni automatiche</summary><ul id="sourceWarnings"></ul></details>
-<h3>Copertura delle istruzioni estratte</h3><p id="coverageSummary" role="status"></p><div id="coverageReview"></div>
+<details><summary>Source details and automatic corrections</summary><ul id="sourceWarnings"></ul></details>
+<h3>Extracted instruction coverage</h3><p id="coverageSummary" role="status"></p><div id="coverageReview"></div>
 <div id="preview" class="preview-cards"></div>
 </section>
-<section class="import-section" aria-labelledby="exportHeading"><p class="eyebrow">04 · ESPORTAZIONE</p><h2 id="exportHeading">Porta la guida nel programma</h2>
-<label class="review"><input id="reviewed" type="checkbox">Ho rivisto le istruzioni della guida e i dettagli ancora incerti della fonte.</label>
-<div class="actions"><button id="exportGuide" type="button" disabled>Scarica guida .json</button><button id="install" type="button" disabled>Aggiungi alle mie guide</button><a id="openGuide" hidden>Apri il walkthrough →</a></div>
-<p class="hint">Si installano solo guide valide e revisionate. Le guide incluse non vengono sovrascritte. La validazione tecnica non certifica che una strategia funzioni o che l’IA abbia incluso ogni dettaglio della fonte.</p></section>
-</main><footer>Guide Schema v1 · fonti e definizione separate dalla partita · nessuna modifica a HOI4</footer></body></html>
+<section class="import-section" aria-labelledby="exportHeading"><p class="eyebrow">04 · EXPORT</p><h2 id="exportHeading">Add the guide to the application</h2>
+<label class="review"><input id="reviewed" type="checkbox">I reviewed the guide's instructions and the remaining uncertain source details.</label>
+<div class="actions"><button id="exportGuide" type="button" disabled>Download guide .json</button><button id="install" type="button" disabled>Add to my guides</button><a id="openGuide" hidden>Open walkthrough →</a></div>
+<p class="hint">Only valid, reviewed guides can be installed. Bundled guides are not overwritten. Technical validation does not certify that a strategy works or that the AI included every source detail.</p></section>
+</main><footer>Guide Schema v1 · sources and definition kept separate from the game · no changes to HOI4</footer></body></html>

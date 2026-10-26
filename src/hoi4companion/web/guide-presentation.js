@@ -1,6 +1,7 @@
 'use strict';
 // Pure projection shared by the two trees, operational walkthrough and HUD.
 ((root)=>{
+ const uiText=typeof module!=='undefined'&&module.exports?require('./i18n.js').t:root.HoiI18n.t;
  const model=typeof module!=='undefined'&&module.exports?require('./guide-model.js'):root.HoiGuideModel;
  const contracts=typeof module!=='undefined'&&module.exports?require('./contracts.js'):root.HoiContracts;
  const native=step=>['select_focus','research'].includes(step.action.kind);
@@ -35,7 +36,7 @@
     ...(params.event_id?{event_observation:{visible:membership('events.visible',params.event_id),option_available:params.event_option_id?membership('events.visible_options',params.event_id+':'+params.event_option_id):null}}:{}),
     start_basis:row.started_when?(contracts.checkKeys(row.started_when).length?'condition':'live'):'manual',construction_observations:construction,
     game_date:params.game_date||null,
-    timing:params.timing||'Al punto indicato dalla guida; verifica le condizioni nel gioco.',
+    timing:params.timing||uiText("At the point specified by the guide; check the conditions in the game."),
     instructions:Array.isArray(params.instructions)?params.instructions.filter(x=>typeof x==='string'):[],
     source_seconds:params.source_seconds??(row.evidence||[]).find(e=>e.basis==='visual'&&Number.isFinite(e.timestamp_seconds))?.timestamp_seconds??(row.evidence||[]).find(e=>Number.isFinite(e.timestamp_seconds))?.timestamp_seconds??null};
   });
@@ -43,7 +44,7 @@
   for(const row of operations)if(row.action.params?.legacy_key)existing.add(row.action.params.legacy_key);
   for(const item of guide.milestones||[])if(!existing.has(item.key))operations.push({...item,
    name:item.title,action:{kind:'manual'},category:item.category||'checkpoints',
-   timing:item.timing||'Verifica il momento nella fonte; il minutaggio riguarda il video.',instructions:[],
+   timing:item.timing||uiText("Check the timing in the source; timestamps refer to the video."),instructions:[],
    source_seconds:item.seconds??null,completion_basis:'manual',runtime_status:scopeOK&&result.runtime.progress_status==='accepted'&&progress.checks?.[item.key]===true?'completed':'unverifiable',runtime_reason:'manual_confirmation_required'});
   // Timestamps order source instructions, never estimate in-game completion.
   const dateKey=row=>row.game_date?row.game_date.split('.').reduce((n,v)=>n*100+Number(v),0):Infinity;

@@ -1,0 +1,31 @@
+HOI4 COMPANION + HUD
+===================
+
+Portable Windows release: extract the complete ZIP, then open HOI4 Companion.exe.
+Source checkout: after installing development dependencies, double-click
+START COMPANION AND HUD.bat.
+
+This starts the local server and native HUD, then opens the walkthrough.
+An existing server/HUD is reused. Initial game indexing can take several minutes.
+The original Italian launcher names remain supported.
+
+English is the default interface language. Use Interface language in the page
+navigation to select Italian. Game content language is a separate setting for
+HOI4/mod names and descriptions. Imported guide text and evidence are preserved.
+Restart the HUD after changing interface language to update its controls.
+
+Import/select a guide in the application. App and HUD share the selected guide.
+Load the matching campaign in HOI4 and bring it to the foreground to display
+supported highlights. The HUD never clicks or changes the game.
+Use Resume if the HUD is paused and Close overlay to close it.
+
+Application: http://127.0.0.1:8766/walkthrough
+Import another guide: http://127.0.0.1:8766/importer
+
+Closing the launch window or browser does not stop the background server/HUD.
+Startup errors remain visible in the launch window. Source checkout logs:
+  .local/avvio-server.err.log
+  .local/avvio-hud.err.log
+Portable release data/logs: %LOCALAPPDATA%/HOI4Companion
+
+See README.md for setup, guide creation, compatibility, and verification limits.

@@ -1,5 +1,6 @@
 'use strict';
 ((root)=>{
+ const uiText=typeof module!=='undefined'&&module.exports?require('./i18n.js').t:root.HoiI18n.t;
  const c=typeof module!=='undefined'&&module.exports?require('./contracts.js'):root.HoiContracts;
  const production=typeof module!=='undefined'&&module.exports?require('./production-progress.js'):root.HoiProductionProgress;
  const unknown=(reason='not_observed')=>({status:'unknown',value:null,source:'',reason});
@@ -9,8 +10,8 @@
  const integer=(value,minimum=0)=>Number.isSafeInteger(value)&&value>=minimum;
  function baselinesFor(input){
   const value=input&&Object.hasOwn(input,'baselines')?input.baselines:{};
-  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length>4096)throw Error('Conteggi iniziali della partita non validi');
-  for(const [key,entry]of Object.entries(value))if(!key||!entry||typeof entry!=='object'||Array.isArray(entry)||Object.keys(entry).sort().join(',')!=='country,fact_key,quantity,source,value'||['country','fact_key','source'].some(field=>typeof entry[field]!=='string'||!entry[field])||!integer(entry.value)||!integer(entry.quantity,1))throw Error('Conteggio iniziale della partita non valido');
+  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length>4096)throw Error(uiText("Invalid game baselines"));
+  for(const [key,entry]of Object.entries(value))if(!key||!entry||typeof entry!=='object'||Array.isArray(entry)||Object.keys(entry).sort().join(',')!=='country,fact_key,quantity,source,value'||['country','fact_key','source'].some(field=>typeof entry[field]!=='string'||!entry[field])||!integer(entry.value)||!integer(entry.quantity,1))throw Error(uiText("Invalid game baseline"));
   return value;
  }
  function constructionContext(guide,state,baselines){
@@ -23,7 +24,7 @@
    const factKey='country.states.items.'+p.state_id+'.'+field,entry=baselines[step.key],current=c.fact(state,factKey);
    const valid=entry&&entry.country===country&&entry.fact_key===factKey&&entry.quantity===p.quantity&&integer(entry.value+p.quantity);
    const count=current.status==='observed'&&integer(current.value)?current.value:null;
-   facts[key]=valid&&count!==null?calculated(count-entry.value,'run_baseline:'+step.key):unknown('Conteggio iniziale non verificabile');
+   facts[key]=valid&&count!==null?calculated(count-entry.value,'run_baseline:'+step.key):unknown(uiText("Baseline cannot be verified"));
    details.set(step.key,{baseline:valid?entry.value:null,current:count,target:valid?entry.value+p.quantity:null});
   }
   return {state:{...state,facts},details};
@@ -61,15 +62,15 @@
  }
  function progressFor(guide,state,input){
   if(input===null||input===undefined)return {status:'none',run_id:null,checks:{},started:{}};
-  if(typeof input!=='object'||Array.isArray(input)||input.schema_version!==1||typeof input.guide_id!=='string'||typeof input.run_id!=='string'||!input.run_id.trim()||[...input.run_id].length>160||input.session_id!==undefined&&input.session_id!==null&&(typeof input.session_id!=='string'||!input.session_id.trim()))throw Error('Avanzamento guida non valido');
+  if(typeof input!=='object'||Array.isArray(input)||input.schema_version!==1||typeof input.guide_id!=='string'||typeof input.run_id!=='string'||!input.run_id.trim()||[...input.run_id].length>160||input.session_id!==undefined&&input.session_id!==null&&(typeof input.session_id!=='string'||!input.session_id.trim()))throw Error(uiText("Invalid guide progress"));
   const provided=Object.hasOwn(input,'checks')?input.checks:{};
-  if(!provided||typeof provided!=='object'||Array.isArray(provided)||Object.values(provided).some(x=>typeof x!=='boolean'))throw Error('Conferme della partita non valide');
+  if(!provided||typeof provided!=='object'||Array.isArray(provided)||Object.values(provided).some(x=>typeof x!=='boolean'))throw Error(uiText("Invalid game confirmations"));
   const started=Object.hasOwn(input,'started')?input.started:{};
-  if(!started||typeof started!=='object'||Array.isArray(started)||Object.values(started).some(x=>typeof x!=='boolean'))throw Error('Avvii della partita non validi');
+  if(!started||typeof started!=='object'||Array.isArray(started)||Object.values(started).some(x=>typeof x!=='boolean'))throw Error(uiText("Invalid game start confirmations"));
   if(input.guide_id!==(guide.id||''))return {status:'wrong_guide',run_id:null,checks:{},started:{}};
   if(input.campaign_required&&!input.campaign_id)return {status:'campaign_unverified',run_id:null,checks:{},started:{}};
   if(input.campaign_id!==undefined&&input.campaign_id!==null){
-   if(typeof input.campaign_id!=='string'||!/^hoi4:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}$/.test(input.campaign_id)||input.campaign_id.split(':')[1]==='00000000-0000-0000-0000-000000000000')throw Error('Campagna della partita non valida');
+   if(typeof input.campaign_id!=='string'||!/^hoi4:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}$/.test(input.campaign_id)||input.campaign_id.split(':')[1]==='00000000-0000-0000-0000-000000000000')throw Error(uiText("Invalid game campaign"));
    const observed=state.facts['campaign.id'];
    if(!state.usable||observed?.status!=='observed'||!observed.source)return {status:'campaign_unverified',run_id:null,checks:{},started:{}};
    if(observed.value!==input.campaign_id||input.country!==c.fact(state,'country').value)return {status:'wrong_campaign',run_id:null,checks:{},started:{}};

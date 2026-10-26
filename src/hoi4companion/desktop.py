@@ -21,7 +21,7 @@ FLAGS=getattr(subprocess,'CREATE_NO_WINDOW',0)
 
 def dispatch_worker(args):
     if len(args)<2 or args[0]!='-m' or args[1] not in WORKERS:
-        raise ValueError('Modulo worker non consentito')
+        raise ValueError('Worker module is not allowed')
     original=sys.argv
     try:
         sys.argv=[args[1],*args[2:]]
@@ -50,15 +50,15 @@ def launch_mutex(port):
     kernel.CreateMutexW.restype=ctypes.c_void_p
     kernel.CloseHandle.argtypes=[ctypes.c_void_p]
     handle=kernel.CreateMutexW(None,False,'Local\\HOI4CompanionDesktop'+str(port))
-    if not handle:raise OSError('Impossibile coordinare l’avvio')
+    if not handle:raise OSError('Could not coordinate startup')
     try:
-        if ctypes.get_last_error()==183:raise RuntimeError('Avvio già in corso: attendi la prima finestra.')
+        if ctypes.get_last_error()==183:raise RuntimeError('Startup is already in progress: wait for the first window.')
         yield
     finally:kernel.CloseHandle(handle)
 
 
 def launch(*,port=8766,browser=True,hud=True):
-    if type(port) is not int or not 1024<=port<=65535:raise ValueError('Porta locale non valida')
+    if type(port) is not int or not 1024<=port<=65535:raise ValueError('Invalid local port')
     directory=data_directory();directory.mkdir(parents=True,exist_ok=True)
     base='http://127.0.0.1:'+str(port)
     with launch_mutex(port):
@@ -69,15 +69,15 @@ def launch(*,port=8766,browser=True,hud=True):
                     stdout=log,stderr=log,creationflags=FLAGS)
             deadline=time.monotonic()+240
             while not probe(base):
-                if server.poll() is not None:raise RuntimeError('Avvio non riuscito: consulta '+str(directory/'server.log'))
-                if time.monotonic()>deadline:raise RuntimeError('Caricamento ancora in corso: consulta '+str(directory/'server.log'))
+                if server.poll() is not None:raise RuntimeError('Startup failed: see '+str(directory/'server.log'))
+                if time.monotonic()>deadline:raise RuntimeError('Loading is still in progress: see '+str(directory/'server.log'))
                 time.sleep(.5)
         if hud:
-            from .overlay_native import command
+            from .overlay_native import command, interface_language
             with (directory/'hud.log').open('a',encoding='utf8') as log:
-                process=subprocess.Popen(command(port=port,start=True),stdout=log,stderr=log,creationflags=FLAGS)
+                process=subprocess.Popen(command(port=port,start=True,ui_language=interface_language(port)),stdout=log,stderr=log,creationflags=FLAGS)
             time.sleep(.5)
-            if process.poll() not in (None,0):raise RuntimeError('HUD non avviato: consulta '+str(directory/'hud.log'))
+            if process.poll() not in (None,0):raise RuntimeError('HUD did not start: see '+str(directory/'hud.log'))
         if browser:webbrowser.open(base+'/walkthrough')
 
 
@@ -113,7 +113,7 @@ def self_check(output):
 def main():
     args=sys.argv[1:]
     if args[:1]==['-m']:return dispatch_worker(args)
-    parser=argparse.ArgumentParser(description='Avvia HOI4 Companion e HUD su Windows')
+    parser=argparse.ArgumentParser(description='Start HOI4 Companion and HUD on Windows')
     parser.add_argument('--port',type=int,default=8766)
     parser.add_argument('--no-browser',action='store_true')
     parser.add_argument('--no-hud',action='store_true')

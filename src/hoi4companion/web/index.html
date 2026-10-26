@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="it">
-<head>
+<html lang="en">
+<head><script src="/i18n.js"></script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>HOI4 Companion — Focus Explorer</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/game.css">
   <link rel="stylesheet" href="/live-state.css">
   <script defer src="/live-model.js"></script>
@@ -21,80 +21,80 @@
     <div class="brand"><div class="brandmark">H<span>4</span></div><div><strong>HOI4 COMPANION</strong><small>STRATEGY INTELLIGENCE</small></div></div>
     <div class="navheading">WORKSPACE</div>
     <button class="nav active" id="navFocus"><span>◈</span> Focus Explorer <b>01</b></button>
-    <a class="nav" href="/technologies"><span>⚙</span> Ricerca tecnologica</a>
-    <a class="nav" href="/country"><span>▦</span> Stato della nazione</a>
+    <a class="nav" href="/technologies"><span>⚙</span> Technology research</a>
+    <a class="nav" href="/country"><span>▦</span> Country overview</a>
     <a class="nav" href="/walkthrough"><span>☷</span> Walkthrough</a>
-    <a class="nav" href="/importer"><span>＋</span> Importa guida</a>
-    <button class="nav" id="navSettings"><span>⚙</span> Configurazione</button>
-    <div class="navheading space-top">PANORAMICA</div>
-    <div class="info-card"><span class="tiny-label">ALBERO SELEZIONATO</span><strong id="sideTree">—</strong><span class="muted" id="sideCount">—</span></div>
-    <div class="info-card"><span class="tiny-label">DATI</span><div class="dot-row"><i id="modeDot" class="dot gold"></i><strong id="modeText">Caricamento</strong></div><span class="muted" id="modeHint">—</span></div>
-    <div class="sidebar-bottom"><span class="release">BUILD 0.1.0 · FOCUS MVP</span><span>Locale · Sola lettura</span></div>
+    <a class="nav" href="/importer"><span>＋</span> Import guide</a>
+    <button class="nav" id="navSettings"><span>⚙</span> Settings</button>
+    <div class="navheading space-top">OVERVIEW</div>
+    <div class="info-card"><span class="tiny-label">SELECTED TREE</span><strong id="sideTree">—</strong><span class="muted" id="sideCount">—</span></div>
+    <div class="info-card"><span class="tiny-label">DATA</span><div class="dot-row"><i id="modeDot" class="dot gold"></i><strong id="modeText">Loading</strong></div><span class="muted" id="modeHint">—</span></div>
+    <div class="sidebar-bottom"><span class="release">BUILD 0.1.0 · FOCUS MVP</span><span>Local · Read-only</span></div>
   </aside>
 
   <main class="main">
     <header class="topbar">
-      <nav class="crumb view-tabs" aria-label="Viste"><a href="/" aria-current="page">Focus nazionali</a> <span>/</span> <a href="/technologies">Tecnologie</a> <a href="/country">Nazione</a> <a href="/walkthrough">Walkthrough</a> <a href="/importer">Importa guida</a> <a href="/analysis">Analisi script</a></nav>
-      <div class="top-actions"><span id="connection" class="connection">● Server locale</span><button id="reload" class="ghost-button" title="Ricarica dal disco">↻ Ricarica</button></div>
+      <nav class="crumb view-tabs" aria-label="Views"><a href="/" aria-current="page">National focuses</a> <span>/</span> <a href="/technologies">Technologies</a> <a href="/country">Country</a> <a href="/walkthrough">Walkthrough</a> <a href="/importer">Import guide</a> <a href="/analysis">Script analysis</a></nav>
+      <div class="top-actions"><span id="connection" class="connection">● Local server</span><button id="reload" class="ghost-button" title="Reload from disk">↻ Reload</button></div>
     </header>
     <div class="content">
       <section class="hero">
-        <div><div class="eyebrow">NATIONAL FOCUS INTELLIGENCE</div><h1>Focus Tree <em>Explorer</em></h1><p>Esplora i focus, individua i prerequisiti e confronta il percorso con la partita.</p></div>
-        <div id="demoBadge" class="demo-banner hidden">◉ DATI DIMOSTRATIVI<br><small>Non rappresentano i focus reali dell’Austria.</small></div>
+        <div><div class="eyebrow">NATIONAL FOCUS INTELLIGENCE</div><h1>Focus Tree <em>Explorer</em></h1><p>Explore focuses, find prerequisites and compare the path with your game.</p></div>
+        <div id="demoBadge" class="demo-banner hidden">◉ DEMO DATA<br><small>These do not represent Austria's actual focuses.</small></div>
       </section>
       <div class="warning" id="warnings" hidden></div>
       <details class="dlc-panel" id="dlcPanel" hidden>
-        <summary id="dlcSummary">Controllo DLC</summary>
-        <p>Il menu mostra gli alberi iniziali compatibili con i DLC installati e non disattivati, rispettando le priorità fra versioni alternative. Eventi e condizioni della partita non vengono simulati.</p>
+        <summary id="dlcSummary">DLC check</summary>
+        <p>The menu shows initial trees compatible with installed, enabled DLCs and respects priority between alternative versions. Game events and conditions are not simulated.</p>
         <ul id="dlcList"></ul>
         <p id="excludedSummary"></p>
         <ul id="excludedTrees"></ul>
       </details>
       <details class="dlc-panel" id="modsPanel" hidden>
-        <summary id="modsSummary">Mod del profilo HOI4</summary>
+        <summary id="modsSummary">HOI4 profile mods</summary>
         <p id="modsSource"></p><ul id="modsList"></ul>
-        <p>Questa è la selezione registrata dal launcher, non una verifica delle mod nella memoria del gioco. Dopo aver avviato HOI4 con il playset desiderato, premi «Ricarica» per rileggere mod e cataloghi. Per un profilo personalizzato imposta la cartella documenti in Configurazione.</p>
+        <p>This is the selection recorded by the launcher, not a check of mods in game memory. After starting HOI4 with your desired playset, select Reload to read mods and catalogs again. For a custom profile, configure the documents folder in Settings.</p>
       </details>
-      <section id="guideAssist" class="guide-assist" data-lane="focus" aria-label="Percorso guidato nei focus"></section>
+      <section id="guideAssist" class="guide-assist" data-lane="focus" aria-label="Guided focus path"></section>
       <section class="workspace">
         <div class="work-top">
-          <div class="tree-control"><label for="treeSelect">ALBERO NAZIONALE</label><select id="treeSelect"></select></div>
-          <div class="search-control"><label for="search">CERCA FOCUS</label><input id="search" type="search" placeholder="Nome o identificatore..."></div>
-          <button id="resetGoal" class="line-button">✕ Rimuovi obiettivo</button>
-          <button id="centerFocus" class="line-button">◎ Centra focus</button>
+          <div class="tree-control"><label for="treeSelect">NATIONAL TREE</label><select id="treeSelect"></select></div>
+          <div class="search-control"><label for="search">FIND A FOCUS</label><input id="search" type="search" placeholder="Name or identifier..."></div>
+          <button id="resetGoal" class="line-button">✕ Clear target</button>
+          <button id="centerFocus" class="line-button">◎ Center focus</button>
         </div>
         <div class="workspace-body">
           <div class="graph-area">
-            <div class="graph-heading"><span><b id="graphTitle">GRAFO DEI FOCUS</b> <span id="graphCounter"></span></span><small id="assetInfo"></small><span class="muted">Trascina per esplorare · passa sul focus per i dettagli</span></div>
+            <div class="graph-heading"><span><b id="graphTitle">FOCUS GRAPH</b> <span id="graphCounter"></span></span><small id="assetInfo"></small><span class="muted">Drag to explore · hover over a focus for details</span></div>
             <div class="graph-viewport" id="graphViewport"><div id="worldSizer"><div id="world" class="world"><svg id="wires" aria-hidden="true"></svg><div id="nodes"></div></div></div></div>
             <div class="graph-footer">
-              <div class="legend"><span class="manual-legend"><i class="legend-dot ready"></i> Prerequisiti soddisfatti*</span><span><i class="legend-dot completed"></i> Completato<span class="live-legend"> / saltato</span></span><span><i class="legend-dot active"></i> Attivo</span><span class="manual-legend"><i class="legend-dot locked"></i> Bloccato</span><span class="manual-legend"><i class="legend-dot excluded"></i> Escluso</span><span class="live-legend">Altri stati: non verificati</span><span class="mutex-symbol">⨯ Percorsi esclusivi</span></div>
+              <div class="legend"><span class="manual-legend"><i class="legend-dot ready"></i> Prerequisites met*</span><span><i class="legend-dot completed"></i> Completed<span class="live-legend"> / bypassed</span></span><span><i class="legend-dot active"></i> Active</span><span class="manual-legend"><i class="legend-dot locked"></i> Blocked</span><span class="manual-legend"><i class="legend-dot excluded"></i> Excluded</span><span class="live-legend">Other states: unverified</span><span class="mutex-symbol">⨯ Mutually exclusive paths</span></div>
               <div class="zoom"><label for="zoom">ZOOM</label><input id="zoom" type="range" min="40" max="130" value="78" step="2"><output id="zoomValue">78%</output></div>
             </div>
           </div>
           <aside class="inspector">
             <div class="inspector-title"><span>FOCUS INSPECTOR</span><span class="eyebrow" id="focusIndex">—</span></div>
-            <div id="inspectorContent" class="inspector-inner"><div class="empty-icon">◈</div><p>Seleziona un focus per visualizzarne prerequisiti e percorso.</p></div>
-            <div class="inspector-foot"><span>* Le condizioni dinamiche non vengono simulate.</span></div>
+            <div id="inspectorContent" class="inspector-inner"><div class="empty-icon">◈</div><p>Select a focus to see its prerequisites and path.</p></div>
+            <div class="inspector-foot"><span>* Dynamic conditions are not simulated.</span></div>
           </aside>
         </div>
       </section>
-      <div class="bottomline"><span id="snapshotInfo">Nessuno snapshot collegato: gli stati possono essere indicati manualmente.</span><div class="pollrow"><label for="poll">Aggiornamento snapshot (15 s)</label><input id="poll" type="checkbox"></div></div>
+      <div class="bottomline"><span id="snapshotInfo">No snapshot connected: states can be marked manually.</span><div class="pollrow"><label for="poll">Snapshot refresh (15 s)</label><input id="poll" type="checkbox"></div></div>
     </div>
   </main>
 </div>
 <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
   <div class="modal-window">
-    <div class="modal-head"><div><div class="eyebrow">PREFERENZE LOCALI</div><h2 id="settingsTitle">Configurazione</h2></div><button id="closeSettings" class="close" aria-label="Chiudi">✕</button></div>
-    <p class="muted">I percorsi sono letti dal computer che esegue Python. Non viene modificato alcun file del gioco o delle mod.</p>
+    <div class="modal-head"><div><div class="eyebrow">LOCAL PREFERENCES</div><h2 id="settingsTitle">Settings</h2></div><button id="closeSettings" class="close" aria-label="Close">✕</button></div>
+    <p class="muted">Paths are read on the computer running the application. Game and mod files are never modified.</p>
     <form id="settingsForm">
-      <label>Cartella di installazione HOI4 <input name="game_dir" placeholder="C:\Program Files (x86)\Steam\steamapps\common\Hearts of Iron IV"></label>
-      <label>Cartella documenti di HOI4 <input name="docs_dir" placeholder="C:\Users\...\Documents\Paradox Interactive\Hearts of Iron IV"></label>
-      <div class="form-row"><label>Lingua focus <select name="language"><option value="italian">Italiano</option><option value="english">English</option></select></label><label>Mod attive <select name="mods"><option value="auto">Da dlc_load.json</option><option value="off">Ignora tutte le mod</option></select></label></div>
-      <label>Percorso snapshot <input name="snapshot_path" placeholder="...\save games\partita.hoi4 oppure ...\snapshot.json"></label>
-      <label>Tag nazione <input name="country" maxlength="3" placeholder="AUS"></label>
-      <p class="help">Supportati snapshot JSON espliciti e salvataggi testuali .hoi4 (sperimentale). Non sono supportati Ironman e save binari. Senza snapshot puoi usare i segni manuali, salvati solo nel browser.</p>
-      <div id="formError" class="form-error" hidden></div><div class="modal-actions"><button type="button" class="line-button" id="cancelSettings">Annulla</button><button type="submit" class="primary">Salva e ricarica</button></div>
+      <label>HOI4 installation folder <input name="game_dir" placeholder="C:\Program Files (x86)\Steam\steamapps\common\Hearts of Iron IV"></label>
+      <label>HOI4 documents folder <input name="docs_dir" placeholder="C:\Users\...\Documents\Paradox Interactive\Hearts of Iron IV"></label>
+      <div class="form-row"><label>Game content language <select name="language"><option value="english">English</option><option value="italian">Italiano</option></select></label><label>Active mods <select name="mods"><option value="auto">From dlc_load.json</option><option value="off">Ignore all mods</option></select></label></div>
+      <label>Snapshot path <input name="snapshot_path" placeholder="...\save games\game.hoi4 or ...\snapshot.json"></label>
+      <label>Country tag <input name="country" maxlength="3" placeholder="AUS"></label>
+      <p class="help">Explicit JSON snapshots and text .hoi4 saves are supported (experimental). Ironman and binary saves are not supported. Without a snapshot, you can use manual marks stored only in the browser.</p>
+      <div id="formError" class="form-error" hidden></div><div class="modal-actions"><button type="button" class="line-button" id="cancelSettings">Cancel</button><button type="submit" class="primary">Save and reload</button></div>
     </form>
   </div>
 </div>

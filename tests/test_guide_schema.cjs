@@ -13,7 +13,7 @@ test('large dependency chains and cycles are handled without recursion',()=>{
  const rows=Array.from({length:2000},(_,i)=>({key:String(i),kind:'gate',depends_on:i?[String(i-1)]:[]}));
  const guide={tracks:{a:rows.filter((_,i)=>i%2===0),b:rows.filter((_,i)=>i%2===1)}};
  assert.equal(contracts.guide(guide).tracks.a.length,1000);
- rows[0].depends_on=['1999'];assert.throws(()=>contracts.guide(guide),/cicliche/);
+ rows[0].depends_on=['1999'];assert.throws(()=>contracts.guide(guide),/Cyclic/);
 });
 test('evidence and completion declarations survive evaluation without becoming observations',()=>{
  const guide={sources:[{id:'source',type:'manual'}],tracks:{research:[{key:'tech',kind:'technology',target:'t',completion:{op:'check',key:'done'},evidence:[{source_id:'source',basis:'explicit'}]}]}};

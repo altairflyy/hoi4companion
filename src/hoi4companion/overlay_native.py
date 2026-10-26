@@ -16,8 +16,7 @@ def native_executable():
     override=os.environ.get('HOI4_OVERLAY_NATIVE')
     candidate=Path(override).expanduser() if override else ROOT/'_native'/'overlay'/'hoi4-overlay.exe'
     if not candidate.is_file():
-        raise RuntimeError('Overlay Rust non installato. Installa il pacchetto completo oppure '
-                           'compila native/overlay con scripts/build-overlay.ps1.')
+        raise RuntimeError('Rust overlay is not installed. Install the complete package or build native/overlay with scripts/build-overlay.ps1.')
     return candidate.resolve()
 
 
@@ -30,11 +29,20 @@ def _console_python():
     return str(executable)
 
 
-def command(*,port=8766,guide='',start=False,proof=None):
-    if type(port) is not int or not 1024<=port<=65535:raise ValueError('Porta locale non valida')
-    if not isinstance(guide,str):raise ValueError('ID guida non valido')
+def interface_language(port):
+    """Use the Companion preference, independently of HOI4 content language."""
+    with urlopen(f'http://127.0.0.1:{port}/api/config',timeout=3) as response:
+        value=json.load(response)
+    locale=value.get('settings',{}).get('ui_language','english')
+    return locale if locale in ('english','italian') else 'english'
+
+
+def command(*,port=8766,guide='',start=False,proof=None,ui_language='english'):
+    if type(port) is not int or not 1024<=port<=65535:raise ValueError('Invalid local port')
+    if not isinstance(guide,str):raise ValueError('Invalid guide ID')
+    if ui_language not in ('english','italian'):raise ValueError('Unsupported interface language')
     result=[str(native_executable()),'--port',str(port),'--bridge-python',_console_python(),
-            '--status-file',str(data_directory()/'overlay-status.json')]
+            '--status-file',str(data_directory()/'overlay-status.json'),'--ui-language',ui_language]
     if guide:result+=['--guide',guide]
     if start:result.append('--start')
     if proof:result+=['--proof',str(Path(proof).expanduser().absolute())]
@@ -46,10 +54,11 @@ def main():
     parser.add_argument('--port',type=int,default=8766)
     parser.add_argument('--guide',default='')
     parser.add_argument('--start',action='store_true')
+    parser.add_argument('--ui-language',choices=('english','italian'))
     parser.add_argument('--proof',type=Path)
     parser.add_argument('--list-guides',action='store_true')
     args=parser.parse_args()
-    if not 1024<=args.port<=65535:parser.error('Porta locale non valida')
+    if not 1024<=args.port<=65535:parser.error('Invalid local port')
     if args.list_guides:
         with urlopen(f'http://127.0.0.1:{args.port}/api/guides',timeout=10) as response:
             guides=json.load(response)['guides']
@@ -57,7 +66,8 @@ def main():
         return
     if os.name!='nt':parser.exit(1,'Overlay disponibile solo su Windows\n')
     try:
-        args=command(port=args.port,guide=args.guide,start=args.start,proof=args.proof)
+        args=command(port=args.port,guide=args.guide,start=args.start,proof=args.proof,
+                     ui_language=args.ui_language or interface_language(args.port))
         flags=getattr(subprocess,'CREATE_NO_WINDOW',0)
         result=subprocess.run(args,creationflags=flags,check=False)
         raise SystemExit(result.returncode)

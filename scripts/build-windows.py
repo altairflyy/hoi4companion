@@ -97,22 +97,8 @@ def build(skip_native=False):
     destination=ROOT/'dist/HOI4Companion'
     for file in ('README.md','LICENSE'):shutil.copyfile(ROOT/file,destination/file)
     shutil.copytree(ROOT/'docs',destination/'docs',dirs_exist_ok=True)
-    (destination/'LEGGIMI.txt').write_text('''HOI4 COMPANION - WINDOWS x64
-
-1. Estrai tutta la cartella ZIP in una cartella a scelta.
-2. Apri HOI4 Companion.exe. Non spostare i due eseguibili fuori dalla cartella.
-3. Si apre il browser su http://127.0.0.1:8766/walkthrough e il controllo HUD.
-4. Configura il percorso di HOI4 se non viene trovato automaticamente.
-5. Importa la tua guida da Importa guida. L'esempio Polonia e facoltativo.
-
-Non occorrono Python, Rust, .NET, Node o FFmpeg installati separatamente.
-Dati personali e log: %LOCALAPPDATA%\\HOI4Companion
-Non sono incluse le impostazioni o le guide importate dello sviluppatore.
-Il programma NON gioca al tuo posto. Le evidenziazioni sono trasparenti ai clic.
-La lettura live richiede una build di HOI4 supportata. Consulta README.md.
-Questa build non e firmata digitalmente: Windows puo chiedere una verifica.
-Per usare solo il browser: HOI4 Companion.exe --no-hud
-''',encoding='utf8')
+    shutil.copyfile(ROOT/'START HERE.txt',destination/'START HERE.txt')
+    shutil.copyfile(ROOT/'START HERE.txt',destination/'LEGGIMI.txt')
     notices(destination)
     version=tomllib.loads((ROOT/'pyproject.toml').read_text(encoding='utf8'))['project']['version']
     revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()

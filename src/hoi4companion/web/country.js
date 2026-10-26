@@ -1,10 +1,10 @@
 'use strict';
 (()=>{
  const $=id=>document.getElementById(id),model=window.HoiCountryModel;
- const countFormat=new Intl.NumberFormat('it-IT',{maximumFractionDigits:0});
- const decimalFormat=new Intl.NumberFormat('it-IT',{maximumFractionDigits:2});
- const signedFormat=new Intl.NumberFormat('it-IT',{maximumFractionDigits:2,signDisplay:'exceptZero'});
- const productionFormats={2:new Intl.NumberFormat('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}),4:new Intl.NumberFormat('it-IT',{minimumFractionDigits:4,maximumFractionDigits:4})};
+ const countFormat=new Intl.NumberFormat(HoiI18n.language==='italian'?'it-IT':'en-US',{maximumFractionDigits:0});
+ const decimalFormat=new Intl.NumberFormat(HoiI18n.language==='italian'?'it-IT':'en-US',{maximumFractionDigits:2});
+ const signedFormat=new Intl.NumberFormat(HoiI18n.language==='italian'?'it-IT':'en-US',{maximumFractionDigits:2,signDisplay:'exceptZero'});
+ const productionFormats={2:new Intl.NumberFormat(HoiI18n.language==='italian'?'it-IT':'en-US',{minimumFractionDigits:2,maximumFractionDigits:2}),4:new Intl.NumberFormat(HoiI18n.language==='italian'?'it-IT':'en-US',{minimumFractionDigits:4,maximumFractionDigits:4})};
  let view=model.evaluate(null);
  const list=x=>Array.isArray(x)?x.filter(y=>y&&typeof y==='object'&&!Array.isArray(y)):[];
  function text(value,fallback='—'){return typeof value==='string'&&value.trim()?value:fallback;}
@@ -22,28 +22,28 @@
  }
  function header(key){
   const s=view.sections[key],el=$(key+'Status');el.className='status '+s.status;
-  el.textContent={observed:'Rilevato',partial:'Parziale',unavailable:'Non disponibile'}[s.status];
+  el.textContent={observed:HoiI18n.t("Observed"),partial:HoiI18n.t("Partial"),unavailable:HoiI18n.t("Unavailable")}[s.status];
   $(key+'Reason').textContent=text(s.reason,'');return s;
  }
  function rows(target,items,draw){const tbody=$(target);tbody.replaceChildren();for(const item of list(items)){const row=document.createElement('tr');draw(row,item);tbody.append(row);}return tbody.children.length;}
  function empty(key,count,sourceCount=count){
   const s=view.sections[key];
-  $(key+'Empty').textContent=count?'':s.status==='unavailable'?'In attesa di dati correnti per questa sezione.':sourceCount?'Nessuna voce corrisponde alla ricerca.':s.status==='partial'?'Nessuna voce leggibile in questo campione.':'Nessuna voce nel campione rilevato.';
+  $(key+'Empty').textContent=count?'':s.status==='unavailable'?HoiI18n.t("Waiting for current data for this section."):sourceCount?HoiI18n.t("No entries match your search."):s.status==='partial'?HoiI18n.t("No readable entries in this sample."):HoiI18n.t("No entries in the observed sample.");
  }
  function renderStates(){
   const s=view.sections.states,all=list(s.items),query=$('stateSearch').value.trim().toLocaleLowerCase('it');
   const items=query?all.filter(item=>(text(item.name,'')+' '+String(item.id??'')).toLocaleLowerCase('it').includes(query)):all;
-  const n=rows('stateRows',items,(r,x)=>{nameCell(r,x);cell(r,typeof x.owned==='boolean'&&typeof x.controlled==='boolean'?(x.owned&&x.controlled?'Posseduto e controllato':x.owned?'Posseduto':x.controlled?'Controllato':null):null);cell(r,x.civilian_factories,{numeric:true,integer:true});cell(r,x.military_factories,{numeric:true,integer:true});cell(r,x.dockyards,{numeric:true,integer:true});cell(r,x.infrastructure,{numeric:true,integer:true});});empty('states',n,all.length);
+  const n=rows('stateRows',items,(r,x)=>{nameCell(r,x);cell(r,typeof x.owned==='boolean'&&typeof x.controlled==='boolean'?(x.owned&&x.controlled?HoiI18n.t("Owned and controlled"):x.owned?HoiI18n.t("Owned"):x.controlled?HoiI18n.t("Controlled"):null):null);cell(r,x.civilian_factories,{numeric:true,integer:true});cell(r,x.military_factories,{numeric:true,integer:true});cell(r,x.dockyards,{numeric:true,integer:true});cell(r,x.infrastructure,{numeric:true,integer:true});});empty('states',n,all.length);
  }
  function render(value){
   view=model.evaluate(value,window.hoiLive?.enabled!==false);
   document.body.classList.toggle('country-current',view.mode==='current');
   $('countryTag').textContent=view.country||'—';
-  const mode={current:['Campione corrente del gioco','Ogni sezione indica separatamente la propria copertura. I campi non rilevati restano vuoti.'],unavailable:['Nazione collegata · dati estesi non disponibili','Il lettore di focus e ricerche è collegato; i dati della nazione non sono ancora disponibili o non corrispondono al paese rilevato.'],disabled:['Lettura disattivata','Riattiva la lettura del gioco per vedere valori correnti.'],stale:['Stato non corrente · valori nascosti','La connessione non conferma più un campione utilizzabile. I dati precedenti non sono presentati come attuali.'],disconnected:['Gioco non collegato','Apri una partita e lascia il lettore collegato. Nessuna statistica viene stimata.']}[view.mode];
+  const mode={current:[HoiI18n.t("Current game sample"),HoiI18n.t("Each section reports its coverage separately. Unobserved fields remain empty.")],unavailable:[HoiI18n.t("Country connected · extended data unavailable"),HoiI18n.t("The focus and research reader is connected; country data is not available yet or does not match the observed country.")],disabled:[HoiI18n.t("Reading disabled"),HoiI18n.t("Enable game reading to see current values.")],stale:[HoiI18n.t("State is not current · values hidden"),HoiI18n.t("The connection no longer confirms a usable sample. Previous data is not presented as current.")],disconnected:[HoiI18n.t("Game not connected"),HoiI18n.t("Load a game and keep the reader connected. Statistics are never estimated.")]}[view.mode];
   $('dataStatus').textContent=mode[0];$('dataNote').textContent=mode[1];
   const date=typeof view.observed_at==='string'?new Date(view.observed_at):null;
   $('observationTime').hidden=!date||!Number.isFinite(date.getTime());
-  $('observationTime').textContent=date&&Number.isFinite(date.getTime())?'Campione: '+date.toLocaleString('it-IT'):'';
+  $('observationTime').textContent=date&&Number.isFinite(date.getTime())?HoiI18n.t("Sample: ")+date.toLocaleString('it-IT'):'';
   const divisions=header('divisions');$('divisionTotal').textContent=number(divisions.total,{integer:true});
   empty('divisions',rows('divisionRows',divisions.by_type,(r,x)=>{cell(r,x.name||x.type);cell(r,x.count,{numeric:true,integer:true});}));
   $('templateDetails').hidden=!rows('templateRows',divisions.by_template,(r,x)=>{nameCell(r,x);cell(r,x.type);cell(r,x.count,{numeric:true,integer:true});});
@@ -51,16 +51,16 @@
   header('states');renderStates();
   const production=header('production');
   for(const key of ['civilian','military','dockyards'])$('effective'+key[0].toUpperCase()+key.slice(1)).textContent=number(production.effective_factories?.[key],{integer:true});
-  empty('production',rows('productionRows',production.lines,(r,x)=>{nameCell(r,x);cell(r,({military:'Militare',naval:'Navale'})[x.category]||x.category);nameCell(r,{id:x.equipment,name:x.equipment_name});cell(r,x.requested_factories,{numeric:true,integer:true});cell(r,x.assigned_factories,{numeric:true,integer:true});cell(r,x.active_factories,{numeric:true,integer:true});cell(r,x.damaged_factories,{numeric:true,integer:true});const output=model.productionOutput(x.output_per_day,x.category);cell(r,output?productionFormats[output.digits].format(output.value):null);}));
+  empty('production',rows('productionRows',production.lines,(r,x)=>{nameCell(r,x);cell(r,({military:HoiI18n.t("Military"),naval:HoiI18n.t("Naval")})[x.category]||x.category);nameCell(r,{id:x.equipment,name:x.equipment_name});cell(r,x.requested_factories,{numeric:true,integer:true});cell(r,x.assigned_factories,{numeric:true,integer:true});cell(r,x.active_factories,{numeric:true,integer:true});cell(r,x.damaged_factories,{numeric:true,integer:true});const output=model.productionOutput(x.output_per_day,x.category);cell(r,output?productionFormats[output.digits].format(output.value):null);}));
   const equipment=header('equipment');empty('equipment',rows('equipmentRows',equipment.items,(r,x)=>{nameCell(r,x);cell(r,x.stockpile,{numeric:true});cell(r,x.needed,{numeric:true});cell(r,x.balance_per_day,{numeric:true,signed:true});}));
   const politics=header('politics'),ideas=politics.ideas,advisors=politics.advisors;
-  $('politicsIdeasCoverage').textContent=ideas?.status==='observed'?'Appartenenza completa nel campione corrente.':'Idee e leggi non disponibili.';
-  $('politicsAdvisorsCoverage').textContent=advisors?.status==='observed'?(advisors.items.length?'Incarichi effettivamente nominati.':'Nessun incarico attivo rilevato.'):'Incarichi non disponibili.';
-  rows('politicsIdeaRows',ideas?.status==='observed'?ideas.items:[],(r,x)=>{nameCell(r,x);cell(r,x.group_name||x.group);cell(r,x.is_law?'Legge':'Idea');});
+  $('politicsIdeasCoverage').textContent=ideas?.status==='observed'?HoiI18n.t("Complete membership in the current sample."):HoiI18n.t("Ideas and laws unavailable.");
+  $('politicsAdvisorsCoverage').textContent=advisors?.status==='observed'?(advisors.items.length?HoiI18n.t("Currently active appointments."):HoiI18n.t("No active appointments observed.")):HoiI18n.t("Appointments unavailable.");
+  rows('politicsIdeaRows',ideas?.status==='observed'?ideas.items:[],(r,x)=>{nameCell(r,x);cell(r,x.group_name||x.group);cell(r,x.is_law?HoiI18n.t("Law"):'Idea');});
   rows('politicsAdvisorRows',advisors?.status==='observed'?advisors.items:[],(r,x)=>{nameCell(r,x);cell(r,x.character_id);});
   const events=header('events');$('visibleEvents').replaceChildren();
   for(const event of list(events.visible)){const article=document.createElement('article'),title=document.createElement('h3');title.textContent=event.name||event.event_id;article.append(title);const id=document.createElement('p');id.textContent=event.event_id;article.append(id);for(const option of list(event.options)){const p=document.createElement('p');p.textContent=(option.name||option.id)+' · '+option.id;article.append(p);}$('visibleEvents').append(article);}empty('events',list(events.visible).length);
-  const decisions=header('decisions');$('decisionMembership').textContent=Array.isArray(decisions.listed_ids)?decisions.listed_ids.length+' voci nel manager nativo.':'Elenco non disponibile.';
+  const decisions=header('decisions');$('decisionMembership').textContent=Array.isArray(decisions.listed_ids)?decisions.listed_ids.length+HoiI18n.t(" entries in the native manager."):HoiI18n.t("List unavailable.");
   const resources=header('resources');empty('resources',rows('resourceRows',resources.items,(r,x)=>{nameCell(r,x);cell(r,x.produced,{numeric:true});cell(r,x.imported,{numeric:true});cell(r,x.exported,{numeric:true});cell(r,x.available,{numeric:true,signed:true});cell(r,x.used,{numeric:true});cell(r,x.balance,{numeric:true,signed:true});}));
  }
  $('stateSearch').addEventListener('input',renderStates);

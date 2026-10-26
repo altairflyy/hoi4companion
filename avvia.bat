@@ -10,6 +10,6 @@ if %errorlevel% equ 0 (
 )
 if errorlevel 1 (
     echo.
-    echo Avvio fallito. Controlla il messaggio precedente per Python, dipendenze o parser Rust.
+    echo Startup failed. Check the preceding message for Python, dependencies, or the Rust parser.
     pause
 )

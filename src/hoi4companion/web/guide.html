@@ -1,33 +1,33 @@
 <!doctype html>
-<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
-<title>HOI4 Companion — Piano operativo</title>
-<link rel="stylesheet" href="/guide.css"><link rel="stylesheet" href="/live-state.css">
+<html lang="en"><head><script src="/i18n.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
+<title>HOI4 Companion — Operational plan</title>
+<link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/guide.css"><link rel="stylesheet" href="/live-state.css">
 <script defer src="/contracts.js"></script><script defer src="/production-progress.js"></script><script defer src="/guide-runtime.js"></script><script defer src="/guide-model.js"></script><script defer src="/guide-presentation.js"></script><script defer src="/operational-summary.js"></script><script defer src="/live-state.js"></script><script defer src="/guide-session.js"></script><script defer src="/guide.js"></script>
 </head><body>
-<header class="topbar"><nav aria-label="Viste"><a href="/">Focus nazionali</a><a href="/technologies">Tecnologie</a><a href="/country">Nazione</a><a href="/walkthrough" aria-current="page">Walkthrough</a><a href="/importer">Importa guida</a> <a href="/analysis">Analisi script</a></nav><span>HOI4 COMPANION</span></header>
+<header class="topbar"><nav aria-label="Views"><a href="/">National focuses</a><a href="/technologies">Technologies</a><a href="/country">Country</a><a href="/walkthrough" aria-current="page">Walkthrough</a><a href="/importer">Import guide</a> <a href="/analysis">Script analysis</a></nav><span>HOI4 COMPANION</span></header>
 <main>
-<div id="hudControls"><strong>HOI4 · Piano operativo</strong><a id="hudLink" href="/walkthrough" target="_blank" rel="noopener">Guida completa ↗</a></div>
-<section class="hero"><div><p class="eyebrow">IL PIANO OPERATIVO DELLA CAMPAGNA</p><label>Guida <select id="guideSelect" aria-label="Guida"></select></label><h1 id="guideTitle">Walkthrough</h1><p id="subtitle">Caricamento delle istruzioni…</p></div><a id="sourceLink" target="_blank" rel="noopener noreferrer" hidden>Fonte originale ↗</a></section>
-<p class="guide-tools"><a href="/importer">Importa una guida da YouTube, web o file JSON →</a> <a id="editAssociations" href="/associations">Correggi associazioni</a></p>
+<div id="hudControls"><strong>HOI4 · Operational plan</strong><a id="hudLink" href="/walkthrough" target="_blank" rel="noopener">Full guide ↗</a></div>
+<section class="hero"><div><p class="eyebrow">YOUR CAMPAIGN'S OPERATIONAL PLAN</p><label>Guide <select id="guideSelect" aria-label="Guide"></select></label><h1 id="guideTitle">Walkthrough</h1><p id="subtitle">Loading instructions…</p></div><a id="sourceLink" target="_blank" rel="noopener noreferrer" hidden>Original source ↗</a></section>
+<p class="guide-tools"><a href="/importer">Import a guide from YouTube, the web or a JSON file →</a> <a id="editAssociations" href="/associations">Correct bindings</a></p>
 <p id="error" role="alert" hidden></p>
-<section class="run-bar" aria-label="Modalità della guida"><div><strong id="mode">Anteprima della guida</strong><p id="modeNote">Collega una partita valida per aggiornare il percorso.</p></div><button id="reset" type="button">Nuova checklist</button></section>
+<section class="run-bar" aria-label="Guide mode"><div><strong id="mode">Guide preview</strong><p id="modeNote">Connect a valid game to update the path.</p></div><button id="reset" type="button">New checklist</button></section>
 <p id="resetNotice" role="status" hidden></p>
 <p id="campaignStatus" role="status"></p>
-<details><summary>Checklist salvate per questa campagna</summary><label>Checklist <select id="runHistory" aria-label="Checklist salvate"></select></label> <button id="refreshHistory" type="button">Ricarica storico</button> <button id="restoreHistory" type="button">Usa checklist selezionata</button></details>
-<nav class="tree-shortcuts" aria-label="Segui la guida negli alberi">
-<a id="focusTreeLink" class="tree-shortcut" href="/"><span class="shortcut-icon" aria-hidden="true">◈</span><span><strong>Focus nazionali</strong><small>Prossimo focus illuminato nel suo albero</small></span><span aria-hidden="true">↗</span></a>
-<a id="researchTreeLink" class="tree-shortcut" href="/technologies"><span class="shortcut-icon" aria-hidden="true">⚙</span><span><strong>Ricerche tecnologiche</strong><small>Prossima ricerca illuminata nella sua scheda</small></span><span aria-hidden="true">↗</span></a>
+<details><summary>Saved checklists for this campaign</summary><label>Checklist <select id="runHistory" aria-label="Saved checklists"></select></label> <button id="refreshHistory" type="button">Reload history</button> <button id="restoreHistory" type="button">Use selected checklist</button></details>
+<nav class="tree-shortcuts" aria-label="Follow the guide in the trees">
+<a id="focusTreeLink" class="tree-shortcut" href="/"><span class="shortcut-icon" aria-hidden="true">◈</span><span><strong>National focuses</strong><small>Next focus highlighted in its tree</small></span><span aria-hidden="true">↗</span></a>
+<a id="researchTreeLink" class="tree-shortcut" href="/technologies"><span class="shortcut-icon" aria-hidden="true">⚙</span><span><strong>Technology research</strong><small>Next research highlighted in its tab</small></span><span aria-hidden="true">↗</span></a>
 </nav>
 <section id="operationalSummary" class="operational-summary" aria-labelledby="operationalSummaryTitle">
-<h2 id="operationalSummaryTitle">Situazione attuale della partita</h2>
-<p class="section-note">Obiettivi della guida a confronto con i dati disponibili. Questo riepilogo spiega il piano: non cambia priorità o completamenti.</p>
+<h2 id="operationalSummaryTitle">Current game situation</h2>
+<p class="section-note">Guide objectives compared with available data. This summary explains the plan; it does not change priorities or completion.</p>
 <p id="summaryNotice" role="status"></p><div id="summaryCards" class="summary-cards"></div><p id="summaryRemaining" class="section-note" hidden></p>
-<details id="hudDiagnostics"><summary>Stato delle evidenziazioni nel gioco</summary><p id="hudDiagnosticMessage"></p><ul id="hudDiagnosticItems"></ul></details>
+<details id="hudDiagnostics"><summary>In-game highlight status</summary><p id="hudDiagnosticMessage"></p><ul id="hudDiagnosticItems"></ul></details>
 </section>
-<section id="nextOperation" class="next-operation" aria-label="Prossima istruzione operativa"></section>
-<section id="operationsPlan"><div class="section-head"><div><p class="eyebrow">COSA FARE E QUANDO</p><h2>Istruzioni operative <span id="operationProgress"></span> <span id="operationActive" role="status"></span></h2></div><label class="filter"><input type="checkbox" id="hideDone" checked>Nascondi completate</label></div>
-<p class="section-note">Avvio e completamento si rilevano automaticamente quando esistono criteri live, anche in pausa. Per le costruzioni aggiuntive il programma registra il conteggio iniziale e segue il totale da raggiungere. Annullare la coda senza raggiungere quel totale non completa l’istruzione. Leggi e incarichi sono verificati sullo stato attuale. Eventi aperti e scelte della guida vengono evidenziati. I promemoria sul metodo non richiedono conferme e non entrano nel conteggio. Le conferme manuali restano per i criteri non osservabili. Il minutaggio dei riferimenti è quello del video.</p>
-<nav id="operationFilters" class="operation-filters" aria-label="Tipo di istruzione"></nav><div id="operationCards" class="operation-cards"></div></section>
-<details id="sourceDetails"><summary>Fonti, corrispondenze e limiti della guida</summary><p id="sourceBasis"></p><ul id="assumptions"></ul><div id="catalogWarnings"></div><h3>Capitoli del video</h3><ul id="chapters"></ul></details>
-</main><footer>Locale · sola lettura del gioco · le istruzioni non impartiscono comandi a HOI4</footer>
+<section id="nextOperation" class="next-operation" aria-label="Next operational instruction"></section>
+<section id="operationsPlan"><div class="section-head"><div><p class="eyebrow">WHAT TO DO AND WHEN</p><h2>Operational instructions <span id="operationProgress"></span> <span id="operationActive" role="status"></span></h2></div><label class="filter"><input type="checkbox" id="hideDone" checked>Hide completed</label></div>
+<p class="section-note">Start and completion are detected automatically when live criteria exist, including while paused. For additional construction, the application records a baseline and tracks the target total. Canceling the queue without reaching that total does not complete the instruction. Laws and appointments are checked against current state. Open events and guide choices are highlighted. Method reminders require no confirmation and are excluded from progress counts. Manual confirmation remains for unobservable criteria. Reference timestamps refer to the video.</p>
+<nav id="operationFilters" class="operation-filters" aria-label="Instruction type"></nav><div id="operationCards" class="operation-cards"></div></section>
+<details id="sourceDetails"><summary>Guide sources, bindings and limitations</summary><p id="sourceBasis"></p><ul id="assumptions"></ul><div id="catalogWarnings"></div><h3>Video chapters</h3><ul id="chapters"></ul></details>
+</main><footer>Local · read-only game access · instructions do not send commands to HOI4</footer>
 </body></html>

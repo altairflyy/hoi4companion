@@ -10,6 +10,7 @@ datas=[];binaries=[];hidden=[]
 for folder in ('web','guides','examples','licenses','rules'):
     datas.append((str(package/folder),'hoi4companion/'+folder))
 datas.append((str(package/'guide-import-prompt.md'),'hoi4companion'))
+datas.append((str(package/'translations.json'),'hoi4companion'))
 for folder in ('cwtools','overlay'):
     # Keep provenance manifests and their bytes unchanged.
     datas.append((str(native/folder),'hoi4companion/_native/'+folder))

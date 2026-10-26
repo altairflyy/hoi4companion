@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-function context(){const source=fs.readFileSync(path.join(__dirname,'../src/hoi4companion/web/technologies.js'),'utf8');const c=vm.createContext({document:{},console});vm.runInContext(source.slice(0,source.indexOf('let request=0;')),c);return c;}
+function context(){const source=fs.readFileSync(path.join(__dirname,'../src/hoi4companion/web/technologies.js'),'utf8');const c=vm.createContext({document:{},console,HoiI18n:require('../src/hoi4companion/web/i18n.js')});vm.runInContext(source.slice(0,source.indexOf('let request=0;')),c);return c;}
 test('cornered research regions draw one enclosing frame instead of a tiled grid',()=>{
  const c=context(),children=[];
  c.document={createElement:()=>({style:{}}),getElementById:()=>({replaceChildren:()=>children.splice(0),append:n=>children.push(n)})};

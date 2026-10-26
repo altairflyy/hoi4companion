@@ -1,5 +1,6 @@
 'use strict';
 ((root)=>{
+ const uiText=typeof module!=='undefined'&&module.exports?require('./i18n.js').t:root.HoiI18n.t;
  const sections=['divisions','manpower','states','production','equipment','resources','politics','events','decisions'];
  function evaluate(value,enabled=true){
   const sample=enabled&&value?.usable===true?value.sample:null;
@@ -10,7 +11,7 @@
   for(const key of sections){
    const section=matching&&overview[key];
    const status=section&&['observed','partial'].includes(section.status)?section.status:'unavailable';
-   result.sections[key]=status==='unavailable'?{status,reason:sample?(section?.reason||'Questo dato non è ancora disponibile dal lettore.'):null}:{...section,status};
+   result.sections[key]=status==='unavailable'?{status,reason:sample?(section?.reason||uiText("This data is not available from the reader yet.")):null}:{...section,status};
   }
   return result;
  }

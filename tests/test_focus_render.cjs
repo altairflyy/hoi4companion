@@ -22,8 +22,8 @@ test('focus view composes GUI art, preserves guide targets and replaces nodes wh
   document:{getElementById:get,createElement:tag=>new Element(tag),createElementNS:(ns,tag)=>new Element(tag),querySelectorAll:()=>get('nodes').children},
   fetch(){throw Error('Rendering must not request more data');}};
  const source=fs.readFileSync('src/hoi4companion/web/explorer.js','utf8');
- vm.runInNewContext(source.slice(0,source.lastIndexOf('init();')),context);
- vm.runInNewContext("state.tree=fixture; statuses=()=>({A:'active',B:'unknown'}); renderInspector=()=>{}; render();",context);
+ runLocalized(source.slice(0,source.lastIndexOf('init();')),context);
+ runLocalized("state.tree=fixture; statuses=()=>({A:'active',B:'unknown'}); renderInspector=()=>{}; render();",context);
  let a=get('nodes').children[0];assert.equal(a.style.width,'165px');assert.equal(a.style.height,'128px');
  assert.equal(a.children[0].style.left,'87.5px');assert.equal(a.children[0].style.top,'20px');
  assert.equal(a.children[1].style.width,'185px');assert.equal(a.children[1].children[0].src,'/api/sprite/current.png');
@@ -35,13 +35,15 @@ test('focus view composes GUI art, preserves guide targets and replaces nodes wh
  fixture.visuals.templates.national_focus_link={position:{x:-2,y:0},size:{width:16,height:16}};
  fixture.visuals.link_states=Object.fromEntries(['neutral','completed'].map(state=>[state,
   Object.fromEntries(['up_down','left_right','up_right','down_left'].map(shape=>[shape,asset(state+'-'+shape)]))]));
- vm.runInNewContext('render();',context);
+ runLocalized('render();',context);
  assert.ok(get('wires').children.some(n=>n.attributes.class?.includes('focus-link-unverified')));
  assert.ok(get('wires').children.some(n=>n.attributes.href?.includes('neutral-')));
- vm.runInNewContext("statuses=()=>({A:'completed',B:'completed'});render();",context);
+ runLocalized("statuses=()=>({A:'completed',B:'completed'});render();",context);
  assert.ok(get('wires').children.some(n=>n.attributes.href?.includes('completed-')));
  assert.equal(get('wires').children.some(n=>n.attributes.class?.includes('focus-link-unverified')),false);
- vm.runInNewContext('delete fixture.visuals; render();',context);
+ runLocalized('delete fixture.visuals; render();',context);
  a=get('nodes').children[0];assert.equal(a.style.width,'174px');assert.equal(painted,4);
  assert.match(get('assetInfo').textContent,/ripiego/);
 });
+
+function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}

@@ -293,10 +293,10 @@ class Importer:
 
     def prompt(self):
         from .guide_authoring import action_reference
-        table=['| type | Campi specifici | Richiesti |','| --- | --- | --- |']
+        table=['| type | Type-specific fields | Required |','| --- | --- | --- |']
         for row in action_reference():
-            required=', '.join(row['required']) or ('equipment + factories oppure lines' if row['type']=='production' else
-                'person, advisor oppure trait + role' if row['type']=='appoint' else '—')
+            required=', '.join(row['required']) or ('equipment + factories or lines' if row['type']=='production' else
+                'person, advisor or trait + role' if row['type']=='appoint' else '—')
             table.append('| '+row['type']+' | '+(', '.join(row['fields']) or '—')+' | '+required+' |')
         return Path(__file__).with_name('guide-import-prompt.md').read_text(encoding='utf-8').replace('<!-- tipi-authoring-v1 -->','\n'.join(table))
 

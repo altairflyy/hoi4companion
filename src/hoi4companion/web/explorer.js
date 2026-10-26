@@ -1,7 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const state = {overview:null,tree:null,selected:null,goal:null,search:'',zoom:.78,manual:new Set(),poll:false,coords:new Map(),treeRequest:0};
-const statusLabels={completed:'Completato',active:'In corso',ready:'Prerequisiti soddisfatti',locked:'Prerequisiti mancanti',excluded:'Percorso escluso',verify:'Condizioni da verificare',unknown:'Non verificato'};
+const statusLabels={completed:HoiI18n.t("Completed"),active:HoiI18n.t("In progress"),ready:HoiI18n.t("Prerequisites met"),locked:HoiI18n.t("Missing prerequisites"),excluded:HoiI18n.t("Excluded path"),verify:HoiI18n.t("Conditions to verify"),unknown:HoiI18n.t("Unverified")};
 let focusLabelContext;
 async function getJson(url,options){const response=await fetch(url,options),data=await response.json();if(!response.ok)throw new Error(data.error||response.statusText);return data;}
 function clear(node){node.replaceChildren();}
@@ -25,11 +25,11 @@ function richText(text,cls='game-text',tag='div'){
     if(match[2]){
       const asset=state.tree?.inline_sprites?.[token];
       if(asset){const image=spriteImage(asset,'inline-sprite');image.title=match[2];root.append(image);}
-      else{const item=el('span','unresolved-icon',match[2].replace(/^GFX_/,'').replaceAll('_',' '));item.title='Simbolo del gioco non disponibile: '+token;root.append(item);}
+      else{const item=el('span','unresolved-icon',match[2].replace(/^GFX_/,'').replaceAll('_',' '));item.title=HoiI18n.t("Game symbol unavailable: ")+token;root.append(item);}
       continue;
     }
-    const item=el('span','dynamic-text',token.startsWith('$')?'Valore dinamico':token);
-    item.title='Dipende dalla partita; riferimento originale: '+token;root.append(item);
+    const item=el('span','dynamic-text',token.startsWith('$')?HoiI18n.t("Dynamic value"):token);
+    item.title=HoiI18n.t("Depends on the current game; original reference: ")+token;root.append(item);
   }
   append(source.slice(start));return root;
 }
@@ -50,23 +50,23 @@ function currentFocus(id){return state.tree.focuses.find(f=>f.id===id);}
 function updateOverview(){
   const v=state.overview;if(!v)return;
   $('demoBadge').classList.toggle('hidden',!v.demo);$('modeDot').classList.toggle('gold',v.demo);
-  $('modeText').textContent=v.demo?'Demo locale':'Dati HOI4';$('modeHint').textContent=v.demo?'Nessun percorso del gioco':'File reali in sola lettura';
+  $('modeText').textContent=v.demo?HoiI18n.t("Local demo"):HoiI18n.t("HOI4 data");$('modeHint').textContent=v.demo?HoiI18n.t("Game path not configured"):HoiI18n.t("Actual files, read-only");
   $('warnings').hidden=!v.warnings?.length;$('warnings').textContent=(v.warnings||[]).slice(0,5).join('\n');
   $('modsPanel').hidden=!v.mods;
   if(v.mods){
-    const mods=v.mods,labels={observed:'Profilo letto',partial:'Alcune mod non leggibili',unavailable:'Profilo non disponibile',off:'Mod ignorate dalla configurazione'};
-    $('modsSummary').textContent=`Mod · ${labels[mods.status]||'Da verificare'} · ${(mods.roots||[]).length} cartelle caricate`;
-    $('modsSource').textContent=mods.source?'Profilo letto: '+mods.source:'Nessun profilo mod letto.';
-    clear($('modsList'));for(const item of mods.items||[])$('modsList').append(el('li','',`${item.name} — ${item.status==='loaded'?'File caricati: '+item.path:item.reason}`));
-    if(mods.status==='observed'&&!mods.items.length)$('modsList').append(el('li','','Nessuna mod abilitata in questo profilo.'));
+    const mods=v.mods,labels={observed:HoiI18n.t("Profile loaded"),partial:HoiI18n.t("Some mods could not be read"),unavailable:HoiI18n.t("Profile unavailable"),off:HoiI18n.t("Mods disabled in settings")};
+    $('modsSummary').textContent=HoiI18n.t("Mods · {0} · {1} folders loaded",labels[mods.status]||HoiI18n.t("Needs verification"),(mods.roots||[]).length);
+    $('modsSource').textContent=mods.source?HoiI18n.t("Loaded profile: ")+mods.source:HoiI18n.t("No mod profile loaded.");
+    clear($('modsList'));for(const item of mods.items||[])$('modsList').append(el('li','',`${item.name} — ${item.status==='loaded'?HoiI18n.t("Loaded files: ")+item.path:item.reason}`));
+    if(mods.status==='observed'&&!mods.items.length)$('modsList').append(el('li','',HoiI18n.t("No mods enabled in this profile.")));
   }
   $('dlcPanel').hidden=!v.dlcs;
   if(v.dlcs){
     const hidden=v.excluded_trees||[];
-    $('dlcSummary').textContent=`Filtro DLC attivo · ${v.dlcs.enabled_count} DLC disponibili · ${v.trees.length} alberi mostrati · ${hidden.length} non mostrati`;
-    const labels={enabled:'Installato, non disattivato',integrated:'Integrato nel gioco',disabled:'Disattivato nel launcher',missing:'File mancanti',unknown:'Attivazione da verificare'};
-    clear($('dlcList'));for(const item of v.dlcs.items)$('dlcList').append(el('li','',`${item.name} — ${labels[item.status]||'Da verificare'}`));
-    $('excludedSummary').textContent=hidden.length?'Alberi non mostrati e motivi:':'Nessun albero escluso.';
+    $('dlcSummary').textContent=HoiI18n.t("DLC filter enabled · {0} DLCs available · {1} trees shown · {2} hidden",v.dlcs.enabled_count,v.trees.length,hidden.length);
+    const labels={enabled:HoiI18n.t("Installed and not disabled"),integrated:HoiI18n.t("Integrated into the game"),disabled:HoiI18n.t("Disabled in the launcher"),missing:HoiI18n.t("Missing files"),unknown:HoiI18n.t("Activation needs verification")};
+    clear($('dlcList'));for(const item of v.dlcs.items)$('dlcList').append(el('li','',`${item.name} — ${labels[item.status]||HoiI18n.t("Needs verification")}`));
+    $('excludedSummary').textContent=hidden.length?HoiI18n.t("Hidden trees and reasons:"):HoiI18n.t("No trees excluded.");
     clear($('excludedTrees'));for(const item of hidden)$('excludedTrees').append(el('li','',`${item.id}: ${item.reason}`));
   }
   const selector=$('treeSelect'),current=selector.value;clear(selector);
@@ -79,13 +79,13 @@ function hideTooltip(){$('focusTooltip').hidden=true;}
 function showTooltip(focus,node){
   const tip=$('focusTooltip');clear(tip);
   const header=el('div','tooltip-heading');header.append(spriteImage(focus.sprite||focus.variant_sprites?.[0],'tooltip-icon'),richText(focus.name,'tooltip-name'));tip.append(header);
-  tip.append(el('div','tooltip-status',`${Math.round(focus.cost*7)} giorni base · ${statusLabels[statuses()[focus.id]]||'Non verificato'}`));
-  if(focus.icon_variants?.length)tip.append(el('p','tooltip-note','Icona variabile: questa è un’anteprima.'));
+  tip.append(el('div','tooltip-status',HoiI18n.t("{0} base days · {1}",Math.round(focus.cost*7),statusLabels[statuses()[focus.id]]||HoiI18n.t("Unverified"))));
+  if(focus.icon_variants?.length)tip.append(el('p','tooltip-note',HoiI18n.t("Conditional icon: this is a preview.")));
   if(focus.description)tip.append(richText(focus.description.length>480?focus.description.slice(0,480)+'…':focus.description));
-  const effects=focus.tooltip_sections?.find(x=>x.heading==='Effetti');
-  if(effects){tip.append(el('strong','tooltip-subheading','Effetti dai file'),richText(effects.text.length>220?effects.text.slice(0,220)+'…':effects.text));}
-  const guidance=window.hoiGuideTree?.marker(focus.id,state.tree.id);if(guidance)tip.append(el('strong','tooltip-subheading','Guida: '+({next:'Prossimo focus',upcoming:'Dopo il focus in corso',active:'In corso',waiting:'In attesa',preview:'Anteprima del prossimo focus'}[guidance.tone])));
-  tip.append(el('p','tooltip-note','Clicca per tutti i dettagli. Condizioni e valori della partita non valutati.'));
+  const effects=focus.tooltip_sections?.find(x=>x.heading===HoiI18n.t("Effects"));
+  if(effects){tip.append(el('strong','tooltip-subheading',HoiI18n.t("Effects from files")),richText(effects.text.length>220?effects.text.slice(0,220)+'…':effects.text));}
+  const guidance=window.hoiGuideTree?.marker(focus.id,state.tree.id);if(guidance)tip.append(el('strong','tooltip-subheading',HoiI18n.t("Guide: ")+({next:HoiI18n.t("Next focus"),upcoming:HoiI18n.t("After the current focus"),active:HoiI18n.t("In progress"),waiting:HoiI18n.t("Waiting"),preview:HoiI18n.t("Next focus preview")}[guidance.tone])));
+  tip.append(el('p','tooltip-note',HoiI18n.t("Click for full details. Game conditions and values have not been evaluated.")));
   tip.hidden=false;node.setAttribute('aria-describedby','focusTooltip');
   const rect=node.getBoundingClientRect(),width=tip.offsetWidth,height=tip.offsetHeight;
   const left=rect.right+12+width<innerWidth?rect.right+12:Math.max(10,rect.left-width-12);
@@ -98,12 +98,12 @@ function centerFocus(id){
 function selectFocus(id){const keepFocus=Boolean(document.activeElement?.dataset.focusId);state.selected=id;render();$('inspectorContent').scrollTop=0;if(keepFocus){const node=[...$('nodes').children].find(x=>x.dataset.focusId===id);node?.focus({preventScroll:true});}}
 function render(){
   const tree=state.tree;if(!tree)return;hideTooltip();
-  $('sideTree').textContent=tree.id;$('sideCount').textContent=tree.focuses.length+' focus identificati';
-  $('graphTitle').textContent=tree.id.toUpperCase();$('graphCounter').textContent=tree.focuses.length+' NODI';
-  $('assetInfo').textContent=tree.asset_coverage?`Icone originali: ${tree.asset_coverage.resolved}/${tree.asset_coverage.total}${tree.asset_coverage.conditional?' · '+tree.asset_coverage.conditional+' variabili':''}`:'Icone dimostrative';
+  $('sideTree').textContent=tree.id;$('sideCount').textContent=tree.focuses.length+HoiI18n.t(" identified focuses");
+  $('graphTitle').textContent=tree.id.toUpperCase();$('graphCounter').textContent=tree.focuses.length+HoiI18n.t(" NODES");
+  $('assetInfo').textContent=tree.asset_coverage?HoiI18n.t("Original icons: {0}/{1}{2}",tree.asset_coverage.resolved,tree.asset_coverage.total,tree.asset_coverage.conditional?' · '+tree.asset_coverage.conditional+HoiI18n.t(" conditional"):''):HoiI18n.t("Demo icons");
   const byId=new Map(tree.focuses.map(f=>[f.id,f])),status=statuses();
   const geometry=HoiFocusLayout.layout(tree),{coords,width,height}=geometry;state.geometry=geometry;state.coords=coords;
-  $('assetInfo').textContent+=' · '+(geometry.native?'Geometria GUI locale':'Geometria di ripiego');
+  $('assetInfo').textContent+=' · '+(geometry.native?HoiI18n.t("Local GUI geometry"):HoiI18n.t("Fallback geometry"));
   const world=$('world');world.style.width=width+'px';world.style.height=height+'px';world.style.transform=`scale(${state.zoom})`;
   $('worldSizer').style.width=(width*state.zoom)+'px';$('worldSizer').style.height=(height*state.zoom)+'px';
   const wires=$('wires');clear(wires);wires.setAttribute('viewBox',`0 0 ${width} ${height}`);wires.setAttribute('width',width);wires.setAttribute('height',height);
@@ -162,7 +162,7 @@ function render(){
       }
     }
     node.append(emblem,title,el('span','focus-duration',`${Math.round(focus.cost*7)}d*`));
-    node.setAttribute('aria-label',`${plain(focus.name)}: ${statusLabels[code]||'stato non verificato'}`);
+    node.setAttribute('aria-label',`${plain(focus.name)}: ${statusLabels[code]||HoiI18n.t("state not verified")}`);
     node.addEventListener('click',()=>selectFocus(focus.id));node.addEventListener('pointerenter',()=>showTooltip(focus,node));node.addEventListener('pointerleave',hideTooltip);node.addEventListener('focus',()=>showTooltip(focus,node));node.addEventListener('blur',hideTooltip);nodes.append(node);
   }
   // Browser glyphs differ from the game's font. Fit the declared text box.
@@ -178,34 +178,34 @@ function render(){
   }
   renderInspector(byId,status);
   window.hoiGuideTree?.paint(document.querySelectorAll('.focus-node'),tree.id);
-  $('snapshotInfo').textContent=window.hoiLive?.enabled?'Stati dalla memoria del processo. Nessuna disponibilità dinamica dedotta; i segni manuali sono separati.':tree.snapshot?`Snapshot ${tree.snapshot.source} · ${tree.snapshot.tag}${tree.snapshot.note?' · '+tree.snapshot.note:''}`:tree.snapshot_error?`Snapshot non caricato: ${tree.snapshot_error}`:'Senza snapshot: progressi manuali salvati soltanto nel browser (non nel gioco).';
+  $('snapshotInfo').textContent=window.hoiLive?.enabled?HoiI18n.t("State from process memory. Dynamic availability is not inferred; manual marks are separate."):tree.snapshot?`Snapshot ${tree.snapshot.source} · ${tree.snapshot.tag}${tree.snapshot.note?' · '+tree.snapshot.note:''}`:tree.snapshot_error?HoiI18n.t("Snapshot not loaded: {0}",tree.snapshot_error):HoiI18n.t("Without a snapshot: manual progress is stored only in the browser, not in the game.");
 }
 function renderInspector(byId,status){
   const container=$('inspectorContent');clear(container);const focus=byId.get(state.selected);$('focusIndex').textContent=focus?`${[...byId.keys()].indexOf(focus.id)+1} / ${byId.size}`:'—';
-  if(!focus){container.append(el('div','empty-icon','◈'),el('p','','Seleziona un focus per visualizzarne prerequisiti e percorso.'));return;}
-  container.append(spriteImage(focus.sprite||focus.variant_sprites?.[0],'inspector-icon'),el('div','eyebrow','FOCUS NAZIONALE'),richText(focus.name,'focus-title','h2'),el('div','focus-code',focus.id),el('div','status-chip '+status[focus.id],statusLabels[status[focus.id]]||'Non verificato'));
+  if(!focus){container.append(el('div','empty-icon','◈'),el('p','',HoiI18n.t("Select a focus to see its prerequisites and path.")));return;}
+  container.append(spriteImage(focus.sprite||focus.variant_sprites?.[0],'inspector-icon'),el('div','eyebrow',HoiI18n.t("NATIONAL FOCUS")),richText(focus.name,'focus-title','h2'),el('div','focus-code',focus.id),el('div','status-chip '+status[focus.id],statusLabels[status[focus.id]]||HoiI18n.t("Unverified")));
   const guidance=window.hoiGuideTree?.details(focus.id,state.tree.id);if(guidance)container.append(guidance);
   if(focus.description)container.append(richText(focus.description));
-  container.append(el('div','tooltip-note','Testi dai file del gioco; condizioni e valori dinamici non valutati.'));
-  if(focus.icon_variants?.length){container.append(el('div','minor-heading','VARIANTI DELL’ICONA'),el('p','muted','La variante corrente dipende dalla partita.'));const gallery=el('div','variant-gallery');for(const sprite of focus.variant_sprites||[]){const image=spriteImage(sprite);image.title=sprite.name;gallery.append(image);}container.append(gallery);}
-  const meta=el('div','meta-grid');const duration=el('div');duration.append(el('small','','Durata base'),el('strong','',`${Math.round(focus.cost*7)} giorni*`));meta.append(duration);container.append(el('div','minor-heading','DATI E REQUISITI'),meta);
-  const ul=el('ul','requirements');if(!focus.prerequisites.length)ul.append(el('li','','Nessun focus precedente richiesto.'));
-  for(const group of focus.prerequisites){const item=el('li');item.append(el('b','',group.length>1?'ALMENO UNO · ':'OBBLIGATORIO · '));group.forEach((id,index)=>{if(index)item.append(document.createTextNode(' oppure '));const button=el('button','focus-reference',plain(byId.get(id)?.name||id));button.addEventListener('click',()=>{if(byId.has(id)){selectFocus(id);centerFocus(id);}});item.append(button);});ul.append(item);}
-  if(focus.mutually_exclusive.length){const item=el('li');item.append(el('b','','ESCLUSIVO · '),richText(focus.mutually_exclusive.map(id=>byId.get(id)?.name||id).join(', ')));ul.append(item);}
-  if(focus.has_conditions)ul.append(el('li','','⚠ Condizioni aggiuntive da verificare nel gioco.'));if(focus.has_bypass)ul.append(el('li','','↷ Sono previste condizioni di bypass.'));if(focus.position_warning)ul.append(el('li','','⚠ Posizione approssimata: riferimento mancante o ciclico.'));container.append(ul);
+  container.append(el('div','tooltip-note',HoiI18n.t("Text from game files; dynamic conditions and values have not been evaluated.")));
+  if(focus.icon_variants?.length){container.append(el('div','minor-heading',HoiI18n.t("ICON VARIANTS")),el('p','muted',HoiI18n.t("The current variant depends on the game state.")));const gallery=el('div','variant-gallery');for(const sprite of focus.variant_sprites||[]){const image=spriteImage(sprite);image.title=sprite.name;gallery.append(image);}container.append(gallery);}
+  const meta=el('div','meta-grid');const duration=el('div');duration.append(el('small','',HoiI18n.t("Base duration")),el('strong','',HoiI18n.t("{0} days*",Math.round(focus.cost*7))));meta.append(duration);container.append(el('div','minor-heading',HoiI18n.t("DATA AND REQUIREMENTS")),meta);
+  const ul=el('ul','requirements');if(!focus.prerequisites.length)ul.append(el('li','',HoiI18n.t("No previous focus required.")));
+  for(const group of focus.prerequisites){const item=el('li');item.append(el('b','',group.length>1?HoiI18n.t("AT LEAST ONE · "):HoiI18n.t("REQUIRED · ")));group.forEach((id,index)=>{if(index)item.append(document.createTextNode(HoiI18n.t(" or ")));const button=el('button','focus-reference',plain(byId.get(id)?.name||id));button.addEventListener('click',()=>{if(byId.has(id)){selectFocus(id);centerFocus(id);}});item.append(button);});ul.append(item);}
+  if(focus.mutually_exclusive.length){const item=el('li');item.append(el('b','',HoiI18n.t("EXCLUSIVE · ")),richText(focus.mutually_exclusive.map(id=>byId.get(id)?.name||id).join(', ')));ul.append(item);}
+  if(focus.has_conditions)ul.append(el('li','',HoiI18n.t("⚠ Additional conditions to check in the game.")));if(focus.has_bypass)ul.append(el('li','',HoiI18n.t("↷ Bypass conditions are defined.")));if(focus.position_warning)ul.append(el('li','',HoiI18n.t("⚠ Approximate position: missing or cyclic reference.")));container.append(ul);
   for(const section of focus.tooltip_sections||[])container.append(el('div','minor-heading',section.heading.toUpperCase()),richText(section.text));
-  container.append(el('div','minor-heading','AZIONI'));
-  const goal=el('button','action','◈ Evidenzia tutti i prerequisiti');goal.addEventListener('click',()=>{state.goal=focus.id;render();});container.append(goal);
-  if(!state.tree.has_snapshot&&!window.hoiLive?.enabled){const done=state.manual.has(focus.id),button=el('button','action secondary',done?'↶ Annulla completamento manuale':'✓ Contrassegna manualmente come completato');button.addEventListener('click',()=>{if(done)state.manual.delete(focus.id);else state.manual.add(focus.id);syncManual();render();});container.append(button);}
-  const source=el('details','asset-details');source.append(el('summary','','Origine dei dati'),el('div','muted',focus.source),el('div','muted',focus.sprite?.source||'Icona non risolta'));
-  if(focus.sprite?.override)source.append(el('div','muted','Texture da DLC o mod configurata.'));container.append(source);
+  container.append(el('div','minor-heading',HoiI18n.t("ACTIONS")));
+  const goal=el('button','action',HoiI18n.t("◈ Highlight all prerequisites"));goal.addEventListener('click',()=>{state.goal=focus.id;render();});container.append(goal);
+  if(!state.tree.has_snapshot&&!window.hoiLive?.enabled){const done=state.manual.has(focus.id),button=el('button','action secondary',done?HoiI18n.t("↶ Undo manual completion"):HoiI18n.t("✓ Mark as manually completed"));button.addEventListener('click',()=>{if(done)state.manual.delete(focus.id);else state.manual.add(focus.id);syncManual();render();});container.append(button);}
+  const source=el('details','asset-details');source.append(el('summary','',HoiI18n.t("Data source")),el('div','muted',focus.source),el('div','muted',focus.sprite?.source||HoiI18n.t("Unresolved icon")));
+  if(focus.sprite?.override)source.append(el('div','muted',HoiI18n.t("Texture from a DLC or configured mod.")));container.append(source);
 }
 async function loadTree(id){
   const request=++state.treeRequest;
-  if(!id){state.tree={id:'Nessun albero compatibile',focuses:[]};state.selected=null;state.goal=null;render();$('snapshotInfo').textContent='Controlla i percorsi e i motivi di esclusione nel pannello DLC.';return;}
+  if(!id){state.tree={id:HoiI18n.t("No compatible trees"),focuses:[]};state.selected=null;state.goal=null;render();$('snapshotInfo').textContent=HoiI18n.t("Check paths and exclusion reasons in the DLC panel.");return;}
   const old=state.tree?.id,tree=await getJson('/api/tree?id='+encodeURIComponent(id)+(window.hoiLive?.enabled?'&source=live':''));if(request!==state.treeRequest)return;if(tree.error)throw new Error(tree.error);state.tree=tree;setManual();if(state.selected&&!currentFocus(state.selected))state.selected=null;const requestedFocus=!old?new URLSearchParams(location.search).get('focus'):null;if(requestedFocus&&currentFocus(requestedFocus))state.selected=requestedFocus;if(!state.selected)state.selected=state.tree.focuses[0]?.id||null;render();if(old!==id)requestAnimationFrame(()=>centerFocus(state.selected));
 }
-async function reload(all=true){try{if(all){state.overview=await getJson('/api/config');updateOverview();if(!state.tree){const requested=new URLSearchParams(location.search).get('tree')||window.hoiGuide?.value?.guide?.applies_to?.tree_id;if(state.overview.trees.some(t=>t.id===requested))$('treeSelect').value=requested;}}await loadTree($('treeSelect').value||state.overview.settings.tree_id);$('connection').textContent='● Server locale';}catch(error){$('connection').textContent='● Errore di connessione';$('warnings').hidden=false;$('warnings').textContent=error.message;}}
+async function reload(all=true){try{if(all){state.overview=await getJson('/api/config');updateOverview();if(!state.tree){const requested=new URLSearchParams(location.search).get('tree')||window.hoiGuide?.value?.guide?.applies_to?.tree_id;if(state.overview.trees.some(t=>t.id===requested))$('treeSelect').value=requested;}}await loadTree($('treeSelect').value||state.overview.settings.tree_id);$('connection').textContent=HoiI18n.t("● Local server");}catch(error){$('connection').textContent=HoiI18n.t("● Connection error");$('warnings').hidden=false;$('warnings').textContent=error.message;}}
 function modal(show){hideTooltip();$('settingsModal').classList.toggle('hidden',!show);if(show){for(const [key,value] of Object.entries(state.overview.settings)){const field=$('settingsForm').elements.namedItem(key);if(field)field.value=value;}$('formError').hidden=true;}}
 function init(){
   $('navSettings').addEventListener('click',()=>modal(true));$('closeSettings').addEventListener('click',()=>modal(false));$('cancelSettings').addEventListener('click',()=>modal(false));$('settingsModal').addEventListener('click',event=>{if(event.target===$('settingsModal'))modal(false);});
@@ -220,7 +220,7 @@ function init(){
   viewport.addEventListener('pointerdown',event=>{if(event.button!==0||event.target.closest('button'))return;drag={x:event.clientX,y:event.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};viewport.setPointerCapture(event.pointerId);viewport.classList.add('dragging');});
   viewport.addEventListener('pointermove',event=>{if(drag){viewport.scrollLeft=drag.left-(event.clientX-drag.x);viewport.scrollTop=drag.top-(event.clientY-drag.y);}});
   const endDrag=()=>{drag=null;viewport.classList.remove('dragging');};viewport.addEventListener('pointerup',endDrag);viewport.addEventListener('pointercancel',endDrag);
-  window.hoiGuideTree?.connect(async row=>{const id=row.action.entity.scope||window.hoiGuide.value.guide.applies_to.tree_id;if(!state.overview?.trees.some(t=>t.id===id))throw Error('Albero della guida non disponibile nel catalogo');$('treeSelect').value=id;state.selected=row.target;state.search='';$('search').value='';state.goal=null;await loadTree(id);centerFocus(row.target);});
+  window.hoiGuideTree?.connect(async row=>{const id=row.action.entity.scope||window.hoiGuide.value.guide.applies_to.tree_id;if(!state.overview?.trees.some(t=>t.id===id))throw Error(HoiI18n.t("The guide's focus tree is not available in the catalog"));$('treeSelect').value=id;state.selected=row.target;state.search='';$('search').value='';state.goal=null;await loadTree(id);centerFocus(row.target);});
   let guideTreeInitialised=false;
   window.addEventListener('hoi-guide-change',()=>{
     const guided=window.hoiGuide?.value?.guide?.applies_to?.tree_id;

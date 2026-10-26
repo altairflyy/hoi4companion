@@ -11,9 +11,9 @@ if(Test-Path -LiteralPath $localCargo){
 }
 $env:CARGO_TARGET_DIR=Join-Path $projectRoot '.local\rust-overlay-target'
 & $cargo build --release --locked --manifest-path (Join-Path $projectRoot 'native\overlay\Cargo.toml')
-if($LASTEXITCODE -ne 0){throw 'Compilazione overlay Rust fallita'}
+if($LASTEXITCODE -ne 0){throw 'Rust overlay build failed'}
 $executable=Join-Path $env:CARGO_TARGET_DIR 'release\hoi4-overlay.exe'
-if(-not (Test-Path -LiteralPath $executable)){throw 'Eseguibile overlay Rust non prodotto'}
+if(-not (Test-Path -LiteralPath $executable)){throw 'Rust overlay executable was not produced'}
 if($NoInstall){Write-Output $executable;return}
 $destination=if($OutputDirectory){[IO.Path]::GetFullPath($OutputDirectory)}else{Join-Path $projectRoot 'src\hoi4companion\_native\overlay'}
 New-Item -ItemType Directory -Path $destination -Force | Out-Null

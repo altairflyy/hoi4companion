@@ -136,7 +136,7 @@ class NativeOverlayLauncherTests(unittest.TestCase):
     def test_missing_native_backend_is_explicit_and_never_runs_legacy_overlay(self):
         from hoi4companion.overlay_native import native_executable
         with patch.dict(os.environ,{'HOI4_OVERLAY_NATIVE':'missing-overlay.exe'}):
-            with self.assertRaisesRegex(RuntimeError,'Overlay Rust'):native_executable()
+            with self.assertRaisesRegex(RuntimeError,'Rust overlay'):native_executable()
 
     def test_command_preserves_options_and_passes_python_without_shell_interpolation(self):
         from hoi4companion.overlay_native import command

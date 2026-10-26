@@ -14,7 +14,7 @@ test('union of start and completion dependencies is validated and old edges stil
  const example=structuredClone(cases[1]),g=example.guide;
  g.tracks.operations[1].depends_on=['project'];delete g.tracks.operations[1].depends_on_started;
  assert.equal(runtime.evaluate(g,example.state).steps[1].status,'waiting');
- g.tracks.operations[0].depends_on_started=['expert'];assert.throws(()=>contracts.guide(g),/cicliche/);
+ g.tracks.operations[0].depends_on_started=['expert'];assert.throws(()=>contracts.guide(g),/Cyclic/);
  for(const cost of [true,-1,Infinity,2**54]){const invalid=structuredClone(cases[0].guide);invalid.tracks.operations[1].political_power_cost=cost;assert.throws(()=>contracts.guide(invalid));}
 });
 test('summary keeps expensive next appointment and does not promote a cheaper successor',()=>{

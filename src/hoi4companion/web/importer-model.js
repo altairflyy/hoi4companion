@@ -1,5 +1,6 @@
 'use strict';
 ((root)=>{
+ const uiText=typeof module!=='undefined'&&module.exports?require('./i18n.js').t:root.HoiI18n.t;
  const c=typeof module!=='undefined'&&module.exports?require('./contracts.js'):root.HoiContracts;
  function countryCompatibility(condition,country,originalCountry=null,depth=0){
   if(!condition||depth>40)return null;
@@ -39,10 +40,10 @@
     metadata_available:entities.some(e=>e.kind==='event'&&e.country_condition)}};
  }
  function catalogSections(entities,treeId=''){
-  const definitions=[['focus','Focus nazionali',['focus']],['research','Ricerche tecnologiche',['technology']],
-   ['production','Produzione ed equipaggiamenti',['equipment']],['construction','Costruzioni e regioni',['building','state']],
-   ['projects','Progetti speciali',['project']],['politics','Politica, personaggi e decisioni',['law','idea','advisor','commander','decision']],
-   ['events','Eventi e risposte',['event','event_option']],['other','Altri identificatori',[]]];
+  const definitions=[['focus',uiText("National focuses"),['focus']],['research',uiText("Technology research"),['technology']],
+   ['production',uiText("Production and equipment"),['equipment']],['construction',uiText("Construction and states"),['building','state']],
+   ['projects',uiText("Special projects"),['project']],['politics',uiText("Politics, characters and decisions"),['law','idea','advisor','commander','decision']],
+   ['events',uiText("Events and choices"),['event','event_option']],['other',uiText("Other identifiers"),[]]];
   const sections=definitions.map(([id,title])=>({id,title,catalog_schema_version:1,catalog_scope:id,reference_language:'english',catalog:[]}));
   const byKind=new Map(definitions.flatMap(([id,,kinds])=>kinds.map(kind=>[kind,sections.find(s=>s.id===id)])));
   for(const entity of entities){
@@ -70,17 +71,17 @@
    event_filter:{minimum_distinct_options:2,basis:'defined_option_ids'},
    catalog:entities.filter(e=>e.kind==='event'?multiple.has(e.id):e.kind==='event_option'&&multiple.has(e.event_id))};
  }
- function draftShape(value){if(!value||typeof value!=='object'||Array.isArray(value)||!value.tracks||typeof value.tracks!=='object'||Array.isArray(value.tracks)||value.schema_version!==undefined&&value.schema_version!==1)throw Error('Definizione guida v1 necessaria');}
+ function draftShape(value){if(!value||typeof value!=='object'||Array.isArray(value)||!value.tracks||typeof value.tracks!=='object'||Array.isArray(value.tracks)||value.schema_version!==undefined&&value.schema_version!==1)throw Error(uiText("A v1 guide definition is required"));}
  function readDraft(text){
-  if(typeof text!=='string'||text.length>2000000)throw Error('File JSON troppo grande');
+  if(typeof text!=='string'||text.length>2000000)throw Error(uiText("JSON file is too large"));
   const value=JSON.parse(text);
-  if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Documento JSON non valido');
+  if(!value||typeof value!=='object'||Array.isArray(value))throw Error(uiText("Invalid JSON document"));
   if(value.format==='hoi4-guide-authoring'){
-   if(value.authoring_schema_version!==1||!Array.isArray(value.sources)||!value.guide||typeof value.guide!=='object'||!Array.isArray(value.guide.steps))throw Error('Documento authoring v1 non valido');
+   if(value.authoring_schema_version!==1||!Array.isArray(value.sources)||!value.guide||typeof value.guide!=='object'||!Array.isArray(value.guide.steps))throw Error(uiText("Invalid authoring v1 document"));
    return {guide:value.guide,sources:value.sources,authoring:true,document:value};
   }
   if('import_schema_version'in value){
-   if(value.import_schema_version!==1||!Array.isArray(value.sources))throw Error('Versione bozza non supportata');
+   if(value.import_schema_version!==1||!Array.isArray(value.sources))throw Error(uiText("Unsupported draft version"));
    if(value.guide)draftShape(value.guide);
    return {guide:value.guide||null,sources:value.sources};
   }
@@ -88,13 +89,13 @@
  }
  function editStep(guide,key,patch){
   const result=JSON.parse(JSON.stringify(guide)),step=Object.values(result.tracks).flat().find(row=>row.key===key);
-  if(!step)throw Error('Passaggio sconosciuto');
+  if(!step)throw Error(uiText("Unknown step"));
   if(patch.entity)step.action.entity=patch.entity;
   if(patch.title!==undefined)step.title=patch.title;
   if(patch.tracking!==undefined){
-   if(!['action','reminder'].includes(patch.tracking)||step.action.kind!=='manual')throw Error('Modalità monitoraggio non valida');
+   if(!['action','reminder'].includes(patch.tracking)||step.action.kind!=='manual')throw Error(uiText("Invalid tracking mode"));
    if(patch.tracking==='reminder'){
-    if(Object.values(result.tracks).flat().some(row=>row.depends_on?.includes(key)))throw Error('Altri passaggi dipendono da questa istruzione: rivedi prima le dipendenze.');
+    if(Object.values(result.tracks).flat().some(row=>row.depends_on?.includes(key)))throw Error(uiText("Other steps depend on this instruction: review dependencies first."));
     delete step.completion;delete step.started_when;
    }
    step.tracking=patch.tracking;
@@ -103,14 +104,14 @@
  }
  function editConstruction(guide,key,patch){
   const result=JSON.parse(JSON.stringify(guide)),step=Object.values(result.tracks).flat().find(row=>row.key===key);
-  if(!step||step.action?.kind!=='manual'||step.action.params?.category!=='construction')throw Error('Passaggio di costruzione necessario');
+  if(!step||step.action?.kind!=='manual'||step.action.params?.category!=='construction')throw Error(uiText("A construction step is required"));
   const before=step.action.params;
-  if(patch.state?.kind!=='state'||!/^\d+$/.test(patch.state.id)||!Number.isSafeInteger(Number(patch.state.id))||Number(patch.state.id)<1)throw Error('Scegli una regione del catalogo');
-  if(patch.building?.kind!=='building'||!patch.building.id)throw Error('Scegli un edificio del catalogo');
-  if(!Number.isSafeInteger(patch.quantity)||patch.quantity<1)throw Error('La quantità deve essere un intero positivo');
-  if(!['additional','target_total'].includes(patch.quantity_mode))throw Error('Modalità quantità non valida');
-  if(patch.province_id!=null&&(!Number.isSafeInteger(patch.province_id)||patch.province_id<1))throw Error('La provincia deve essere un ID intero positivo');
-  if(typeof patch.instruction!=='string'||!patch.instruction.trim())throw Error('Inserisci l’istruzione corretta');
+  if(patch.state?.kind!=='state'||!/^\d+$/.test(patch.state.id)||!Number.isSafeInteger(Number(patch.state.id))||Number(patch.state.id)<1)throw Error(uiText("Choose a state from the catalog"));
+  if(patch.building?.kind!=='building'||!patch.building.id)throw Error(uiText("Choose a building from the catalog"));
+  if(!Number.isSafeInteger(patch.quantity)||patch.quantity<1)throw Error(uiText("Quantity must be a positive integer"));
+  if(!['additional','target_total'].includes(patch.quantity_mode))throw Error(uiText("Invalid quantity mode"));
+  if(patch.province_id!=null&&(!Number.isSafeInteger(patch.province_id)||patch.province_id<1))throw Error(uiText("Province must be a positive integer ID"));
+  if(typeof patch.instruction!=='string'||!patch.instruction.trim())throw Error(uiText("Enter the corrected instruction"));
   const started=step.started_when,completed=step.completion;
   const counter={infrastructure:'infrastructure',arms_factory:'military_factories',industrial_complex:'civilian_factories',dockyard:'dockyards'}[before.building_id];
   const target=before.target_level??before.target_quantity??(before.quantity_mode==='target_total'?before.quantity:before.quantity_mode==='additional'&&Number.isSafeInteger(before.baseline_level)?before.baseline_level+before.quantity:undefined);
@@ -120,7 +121,7 @@
   if(completed?.op==='fact'&&completed.test==='gte'&&
    ((completed.key===`guide.construction.${key}.added`&&completed.value===before.quantity)||
     (counter&&completed.key===`country.states.items.${before.state_id}.${counter}`&&completed.value===target)))delete step.completion;
-  if(step.started_when||step.completion)throw Error('Il passaggio contiene criteri personalizzati: rivedili nell’editor JSON prima di cambiare la costruzione. Nessuna correzione applicata.');
+  if(step.started_when||step.completion)throw Error(uiText("This step has custom criteria: review them in the JSON editor before changing construction. No correction applied."));
   const params={...before,state_id:Number(patch.state.id),state_name:patch.state.name,building_id:patch.building.id,building_name:patch.building.name,quantity:patch.quantity,quantity_mode:patch.quantity_mode,instructions:[patch.instruction.trim()]};
   for(const field of ['baseline_level','target_level','target_quantity','province_id'])delete params[field];
   if(patch.province_id!=null)params.province_id=patch.province_id;
@@ -130,11 +131,11 @@
  function editCoverage(guide,id,keys,reason=''){
   const result=JSON.parse(JSON.stringify(guide)),items=result.source_inventory?.items;
   const item=items?.find(row=>row.id===id);
-  if(!item)throw Error('Istruzione sorgente sconosciuta');
+  if(!item)throw Error(uiText("Unknown source instruction"));
   const known=new Set(Object.values(result.tracks).flat().map(row=>row.key));
-  if(!Array.isArray(keys)||keys.some(key=>!known.has(key))||new Set(keys).size!==keys.length)throw Error('Seleziona chiavi di step esistenti e distinte');
-  if(reason&&keys.length)throw Error('Scegli collegamento oppure esclusione');
-  if(!keys.length&&!reason.trim())throw Error('Collega almeno uno step oppure motiva l’esclusione');
+  if(!Array.isArray(keys)||keys.some(key=>!known.has(key))||new Set(keys).size!==keys.length)throw Error(uiText("Select existing, distinct step keys"));
+  if(reason&&keys.length)throw Error(uiText("Choose linking or exclusion"));
+  if(!keys.length&&!reason.trim())throw Error(uiText("Link at least one step or give a reason for exclusion"));
   item.step_keys=keys;delete item.excluded_reason;
   if(reason.trim())item.excluded_reason=reason.trim();
   return result;

@@ -1,3 +1,4 @@
+require('../src/hoi4companion/web/i18n.js').setLanguage('italian');
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const summary=require('../src/hoi4companion/web/operational-summary.js');
