@@ -20,6 +20,7 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);
  vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide.js','utf8'),context);await new Promise(setImmediate);
  assert.equal(get('error').textContent,'');assert.equal(get('guideTitle').textContent,'Generic');assert.equal(get('sourceLink').hidden,true);
+ assert.match(get('hudDiagnosticMessage').textContent,/non verificabile/);
  assert.ok(requests.includes('/api/guide/progress?id=two'));
  assert.ok(get('operationCards').textContent.includes('Construction'));assert.ok(get('operationCards').textContent.includes('Quando: 1936'));
  assert.equal(get('operationCards').textContent.includes('NATIVE'),false);
@@ -56,6 +57,12 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  const line={id:'line',building_id:'arms_factory',name:'Military factory',state_id:22,state_name:'Region',province_id:null,amount:3,active_factories:0,built_level:0,repair_levels:0,conversion:false,location_status:'observed'};
  const live=lines=>({usable:true,sample:{country:'GER',native_tick:10,country_overview:{country:'GER',construction:{status:'observed',lines}}}});
  subscriber(live([line]));
+ subscriber({...live([line]),overlay:{status:'observed',guide_id:'two',message:'Apri Industria',items:[{code:'different_folder',message:'Ricerca nella scheda Industria',panel:'research',folder:'industry_folder'}]}});
+ assert.equal(get('hudDiagnosticMessage').textContent,'Apri Industria');
+ assert.ok(descendants(get('hudDiagnosticItems')).some(n=>n.href?.includes('/technologies?folder=industry_folder')));
+ subscriber({...live([line]),overlay:{status:'observed',guide_id:'other',message:'OLD_SECRET',items:[]}});
+ assert.equal(get('hudDiagnosticMessage').textContent.includes('OLD_SECRET'),false);
+ subscriber(live([line]));
  assert.match(get('summaryCards').textContent,/Costruzione avviata/);
  assert.equal(get('operationActive').textContent,'1 in corso');assert.equal(get('operationProgress').textContent,'0/1');
  assert.equal(start(),undefined);assert.match(get('operationCards').textContent,/In corso · avvio rilevato live/);assert.match(get('operationCards').textContent,/3 in coda · 0 fabbriche attive/);
@@ -77,4 +84,20 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  assert.equal(requests.filter(path=>path.startsWith('/api/guide/frame')).length,1);
  subscriber(eventLive);frame=descendants(get('operationCards')).find(n=>n.className==='operation-frame');assert.equal(frame.open,true);await frame.ontoggle();
  assert.equal(requests.filter(path=>path.startsWith('/api/guide/frame')).length,1);
+ // Operational dependencies may refer to native tracks, not only operations.
+ guide.tracks.focus[0].name='Prerequisito nazionale localizzato';guide.tracks.focus[0].href='/?tree=t&focus=F';
+ guide.tracks.operations[0].depends_on=['f'];delete guide.tracks.operations[0].phase;subscriber(eventLive);
+ const dependent=descendants(get('operationCards')).find(n=>n.dataset?.step==='build');
+ assert.match(dependent.textContent,/Prerequisito nazionale localizzato/);
+ assert.ok(descendants(dependent).some(n=>n.href?.includes('focus=F')));
+ // A cheaper later appointment must not replace the first one or ask for a
+ // manual order when live membership already supplies its completion.
+ guide.phases=[];guide.tracks={operations:[
+  {key:'expert',title:'Next infantry expert',depends_on:[],political_power_cost:150,action:{kind:'manual',params:{category:'characters',advisor_id:'expert',role:'high_command'}},completion:{op:'fact',key:'politics.advisors',test:'contains',value:'expert'}},
+  {key:'royalist',title:'Later royalist',depends_on:[],priority:100,political_power_cost:50,action:{kind:'manual',params:{category:'characters',advisor_id:'royalist',role:'political_advisor'}},completion:{op:'fact',key:'politics.advisors',test:'contains',value:'royalist'}}]};
+ subscriber({usable:true,sample:{country:'GER',country_overview:{country:'GER',politics:{status:'observed',political_power:70,advisors:{status:'observed',items:[]},ideas:{status:'observed',items:[]}}}},guide_revision:10});
+ await new Promise(setImmediate);await new Promise(setImmediate);
+ assert.match(get('nextOperation').textContent,/Next infantry expert/);
+ assert.match(get('operationCards').textContent,/70.*150/);
+ assert.equal(descendants(get('operationCards')).some(n=>n['data-start']==='expert'),false);
 });

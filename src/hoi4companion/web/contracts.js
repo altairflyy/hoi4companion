@@ -162,10 +162,15 @@
   for(const step of rows){
    if(Object.hasOwn(step,'tracking')&&!['action','reminder'].includes(step.tracking))throw Error('Modalità monitoraggio non valida: '+step.key);
    if(step.tracking==='reminder'&&(step.action.kind!=='manual'||Object.hasOwn(step,'completion')||Object.hasOwn(step,'started_when')))throw Error('Promemoria incompatibile con azione o completamento: '+step.key);
-   const deps=Object.hasOwn(step,'depends_on')?step.depends_on:[];
+   const completed=Object.hasOwn(step,'depends_on')?step.depends_on:[],started=Object.hasOwn(step,'depends_on_started')?step.depends_on_started:[];
+   if(!Array.isArray(completed)||!Array.isArray(started))throw Error('Dipendenze non valide: '+step.key);
+   const deps=[...completed,...started];
    if(!Array.isArray(deps)||deps.length>64||deps.some(dep=>typeof dep!=='string'||!keys.has(dep)||dep===step.key)||new Set(deps).size!==deps.length)throw Error('Dipendenze non valide: '+step.key);
    if(deps.some(dep=>reminders.has(dep)))throw Error('Dipendenza da promemoria non completabile: '+step.key);
    pending.set(step.key,deps.length);for(const dep of deps)successors.get(dep).push(step.key);
+   if((Object.hasOwn(step,'political_power_cost')||Object.hasOwn(step,'requirements'))&&(!['manual','special_project'].includes(step.action.kind)||step.tracking==='reminder'))throw Error('Requisiti di azione incompatibili');
+   if(Object.hasOwn(step,'political_power_cost')&&(!jsonNumber(step.political_power_cost)||step.political_power_cost<0))throw Error('Costo politico non valido');
+   if(Object.hasOwn(step,'requirements'))validateCondition(step.requirements);
    if(Object.hasOwn(step,'phase')&&(typeof step.phase!=='string'||!phases.has(step.phase)))throw Error('Fase sconosciuta: '+step.key);
    if(Object.hasOwn(step,'completion'))validateCondition(step.completion);
    if(Object.hasOwn(step,'started_when')){

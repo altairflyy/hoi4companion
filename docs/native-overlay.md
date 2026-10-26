@@ -81,6 +81,15 @@ in anteprima nell'importer deve essere installata prima. Il controllo si apre
 senza sottrarre il focus; puoi raggiungerlo dalla barra applicazioni o Alt-Tab.
 Le cornici trasparenti ai clic compaiono solo quando HOI4 è in primo piano.
 
+Il testo del controllo distingue ora i motivi per cui un bersaglio non compare:
+categoria diversa (con nome), pannello chiuso, ritaglio fuori schermo, widget
+nascosto, non individuato o ambiguo, identità diversa ed errore tecnico. Un popup
+evento indica esplicitamente la sospensione degli alberi sottostanti. Le stesse
+spiegazioni, con un controllo di freschezza e identità del servizio, sono esposte
+nel Walkthrough attraverso gli eventi esistenti. Il launcher passa un percorso
+assoluto di `overlay-status.json` nella cartella dati, anche nella distribuzione
+Windows. Queste spiegazioni non modificano i criteri di ammissione delle cornici.
+
 ### Guida condivisa e ricerche in corso
 
 Il browser e l'HUD condividono la selezione attraverso `/api/guide/active`.
@@ -294,3 +303,27 @@ riconoscimento, errori e contatori della cache. `--proof PERCORSO.png` cattura u
 sola immagine realmente composta quando sono presenti evidenziazioni valide;
 non genera cornici sintetiche per simulare una prova. Un file di prova va
 richiesto esplicitamente e può contenere informazioni visibili della partita.
+
+## Navigazione per azioni politiche e progetti
+
+La proiezione usa action_sequence del runtime e l'identità della guida attiva.
+Lo stesso host Rust/Direct2D e lo stesso decoder geometrico osservano controlli
+opzionali con contesto access/slot/facility/entity. Il solo OCR di un nome non
+ammette più leggi o consiglieri: la scelta richiede token nativo, categoria/ruolo
+e rettangolo qualificati. Gli accessi noti usano i nomi delle definizioni GUI
+installate (player_flag, technology_button, facilities_tab), mai coordinate fisse.
+Il decoder riusa CContainerWindow/CButtonStandard e i testimoni di visibilità,
+appartenenza al root GUI, ancoraggio e clipping del lettore comune.
+
+Una finestra evento/albero in primo piano mantiene precedenza. Viste duplicate,
+modelli anonimi, categorie sconosciute e specializzazioni non osservate sospendono
+la selezione. I progetti richiedono una specializzazione compatibile osservata
+per il controllo dell'impianto/progetto; il decoder attuale non qualifica ancora
+il payload della specializzazione di un impianto in stato inattivo. Quella
+selezione resta pertanto sospesa, pur essendo disponibili progetto, avvio e
+completamento nel live di campagna. I comandanti d'unità sono risolti nel
+catalogo, ma assegnazione e GUI del roster non sono ancora qualificate.
+
+Questi percorsi sono verificati con fixture; allineamento di nuove schermate
+politiche e impianti non verificato su una partita reale in questa estensione.
+La disponibilità di un adapter o una compilazione riuscita non sono prova visiva.

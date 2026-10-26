@@ -11,6 +11,7 @@ from .contracts import GuideEvaluation, GuideProgress, evaluate_condition, is_js
 from .guide import manual_keys, normalise_guide
 from .construction_progress import validate_baselines, construction_context
 from .production_progress import production_context
+from .action_readiness import readiness, action_domain
 
 
 def _unknown(reason='not_observed'):
@@ -79,10 +80,10 @@ def _progress(guide, state, value):
 
 
 def _topological(rows):
-    pending = {step['key']: len(step.get('depends_on', [])) for _, step in rows}
+    pending = {step['key']: len((step.get('depends_on', []) + step.get('depends_on_started', []))) for _, step in rows}
     successors = {key: [] for key in pending}
     for _, step in rows:
-        for dependency in step.get('depends_on', []):
+        for dependency in (step.get('depends_on', []) + step.get('depends_on_started', [])):
             successors[dependency].append(step['key'])
     queue = deque(key for key, count in pending.items() if not count)
     result = []
@@ -139,7 +140,7 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
     for track, steps in track_items:
         barriers = []
         for step in steps:
-            implicit[step['key']] = list(barriers) if 'depends_on' not in step else []
+            implicit[step['key']] = list(barriers) if 'depends_on' not in step and 'depends_on_started' not in step else []
             if step['action']['kind'] == 'manual' and step.get('tracking') != 'reminder':
                 barriers.append(step['key'])
 
@@ -183,6 +184,10 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
                         'completion_basis': basis, 'priority': priority, 'priority_known': priority_known,
                         'availability': _unknown('dynamic_availability_not_evaluated')}
         result = results[key]
+        action_state=readiness(step,context,checks)
+        if action_state is not None:
+            result['action_readiness']=action_state
+            result['availability']=_unknown(','.join(action_state['unknown'])) if action_state['value'] is None else _calculated(action_state['value'],'declared_action_requirements')
         if reminder:
             result['tracking'] = 'reminder'
         if key in construction:
@@ -237,6 +242,11 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
             continue
         blocked = [dependency for dependency in step.get('depends_on', []) if results[dependency]['status'] != 'completed']
         unknown = any(results[dependency]['status'] == 'unverifiable' for dependency in blocked)
+        for dependency in step.get('depends_on_started', []):
+            previous=results[dependency]
+            if previous['selection']['value'] is not True and previous['completion']['value'] is not True:
+                blocked.append(dependency)
+                unknown=unknown or previous['selection']['value'] is None and previous['completion']['value'] is not True
         for dependency in implicit[key]:
             completion = results[dependency]['completion']['value']
             if completion is not True:
@@ -245,6 +255,8 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
         if blocked:
             result.update(status='unverifiable' if unknown else 'waiting',
                           reason='dependency_unknown' if unknown else 'dependency_not_completed', blocked_by=blocked)
+        elif result.get('action_readiness',{}).get('blocked'):
+            result.update(status='waiting',reason=result['action_readiness']['blocked'][0])
         elif kind in ('select_focus', 'research') and result['selection']['value'] is None:
             result.update(reason='selection_unknown')
         elif step.get('tracking') == 'reminder':
@@ -301,4 +313,7 @@ def evaluate(guide, state, progress: GuideProgress | None = None) -> GuideEvalua
             'steps': [results[step['key']] for _, step in rows], 'tracks': tracks,
             'ready': sorted((key for key, result in results.items() if result['status'] == 'ready'
                              and definitions[key].get('tracking') != 'reminder'), key=ordering),
-            'parallel': parallel}
+            'parallel': parallel,
+            'action_context': {'session_id':state.get('session_id'),'campaign_id':_value(state,'campaign.id')},
+            'action_sequence': {'political': next((step['key'] for _,step in rows if action_domain(step)=='political' and results[step['key']]['status'] not in ('completed','not_applicable')),None),
+                                'projects': [step['key'] for _,step in rows if action_domain(step)=='project' and results[step['key']]['status'] not in ('completed','not_applicable')]}}

@@ -115,6 +115,9 @@ class GuideStep(TypedDict):
     confirmation: NotRequired[str]
     phase: NotRequired[str]
     depends_on: NotRequired[list[str]]
+    depends_on_started: NotRequired[list[str]]
+    political_power_cost: NotRequired[int | float]
+    requirements: NotRequired[Condition]
     completion: NotRequired[Condition]
     started_when: NotRequired[Condition]
     evidence: NotRequired[list[GuideEvidence]]
@@ -216,6 +219,31 @@ class GuideProgress(TypedDict):
 StepStatus = Literal['completed', 'active', 'ready', 'waiting', 'not_applicable', 'unverifiable']
 
 
+class PoliticalPowerRequirement(TypedDict):
+    cost: int | float | None
+    available: int | float | None
+    affordable: bool | None
+    cost_basis: Literal['guide_declared', 'unknown']
+
+
+class ActionReadiness(TypedDict):
+    domain: Literal['political', 'project', 'appointment']
+    value: bool | None
+    unknown: list[str]
+    blocked: list[str]
+    political_power: NotRequired[PoliticalPowerRequirement]
+
+
+class ActionSequence(TypedDict):
+    political: str | None
+    projects: list[str]
+
+
+class ActionContext(TypedDict):
+    session_id: str | None
+    campaign_id: str | None
+
+
 class RuntimeStep(TypedDict):
     key: str
     track: str
@@ -228,6 +256,7 @@ class RuntimeStep(TypedDict):
     production: NotRequired[ProductionProgress | ProductionLayout]
     selection: Fact
     availability: Fact
+    action_readiness: NotRequired[ActionReadiness]
     completion_basis: Literal['native_membership', 'manual', 'condition', 'free', 'reminder']
     priority: int
     priority_known: bool
@@ -255,6 +284,8 @@ class GuideEvaluation(TypedDict):
     tracks: dict[str, RuntimeTrack]
     ready: list[str]
     parallel: dict[Literal['focus', 'research'], RuntimeLane]
+    action_sequence: ActionSequence
+    action_context: ActionContext
 
 
 def is_json_number(value) -> bool:

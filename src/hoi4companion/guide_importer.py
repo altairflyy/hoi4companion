@@ -1,5 +1,6 @@
 """Guide Importer v1: deterministic resolution/validation around untrusted AI output."""
 from __future__ import annotations
+from .source_coverage import coverage_report, inventory_items
 
 from copy import deepcopy
 from contextlib import nullcontext
@@ -138,7 +139,6 @@ def preview(guide, sources, entities, research_context=None):
             report['research_context'] = deepcopy(research_context)
         focus_matches, report['focus_route'], route_errors = resolve_focus_routes(value,entities)
         report['errors'].extend(route_errors)
-        report['operations'] = bind_operations(value,entities)
         for row in rows:
             key = row['key']
             evidence = row.get('evidence', [])
@@ -217,8 +217,13 @@ def preview(guide, sources, entities, research_context=None):
                                         'upgrade_cycle_or_repeated_target':'il successore ripete un livello precedente'}
                         report['errors'][-1] = f'{key}: UP = prossimo livello; ' + explanations[upgrade['reason']]
                 report['resolutions'].append(resolution)
+        # Bind live criteria only after canonical native identities have been
+        # resolved (a project name is not an explicit native project ID).
+        report['operations'] = bind_operations(value,entities)
         for src in sources:
             report['warnings'].extend(src.get('warnings', []))
+        report['coverage'] = coverage_report(value, acquired)
+        report['errors'].extend('Copertura: ' + item['message'] for item in report['coverage']['issues'])
         report['guide'] = normalise_guide(value)
         report['valid'] = not report['errors']
     except (ValueError, TypeError, KeyError, AttributeError, RecursionError) as exc:
@@ -329,7 +334,7 @@ class Importer:
         if guide is not None:
             if not isinstance(guide, dict) or not isinstance(guide.get('sources'), list) or not isinstance(guide.get('tracks'), dict):
                 raise ValueError('Definizione della guida mancante o non valida')
-            refs = [*guide['sources']]
+            refs = [*guide['sources'], *(inventory_items(guide) or [])]
             for lane in guide['tracks'].values():
                 if not isinstance(lane, list):
                     raise ValueError('Traccia del file non valida')

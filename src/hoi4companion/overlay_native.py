@@ -7,6 +7,7 @@ import subprocess
 import sys
 from urllib.request import urlopen
 from .paths import runtime_executable
+from .paths import data_directory
 
 ROOT=Path(__file__).resolve().parent
 
@@ -32,7 +33,8 @@ def _console_python():
 def command(*,port=8766,guide='',start=False,proof=None):
     if type(port) is not int or not 1024<=port<=65535:raise ValueError('Porta locale non valida')
     if not isinstance(guide,str):raise ValueError('ID guida non valido')
-    result=[str(native_executable()),'--port',str(port),'--bridge-python',_console_python()]
+    result=[str(native_executable()),'--port',str(port),'--bridge-python',_console_python(),
+            '--status-file',str(data_directory()/'overlay-status.json')]
     if guide:result+=['--guide',guide]
     if start:result.append('--start')
     if proof:result+=['--proof',str(Path(proof).expanduser().absolute())]

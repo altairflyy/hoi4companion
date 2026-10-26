@@ -27,6 +27,7 @@ class Feed:
         self.base,self.guide_id=base,guide_id;self.lock=threading.Lock();self.closed=threading.Event();self.version=0
         self.value=[];self.updated=0;self.error='Collegamento al runtime…';self.guide_title=''
         self.selection_revision=-1;self.selection_server=None
+        self.idle_explanation=None;self.explanation_version=-1;self.runtime_context=None
     def get(self,path):
         with urlopen(self.base+path,timeout=10) as response:return json.load(response)
     def get_bytes(self,path):
@@ -49,13 +50,17 @@ class Feed:
         if not isinstance(guide,str) or not guide or type(revision) is not int:return
         with self.lock:
             server=payload.get('guide_server_id')
-            if server and server!=self.selection_server:self.selection_revision=-1;self.selection_server=server
+            if server and server!=self.selection_server:
+                self.selection_revision=-1;self.selection_server=server
+                self.version+=1;self.value=[];self.updated=0;self.guide_title='';self.runtime_context=None
             if revision<self.selection_revision:return
             self.selection_revision=revision
             if self.guide_id!=guide:
                 self.guide_id=guide;self.version+=1;self.value=[];self.updated=0;self.guide_title=''
     def snapshot(self):
         with self.lock:return self.version,list(self.value),self.updated,self.error,self.guide_title
+    def explanation(self,version):
+        with self.lock:return self.idle_explanation if version==self.explanation_version else None
     def run(self):
         catalog=None;guide=None;state=None;guide_key=None;event='';event_plan=None
         while not self.closed.is_set():
@@ -78,8 +83,10 @@ class Feed:
                         elif event=='state':state=payload
                         else:continue
                         suffix='?id='+quote(guide_id,safe='') if guide_id else ''
-                        key=(guide_id,state.get('guide_revision'))
+                        key=(guide_id,state.get('guide_revision'),self.selection_server)
                         if key!=guide_key:
+                            if guide_key is not None and guide_key[-1]!=self.selection_server:
+                                catalog=self.get('/api/import/catalog')['entities']
                             from .guide_events import compile_event_plan
                             guide=self.get('/api/guide'+suffix);guide_key=key
                             event_plan=compile_event_plan(guide,catalog)
@@ -87,9 +94,20 @@ class Feed:
                         proposed=targets(guide,runtime,catalog,state,prepare_events=True,event_plan=event_plan)
                         with self.lock:
                             if version!=self.version:continue
-                            if self.value!=proposed:self.version+=1
+                            context=runtime.get('action_context',{})
+                            context_key=(guide_id,context.get('session_id'),context.get('campaign_id'),runtime.get('run_id'))
+                            if self.value!=proposed or self.runtime_context!=context_key:self.version+=1
+                            self.runtime_context=context_key
                             self.value=proposed;self.updated=time.monotonic();self.guide_title=guide['title']
                             self.error='' if runtime.get('mode')=='live' else 'Partita non valida per questa guida: evidenziazioni sospese'
+                            self.explanation_version=self.version;self.idle_explanation=None
+                            if not proposed and not self.error:
+                                from .action_readiness import sequence_notice
+                                pending_action=sequence_notice(runtime)
+                                capacity=runtime.get('parallel',{}).get('research',{}).get('capacity')
+                                self.idle_explanation={'code':'slots_occupied' if capacity==0 else 'no_targets',
+                                    'message':'Nessuna nuova ricerca da avviare: gli slot rilevati sono occupati.' if capacity==0 else 'Nessuna indicazione attuale ammessa dalla guida; questo non equivale a un errore HUD.'}
+                                if pending_action:self.idle_explanation=pending_action
             except Exception as exc:
                 with self.lock:self.value=[];self.updated=0;self.error=str(exc)
                 self.closed.wait(2)

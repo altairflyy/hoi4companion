@@ -1,0 +1,886 @@
+[
+  {
+    "name": "before project",
+    "guide": {
+      "id": "sequence",
+      "tracks": {
+        "operations": [
+          {
+            "key": "project",
+            "action": {
+              "kind": "special_project",
+              "entity": {
+                "kind": "project",
+                "id": "vehicles"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "projects.active",
+              "test": "contains",
+              "value": "vehicles"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "projects.completed",
+              "test": "contains",
+              "value": "vehicles"
+            }
+          },
+          {
+            "key": "expert",
+            "depends_on_started": [
+              "project"
+            ],
+            "political_power_cost": 150,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "infantry",
+                "role": "high_command"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.advisors",
+              "test": "contains",
+              "value": "infantry"
+            }
+          },
+          {
+            "key": "monarchist",
+            "depends_on": [
+              "expert"
+            ],
+            "political_power_cost": 50,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "monarchist",
+                "role": "political_advisor"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.advisors",
+              "test": "contains",
+              "value": "monarchist"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "technology_id": null
+            },
+            {
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        },
+        "projects.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "projects.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "politics.advisors": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        }
+      }
+    },
+    "statuses": [
+      "ready",
+      "waiting",
+      "waiting"
+    ],
+    "political": "expert"
+  },
+  {
+    "name": "project started",
+    "guide": {
+      "id": "sequence",
+      "tracks": {
+        "operations": [
+          {
+            "key": "project",
+            "action": {
+              "kind": "special_project",
+              "entity": {
+                "kind": "project",
+                "id": "vehicles"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "projects.active",
+              "test": "contains",
+              "value": "vehicles"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "projects.completed",
+              "test": "contains",
+              "value": "vehicles"
+            }
+          },
+          {
+            "key": "expert",
+            "depends_on_started": [
+              "project"
+            ],
+            "political_power_cost": 150,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "infantry",
+                "role": "high_command"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.advisors",
+              "test": "contains",
+              "value": "infantry"
+            }
+          },
+          {
+            "key": "monarchist",
+            "depends_on": [
+              "expert"
+            ],
+            "political_power_cost": 50,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "monarchist",
+                "role": "political_advisor"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.advisors",
+              "test": "contains",
+              "value": "monarchist"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "technology_id": null
+            },
+            {
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        },
+        "projects.active": {
+          "status": "observed",
+          "value": [
+            "vehicles"
+          ],
+          "source": "fixture"
+        },
+        "projects.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "politics.advisors": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        }
+      }
+    },
+    "statuses": [
+      "active",
+      "ready",
+      "waiting"
+    ],
+    "political": "expert"
+  },
+  {
+    "name": "project complete",
+    "guide": {
+      "id": "sequence",
+      "tracks": {
+        "operations": [
+          {
+            "key": "project",
+            "action": {
+              "kind": "special_project",
+              "entity": {
+                "kind": "project",
+                "id": "vehicles"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "projects.active",
+              "test": "contains",
+              "value": "vehicles"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "projects.completed",
+              "test": "contains",
+              "value": "vehicles"
+            }
+          },
+          {
+            "key": "expert",
+            "depends_on_started": [
+              "project"
+            ],
+            "political_power_cost": 150,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "infantry",
+                "role": "high_command"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.advisors",
+              "test": "contains",
+              "value": "infantry"
+            }
+          },
+          {
+            "key": "monarchist",
+            "depends_on": [
+              "expert"
+            ],
+            "political_power_cost": 50,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "monarchist",
+                "role": "political_advisor"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.advisors",
+              "test": "contains",
+              "value": "monarchist"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "technology_id": null
+            },
+            {
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        },
+        "projects.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "projects.completed": {
+          "status": "observed",
+          "value": [
+            "vehicles"
+          ],
+          "source": "fixture"
+        },
+        "politics.advisors": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        }
+      }
+    },
+    "statuses": [
+      "completed",
+      "ready",
+      "waiting"
+    ],
+    "political": "expert"
+  },
+  {
+    "name": "insufficient PP",
+    "guide": {
+      "id": "sequence",
+      "tracks": {
+        "operations": [
+          {
+            "key": "project",
+            "action": {
+              "kind": "special_project",
+              "entity": {
+                "kind": "project",
+                "id": "vehicles"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "projects.active",
+              "test": "contains",
+              "value": "vehicles"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "projects.completed",
+              "test": "contains",
+              "value": "vehicles"
+            }
+          },
+          {
+            "key": "expert",
+            "depends_on_started": [
+              "project"
+            ],
+            "political_power_cost": 150,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "infantry",
+                "role": "high_command"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.advisors",
+              "test": "contains",
+              "value": "infantry"
+            }
+          },
+          {
+            "key": "monarchist",
+            "depends_on": [
+              "expert"
+            ],
+            "political_power_cost": 50,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "monarchist",
+                "role": "political_advisor"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.advisors",
+              "test": "contains",
+              "value": "monarchist"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "technology_id": null
+            },
+            {
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        },
+        "projects.active": {
+          "status": "observed",
+          "value": [
+            "vehicles"
+          ],
+          "source": "fixture"
+        },
+        "projects.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "politics.advisors": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "value": 70,
+          "source": "fixture"
+        }
+      }
+    },
+    "statuses": [
+      "active",
+      "waiting",
+      "waiting"
+    ],
+    "political": "expert"
+  },
+  {
+    "name": "expert appointed",
+    "guide": {
+      "id": "sequence",
+      "tracks": {
+        "operations": [
+          {
+            "key": "project",
+            "action": {
+              "kind": "special_project",
+              "entity": {
+                "kind": "project",
+                "id": "vehicles"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "projects.active",
+              "test": "contains",
+              "value": "vehicles"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "projects.completed",
+              "test": "contains",
+              "value": "vehicles"
+            }
+          },
+          {
+            "key": "expert",
+            "depends_on_started": [
+              "project"
+            ],
+            "political_power_cost": 150,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "infantry",
+                "role": "high_command"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.advisors",
+              "test": "contains",
+              "value": "infantry"
+            }
+          },
+          {
+            "key": "monarchist",
+            "depends_on": [
+              "expert"
+            ],
+            "political_power_cost": 50,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "monarchist",
+                "role": "political_advisor"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.advisors",
+              "test": "contains",
+              "value": "monarchist"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "technology_id": null
+            },
+            {
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        },
+        "projects.active": {
+          "status": "observed",
+          "value": [
+            "vehicles"
+          ],
+          "source": "fixture"
+        },
+        "projects.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "politics.advisors": {
+          "status": "observed",
+          "value": [
+            "infantry"
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "statuses": [
+      "active",
+      "completed",
+      "ready"
+    ],
+    "political": "monarchist"
+  },
+  {
+    "name": "all appointed",
+    "guide": {
+      "id": "sequence",
+      "tracks": {
+        "operations": [
+          {
+            "key": "project",
+            "action": {
+              "kind": "special_project",
+              "entity": {
+                "kind": "project",
+                "id": "vehicles"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "projects.active",
+              "test": "contains",
+              "value": "vehicles"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "projects.completed",
+              "test": "contains",
+              "value": "vehicles"
+            }
+          },
+          {
+            "key": "expert",
+            "depends_on_started": [
+              "project"
+            ],
+            "political_power_cost": 150,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "infantry",
+                "role": "high_command"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.advisors",
+              "test": "contains",
+              "value": "infantry"
+            }
+          },
+          {
+            "key": "monarchist",
+            "depends_on": [
+              "expert"
+            ],
+            "political_power_cost": 50,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "monarchist",
+                "role": "political_advisor"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.advisors",
+              "test": "contains",
+              "value": "monarchist"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "GER",
+          "source": "fixture"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "value": "tree",
+          "source": "fixture"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "focus.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.completed": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "research.slots": {
+          "status": "observed",
+          "value": [
+            {
+              "technology_id": null
+            },
+            {
+              "technology_id": null
+            }
+          ],
+          "source": "fixture"
+        },
+        "projects.active": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "projects.completed": {
+          "status": "observed",
+          "value": [
+            "vehicles"
+          ],
+          "source": "fixture"
+        },
+        "politics.advisors": {
+          "status": "observed",
+          "value": [
+            "infantry",
+            "monarchist"
+          ],
+          "source": "fixture"
+        }
+      }
+    },
+    "statuses": [
+      "completed",
+      "completed",
+      "completed"
+    ],
+    "political": null
+  }
+]

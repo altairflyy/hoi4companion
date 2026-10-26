@@ -86,7 +86,9 @@ fn native_route(snapshot:&Value,geometry:&Value)->bool {
     if geometry["native_available"]!=true{return false;}
     // Native trees and event popups route through the same renderer. A popup
     // takes priority over recommendations in the tree underneath it.
-    if matches!(geometry["active_panel"].as_str(),Some("focus"|"research"|"event")){return true;}
+    if matches!(geometry["active_panel"].as_str(),Some("focus"|"research"|"event"|"politics"|"projects")){return true;}
+    if geometry["matches"].as_array().is_some_and(|rows| rows.iter().any(|row|
+        row["basis"]=="native_gui_action_identity")) {return true;}
     let handled=geometry["handled_panels"].as_array();
     snapshot["proposed"].as_array().is_some_and(|rows| !rows.is_empty()&&rows.iter().all(|row|
         handled.is_some_and(|panels|panels.iter().any(|panel|panel==&row["panel"]))))
@@ -108,6 +110,19 @@ fn marks(rows:&[Value],width:u32,height:u32)->Vec<Highlight> {
 fn guides(snapshot:&Value)->Vec<(String,String)> {
     snapshot["guides"].as_array().into_iter().flatten().filter_map(|g|
         Some((g["id"].as_str()?.to_owned(),g["title"].as_str()?.to_owned()))).collect()
+}
+fn geometry_notice(geometry:&Value,count:usize)->(String,String) {
+    if let Some(error)=geometry["native_error"].as_str().filter(|s|!s.is_empty()) {
+        return ("technical_error".into(),format!("Lettura GUI sospesa: {error}"));
+    }
+    let items=geometry["explanations"].as_array();
+    if let Some(item)=items.and_then(|rows|rows.iter().find(|r|r["code"]!="highlighted")) {
+        if let (Some(code),Some(message))=(item["code"].as_str(),item["message"].as_str()) {
+            return (code.to_owned(),if count>0 {format!("{count} indicazioni visibili. {message}")}else{message.to_owned()});
+        }
+    }
+    if count>0 {("highlighted".into(),format!("{count} indicazioni individuate tramite ID e geometria GUI"))}
+    else {("no_visible_targets".into(),"Nessun pulsante della guida individuato nella schermata corrente.".into())}
 }
 fn save_status(path:&PathBuf,value:&Value) {
     if let Some(parent)=path.parent(){let _=std::fs::create_dir_all(parent);}
@@ -188,9 +203,10 @@ fn run(options:Options)->Result<(),String> {
         if renderer.is_paused()||current.is_none()||snapshot["usable"]!=true {
             renderer.hide();capture=None;target=None;last_scene=None;last_matches.clear();cached_ocr=None;
             let message=if renderer.is_paused(){"Overlay in pausa"}else if current.is_none(){"Passa a HOI4 per mostrare le indicazioni"}
-                else{snapshot["error"].as_str().filter(|s|!s.is_empty()).unwrap_or("Nessuna indicazione attuale della guida")};
+                else{snapshot["idle_explanation"]["message"].as_str().or_else(||snapshot["error"].as_str().filter(|s|!s.is_empty())).unwrap_or("Nessuna indicazione attuale della guida")};
+            let code=if renderer.is_paused(){"paused"}else if current.is_none(){"game_background"}else{snapshot["idle_explanation"]["code"].as_str().unwrap_or("live_unavailable")};
             if last_status.elapsed()>Duration::from_millis(500) {
-                renderer.set_status(message);save_status(&options.status,&json!({"engine":"rust-wgc-winrtocr-direct2d","visible":false,"error":message,"memory_access":false,"host_pid":std::process::id(),"guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],"capture_active":false}));last_status=Instant::now();
+                renderer.set_status(message);save_status(&options.status,&json!({"engine":"rust-wgc-winrtocr-direct2d","visible":false,"error":message,"memory_access":false,"host_pid":std::process::id(),"guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],"capture_active":false,"guide_server_id":snapshot["guide_server_id"],"status_message":message,"status_code":code,"explanations":[]}));last_status=Instant::now();
             }
             std::thread::sleep(Duration::from_millis(100));continue;
         }
@@ -223,11 +239,11 @@ fn run(options:Options)->Result<(),String> {
             native_frames+=1;
             if last_status.elapsed()>Duration::from_millis(500){
                 let ms=geometry["geometry_ms"].as_f64().unwrap_or(0.);
-                let message=geometry["native_error"].as_str().filter(|s|!s.is_empty()).map(str::to_owned)
-                    .unwrap_or_else(||format!("{} indicazioni · ID e geometria GUI · {:.0} ms",last_matches.len(),ms));
+                let (code,message)=geometry_notice(&geometry,last_matches.len());
                 renderer.set_status(&message);
                 save_status(&options.status,&json!({"engine":"rust-native-gui-direct2d","host_pid":std::process::id(),
                     "guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],
+                    "guide_server_id":snapshot["guide_server_id"],"status_message":message,"status_code":code,"explanations":geometry["explanations"],
                     "visible":!last_matches.is_empty(),"overlay_window":renderer.overlay_window(),"control_window":renderer.control_window(),
                     "game_window":view.hwnd,"target_count":snapshot["proposed"].as_array().map_or(0,Vec::len),
                     "matches":last_matches,"geometry_ms":ms,"native_frames":native_frames,"frames_observed":total_frames,
@@ -298,9 +314,11 @@ fn run(options:Options)->Result<(),String> {
             last_draw=Instant::now();
         }
         if last_status.elapsed()>Duration::from_millis(500){
-            renderer.set_status(&format!("{} indicazioni · OCR {:.0} ms · riconoscimento {:.0} ms",last_matches.len(),ocr_ms,matching_ms));
+            let (code,message)=if last_matches.is_empty(){("visual_unresolved","Nessun pulsante identificato in modo univoco nel pannello visivo.".to_owned())}else{("highlighted",format!("{} indicazioni identificate nel pannello visivo",last_matches.len()))};
+            renderer.set_status(&message);
             save_status(&options.status,&json!({"engine":"rust-wgc-winrtocr-direct2d","host_pid":std::process::id(),"visible":!last_matches.is_empty(),
                 "guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],"capture_active":true,"capture_borderless_allowed":source.borderless_allowed,
+                "guide_server_id":snapshot["guide_server_id"],"status_message":message,"status_code":code,"explanations":[],
                 "overlay_window":renderer.overlay_window(),"control_window":renderer.control_window(),"game_window":view.hwnd,"target_count":snapshot["proposed"].as_array().map_or(0,Vec::len),
                 "matches":last_matches,"ocr_ms":ocr_ms,"matching_ms":matching_ms,"iteration_ms":started.elapsed().as_secs_f64()*1000.,
                 "frames_observed":total_frames,"ocr_calls":total_ocr,"frame_generation":frame.generation,
@@ -329,6 +347,16 @@ fn main() {
 mod tests {
     use super::*;
     #[test]
+    fn explanations_separate_unknown_evidence_from_visible_marks_and_errors() {
+        let mut geometry=json!({"explanations":[{"code":"highlighted","message":"Visibile"},
+            {"code":"different_folder","message":"Apri Industria"}]});
+        assert_eq!(geometry_notice(&geometry,1),("different_folder".into(),"1 indicazioni visibili. Apri Industria".into()));
+        geometry["native_error"]=json!("Proprietario incoerente");
+        assert_eq!(geometry_notice(&geometry,0).0,"technical_error");
+        assert!(geometry_notice(&geometry,0).1.contains("Proprietario incoerente"));
+        assert_eq!(geometry_notice(&json!({}),0).0,"no_visible_targets");
+    }
+    #[test]
     fn native_tree_routing_preserves_mixed_guides_and_fails_closed() {
         let mixed=json!({"proposed":[{"panel":"focus"},{"panel":"research"},{"panel":"event"}]});
         let mut geometry=json!({"native_available":true,"active_panel":"focus","handled_panels":["focus","research"]});
@@ -337,9 +365,17 @@ mod tests {
         assert!(native_route(&mixed,&geometry));
         geometry["active_panel"]=json!("event");
         assert!(native_route(&mixed,&geometry));
+        geometry["active_panel"]=json!("politics");
+        assert!(native_route(&mixed,&geometry));
+        geometry["active_panel"]=json!("projects");
+        assert!(native_route(&mixed,&geometry));
         geometry["active_panel"]=Value::Null;
         assert!(!native_route(&mixed,&geometry));
         assert!(native_route(&json!({"proposed":[{"panel":"research"}]}),&geometry));
+        geometry["matches"]=json!([{"basis":"native_gui_action_identity","navigation_stage":"access"}]);
+        assert!(native_route(&mixed,&geometry));
+        geometry["matches"]=json!([{"basis":"exact_unique_ocr"}]);
+        assert!(!native_route(&mixed,&geometry));
         geometry["native_available"]=json!(false);
         assert!(!native_route(&mixed,&geometry));
         geometry["suspend_visual"]=json!(true);

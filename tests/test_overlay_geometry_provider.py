@@ -19,6 +19,23 @@ class Reader:
 
 
 class NativeGeometryProviderTests(unittest.TestCase):
+    def test_common_action_geometry_uses_live_control_and_role_then_discards_duplicates(self):
+        self.proposals=[{'key':'a','panel':'politics','identity':'expert','entity_kind':'advisor','category_id':'high_command','country':'GER'}]
+        self.reader.value['active_panel']=None
+        control={'root':'topbar','name':'player_flag','visible':True,'rect':[10,10,40,40],'clip':[0,0,400,300]}
+        actions={'status':'observed','coverage':{'politics':True,'projects':False},'panels':{'topbar':True,'countrypoliticsview':False,'political_ideas_window':False},'controls':[control]}
+        self.reader.value['action_ui']=actions
+        result=self.read()
+        self.assertEqual(result['matches'][0]['rect'],[10,10,50,50])
+        self.assertEqual(result['matches'][0]['navigation_stage'],'access')
+        self.assertIn('politics',result['handled_panels'])
+        actions['panels']['political_ideas_window']=True
+        control.update(root='political_ideas_window',name='idea_entry_bg',entity_kind='advisor',entity_id='expert')
+        self.assertEqual(self.read()['matches'][0]['navigation_stage'],'entity')
+        actions['controls'].append(copy.deepcopy(control))
+        self.assertEqual(self.read()['matches'],[])
+        self.reader.value['country']='FRA';self.assertEqual(self.read()['matches'],[])
+
     def setUp(self):
         self.reader=Reader('unused')
         self.provider=NativeGeometry(lambda path:{'game_dir':'C:/fixture'},reader_factory=lambda path:self.reader)
@@ -28,6 +45,7 @@ class NativeGeometryProviderTests(unittest.TestCase):
 
     def test_id_geometry_tracks_pan_and_zoom_without_text(self):
         self.assertEqual(self.read()['matches'][0]['rect'],[100,90,200,170])
+        self.assertEqual(self.read()['explanations'][0]['code'],'highlighted')
         self.reader.value['nodes'][0]['rect']=[140,110,50,40]
         self.assertEqual(self.read()['matches'][0]['rect'],[140,110,190,150])
         self.assertEqual(self.read()['active_panel'],'focus')

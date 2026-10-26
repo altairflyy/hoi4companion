@@ -58,3 +58,19 @@ test('construction editor changes structured location and target without changin
  const edited=m.editConstruction(absolute,'infra',{...patch,quantity_mode:'target_total',quantity:4}).tracks.operations[0];assert.equal(edited.completion,undefined);assert.equal(edited.action.params.target_level,undefined);assert.equal(edited.action.params.baseline_level,undefined);
  row.completion={op:'all',args:[row.completion,{op:'check',key:'custom'}]};const custom=JSON.stringify(absolute);assert.throws(()=>m.editConstruction(absolute,'infra',patch),/criteri personalizzati/);assert.equal(JSON.stringify(absolute),custom);
 });
+
+test('coverage edits preserve original evidence and reject invalid or empty dispositions',()=>{
+ const src=structuredClone(guide);src.source_inventory={schema_version:1,items:[{id:'i',source_id:'s',quote:'source',step_keys:[]}]};
+ const before=structuredClone(src);
+ assert.throws(()=>m.editCoverage(src,'i',['missing']));assert.throws(()=>m.editCoverage(src,'i',[]));
+ assert.throws(()=>m.editCoverage(src,'i',['tools'],'exclude'));assert.throws(()=>m.editCoverage(src,'i',['tools','tools']));
+ const excluded=m.editCoverage(src,'i',[],'Overlap');assert.equal(excluded.source_inventory.items[0].excluded_reason,'Overlap');
+ const linked=m.editCoverage(excluded,'i',['tools']);assert.equal(linked.source_inventory.items[0].excluded_reason,undefined);
+ assert.equal(linked.source_inventory.items[0].quote,'source');assert.deepEqual(src,before);
+});
+
+test('source links reject executable schemes and preserve zero and absolute video times',()=>{
+ for(const url of ['javascript:alert(1)','data:text/html,x','file:///secret','https://example.com\n'])assert.equal(m.sourceHref({url},1),null);
+ assert.equal(m.sourceHref({url:'https://www.youtube.com/watch?v=abc&t=99s'},0),'https://www.youtube.com/watch?v=abc&t=0s');
+ assert.equal(m.sourceHref({url:'https://example.com/article#section'},104),'https://example.com/article#section');
+});

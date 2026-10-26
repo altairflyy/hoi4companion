@@ -78,9 +78,13 @@ class ScreenOverlayTests(unittest.TestCase):
             {'key':'production','action':{'kind':'manual','params':{'category':'production','variant_name':'Custom Model','production_selector':{'equipment_ids':['equipment']},'assigned_factories':5}}},
             {'key':'future','action':{'kind':'manual','params':{'category':'politics','law_id':'later','law_group':'economy'}}}]}
         self.runtime['steps']=[{'key':key,'status':'unverifiable','reason':'manual_confirmation_required'} for key in ('law','advisor','production','future')]
-        self.catalog=[{'kind':'law','id':'law','name':'War Economy'},{'kind':'law','id':'later','name':'Other Law'},{'kind':'advisor','id':'advisor','name':'Example Person'}]
+        self.catalog=[{'kind':'law','id':'law','name':'War Economy','group':'economy'},{'kind':'law','id':'later','name':'Other Law','group':'economy'},{'kind':'advisor','id':'advisor','name':'Example Person','slot':'chief'}]
+        self.runtime['action_sequence']={'political':'law'}
         result=targets(self.guide,self.runtime,self.catalog,self.state)
-        self.assertEqual([r['key'] for r in result],['law','advisor','production']);self.assertEqual(result[-1]['quantity'],5)
+        self.assertEqual([r['key'] for r in result],['law','production']);self.assertEqual(result[-1]['quantity'],5)
+        self.runtime['action_sequence']['political']='advisor'
+        self.assertEqual([r['key'] for r in targets(self.guide,self.runtime,self.catalog,self.state)],['advisor','production'])
+        self.runtime['action_sequence']['political']='law'
         self.runtime['steps'][0]['reason']='condition_unknown'
         self.assertNotIn('law',[r['key'] for r in targets(self.guide,self.runtime,self.catalog,self.state)])
 

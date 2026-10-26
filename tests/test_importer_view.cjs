@@ -349,3 +349,29 @@ test('external AI file loads sources and previews directly with no preliminary a
  h.get('guideJson').value=JSON.stringify(document);h.get('guideJson').oninput();
  await h.get('validate').onclick();assert.match(h.get('validation').textContent,/superata/);
 });
+
+test('coverage review keeps evidence beside mapping and edits without changing steps or source',async()=>{
+ const h=harness();await tick();
+ const inventory={schema_version:1,items:[{id:'i1',source_id:'src',quote:'Research tools.',step_keys:[]}]};
+ h.report.guide=structuredClone(definition);h.report.guide.source_inventory=inventory;
+ h.report.coverage={status:'needs_review',total:1,linked:0,excluded:0,issues:[{item_id:'i1',code:'unmapped',message:'Istruzione senza step',step_keys:[]}]};
+ h.report.valid=false;h.get('guideJson').value=JSON.stringify(h.report.guide);
+ h.get('sourceText').value='Research tools.';await h.get('acquire').onclick();await h.get('validate').onclick();
+ assert.match(h.get('coverageReview').textContent,/Research tools\./);
+ assert.match(h.get('coverageSummary').textContent,/0.*1/);
+ const nodes=descendants(h.get('coverageReview'));
+ const input=nodes.find(n=>n.tag==='input');input.value='tools';
+ const save=nodes.find(n=>n.tag==='button'&&n.textContent==='Applica collegamento');save.click();
+ const edited=JSON.parse(h.get('guideJson').value);
+ assert.deepEqual(edited.source_inventory.items[0].step_keys,['tools']);
+ assert.equal(edited.source_inventory.items[0].quote,'Research tools.');
+ assert.deepEqual(edited.tracks,definition.tracks);
+ assert.equal(h.get('install').disabled,true);
+});
+
+test('legacy coverage is unavailable and resolved IDs stay collapsed',async()=>{
+ const h=harness();await tick();h.get('guideJson').value=JSON.stringify(definition);await h.get('validate').onclick();
+ assert.match(h.get('coverageSummary').textContent,/non disponibile/i);
+ assert.equal(h.get('coverageReview').children.length,0);
+ assert.match(h.get('preview').textContent,/associazioni risolte/);
+});

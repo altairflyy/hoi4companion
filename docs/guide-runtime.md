@@ -184,3 +184,31 @@ di azione per costruzioni, esercito o produzione.
 La diagnosi separata di `stale`, le osservazioni reali e i limiti della causa
 storica sono in [stale-diagnosis.md](stale-diagnosis.md). Risultati completi
 dell'integrazione reale in [guide-runtime-verification.md](guide-runtime-verification.md).
+
+## Sequenze di azioni e dipendenze dall'avvio
+
+Estensioni additive v1: `depends_on_started` contiene chiavi come `depends_on`,
+ma richiede selection=true oppure completion=true. La seconda rimane una
+dipendenza dal completamento; non viene migrata o reinterpretata. Entrambi gli
+archi partecipano alla validazione del DAG; una dipendenza duplicata nelle due
+liste, sconosciuta o da un promemoria è rifiutata. Dichiarare una delle liste
+sostituisce le precedenti barriere implicite soltanto per quello step.
+
+`political_power_cost` rappresenta una soglia dichiarata dalla guida, distinta
+dal prezzo corrente modificabile del gioco. `requirements` usa le condizioni
+v1 esistenti. Per incarichi/leggi/progetti, `action_readiness` espone costi,
+risorse, blocchi e dati sconosciuti; availability non viene confusa con successo.
+Una quantità qualificata inferiore alla soglia produce waiting. Il campo
+politico canonico è `country.politics.political_power`; il reader attuale non lo
+espone e quindi manca anziché venire ricavato dall'OCR o da un delta di spesa.
+Non vengono sintetizzati costi da valori statici di default.
+
+`action_sequence.political` indica la prima legge/idea/nomina ancora pendente
+nell'ordine delle liste dichiarate (tracce ordinate per ID come il runtime).
+La priorità non può far saltare una nomina costosa. Dipendenze e applicabilità
+restano valutate dal runtime: un successore indipendente può essere ready, ma
+non diventa il suggerimento politico al posto del primo. I progetti mantengono
+la propria lista. L'app e l'HUD consumano questi stessi risultati.
+`action_context` lega le proposte a sessione/campagna osservate; la proiezione
+HUD rifiuta contesti diversi o un'identità della campagna divenuta sconosciuta.
+Nessuna nuova cronologia o conferma viene trasferita fra campagne.

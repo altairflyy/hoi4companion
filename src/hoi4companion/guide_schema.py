@@ -95,7 +95,12 @@ def validate_guide_extensions(guide: dict) -> None:
         if step.get('tracking') == 'reminder' and (step['action']['kind'] != 'manual'
                 or 'completion' in step or 'started_when' in step):
             raise ValueError(f'Promemoria incompatibile con azione o completamento: {key}')
-        deps = step.get('depends_on', [])
+        completion_deps = step.get('depends_on', [])
+        start_deps = step.get('depends_on_started', [])
+        for deps in (completion_deps, start_deps):
+            if not isinstance(deps, list) or len(deps)>64 or any(not isinstance(dep,str) for dep in deps):
+                raise ValueError(f'Dipendenze non valide: {key}')
+        deps = completion_deps + start_deps
         if not isinstance(deps, list) or len(deps) > 64 or any(
                 not isinstance(dep, str) or dep not in keys or dep == key for dep in deps
         ) or len(deps) != len(set(deps)):
@@ -106,6 +111,12 @@ def validate_guide_extensions(guide: dict) -> None:
         for dep in deps:
             successors[dep].append(key)
 
+        if ('political_power_cost' in step or 'requirements' in step) and (step['action']['kind'] not in ('manual','special_project') or step.get('tracking')=='reminder'):
+            raise ValueError(f'Requisiti di azione incompatibili: {key}')
+        if 'political_power_cost' in step and (not is_json_number(step['political_power_cost']) or step['political_power_cost'] < 0):
+            raise ValueError(f'Costo politico non valido: {key}')
+        if 'requirements' in step:
+            validate_condition(step['requirements'])
         if 'phase' in step and (not isinstance(step['phase'], str) or step['phase'] not in phases):
             raise ValueError(f'Fase sconosciuta: {key}')
         if 'completion' in step:
