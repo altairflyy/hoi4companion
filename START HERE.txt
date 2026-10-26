@@ -7,7 +7,7 @@ START COMPANION AND HUD.bat.
 
 This starts the local server and native HUD, then opens the walkthrough.
 An existing server/HUD is reused. Initial game indexing can take several minutes.
-The original Italian launcher names remain supported.
+This is the only launcher in the source project root.
 
 English is the default interface language. Use Interface language in the page
 navigation to select Italian. Game content language is a separate setting for
