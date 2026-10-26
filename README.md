@@ -55,7 +55,7 @@ descriptions. Existing imported guides and quoted evidence retain their language
 Restart the HUD after changing the interface language to update its controls.
 
 For the source checkout, use **`START COMPANION AND HUD.bat`** after installing
-development dependencies. Existing Italian launcher filenames remain compatible.
+development dependencies. This is the single launcher in the project root.
 See [START HERE.txt](START%20HERE.txt). Closing the browser does not stop the server;
 close the HUD through its control window. Web-only portable startup:
 

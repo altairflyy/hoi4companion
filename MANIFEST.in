@@ -23,7 +23,8 @@ prune native/cwtools/vendor/artifacts
 include native/overlay/Cargo.toml native/overlay/Cargo.lock
 recursive-include native/overlay/src *.rs
 include scripts/build-overlay.py scripts/build-overlay.ps1
-include avvia-overlay.vbs docs/native-overlay.md
+include START*.bat START*.txt scripts/avvia-tutto.ps1
+include docs/native-overlay.md
 include scripts/build-windows.py scripts/smoke-windows.py
 include packaging/windows.spec packaging/portable_entry.py packaging/requirements-windows.lock
 include docs/windows-distribution.md
