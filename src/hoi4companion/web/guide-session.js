@@ -31,13 +31,13 @@
     const task=activation.catch(()=>{}).then(async()=>{
      if(current!==sequence)return;
      const selected=await json('/api/guide/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({guide_id:definition.id})});
-     if(selected.guide_id!==definition.id)throw Error('Guida attiva non confermata dal server');
+     if(selected.guide_id!==definition.id)throw Error(HoiI18n.t("Active guide not confirmed by the server"));
      if(current===sequence){activeRevision=selected.revision;if(selected.server_id)activeServer=selected.server_id;}
     });activation=task;
     try{await task;}finally{activating--;}
    }
    if(current===sequence)publish();
-  }catch(e){if(current===sequence){error='Guida non disponibile: '+e.message;publish();}}
+  }catch(e){if(current===sequence){error=HoiI18n.t("Guide unavailable: ")+e.message;publish();}}
  }
  function write(payload){
   const id=guide.id,current=sequence,guard={expected_run_id:progress.run_id,expected_revision:progress.run_revision,server_id:progress.server_id};pending++;publish();
@@ -48,7 +48,7 @@
   });
   queue=task.catch(()=>{});
   return task.catch(async e=>{
-   if(current===sequence){error='Conferma non salvata: '+e.message;try{progress=await json(endpoint('/api/guide/progress'));revision=progress.revision;}catch{}}
+   if(current===sequence){error=HoiI18n.t("Confirmation not saved: ")+e.message;try{progress=await json(endpoint('/api/guide/progress'));revision=progress.revision;}catch{}}
    throw e;
   }).finally(()=>{pending--;publish();});
  }
@@ -56,7 +56,7 @@
   subscribe(fn){listeners.push(fn);if(this.value)fn(this.value);},select,
   withGuide(href){const url=new URL(href,location.href);if(guide)url.searchParams.set('guide',guide.id);return url.pathname+url.search+url.hash;},
   async confirm(key,checked){
-   if(!guide||pending)throw Error('Attendi il salvataggio in corso');
+   if(!guide||pending)throw Error(HoiI18n.t("Wait for the current save to finish"));
    const rows=Object.values(guide.tracks).flat(),legacy=rows.find(row=>row.key===key)?.action.params?.legacy_key,checks={...progress.checks};
    // Split a previously confirmed bulk checkpoint without losing its other
    // explicit confirmations, so one new activity can be unchecked independently.
@@ -64,7 +64,7 @@
    progress={...progress,checks:{...checks,[key]:checked}};return write({run_id:progress.run_id,checks:progress.checks});
   },
   async start(key,started){
-   if(!guide||pending)throw Error('Attendi il salvataggio in corso');
+   if(!guide||pending)throw Error(HoiI18n.t("Wait for the current save to finish"));
    progress={...progress,started:{...progress.started,[key]:started}};return write({run_id:progress.run_id,started:progress.started});
   },
   async newRun(){const old=progress;await write({});return old;},

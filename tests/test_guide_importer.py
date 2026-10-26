@@ -135,13 +135,13 @@ class ImportTests(unittest.TestCase):
 
     def test_prompt_explains_event_parent_link_and_requires_catalog_ids_when_available(self):
         prompt=Importer(lambda:[]).prompt()
-        for required in ('kind:"event_option"','event_id','event_option_id','stesso evento','testo completo'):
+        for required in ('kind:"event_option"','event_id','event_option_id','same event','full text'):
             self.assertIn(required,prompt)
 
     def test_standalone_prompt_is_available_before_acquiring_sources(self):
         importer = Importer(lambda: ENTITIES, Path('unused'))
         prompt = importer.prompt()
-        for text in ('hoi4-guide-import', 'quantity', 'template', 'research', 'sources', 'sha256'):
+        for text in ('hoi4-guide-import', 'quantity', 'template', 'research', 'sources', 'SHA-256'):
             self.assertIn(text, prompt)
         self.assertNotIn('test-local-key', prompt)
 

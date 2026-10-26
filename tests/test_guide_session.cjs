@@ -17,7 +17,7 @@ async function openGuidePage({persistent=new Map(),session=new Map(),search='',b
   if(missing.has(id))return {ok:false,status:404,json:async()=>({error:'Missing guide'})};
   return {ok:true,json:async()=>url.startsWith('/api/guide/progress')?{guide_id:id,checks:{},revision:0}:{id,tracks:{operations:[]}}};
  }};
- vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await new Promise(setImmediate);
+ runLocalized(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await new Promise(setImmediate);
  return {api:window.hoiGuide,requests,persistent,session,selections,emit:subscriber};
 }
 
@@ -86,7 +86,7 @@ test('editing split legacy confirmations preserves sibling activities and rolls 
   if(options){if(reject)return {ok:false,status:400,json:async()=>({error:'Changed run'})};const body=JSON.parse(options.body);saved={...saved,...body,revision:saved.revision+1};}
   return {ok:true,json:async()=>url==='/api/guides'?{guides:[definition]}:url.startsWith('/api/guide/progress')?saved:definition};
  }};
- vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await new Promise(setImmediate);
+ runLocalized(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await new Promise(setImmediate);
  await window.hoiGuide.confirm('build',false);
  assert.deepEqual(JSON.parse(JSON.stringify(saved.checks)),{old:false,build:false,train:true});
  await window.hoiGuide.start('build',true);
@@ -107,7 +107,7 @@ test('server baseline events reach the shared presentation without a manual star
  const context={window,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{href:'http://localhost/walkthrough',search:''},HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js'),fetch:async(url,options)=>{if(url==='/api/guide/active')return {ok:true,json:async()=>options?{guide_id:JSON.parse(options.body).guide_id,revision:1}:{}};
   requests.push(url);return {ok:true,json:async()=>url==='/api/guides'?{guides:[definition]}:url.startsWith('/api/guide/progress')?saved:definition};
  }};
- vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await new Promise(setImmediate);
+ runLocalized(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await new Promise(setImmediate);
  const before=requests.length;
  subscriber({...example.state,guide_revision:1,guide_runs:{build:{schema_version:1,guide_id:'build',run_id:'r',session_id:'session'}},guide_baselines:{build:example.progress.baselines}});
  assert.equal(window.hoiGuide.value.view.operations[0].construction.target,7);
@@ -123,3 +123,5 @@ test('server baseline events reach the shared presentation without a manual star
  assert.equal(window.hoiGuide.value.view.operations[0].construction.target,null);
  assert.equal(window.hoiGuide.value.view.operations[0].runtime_status,'unverifiable');
 });
+
+function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}

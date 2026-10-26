@@ -22,7 +22,7 @@ test('unknown reminder visibility never blocks an independent recommendation',()
 test('reminder may depend on a real action but cannot satisfy completion dependencies',()=>{
  const result=runtime.evaluate(guide(focus(),reminder({depends_on:['focus']})),live());
  assert.equal(result.steps[1].status,'waiting');assert.deepEqual(result.steps[1].blocked_by,['focus']);
- assert.throws(()=>contracts.guide(guide(reminder(),{...focus(),depends_on:['method']})),/promemoria/);
+ assert.throws(()=>contracts.guide(guide(reminder(),{...focus(),depends_on:['method']})),/reminder/);
 });
 test('tracking rejects unknown values, native reminders and discarded observable criteria',()=>{
  for(const change of [{tracking:'unknown'},{tracking:null},{completion:{op:'check',key:'done'}},{started_when:{op:'check',key:'started'}},{action:{kind:'free'}},{action:focus().action}])assert.throws(()=>contracts.guide(guide(reminder(change))));

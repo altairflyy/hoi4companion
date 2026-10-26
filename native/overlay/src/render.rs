@@ -140,6 +140,7 @@ impl Renderer {
         if changed {self.update();}
     }
     pub fn set_status(&self,text:&str) {
+        let localized=crate::i18n::text(text);let text=localized.as_str();
         if let Ok(mut s)=self.shared.lock() {s.status=text.chars().take(300).collect();}
         self.update();
     }
@@ -365,7 +366,7 @@ impl Ui {
             drop(shared);
             let paused=self.paused.load(Ordering::Acquire);
             if paused!=self.last_paused {
-                let _=SetWindowTextW(self.pause,if paused {w!("Riprendi")}else{w!("Pausa")});self.last_paused=paused;
+                let _=SetWindowTextW(self.pause,PCWSTR(wide(&crate::i18n::text(if paused {"Resume"}else{"Pause"})).as_ptr()));self.last_paused=paused;
             }
             if status!=self.last_status {
                 let text=wide(&status);let _=SetWindowTextW(self.status,PCWSTR(text.as_ptr()));self.last_status=status;
@@ -405,7 +406,7 @@ impl Ui {
                     Ok(true)=>{},
                     Ok(false)=>{self.hide();return;},
                     Err(error)=>{
-                        self.hide();let message=wide(&format!("Rendering sospeso: {error}"));
+                        self.hide();let message=wide(&crate::i18n::format("Rendering suspended: {0}",&[&error.to_string()]));
                         let _=SetWindowTextW(self.status,PCWSTR(message.as_ptr()));return;
                     }
                 }
@@ -419,7 +420,7 @@ impl Ui {
             match id {
                 PAUSE=>{
                     let paused=!self.paused.load(Ordering::Acquire);self.paused.store(paused,Ordering::Release);
-                    let _=SetWindowTextW(self.pause,if paused {w!("Riprendi")}else{w!("Pausa")});
+                    let _=SetWindowTextW(self.pause,PCWSTR(wide(&crate::i18n::text(if paused {"Resume"}else{"Pause"})).as_ptr()));
                     self.update(false);
                 }
                 QUIT=>{self.exit.store(true,Ordering::Release);PostQuitMessage(0);}
@@ -473,8 +474,8 @@ unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBo
             hbrBackground:GetSysColorBrush(COLOR_WINDOW),..Default::default()};
         if RegisterClassW(&class)==0 {return Err(windows::core::Error::from_win32().to_string());}
         let overlay=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TRANSPARENT|WS_EX_LAYERED|WS_EX_NOACTIVATE|WS_EX_NOREDIRECTIONBITMAP,
-            class.lpszClassName,w!("HOI4 Companion · Evidenziazioni"),WS_POPUP,0,0,1,1,None,None,Some(instance),None).map_err(|e|e.to_string())?;
-        let control=CreateWindowExW(WINDOW_EX_STYLE(0),class.lpszClassName,w!("HOI4 Companion · Overlay nativo"),
+            class.lpszClassName,PCWSTR(wide(&crate::i18n::text("HOI4 Companion · Highlights")).as_ptr()),WS_POPUP,0,0,1,1,None,None,Some(instance),None).map_err(|e|e.to_string())?;
+        let control=CreateWindowExW(WINDOW_EX_STYLE(0),class.lpszClassName,PCWSTR(wide(&crate::i18n::text("HOI4 Companion · Native overlay")).as_ptr()),
             WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,530,220,None,None,Some(instance),None).map_err(|e|e.to_string())?;
         let scale=(GetDpiForWindow(control) as f32/96.0).clamp(1.0,3.0);
         SetWindowPos(control,None,0,0,(530.0*scale) as i32,(220.0*scale) as i32,SWP_NOMOVE|SWP_NOACTIVATE|SWP_NOZORDER).map_err(|e|e.to_string())?;
@@ -488,10 +489,10 @@ unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBo
                 .inspect(|window|{SendMessageW(*window,WM_SETFONT,Some(WPARAM(font.0 as usize)),Some(LPARAM(1)));})
         };
         let combo=child(w!("COMBOBOX"),w!(""),WINDOW_STYLE(CBS_DROPDOWNLIST as u32)|WS_VSCROLL|WS_TABSTOP,16,15,376,250,GUIDES).map_err(|e|e.to_string())?;
-        child(w!("BUTTON"),w!("Ricarica"),WS_TABSTOP,404,15,98,28,REFRESH).map_err(|e|e.to_string())?;
-        let status=child(w!("STATIC"),w!("In attesa della partita e della guida…"),WINDOW_STYLE(0),16,58,486,58,0).map_err(|e|e.to_string())?;
-        let pause=child(w!("BUTTON"),w!("Pausa"),WS_TABSTOP,16,126,120,32,PAUSE).map_err(|e|e.to_string())?;
-        child(w!("BUTTON"),w!("Chiudi overlay"),WS_TABSTOP,146,126,140,32,QUIT).map_err(|e|e.to_string())?;
+        child(w!("BUTTON"),PCWSTR(wide(&crate::i18n::text("Refresh")).as_ptr()),WS_TABSTOP,404,15,98,28,REFRESH).map_err(|e|e.to_string())?;
+        let status=child(w!("STATIC"),PCWSTR(wide(&crate::i18n::text("Waiting for the game and guide…")).as_ptr()),WINDOW_STYLE(0),16,58,486,58,0).map_err(|e|e.to_string())?;
+        let pause=child(w!("BUTTON"),PCWSTR(wide(&crate::i18n::text("Pause")).as_ptr()),WS_TABSTOP,16,126,120,32,PAUSE).map_err(|e|e.to_string())?;
+        child(w!("BUTTON"),PCWSTR(wide(&crate::i18n::text("Close overlay")).as_ptr()),WS_TABSTOP,146,126,140,32,QUIT).map_err(|e|e.to_string())?;
         SetWindowDisplayAffinity(overlay,WDA_EXCLUDEFROMCAPTURE).map_err(|e|e.to_string())?;
         let graphics=Graphics::new(overlay).map_err(|e|e.to_string())?;
         let mut ui=Box::new(Ui {overlay,status,pause,combo,shared,paused,exit,

@@ -1,7 +1,8 @@
 'use strict';
 ((root)=>{
+ const uiText=typeof module!=='undefined'&&module.exports?require('./i18n.js').t:root.HoiI18n.t;
  const VERSION=1;
- const unknown=(reason='Campo non osservato')=>({status:'unknown',value:null,source:'',reason});
+ const unknown=(reason="Campo non osservato")=>({status:'unknown',value:null,source:'',reason});
  const known=(value,source='process_memory',calculated=false)=>value===null||value===undefined?unknown():({status:calculated?'calculated':'observed',value,source});
  function validType(key,value){
   if(['politics.ideas','politics.advisors','events.visible','events.visible_options','decisions.listed','decisions.executed'].includes(key))return Array.isArray(value)&&value.length<=4096&&value.every(x=>typeof x==='string'&&x.length>0&&x.length<=512)&&new Set(value).size===value.length;
@@ -21,7 +22,7 @@
   }
   return true;
  }
- function validateFacts(value,invalidReason='Dato contratto non valido'){return {...value,facts:Object.fromEntries(Object.entries(value.facts).map(([k,f])=>{
+ function validateFacts(value,invalidReason="Dato contratto non valido"){return {...value,facts:Object.fromEntries(Object.entries(value.facts).map(([k,f])=>{
   if(f?.status==='unknown'&&f.value===null&&f.source===''&&(f.reason===undefined||typeof f.reason==='string'))return [k,{status:'unknown',value:null,source:'',...(f.reason?{reason:f.reason}:{})}];
   const item=fact(value,k);return [k,item.status==='unknown'&&value.usable?unknown(invalidReason):item];
  }))};}
@@ -53,15 +54,15 @@
   f['research.slots']=known(s.research_slots,source);f['focus.ids']=known(s.focus_ids,source);f['research.ids']=known(s.technology_ids,source);
   const overview=s.country_overview||{},derived=new Set(['by_type','by_template','total','effective_factories','output_per_day','assigned_factories','category','balance','used','owned','controlled','name']);
   const queued=typeof s.country==='string'&&s.country&&overview.country===s.country?queuedConstruction(overview.construction):null;
-  f['construction.queued']=queued===null?unknown('Coda costruzioni non qualificata'):known(queued,'construction_adapter',true);
+  f['construction.queued']=queued===null?unknown("Coda costruzioni non qualificata"):known(queued,'construction_adapter',true);
   const projects=overview.projects,items=projects?.items,projectsKnown=Boolean(s.country)&&overview.country===s.country&&projects?.status==='observed'&&Array.isArray(items)&&items.length<=1024&&items.every(row=>row&&typeof row.id==='string'&&row.id&&typeof row.active==='boolean'&&typeof row.completed==='boolean'&&!(row.active&&row.completed))&&new Set(items.map(row=>row.id)).size===items.length;
-  for(const field of ['active','completed'])f['projects.'+field]=projectsKnown?known(items.filter(row=>row[field]).map(row=>row.id),'projects_adapter',true):unknown('Progetti speciali non qualificati');
+  for(const field of ['active','completed'])f['projects.'+field]=projectsKnown?known(items.filter(row=>row[field]).map(row=>row.id),'projects_adapter',true):unknown("Progetti speciali non qualificati");
   const points=projects?.breakthroughs?.items;
   if(Boolean(s.country)&&overview.country===s.country&&projects?.breakthroughs?.status==='observed'&&Array.isArray(points)&&points.length<=64&&points.every(row=>row&&typeof row.id==='string'&&row.id&&Number.isInteger(row.available)&&row.available>=0&&row.available<=100000)&&new Set(points.map(row=>row.id)).size===points.length)for(const row of points)f['projects.points.'+row.id]=known(row.available,'breakthrough_points_adapter',true);
   const power=overview.politics?.power;
-  f['country.politics.political_power']=Boolean(s.country)&&overview.country===s.country&&power?.status==='observed'&&typeof power.available==='number'&&Number.isFinite(power.available)?known(power.available,source):unknown('Potere politico non qualificato');
+  f['country.politics.political_power']=Boolean(s.country)&&overview.country===s.country&&power?.status==='observed'&&typeof power.available==='number'&&Number.isFinite(power.available)?known(power.available,source):unknown("Potere politico non qualificato");
   const production=overview.production,productionKnown=typeof s.country==='string'&&s.country&&overview.country===s.country&&production?.status==='observed'&&validProductionLines(production.lines);
-  f['production.lines']=productionKnown?known(production.lines.map(row=>({...row})),'production_adapter',true):unknown('Linee di produzione non qualificate');
+  f['production.lines']=productionKnown?known(production.lines.map(row=>({...row})),'production_adapter',true):unknown("Linee di produzione non qualificate");
   Object.assign(f,politicalFacts(typeof s.country==='string'&&s.country&&overview.country===s.country?overview:{}));
   function put(path,data,present,calculated){f[path]=present?known(data,calculated?'legacy_adapter':source,calculated):unknown();}
   function flatten(path,data,present,calculated=false){
@@ -74,10 +75,10 @@
    if(section==='manpower'){for(const [key,child]of Object.entries(data))if(!['status','reason'].includes(key))put('country.manpower.'+key,child,present,key==='available');}
    else flatten('country.'+section,data,present);
   }
-  return validateFacts({schema_version:VERSION,usable:Object.keys(s).length>0,session_id:s.session_id||null,facts:f},'Campo non osservato');
+  return validateFacts({schema_version:VERSION,usable:Object.keys(s).length>0,session_id:s.session_id||null,facts:f},"Campo non osservato");
  }
  function politicalFacts(overview){
-  const result=Object.fromEntries(['politics.ideas','politics.advisors','events.visible','events.visible_options','decisions.listed','decisions.executed'].map(key=>[key,unknown('Sezione politica non qualificata')]));
+  const result=Object.fromEntries(['politics.ideas','politics.advisors','events.visible','events.visible_options','decisions.listed','decisions.executed'].map(key=>[key,unknown("Sezione politica non qualificata")]));
   const id=value=>typeof value==='string'&&value.length>0&&value.length<=160&&/^[A-Za-z0-9_.-]+$/.test(value);
   const publish=(key,values)=>result[key]=known([...new Set(values)].sort(),'politics_adapter',true),p=overview.politics;
   if(p&&['observed','partial'].includes(p.status))for(const part of ['ideas','advisors']){
@@ -119,39 +120,39 @@
  const textLength=x=>[...x].length;
  const jsonNumber=x=>typeof x==='number'&&Number.isFinite(x)&&(!Number.isInteger(x)||Number.isSafeInteger(x));
  function validateCondition(node,depth=0){
-  if(!record(node)||depth>16)throw Error('Condizione non valida o troppo profonda');
+  if(!record(node)||depth>16)throw Error(uiText("Invalid or excessively nested condition"));
   if(['all','any'].includes(node.op)){
-   if(!Array.isArray(node.args)||node.args.length<1||node.args.length>64)throw Error('Operandi condizione non validi');
+   if(!Array.isArray(node.args)||node.args.length<1||node.args.length>64)throw Error(uiText("Invalid condition operands"));
    node.args.forEach(child=>validateCondition(child,depth+1));
   }else if(node.op==='not')validateCondition(node.arg,depth+1);
   else if(['fact','check'].includes(node.op)){
-   if(typeof node.key!=='string'||textLength(node.key)<1||textLength(node.key)>512)throw Error('Chiave condizione non valida');
-   if(node.op==='fact'&&(!['eq','contains','gte'].includes(node.test)||!['string','boolean','number'].includes(typeof node.value)||typeof node.value==='number'&&!jsonNumber(node.value)))throw Error('Confronto condizione non valido');
-  }else throw Error('Operatore condizione non supportato');
+   if(typeof node.key!=='string'||textLength(node.key)<1||textLength(node.key)>512)throw Error(uiText("Invalid condition key"));
+   if(node.op==='fact'&&(!['eq','contains','gte'].includes(node.test)||!['string','boolean','number'].includes(typeof node.value)||typeof node.value==='number'&&!jsonNumber(node.value)))throw Error(uiText("Invalid condition comparison"));
+  }else throw Error(uiText("Unsupported condition operator"));
  }
  function validateAction(action){
-  if(!record(action)||!['select_focus','research','special_project','manual','free'].includes(action.kind))throw Error('Azione non supportata');
+  if(!record(action)||!['select_focus','research','special_project','manual','free'].includes(action.kind))throw Error(uiText("Unsupported action"));
   const expected={select_focus:'focus',research:'technology',special_project:'project'}[action.kind],ref=action.entity;
   if(expected){
-   if(!record(ref)||ref.kind!==expected||typeof ref.id!=='string'||!ref.id.length||textLength(ref.id)>512||Object.hasOwn(ref,'scope')&&(typeof ref.scope!=='string'||!ref.scope))throw Error('Entità incompatibile con azione');
-  }else if(Object.hasOwn(action,'entity'))throw Error('Azione descrittiva senza entità richiesta');
+   if(!record(ref)||ref.kind!==expected||typeof ref.id!=='string'||!ref.id.length||textLength(ref.id)>512||Object.hasOwn(ref,'scope')&&(typeof ref.scope!=='string'||!ref.scope))throw Error(uiText("Entity is incompatible with the action"));
+  }else if(Object.hasOwn(action,'entity'))throw Error(uiText("Descriptive action must not have an entity"));
  }
  function identifiers(items,label,limit){
-  if(!Array.isArray(items)||items.length>limit)throw Error(label+': elenco non valido');
+  if(!Array.isArray(items)||items.length>limit)throw Error(label+uiText(": invalid list"));
   const ids=new Set();
-  for(const item of items){if(!record(item)||typeof item.id!=='string'||!item.id.length||textLength(item.id)>160||ids.has(item.id))throw Error(label+': identificatore mancante o duplicato');ids.add(item.id);}
+  for(const item of items){if(!record(item)||typeof item.id!=='string'||!item.id.length||textLength(item.id)>160||ids.has(item.id))throw Error(label+uiText(": missing or duplicate identifier"));ids.add(item.id);}
   return ids;
  }
  function jsonData(value,depth=0){
-  if(depth>8)throw Error('Parametri azione troppo profondi');
+  if(depth>8)throw Error(uiText("Action parameters are nested too deeply"));
   if(value===null||typeof value==='boolean')return;
   if(typeof value==='string'&&textLength(value)<=4096)return;
   if(jsonNumber(value))return;
   if(Array.isArray(value)&&value.length<=512){value.forEach(x=>jsonData(x,depth+1));return;}
   if(record(value)&&Object.prototype.toString.call(value)==='[object Object]'&&Object.keys(value).length<=128){
-   for(const [key,child]of Object.entries(value)){if(!key.length||textLength(key)>128)throw Error('Nome parametro non valido');jsonData(child,depth+1);}return;
+   for(const [key,child]of Object.entries(value)){if(!key.length||textLength(key)>128)throw Error(uiText("Invalid parameter name"));jsonData(child,depth+1);}return;
   }
-  throw Error('Parametri azione non validi');
+  throw Error(uiText("Invalid action parameters"));
  }
  function validUrl(value){
   if(typeof value!=='string'||!/^https?:\/\/[^/\s?#]+/.test(value)||/[\s\u0000-\u001f]/u.test(value))return false;
@@ -160,59 +161,56 @@
  function validateExtensions(guide){
   const sourceRows=Object.hasOwn(guide,'sources')?guide.sources:[],phaseRows=Object.hasOwn(guide,'phases')?guide.phases:[];
   const sources=identifiers(sourceRows,'Fonti',32),phases=identifiers(phaseRows,'Fasi',128);
-  for(const source of sourceRows){if(!['youtube','web','file','manual'].includes(source.type)||Object.hasOwn(source,'url')&&!validUrl(source.url))throw Error('Fonte non valida');}
-  for(const phase of phaseRows){if(typeof phase.title!=='string'||!phase.title)throw Error('Titolo fase mancante');if(Object.hasOwn(phase,'when'))validateCondition(phase.when);}
+  for(const source of sourceRows){if(!['youtube','web','file','manual'].includes(source.type)||Object.hasOwn(source,'url')&&!validUrl(source.url))throw Error(uiText("Invalid source"));}
+  for(const phase of phaseRows){if(typeof phase.title!=='string'||!phase.title)throw Error(uiText("Missing phase title"));if(Object.hasOwn(phase,'when'))validateCondition(phase.when);}
   const rows=Object.values(guide.tracks).flat(),keys=new Set(rows.map(x=>x.key)),reminders=new Set(rows.filter(x=>x.tracking==='reminder').map(x=>x.key)),pending=new Map(),successors=new Map(rows.map(x=>[x.key,[]]));
   for(const step of rows){
-   if(Object.hasOwn(step,'tracking')&&!['action','reminder'].includes(step.tracking))throw Error('Modalità monitoraggio non valida: '+step.key);
+   if(Object.hasOwn(step,'tracking')&&!['action','reminder'].includes(step.tracking))throw Error(uiText("Invalid tracking mode: ")+step.key);
    if(step.tracking==='reminder'&&(step.action.kind!=='manual'||Object.hasOwn(step,'completion')||Object.hasOwn(step,'started_when')))throw Error('Promemoria incompatibile con azione o completamento: '+step.key);
    const completed=Object.hasOwn(step,'depends_on')?step.depends_on:[],started=Object.hasOwn(step,'depends_on_started')?step.depends_on_started:[];
-   if(!Array.isArray(completed)||!Array.isArray(started))throw Error('Dipendenze non valide: '+step.key);
+   if(!Array.isArray(completed)||!Array.isArray(started))throw Error(uiText("Invalid dependencies: ")+step.key);
    const deps=[...completed,...started];
-   if(!Array.isArray(deps)||deps.length>64||deps.some(dep=>typeof dep!=='string'||!keys.has(dep)||dep===step.key)||new Set(deps).size!==deps.length)throw Error('Dipendenze non valide: '+step.key);
-   if(deps.some(dep=>reminders.has(dep)))throw Error('Dipendenza da promemoria non completabile: '+step.key);
+   if(!Array.isArray(deps)||deps.length>64||deps.some(dep=>typeof dep!=='string'||!keys.has(dep)||dep===step.key)||new Set(deps).size!==deps.length)throw Error(uiText("Invalid dependencies: ")+step.key);
+   if(deps.some(dep=>reminders.has(dep)))throw Error(uiText("Dependency on a reminder that cannot complete: ")+step.key);
    pending.set(step.key,deps.length);for(const dep of deps)successors.get(dep).push(step.key);
-   if(['political_power_cost','resource_costs','requirements'].some(f=>Object.hasOwn(step,f))&&(!['manual','special_project'].includes(step.action.kind)||step.tracking==='reminder'))throw Error('Requisiti di azione incompatibili');
-   if(Object.hasOwn(step,'political_power_cost')&&(!jsonNumber(step.political_power_cost)||step.political_power_cost<0))throw Error('Costo politico non valido');
+   if((['political_power_cost','resource_costs','requirements'].some(field=>Object.hasOwn(step,field)))&&(!['manual','special_project'].includes(step.action.kind)||step.tracking==='reminder'))throw Error('Requisiti di azione incompatibili');
+   if(Object.hasOwn(step,'political_power_cost')&&(!jsonNumber(step.political_power_cost)||step.political_power_cost<0))throw Error(uiText("Invalid political cost"));
+   if(Object.hasOwn(step,'resource_costs')&&(!step.resource_costs||typeof step.resource_costs!=='object'||Array.isArray(step.resource_costs)||Object.keys(step.resource_costs).length>64||Object.entries(step.resource_costs).some(([key,cost])=>!key||key.length>256||!jsonNumber(cost)||cost<0)))throw Error(uiText("Invalid resource costs"));
    if(Object.hasOwn(step,'requirements'))validateCondition(step.requirements);
-   if(Object.hasOwn(step,'resource_costs')){
-    const costs=step.resource_costs;
-    if(!record(costs)||Object.keys(costs).length>64||Object.entries(costs).some(([k,v])=>!k||k.length>256||!jsonNumber(v)||v<0))throw Error('Costi risorse non validi');
-   }
-   if(Object.hasOwn(step,'phase')&&(typeof step.phase!=='string'||!phases.has(step.phase)))throw Error('Fase sconosciuta: '+step.key);
+   if(Object.hasOwn(step,'phase')&&(typeof step.phase!=='string'||!phases.has(step.phase)))throw Error(uiText("Unknown phase: ")+step.key);
    if(Object.hasOwn(step,'completion'))validateCondition(step.completion);
    if(Object.hasOwn(step,'started_when')){
     if(!['manual','special_project'].includes(step.action.kind))throw Error('Condizione di avvio incompatibile con azione: '+step.key);
     validateCondition(step.started_when);
    }
-   if(Object.hasOwn(step.action,'params')){if(!record(step.action.params))throw Error('Parametri azione non validi');jsonData(step.action.params);}
-   if(Object.hasOwn(step.action.params||{},'game_date')){const v=step.action.params.game_date,m=typeof v==='string'&&v.match(/^(\d{1,4})\.(\d{1,2})\.(\d{1,2})$/);if(!m)throw Error('Data della partita non valida');const [y,month,d]=m.slice(1).map(Number),days=[31,y%4===0&&(y%100!==0||y%400===0)?29:28,31,30,31,30,31,31,30,31,30,31];if(y<1||month<1||month>12||d<1||d>days[month-1])throw Error('Data della partita non valida');}
+   if(Object.hasOwn(step.action,'params')){if(!record(step.action.params))throw Error(uiText("Invalid action parameters"));jsonData(step.action.params);}
+   if(Object.hasOwn(step.action.params||{},'game_date')){const v=step.action.params.game_date,m=typeof v==='string'&&v.match(/^(\d{1,4})\.(\d{1,2})\.(\d{1,2})$/);if(!m)throw Error(uiText("Invalid game date"));const [y,month,d]=m.slice(1).map(Number),days=[31,y%4===0&&(y%100!==0||y%400===0)?29:28,31,30,31,30,31,31,30,31,30,31];if(y<1||month<1||month>12||d<1||d>days[month-1])throw Error(uiText("Invalid game date"));}
    const evidence=Object.hasOwn(step,'evidence')?step.evidence:[];
-   if(!Array.isArray(evidence)||evidence.length>32)throw Error('Evidenze non valide');
+   if(!Array.isArray(evidence)||evidence.length>32)throw Error(uiText("Invalid evidence"));
    for(const item of evidence){
-    if(!record(item)||typeof item.source_id!=='string'||!sources.has(item.source_id)||!['explicit','visual','inferred','game_derived','unverified'].includes(item.basis))throw Error('Provenienza non valida');
-    for(const field of ['timestamp_seconds','end_seconds'])if(Object.hasOwn(item,field)&&(!jsonNumber(item[field])||item[field]<0))throw Error('Timestamp non valido');
-    if(Object.hasOwn(item,'timestamp_seconds')&&Object.hasOwn(item,'end_seconds')&&item.end_seconds<item.timestamp_seconds)throw Error('Intervallo fonte non valido');
+    if(!record(item)||typeof item.source_id!=='string'||!sources.has(item.source_id)||!['explicit','visual','inferred','game_derived','unverified'].includes(item.basis))throw Error(uiText("Invalid provenance"));
+    for(const field of ['timestamp_seconds','end_seconds'])if(Object.hasOwn(item,field)&&(!jsonNumber(item[field])||item[field]<0))throw Error(uiText("Invalid timestamp"));
+    if(Object.hasOwn(item,'timestamp_seconds')&&Object.hasOwn(item,'end_seconds')&&item.end_seconds<item.timestamp_seconds)throw Error(uiText("Invalid source interval"));
    }
   }
   const queue=rows.filter(x=>pending.get(x.key)===0).map(x=>x.key);
   for(let cursor=0;cursor<queue.length;cursor++)for(const key of successors.get(queue[cursor])){pending.set(key,pending.get(key)-1);if(pending.get(key)===0)queue.push(key);}
-  if(queue.length!==keys.size)throw Error('Dipendenze della guida cicliche');
+  if(queue.length!==keys.size)throw Error(uiText("Cyclic guide dependencies"));
  }
  function guide(input){
-  if(!record(input))throw Error('Guida non valida');
-  if(input.schema_version!==undefined&&input.schema_version!==VERSION)throw Error('Versione contratto guida non supportata');
-  if(input.schema!==undefined&&input.schema!==1)throw Error('Versione guida legacy non supportata');
+  if(!record(input))throw Error(uiText("Invalid guide"));
+  if(input.schema_version!==undefined&&input.schema_version!==VERSION)throw Error(uiText("Unsupported guide contract version"));
+  if(input.schema!==undefined&&input.schema!==1)throw Error(uiText("Unsupported legacy guide version"));
   const scope=Object.hasOwn(input,'applies_to')?input.applies_to:Object.fromEntries(['country','tree_id'].filter(k=>input[k]).map(k=>[k,input[k]]));
-  if(!record(scope)||Object.entries(scope).some(([k,v])=>!['country','tree_id'].includes(k)||typeof v!=='string'||!v))throw Error('Ambito guida non valido');
-  if(!record(input.tracks)||Object.keys(input.tracks).length>32)throw Error('Tracce guida non valide');
+  if(!record(scope)||Object.entries(scope).some(([k,v])=>!['country','tree_id'].includes(k)||typeof v!=='string'||!v))throw Error(uiText("Invalid guide scope"));
+  if(!record(input.tracks)||Object.keys(input.tracks).length>32)throw Error(uiText("Invalid guide tracks"));
   const result={...input,schema_version:VERSION,applies_to:{...scope},tracks:{}},keys=new Set();
-  for(const field of ['country','tree_id'])if(scope[field]){if(input[field]&&input[field]!==scope[field])throw Error('Ambito guida in conflitto');if(!Object.hasOwn(input,field))result[field]=scope[field];}
+  for(const field of ['country','tree_id'])if(scope[field]){if(input[field]&&input[field]!==scope[field])throw Error(uiText("Conflicting guide scope"));if(!Object.hasOwn(input,field))result[field]=scope[field];}
   const actions={focus:'select_focus',technology:'research',project:'special_project',gate:'manual',free:'free'},kinds=Object.fromEntries(Object.entries(actions).map(([k,v])=>[v,k]));
   for(const [track,steps] of Object.entries(input.tracks)){
-   if(!Array.isArray(steps)||steps.length>4096)throw Error('Traccia guida non valida');
+   if(!Array.isArray(steps)||steps.length>4096)throw Error(uiText("Invalid guide track"));
    const rows=steps.map((s,i)=>{
-   if(!record(s))throw Error('Passaggio guida non valido');
+   if(!record(s))throw Error(uiText("Invalid guide step"));
    const raw=Object.hasOwn(s,'action')?s.action:{kind:actions[s.kind],...(['focus','technology','project'].includes(s.kind)?{entity:{kind:s.kind,id:s.target}}:{})};
    validateAction(raw);const action={...raw,...(raw.entity?{entity:{...raw.entity}}:{})};
    const key=Object.hasOwn(s,'key')?s.key:`${track}-${i+1}`;
@@ -231,7 +229,7 @@
   }
   const steps=Object.values(result.tracks).flat();
   for(const s of steps)if(s.optional_before&&!Object.hasOwn(s,'skip_when'))s.skip_when={op:'any',args:[{op:'fact',key:'focus.completed',test:'contains',value:s.optional_before},...steps.filter(p=>p.target===s.optional_before&&p.priority_when).map(p=>p.priority_when)]};
-  for(const step of steps){for(const field of ['when','priority_when','skip_when'])if(Object.hasOwn(step,field))validateCondition(step[field]);if(Object.hasOwn(step,'priority')&&(!Number.isInteger(step.priority)||Math.abs(step.priority)>100000))throw Error('Priorità guida non valida');}
+  for(const step of steps){for(const field of ['when','priority_when','skip_when'])if(Object.hasOwn(step,field))validateCondition(step[field]);if(Object.hasOwn(step,'priority')&&(!Number.isInteger(step.priority)||Math.abs(step.priority)>100000))throw Error(uiText("Invalid guide priority"));}
   for(const [key,value]of Object.entries({milestones:[],assumptions:[],title:input.id??'Guida',subtitle:''}))if(!Object.hasOwn(result,key))result[key]=value;
   validateExtensions(result);
   return result;

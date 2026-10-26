@@ -56,7 +56,7 @@ test('construction editor changes structured location and target without changin
  for(const bad of [{state:null},{quantity:0},{quantity:1.5},{state:{kind:'state',id:'NaN'}},{building:null},{instruction:''},{quantity_mode:'guess'}])assert.throws(()=>m.editConstruction(value,'infra',{...patch,...bad}));
  const absolute=structuredClone(value),row=absolute.tracks.operations[0];Object.assign(row.action.params,{target_level:5,baseline_level:3});row.completion={op:'fact',key:'country.states.items.91.infrastructure',test:'gte',value:5};
  const edited=m.editConstruction(absolute,'infra',{...patch,quantity_mode:'target_total',quantity:4}).tracks.operations[0];assert.equal(edited.completion,undefined);assert.equal(edited.action.params.target_level,undefined);assert.equal(edited.action.params.baseline_level,undefined);
- row.completion={op:'all',args:[row.completion,{op:'check',key:'custom'}]};const custom=JSON.stringify(absolute);assert.throws(()=>m.editConstruction(absolute,'infra',patch),/criteri personalizzati/);assert.equal(JSON.stringify(absolute),custom);
+ row.completion={op:'all',args:[row.completion,{op:'check',key:'custom'}]};const custom=JSON.stringify(absolute);assert.throws(()=>m.editConstruction(absolute,'infra',patch),/custom criteria/);assert.equal(JSON.stringify(absolute),custom);
 });
 
 test('coverage edits preserve original evidence and reject invalid or empty dispositions',()=>{

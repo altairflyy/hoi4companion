@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod i18n;
 mod capture;
 mod ocr;
 mod render;
@@ -20,19 +21,20 @@ use capture::{Capture,Frame};
 use render::{Renderer,TargetWindow,Highlight,OverlayFrame,ControlAction};
 
 struct Options {
-    port:u16, guide:String, python:String, start:bool, proof:Option<PathBuf>,
+    ui_language:String, port:u16, guide:String, python:String, start:bool, proof:Option<PathBuf>,
     ocr_image:Option<PathBuf>, ocr_scale:u32, ocr_repeat:usize, ocr_prepared:bool,
     prepare_dir:Option<PathBuf>,
     capture_access_check:bool,
     status:PathBuf,
 }
 fn options()->Result<Options,String> {
-    let mut result=Options {port:8766,guide:String::new(),python:"python.exe".into(),start:false,
+    let mut result=Options {ui_language:"english".into(),port:8766,guide:String::new(),python:"python.exe".into(),start:false,
         proof:None,ocr_image:None,ocr_scale:2,ocr_repeat:3,ocr_prepared:false,prepare_dir:None,capture_access_check:false,
         status:PathBuf::from(".local/overlay-status.json")};
     let mut args=std::env::args().skip(1);
     while let Some(arg)=args.next() {
         match arg.as_str() {
+            "--ui-language"=>result.ui_language=args.next().ok_or("Missing interface language")?,
             "--port"=>result.port=args.next().ok_or("Missing port")?.parse().map_err(|_|"Invalid port")?,
             "--guide"=>result.guide=args.next().ok_or("Missing guide")?,
             "--bridge-python"=>result.python=args.next().ok_or("Missing Python path")?,
@@ -51,6 +53,7 @@ fn options()->Result<Options,String> {
     if result.port<1024 || !matches!(result.ocr_scale,1|2) || !(1..=20).contains(&result.ocr_repeat) {
         return Err("Invalid port, OCR scale or repetition count".into());
     }
+    if !matches!(result.ui_language.as_str(),"english"|"italian"){return Err("Unsupported interface language".into());}
     Ok(result)
 }
 
@@ -98,7 +101,7 @@ fn marks(rows:&[Value],width:u32,height:u32)->Vec<Highlight> {
         let rect=evidence::valid_rectangle(&row["rect"],width,height)?;
         let panel=row["panel"].as_str().unwrap_or("").to_owned();
         let title=if panel=="research"||panel=="focus"||panel=="event" {row["labels"][0].as_str().or_else(||row["title"].as_str())}
-            else{row["title"].as_str()}.unwrap_or("Indicazione della guida");
+            else{row["title"].as_str()}.unwrap_or("Guide recommendation");
         let count=row["count"].as_u64().unwrap_or(1);
         let caption=if panel=="research_tab" {format!("{} · {} {}",title,count,if count==1{"ricerca"}else{"ricerche"})}
             else if let Some(quantity)=row["quantity"].as_u64() {format!("{} · totale {} fabbriche",title,quantity)}
@@ -113,16 +116,16 @@ fn guides(snapshot:&Value)->Vec<(String,String)> {
 }
 fn geometry_notice(geometry:&Value,count:usize)->(String,String) {
     if let Some(error)=geometry["native_error"].as_str().filter(|s|!s.is_empty()) {
-        return ("technical_error".into(),format!("Lettura GUI sospesa: {error}"));
+        return ("technical_error".into(),i18n::format("GUI reading suspended: {0}",&[error]));
     }
     let items=geometry["explanations"].as_array();
     if let Some(item)=items.and_then(|rows|rows.iter().find(|r|r["code"]!="highlighted")) {
         if let (Some(code),Some(message))=(item["code"].as_str(),item["message"].as_str()) {
-            return (code.to_owned(),if count>0 {format!("{count} indicazioni visibili. {message}")}else{message.to_owned()});
+            return (code.to_owned(),if count>0 {i18n::format("{0} visible highlights. {1}",&[&count.to_string(),message])}else{message.to_owned()});
         }
     }
-    if count>0 {("highlighted".into(),format!("{count} indicazioni individuate tramite ID e geometria GUI"))}
-    else {("no_visible_targets".into(),"Nessun pulsante della guida individuato nella schermata corrente.".into())}
+    if count>0 {("highlighted".into(),i18n::format("{0} highlights identified by ID and GUI geometry",&[&count.to_string()]))}
+    else {("no_visible_targets".into(),"No guide target was identified on the current screen.".into())}
 }
 fn save_status(path:&PathBuf,value:&Value) {
     if let Some(parent)=path.parent(){let _=std::fs::create_dir_all(parent);}
@@ -168,6 +171,7 @@ fn benchmark(options:&Options)->Result<(),String> {
 }
 
 fn run(options:Options)->Result<(),String> {
+    i18n::set_language(&options.ui_language)?;
     if options.capture_access_check {
         let _apartment=capture::Apartment::new().map_err(|e|e.to_string())?;
         save_status(&options.status,&json!({"capture_borderless_allowed":capture::borderless_access(),"capture_active":false}));
@@ -202,8 +206,8 @@ fn run(options:Options)->Result<(),String> {
         let current=game_view();
         if renderer.is_paused()||current.is_none()||snapshot["usable"]!=true {
             renderer.hide();capture=None;target=None;last_scene=None;last_matches.clear();cached_ocr=None;
-            let message=if renderer.is_paused(){"Overlay in pausa"}else if current.is_none(){"Passa a HOI4 per mostrare le indicazioni"}
-                else{snapshot["idle_explanation"]["message"].as_str().or_else(||snapshot["error"].as_str().filter(|s|!s.is_empty())).unwrap_or("Nessuna indicazione attuale della guida")};
+            let message=if renderer.is_paused(){"Overlay paused"}else if current.is_none(){"Switch to HOI4 to show highlights"}
+                else{snapshot["idle_explanation"]["message"].as_str().or_else(||snapshot["error"].as_str().filter(|s|!s.is_empty())).unwrap_or("No current guide recommendation")};
             let code=if renderer.is_paused(){"paused"}else if current.is_none(){"game_background"}else{snapshot["idle_explanation"]["code"].as_str().unwrap_or("live_unavailable")};
             if last_status.elapsed()>Duration::from_millis(500) {
                 renderer.set_status(message);save_status(&options.status,&json!({"engine":"rust-wgc-winrtocr-direct2d","visible":false,"error":message,"memory_access":false,"host_pid":std::process::id(),"guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],"capture_active":false,"guide_server_id":snapshot["guide_server_id"],"status_message":message,"status_code":code,"explanations":[]}));last_status=Instant::now();
@@ -314,7 +318,7 @@ fn run(options:Options)->Result<(),String> {
             last_draw=Instant::now();
         }
         if last_status.elapsed()>Duration::from_millis(500){
-            let (code,message)=if last_matches.is_empty(){("visual_unresolved","Nessun pulsante identificato in modo univoco nel pannello visivo.".to_owned())}else{("highlighted",format!("{} indicazioni identificate nel pannello visivo",last_matches.len()))};
+            let (code,message)=if last_matches.is_empty(){("visual_unresolved",i18n::text("No button was identified unambiguously in the visual panel."))}else{("highlighted",i18n::format("{0} highlights identified in the visual panel",&[&last_matches.len().to_string()]))};
             renderer.set_status(&message);
             save_status(&options.status,&json!({"engine":"rust-wgc-winrtocr-direct2d","host_pid":std::process::id(),"visible":!last_matches.is_empty(),
                 "guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],"capture_active":true,"capture_borderless_allowed":source.borderless_allowed,
@@ -350,7 +354,7 @@ mod tests {
     fn explanations_separate_unknown_evidence_from_visible_marks_and_errors() {
         let mut geometry=json!({"explanations":[{"code":"highlighted","message":"Visibile"},
             {"code":"different_folder","message":"Apri Industria"}]});
-        assert_eq!(geometry_notice(&geometry,1),("different_folder".into(),"1 indicazioni visibili. Apri Industria".into()));
+        assert_eq!(geometry_notice(&geometry,1),("different_folder".into(),"1 visible highlights. Apri Industria".into()));
         geometry["native_error"]=json!("Proprietario incoerente");
         assert_eq!(geometry_notice(&geometry,0).0,"technical_error");
         assert!(geometry_notice(&geometry,0).1.contains("Proprietario incoerente"));

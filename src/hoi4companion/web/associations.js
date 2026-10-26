@@ -6,7 +6,7 @@
  const query=new URLSearchParams(location.search),identity=ref=>JSON.stringify({kind:ref.kind,id:ref.id,...(ref.scope?{scope:ref.scope}:{})});
  const controls=['associationGuide','associationStep','stepSearch','associationSearch','associationMatches'];
  function error(e){$('associationError').hidden=false;$('associationError').textContent=e.message||String(e);}
- async function request(path,body){const r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}),v=await r.json();if(!r.ok)throw Error(v.error||'Richiesta fallita');return v;}
+ async function request(path,body){const r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}),v=await r.json();if(!r.ok)throw Error(v.error||HoiI18n.t("Request failed"));return v;}
  const current=()=>allSteps.find(row=>row.key===$('associationStep').value);
  function enabled(){
   for(const id of controls)$(id).disabled=busy||!loaded;
@@ -21,11 +21,11 @@
   const text=$('associationSearch').value.trim().toLocaleLowerCase();
   const matches=catalog.filter(item=>item.kind===ref.kind&&(ref.kind!=='focus'||(!scope||scope===item.scope)&&(!country||!item.countries?.length||item.countries.includes(country)))&&(!text||[item.name,item.localized_name,item.id,...item.aliases||[]].some(name=>typeof name==='string'&&name.toLocaleLowerCase().includes(text))));
   for(const item of matches.slice(0,100)){const option=node('option',(item.localized_name||item.name)+' · '+item.id+(item.scope?' · '+item.scope:''));option.value=identity(item);list.append(option);}
-  list.value='';$('associationMatchCount').textContent=matches.length+' corrispondenze'+(matches.length>100?' · primi 100 risultati: restringi la ricerca.':'.');enabled();
+  list.value='';$('associationMatchCount').textContent=matches.length+HoiI18n.t(" matches")+(matches.length>100?HoiI18n.t(" · first 100 results: narrow your search."):'.');enabled();
  }
  function step(){const row=current();$('associationSearch').value='';
-  $('currentAssociation').textContent=row?'Attuale: '+(row.name||row.title||row.action.entity.id)+' · '+row.action.entity.id+(row.action.entity.scope?' · '+row.action.entity.scope:''):'Nessun passaggio con associazione.';
-  $('associationSourceNote').textContent=row?.title&&row.title!==row.name?'Istruzione originale: '+row.title:'';search();
+  $('currentAssociation').textContent=row?HoiI18n.t("Current: ")+(row.name||row.title||row.action.entity.id)+' · '+row.action.entity.id+(row.action.entity.scope?' · '+row.action.entity.scope:''):HoiI18n.t("No steps with an entity binding.");
+  $('associationSourceNote').textContent=row?.title&&row.title!==row.name?HoiI18n.t("Original instruction: ")+row.title:'';search();
  }
  function steps(preferred){
   const text=$('stepSearch').value.trim().toLocaleLowerCase(),select=$('associationStep');select.replaceChildren();
@@ -39,12 +39,12 @@
   data=await request('/api/guide/associations'+(id?'?id='+encodeURIComponent(id):''));loaded=true;
   $('associationGuide').value=data.guide.id;$('returnGuide').href='/walkthrough?guide='+encodeURIComponent(data.guide.id);
   allSteps=Object.values(data.guide.tracks).flat().filter(row=>row.action.entity);
-  $('stepSearch').value='';steps(key);$('associationNotice').textContent='Guida: '+data.guide.title+' · '+data.changes.length+' correzioni locali.';
+  $('stepSearch').value='';steps(key);$('associationNotice').textContent=HoiI18n.t("Guide: ")+data.guide.title+' · '+data.changes.length+HoiI18n.t(" local corrections.");
  }
  async function save(restore=false){const row=current();if(!row)return;
   const update={guide_id:data.guide.id,key:row.key,expected:row.action.entity,entity:restore?null:JSON.parse($('associationMatches').value)};
   await request('/api/guide/associations',update);await load(data.guide.id,row.key);
-  $('associationNotice').textContent=restore?'Associazione originale ripristinata.':'Correzione salvata. Torna alla guida per usarla negli alberi; l’avanzamento è conservato.';
+  $('associationNotice').textContent=restore?HoiI18n.t("Original binding restored."):HoiI18n.t("Correction saved. Return to the guide to use it in the trees; progress is preserved.");
  }
  $('associationGuide').onchange=()=>run(()=>load($('associationGuide').value));$('associationStep').onchange=step;
  $('stepSearch').oninput=()=>steps($('associationStep').value);$('associationSearch').oninput=search;$('associationMatches').onchange=enabled;

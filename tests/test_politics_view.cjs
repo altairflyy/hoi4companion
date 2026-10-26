@@ -6,8 +6,10 @@ test('country view renders qualified laws and current event choices, then hides 
  const get=id=>{assert.ok(nodes.has(id),'Missing element '+id);return nodes.get(id);};let render;
  const window={HoiCountryModel:require('../src/hoi4companion/web/country-model.js'),hoiLive:{enabled:true,subscribe(fn){render=fn;}}};
  const document={getElementById:get,createElement:()=>new Node(),body:new Node()};
- vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/country.js','utf8'),{window,document,Intl,Date,Number});
+ runLocalized(fs.readFileSync('src/hoi4companion/web/country.js','utf8'),{window,document,Intl,Date,Number});
  const current={usable:true,sample:{country:'TST',country_overview:{country:'TST',politics:{status:'observed',ideas:{status:'observed',items:[{id:'test_law',name:'Observed law',group:'economy',is_law:true}]},advisors:{status:'observed',items:[]}},events:{status:'observed',visible:[{event_id:'example.1',name:'Current event',options:[{id:'example.1.a',name:'Choice one'}]}]},decisions:{status:'observed',listed_ids:[]}}}};
  render(current);assert.match(get('politicsIdeaRows').textContent,/Observed law/);assert.match(get('politicsAdvisorsCoverage').textContent,/Nessun incarico attivo/);assert.match(get('visibleEvents').textContent,/Current event.*Choice one/);assert.match(get('decisionsReason').textContent,/^$/);
  render({...current,usable:false});assert.equal(get('politicsIdeaRows').children.length,0);assert.equal(get('visibleEvents').children.length,0);assert.equal(get('eventsStatus').textContent,'Non disponibile');
 });
+
+function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}

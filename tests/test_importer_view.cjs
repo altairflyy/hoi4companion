@@ -25,7 +25,7 @@ function harness(){
   return {ok:true,json:async()=>value};
  };
  const document={getElementById:get,createElement:tag=>new Node(tag),body:new Node('body')};
- vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/importer.js','utf8'),{HoiImporter:model,document,fetch,
+ runLocalized(fs.readFileSync('src/hoi4companion/web/importer.js','utf8'),{HoiImporter:model,document,fetch,
   navigator:{clipboard:{async writeText(text){clipboard.push(text);}}},structuredClone,Blob,URL:{createObjectURL(blob){downloads.push(blob);return 'blob:fixture';},revokeObjectURL(){}},setTimeout:fn=>fn()});
  return {get,requests,downloads,clipboard,source,report,catalog,document,setRelease:fn=>release=fn,setDocumentError:value=>documentError=value};
 }
@@ -375,3 +375,5 @@ test('legacy coverage is unavailable and resolved IDs stay collapsed',async()=>{
  assert.equal(h.get('coverageReview').children.length,0);
  assert.match(h.get('preview').textContent,/associazioni risolte/);
 });
+
+function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}

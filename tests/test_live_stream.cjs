@@ -28,7 +28,7 @@ function boot(){
   const intervals=[];
   const context={document,window,EventSource,sessionStorage:{getItem(){return null;},setItem(){}},
     setInterval:fn=>intervals.push(fn),Date,CustomEvent:class{}};
-  vm.runInNewContext(fs.readFileSync(require.resolve('../src/hoi4companion/web/live-state.js'),'utf8'),context);
+  runLocalized(fs.readFileSync(require.resolve('../src/hoi4companion/web/live-state.js'),'utf8'),context);
   return {window,document,streams:EventSource.instances,toggle:made.find(x=>x.type==='checkbox')};
 }
 const state={usable:true,status:'observed',sample:{country:'ROM',completed_focuses:[],researched_technologies:[],research_slots:[],continuous_focus:'training'}};
@@ -89,3 +89,5 @@ test('hidden/toggled views close stream and resume only with fresh state',()=>{
   assert.equal(app.window.hoiLive.enabled,false);
   assert.equal(app.window.hoiLive.sample(),null);
 });
+
+function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}

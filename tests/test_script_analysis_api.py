@@ -26,7 +26,7 @@ class ScriptAnalysisApiTests(unittest.TestCase):
                 with urlopen(base+'/api/script-rules?kind=effect&name=set_capital') as response:rule=json.load(response)
                 self.assertTrue(rule['variants'])
                 with self.assertRaises(HTTPError):urlopen(base+'/api/script-rules?kind=invalid&name=a')
-                with urlopen(base+'/analysis') as response:self.assertIn(b'Analisi script',response.read())
+                with urlopen(base+'/analysis') as response:self.assertIn(b'Script analysis',response.read())
             finally:server.shutdown();thread.join(3)
 
     def test_analysis_is_cached_and_stale_generation_is_not_published(self):

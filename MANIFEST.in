@@ -13,6 +13,7 @@ include docs/parsing-compatibility.md
 include docs/source-recovery.md
 recursive-include src/hoi4companion/rules/cwtools *.cwt *.json LICENSE
 recursive-include src/hoi4companion/rules/cwtools *.csv *.reference
+include src/hoi4companion/translations.json
 include scripts/build-cwtools.py scripts/build-cwtools.ps1
 include native/cwtools/global.json native/cwtools/vendor-provenance.json
 recursive-include native/cwtools *.fs *.cs *.fsproj *.csproj *.props *.json *.Config LICENSE

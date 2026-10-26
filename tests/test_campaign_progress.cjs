@@ -22,7 +22,7 @@ test('shared browser session accepts server restart and never resets progress on
   return {ok:true,json:async()=>url==='/api/guides'?{guides:[{id:'campaign-test',title:'Test'}]}:url.startsWith('/api/guide/progress')?progress:fixtures.guide};
  };
  const context={window,fetch,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{search:'',href:'http://local/walkthrough'},HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js')};
- vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await new Promise(setImmediate);
+ runLocalized(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await new Promise(setImmediate);
  await window.hoiGuide.confirm('done',false);
  assert.equal(posts[0].expected_revision,3);assert.equal(posts[0].expected_run_id,'r');assert.equal(posts[0].server_id,'old-server');
  subscriber({...fixtures.state,guide_revision:0,guide_server_id:'new-server',guide_runs:{'campaign-test':{...fixtures.progress,run_id:'restored',run_revision:8}},guide_states:{'campaign-test':{done:true}}});
@@ -30,3 +30,5 @@ test('shared browser session accepts server restart and never resets progress on
  subscriber({usable:true,sample:{country:'OTH',completed_focuses:[],researched_technologies:[]},guide_revision:0,guide_server_id:'new-server'});
  await new Promise(setImmediate);assert.equal(posts.length,1);
 });
+
+function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}

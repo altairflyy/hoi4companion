@@ -20,7 +20,7 @@ function boot(lane){
  const host=new Node();host.dataset.lane=lane;let listener;
  const window={dispatchEvent(){},hoiGuide:{subscribe(fn){listener=fn;},withGuide:x=>x}};
  const context={window,document:{getElementById:()=>host,createElement:tag=>new Node(tag),querySelectorAll:()=>[]},CustomEvent:class{},HoiContracts:require('../src/hoi4companion/web/contracts.js')};
- vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide-assist.js','utf8'),context);
+ runLocalized(fs.readFileSync('src/hoi4companion/web/guide-assist.js','utf8'),context);
  return {window,host,node(id){const n=new Node();n.dataset[lane==='focus'?'focusId':'techId']=id;return n;},emit(live){const view=present.evaluate(guide,live,{checks:{}});window.hoiGuide.value={guide,view};listener({guide,view,catalog:[guide],progress:{checks:{}},pending:0});}};
 }
 test('focus DOM illumination advances on completion, distinguishes active, and rejects wrong scope/stale',()=>{
@@ -42,3 +42,5 @@ test('technology DOM illumination honors slot capacity, and Show research resolv
  const button=app.host.children.flatMap(n=>n.children||[]).find(n=>n.tag==='button');await button.onclick();
  assert.equal(selected.target,'Y');assert.equal(present.folder(selected),'electronics');
 });
+
+function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}

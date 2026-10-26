@@ -20,7 +20,7 @@ test('invalid progress is rejected and large dependency chains are iterative',()
  const state=structuredClone(example.state);state.facts['focus.completed'].value=rows.slice(0,-1).map(x=>x.key);
  const guide={id:'deep',tracks:{focus:rows}};
  assert.equal(runtime.evaluate(guide,state).steps.at(-1).status,'ready');
- rows[0].depends_on=['1999'];assert.throws(()=>runtime.evaluate(guide,state),/cicliche/);
+ rows[0].depends_on=['1999'];assert.throws(()=>runtime.evaluate(guide,state),/Cyclic/);
 });
 
 test('runs with the same step keys are isolated and completion rolls back',()=>{

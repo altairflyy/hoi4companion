@@ -17,8 +17,8 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  const fetch=async(url,options)=>{if(url==='/api/guide/active')return {ok:true,json:async()=>options?{guide_id:JSON.parse(options.body).guide_id,revision:1}:{}};requests.push(url);if(url.startsWith('/api/guide/frame'))return {ok:true,blob:async()=>new Blob(['image'])};if(url.startsWith('/api/guide/progress')&&options){const body=JSON.parse(options.body);run=body.run_id?history[body.run_id]:(history.second={...run,run_id:'second',checks:{},started:{}});if(body.checks)run.checks=body.checks;if(body.started)run.started=body.started;run.revision++;}
   return {ok:true,json:async()=>url.startsWith('/api/guide/progress')?run:url==='/api/guides'?{guides:[{id:'two',title:'Generic'}]}:guide};};
  const context={window,document,fetch,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{pathname:'/walkthrough',search:'?guide=two',href:'http://localhost/walkthrough?guide=two'},HoiContracts:require('../src/hoi4companion/web/contracts.js'),HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js'),HoiOperationalSummary:require('../src/hoi4companion/web/operational-summary.js')};
- vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);
- vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/guide.js','utf8'),context);await new Promise(setImmediate);
+ runLocalized(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);
+ runLocalized(fs.readFileSync('src/hoi4companion/web/guide.js','utf8'),context);await new Promise(setImmediate);
  assert.equal(get('error').textContent,'');assert.equal(get('guideTitle').textContent,'Generic');assert.equal(get('sourceLink').hidden,true);
  assert.match(get('hudDiagnosticMessage').textContent,/non verificabile/);
  assert.ok(requests.includes('/api/guide/progress?id=two'));
@@ -101,3 +101,5 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  assert.match(get('operationCards').textContent,/70.*150/);
  assert.equal(descendants(get('operationCards')).some(n=>n['data-start']==='expert'),false);
 });
+
+function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}

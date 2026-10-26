@@ -52,7 +52,7 @@ class Store:
         self._analysis_generation = 0
         self.settings: dict = {
             'game_dir': '', 'docs_dir': '', 'tree_id': '', 'snapshot_path': '',
-            'country': 'AUS', 'language': 'italian', 'mods': 'auto',
+            'country': 'AUS', 'language': 'english', 'ui_language': 'english', 'mods': 'auto',
         }
         if SETTINGS.exists():
             try:
@@ -188,7 +188,7 @@ class Store:
                 self.settings['tree_id'] = next(iter(trees), '')
 
     def set_settings(self, update: dict):
-        valid = {'game_dir', 'docs_dir', 'tree_id', 'snapshot_path', 'country', 'language', 'mods'}
+        valid = {'game_dir', 'docs_dir', 'tree_id', 'snapshot_path', 'country', 'language', 'ui_language', 'mods'}
         if not isinstance(update, dict) or any(k not in valid for k in update):
             raise ValueError('Impostazioni non riconosciute')
         if any(not isinstance(v, str) or len(v) > 2048 for v in update.values()):
@@ -197,11 +197,13 @@ class Store:
             raise ValueError('Codice paese non valido (esempio AUS)')
         if 'language' in update and update['language'] not in ('italian', 'english'):
             raise ValueError('Lingua non supportata')
+        if 'ui_language' in update and update['ui_language'] not in ('english','italian'):
+            raise ValueError('Unsupported interface language')
         if 'mods' in update and update['mods'] not in ('auto', 'off'):
             raise ValueError('Impostazione mod non valida')
         with self.lock:
             self.settings.update(update)
-            self.refresh()
+            if set(update)-{'ui_language'}:self.refresh()
             SETTINGS.parent.mkdir(exist_ok=True, parents=True)
             SETTINGS.write_text(json.dumps(self.settings, indent=2, ensure_ascii=False), encoding='utf-8')
 
@@ -639,6 +641,8 @@ def make_handler(store: Store):
             self.wfile.write(data)
 
         def json(self, data, status=200):
+            from .i18n import localize_payload
+            data=localize_payload(data,getattr(store,'settings',{}).get('ui_language','english'))
             self._send(status, json.dumps(data, ensure_ascii=False).encode('utf-8'), 'application/json; charset=utf-8')
 
         def do_GET(self):
@@ -737,7 +741,8 @@ def make_handler(store: Store):
                         while not store.live_hub.closed:
                             event = client.wait(5)
                             if event is not None:
-                                payload = json.dumps(event.value, ensure_ascii=False, separators=(',', ':'))
+                                from .i18n import localize_payload
+                                payload = json.dumps(localize_payload(event.value,getattr(store,'settings',{}).get('ui_language','english')), ensure_ascii=False, separators=(',', ':'))
                                 frame = f'id: {event.revision}\nevent: state\ndata: {payload}\n\n'
                             else:
                                 payload = json.dumps(store.live_hub.heartbeat(), separators=(',', ':'))
@@ -827,10 +832,13 @@ def make_handler(store: Store):
                       '/guide-assist.js': 'guide-assist.js', '/guide-assist.css': 'guide-assist.css',
                       '/live-state.js': 'live-state.js', '/live-state.css': 'live-state.css', '/live-model.js': 'live-model.js',
                       '/technologies': 'technologies.html', '/technologies.js': 'technologies.js', '/technologies.css': 'technologies.css',
-                      '/explorer.js': 'explorer.js', '/style.css': 'style.css', '/game.css': 'game.css'}
+                      '/i18n.js':'i18n.js', '/theme.css':'theme.css', '/explorer.js': 'explorer.js', '/style.css': 'style.css', '/game.css': 'game.css'}
             file = static.get(url.path)
             if file:
                 data = (WEB / file).read_bytes()
+                from .i18n import localize_html, catalog
+                if file.endswith('.html'):data=localize_html(data.decode('utf-8'),getattr(store,'settings',{}).get('ui_language','english')).encode('utf-8')
+                elif file=='i18n.js':data=('globalThis.HOI_TRANSLATIONS='+json.dumps(catalog(),ensure_ascii=False)+';\n').encode('utf-8')+data
                 mime = mimetypes.guess_type(file)[0] or 'application/octet-stream'
                 if mime.startswith('text/') or 'javascript' in mime:
                     mime += '; charset=utf-8'
