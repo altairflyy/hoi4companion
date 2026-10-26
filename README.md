@@ -1,8 +1,43 @@
-# HOI4 Companion
+<div align="center">
 
-A local companion for **Hearts of Iron IV**: interactive national focus and
-technology trees, imported walkthroughs, qualified live state, and an external
-Windows HUD that highlights actions from your selected guide.
+# 🎖️ HOI4 Companion
+
+### A local companion for Hearts of Iron IV: interactive national focus and technology trees, AI-assisted walkthroughs, live memory monitoring, and external in-game HUD overlay.
+
+[![Release](https://img.shields.io/github/v/release/altairflyy/hoi4companion?logo=github&label=Latest%20Release&color=0969da&style=flat-square)](https://github.com/altairflyy/hoi4companion/releases)
+[![Downloads](https://img.shields.io/github/downloads/altairflyy/hoi4companion/total?color=blue&label=Downloads&logo=github&style=flat-square)](https://github.com/altairflyy/hoi4companion/releases)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/altairflyy/hoi4companion/windows-release.yml?branch=main&label=CI%20Build&logo=githubactions&logoColor=white&style=flat-square)](https://github.com/altairflyy/hoi4companion/actions)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20x64-0078D6?logo=windows&logoColor=white&style=flat-square)](https://github.com/altairflyy/hoi4companion/releases/latest)
+[![HOI4 Compatibility](https://img.shields.io/badge/HOI4%20Build-v1.19.3.0%20(42c3)-critical?logo=paradoxinteractive&logoColor=white&style=flat-square)](#what-it-does)
+[![Python](https://img.shields.io/badge/Python-3.13%20%7C%203.11+-3776AB?logo=python&logoColor=white&style=flat-square)](https://www.python.org/)
+[![Tech Stack](https://img.shields.io/badge/Stack-Rust%20%7C%20Direct2D%20%7C%20.NET%209-orange?style=flat-square)](#what-it-does)
+[![License](https://img.shields.io/badge/License-MIT-2ea44f?style=flat-square)](LICENSE)
+
+<br/>
+
+<p align="center">
+  <a href="https://github.com/altairflyy/hoi4companion/releases/latest">
+    <img src="https://img.shields.io/badge/DOWNLOAD_NOW-Windows_x64_(Portable_ZIP)-2ea44f?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows" height="42" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/altairflyy/hoi4companion/releases">
+    <img src="https://img.shields.io/badge/GitHub-ALL_RELEASES-0969da?style=for-the-badge&logo=github&logoColor=white" alt="Releases" height="42" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="docs/README.md">
+    <img src="https://img.shields.io/badge/DOCS-DOCUMENTATION-6f42c1?style=for-the-badge&logo=gitbook&logoColor=white" alt="Docs" height="42" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="docs/it/README.md">
+    <img src="https://img.shields.io/badge/LINGUA-ITALIANO-238636?style=for-the-badge&logo=readme&logoColor=white" alt="Guida in Italiano" height="42" />
+  </a>
+</p>
+
+*100% Free & Open Source • Zero invasive installers • Full runtime bundled*
+
+---
+
+</div>
 
 [Download Windows builds](https://github.com/altairflyy/hoi4companion/releases)
 · [Windows distribution](docs/windows-distribution.md)
