@@ -6,6 +6,30 @@ from hoi4companion.overlay_windows import Feed
 
 
 class OverlayFeedTests(unittest.TestCase):
+    def test_same_targets_in_another_campaign_invalidate_geometry_version(self):
+        feed=Feed('http://127.0.0.1:8766','guide')
+        guide={'id':'guide','title':'Guide','tracks':{'focus':[{'key':'f','action':{'kind':'select_focus','entity':{'kind':'focus','id':'x'}}}]}}
+        state={'usable':True,'sample':{'country':'TST','session_id':'s'}}
+        runtime={'guide_id':'guide','country':'TST','mode':'live','steps':[{'key':'f','status':'ready'}],
+                 'parallel':{'focus':{'steps':['f']}},'action_context':{'session_id':'s'}}
+        feed.get=lambda path: {'entities':[{'kind':'focus','id':'x','name':'A Focus'}]} if path=='/api/import/catalog' else runtime if '/runtime' in path else guide
+        snapshots=[]
+        def events():
+            for number in (1,2):
+                identity=f'hoi4:00000000-0000-0000-0000-{number:012d}:00000001'
+                state['sample']['campaign_identity']={'status':'observed','id':identity,'source':'native_game_unique_id_and_seed'}
+                runtime['action_context']['campaign_id']=identity
+                yield b'event: state\n'
+                yield ('data: '+json.dumps(state)+'\n').encode()
+                snapshots.append(feed.snapshot())
+            feed.closed.set()
+        class Stream:
+            def __enter__(self):return iter(events())
+            def __exit__(self,*args):pass
+        with patch('hoi4companion.overlay_windows.urlopen',return_value=Stream()):feed.run()
+        self.assertEqual(snapshots[0][1],snapshots[1][1])
+        self.assertGreater(snapshots[1][0],snapshots[0][0])
+
     def test_unusable_heartbeat_clears_and_recovery_fetches_fresh_state(self):
         feed=Feed('http://127.0.0.1:8766','guide')
         guide={'id':'guide','title':'Generic Guide','applies_to':{},'tracks':{'focus':[
@@ -41,6 +65,15 @@ class OverlayFeedTests(unittest.TestCase):
         version=feed.version;feed.select('new')
         self.assertGreater(feed.version,version)
         self.assertEqual(feed.snapshot()[1],[]);self.assertEqual(feed.snapshot()[2],0)
+
+    def test_service_restart_invalidates_same_guide_and_catalog_context(self):
+        feed=Feed('http://127.0.0.1:8766','guide')
+        feed.sync_selection({'active_guide_id':'guide','active_guide_revision':0,'guide_server_id':'old'})
+        feed.value=[{'key':'old'}];feed.updated=10;version=feed.version
+        feed.sync_selection({'active_guide_id':'guide','active_guide_revision':0,'guide_server_id':'new'})
+        self.assertGreater(feed.version,version)
+        self.assertEqual(feed.value,[])
+        self.assertEqual(feed.updated,0)
 
     def test_server_selection_invalidates_old_targets_and_rejects_older_updates(self):
         feed=Feed('http://127.0.0.1:8766','a');feed.value=[{'key':'old'}];feed.updated=10

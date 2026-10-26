@@ -20,6 +20,7 @@ from .live import LiveMonitor, NativeProvider
 from .stream import LiveEventHub, SubscriberLimitError
 from .technology_visuals import load_technology_visuals
 from .focus_visuals import load_focus_visuals
+from .overlay_diagnostics import HudStatus
 from .guide import load_guide, list_guides, default_guide_id, enrich_guide, update_checks, manual_keys
 from .guide_progress import RunStore
 from .guide_runtime import evaluate as evaluate_guide
@@ -98,6 +99,7 @@ class Store:
             self.default_guide_id = None
         self.active_guide_id=self.default_guide_id
         self.active_guide_revision=0
+        self.hud_status=HudStatus(SETTINGS.with_name('overlay-status.json'))
         try:
             selection=json.loads(SETTINGS.with_name('active-guide.json').read_text(encoding='utf-8'))
             self.active_guide_id=load_guide(selection.get('guide_id'))['id']
@@ -314,6 +316,7 @@ class Store:
             return {**self.live_cache, 'guide_id': default_id, 'guide_checks': checks,
                     'active_guide_id':getattr(self,'active_guide_id',None),
                     'active_guide_revision':getattr(self,'active_guide_revision',0),
+                    'overlay':self.hud_status.read(getattr(self,'active_guide_id',None),self._server_identity()) if getattr(self,'hud_status',None) else None,
                     'guide_states': states,
                     'guide_started': {key: self._progress_store().get(key)['started']
                                       for key in self._progress_store().metadata()},
@@ -638,6 +641,16 @@ def make_handler(store: Store):
 
         def do_GET(self):
             url = urlparse(self.path)
+            if url.path == '/api/import/frame':
+                query = parse_qs(url.query)
+                try:
+                    # GuideFrames only opens a registered local YouTube source.
+                    # No arbitrary paths or remote download in the preview endpoint.
+                    path = store.guide_frames.frame(query.get('url', [''])[0], float(query.get('seconds', [''])[0]))
+                    self._send(200, path.read_bytes(), 'image/jpeg')
+                except (ValueError, OSError) as exc:
+                    self.json({'error': str(exc)}, 404)
+                return
             if url.path=='/api/guide/frame':
                 query=parse_qs(url.query)
                 try:

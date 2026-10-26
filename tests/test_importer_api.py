@@ -57,3 +57,23 @@ class ImporterApiTests(unittest.TestCase):
                     with urlopen(base + '/importer.js') as response: self.assertEqual(response.status, 200)
                 finally:
                     server.shutdown(); thread.join(timeout=3)
+
+    def test_draft_frame_uses_registered_source_without_installing_a_guide(self):
+        from hoi4companion.guide_frames import GuideFrames
+        with TemporaryDirectory() as directory:
+            store=Store.__new__(Store)
+            store.guide_frames=GuideFrames(Path(directory))
+            image=Path(directory)/'frame.jpg';image.write_bytes(b'fixture-jpeg')
+            with ThreadingHTTPServer(('127.0.0.1',0),make_handler(store)) as server:
+                thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+                base=f'http://127.0.0.1:{server.server_port}'
+                try:
+                    with patch.object(store.guide_frames,'frame',return_value=image) as frame:
+                        with urlopen(base+'/api/import/frame?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DFBPdhlwqMwM&seconds=104') as response:
+                            self.assertEqual(response.headers['Content-Type'],'image/jpeg')
+                            self.assertEqual(response.read(),b'fixture-jpeg')
+                        frame.assert_called_once_with('https://www.youtube.com/watch?v=FBPdhlwqMwM',104.0)
+                    for query in ['seconds=bad','url=file:///secret&seconds=2','url=https://example.com&seconds=2']:
+                        with self.assertRaises(HTTPError):urlopen(base+'/api/import/frame?'+query)
+                    with self.assertRaises(HTTPError):urlopen(base+'/api/import/frame?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DFBPdhlwqMwM&seconds=104')
+                finally:server.shutdown();thread.join(timeout=3)

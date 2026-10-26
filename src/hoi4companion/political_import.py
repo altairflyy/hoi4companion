@@ -58,6 +58,12 @@ def political_catalog(game, mods, labels, reference):
                                  'slot':slot,'traits':ids,'countries':countries(identifier),
                                  'country_condition':political_condition(node,advisor),
                                  'aliases':list(dict.fromkeys([*label['aliases'],identifier,*trait_names(ids)]))})
+                for role in ('corps_commander','navy_leader'):
+                    for commander in node.blocks(role):
+                        label=names(node.scalar('name',identifier));ids=traits(commander)
+                        rows.append({'kind':'commander','id':identifier,**label,'slot':role,'character_id':identifier,
+                                     'traits':ids,'countries':countries(identifier),'country_condition':political_condition(node,commander),
+                                     'aliases':list(dict.fromkeys([*label['aliases'],*trait_names(ids)]))})
     for path,root in read('events'):
         for kind,event in root.entries:
             if kind not in ('country_event','news_event','state_event','unit_leader_event') or not isinstance(event,Node): continue
@@ -133,14 +139,24 @@ def bind_political(step,catalog,country,audit=None):
         params['law_id']=item['id']; params['law_group']=item['group']
         attach('completion',_fact('politics.ideas',item['id']))
         return 'politics_live_law'
+    if params.get('commander_id') is not None or params.get('role') in ('corps_commander','navy_leader'):
+        slot=params.get('role')
+        found=matches(('commander',),params.get('commander_id') or params.get('person_id'),params.get('person_name') or params.get('trait_name'),**({'slot':slot} if slot else {}))
+        if len(found)!=1:return 'politics_identity_ambiguous' if found else 'politics_identity_unresolved'
+        params['commander_id']=found[0]['id'];params['role']=found[0]['slot']
+        # Recruitment and being present in a roster are not army assignment.
+        return 'commander_assignment_unobserved'
     if any(params.get(key) is not None for key in ('advisor_id','person_id','person_name','trait_name','role')):
         identifier=params.get('advisor_id'); query=params.get('person_id') or params.get('person_name') or params.get('trait_name') or params.get('role')
         slot=params.get('role')
         slots={normal_name(row['slot']):row['slot'] for row in catalog.rows(('advisor',),context)}
-        filters={'slot':slots[normal_name(slot)]} if isinstance(slot,str) and normal_name(slot) in slots else {}
+        slots.update({normal_name(row['group']):row['group'] for row in catalog.rows(('idea',),context) if row.get('group') in ('industrial_concern','theorist','political_advisor','army_chief','navy_chief','air_chief','high_command')})
+        if slot is not None and (not isinstance(slot,str) or normal_name(slot) not in slots):
+            return 'politics_identity_unresolved'
+        filters={'slot':slots[normal_name(slot)]} if slot is not None else {}
         found=matches(('advisor',),identifier,query,**filters)
         concerns=matches(('idea',),None,query) if identifier is None and params.get('person_id') is None else []
-        concerns=[row for row in concerns if row.get('group') in ('industrial_concern','theorist','political_advisor','army_chief','navy_chief','air_chief','high_command')]
+        concerns=[row for row in concerns if (slot is None or normal_name(row.get('group',''))==normal_name(slot)) and row.get('group') in ('industrial_concern','theorist','political_advisor','army_chief','navy_chief','air_chief','high_command')]
         if not found and len(concerns)==1:
             item=concerns[0];params['idea_id']=item['id'];attach('completion',_fact('politics.ideas',item['id']))
             return 'politics_live_idea'

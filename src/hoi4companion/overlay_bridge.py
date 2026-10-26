@@ -75,10 +75,13 @@ class Bridge:
     def snapshot(self):
         version,proposed,updated,error,title=self.feed.snapshot()
         age=(time.monotonic()-updated)*1000 if updated else None
-        usable=bool(updated and age is not None and 0<=age<12000 and not error and proposed)
+        fresh=bool(updated and age is not None and 0<=age<12000 and not error)
+        usable=bool(fresh and proposed)
         return {'version':version,'proposed':proposed if usable else [],'usable':usable,
                 'title':title,'error':error or ('' if usable else 'Nessuna indicazione live attuale'),
-                'age_ms':age,'guide_id':self.feed.guide_id}
+                'age_ms':age,'guide_id':self.feed.guide_id,
+                'guide_server_id':getattr(self.feed,'selection_server',None),
+                'idle_explanation':self.feed.explanation(version) if fresh and hasattr(self.feed,'explanation') else None}
 
     def handle(self,request,data=b''):
         if not isinstance(request,dict) or request.get('schema_version')!=SCHEMA_VERSION:
@@ -141,6 +144,7 @@ class Bridge:
                     'matches':matches,'handled_panels':result.get('handled_panels',[]) if available else [],
                     'geometry_ms':(time.perf_counter()-began)*1000,'native_error':result.get('error',''),
                     'diagnostics':result.get('diagnostics',{}),'memory_access':True,
+                    'explanations':result.get('explanations',[]) if usable else [],
                     'active_panel':result.get('active_panel'),
                     'suspend_visual':result.get('suspend_visual',False)}
         if kind!='frame':raise ValueError('Richiesta overlay non supportata')

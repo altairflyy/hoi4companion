@@ -27,10 +27,12 @@
   if(runtime.country!==contracts.fact(state,'country').value){result.notice='Riepilogo sospeso: valutazione e dati si riferiscono a nazioni diverse.';return result;}
   guide=contracts.guide(guide); // Same legacy metadata adapter used by the existing presentation.
   const definitions=new Map(Object.values(guide.tracks||{}).flat().map(s=>[s.key,s])),rows=new Map((runtime.steps||[]).map(r=>[r.key,r]));
+  const dependencyLinks=row=>(row.blocked_by||[]).map(key=>definitions.get(key)).filter(Boolean).slice(0,4).map(reference);
   const items=[];let order=0;
   const metric=(name,value)=>({label:name,value:count(value)?value:null,status:count(value)?'calculated':'unknown',source:count(value)?'runtime.production':''});
   for(const row of runtime.steps||[]){
    const step=definitions.get(row.key);if(!step||step.tracking==='reminder'||row.status==='not_applicable'||['select_focus','research','free'].includes(step.action.kind))continue;
+   if(row.action_readiness?.domain==='political'&&runtime.action_sequence?.political!==row.key)continue;
    const p=step.action.params||{},category=p.category||(step.action.kind==='special_project'?'projects':'checkpoints');
    // Future blocked instructions stay in the full plan, not in the current summary.
    if(row.blocked_by?.length||row.reason==='skip_condition_unknown')continue;
@@ -60,7 +62,12 @@
    }else{
     if(row.status==='completed')continue;
     const pp=item.evidence.find(e=>e.key.includes('political_power'));
-    if(row.status==='unverifiable'&&pp?.status==='unknown'){
+    if(row.action_readiness?.domain==='political'&&!(row.status==='unverifiable'&&pp?.status==='unknown')){
+     const p=row.action_readiness.political_power;item.title=p?.affordable===false?'Potere politico insufficiente':'Prossimo incarico o legge';item.tone=p?.affordable===false?'waiting':row.availability.value===null?'unknown':'ready';item.rank=30;
+     item.message=`${title(step)}. Potere politico: ${p?.available??'non verificabile'}; costo indicato dalla guida: ${p?.cost??'non specificato'}.`;
+     if(row.action_readiness.unknown.length)item.message+=' Restano requisiti non verificabili.';
+     if(p?.affordable===false)item.message+=' Attendi le risorse richieste; la sequenza conserva questa azione.';
+    }else if(row.status==='unverifiable'&&pp?.status==='unknown'){
      item.title='Potere politico non verificabile';item.tone='unknown';item.rank=30;
      item.message='La guida richiede un controllo del potere politico, ma il dato necessario non è disponibile. Non posso stabilire se la condizione sia rispettata.';
     }else if(row.status==='active'){
@@ -103,6 +110,15 @@
     parallel?.capacity===0?(research?'Gli slot rilevati sono occupati. Le ricerche successive restano consultabili nelle loro schede.':'Un focus risulta già attivo. Il prossimo previsto resta consultabile nel suo albero.'):
     row.reason==='dependency_not_completed'?(research?'La ricerca successiva dipende dal completamento di una ricerca precedente o di un altro passaggio della guida.':'Il focus successivo attende il completamento dei passaggi richiesti.'):
     row.reason==='dependency_unknown'?'Il completamento di un passaggio precedente non è verificabile.':'Il runtime attende una condizione o una verifica: consulta la scheda dedicata.';
+   if(row.blocked_by?.length){
+    item.links=dependencyLinks(row);const names=item.links.map(l=>l.label).join(', ');
+    if(names)item.message=(row.reason==='dependency_unknown'?'Completamento non verificabile: ':'Attende il completamento di: ')+names+'.';
+    if(row.blocked_by.length>4)item.message+=' Altri prerequisiti sono indicati nella scheda.';
+   }
+   if(research&&parallel?.capacity===0){
+    const slots=contracts.fact(state,'research.slots');
+    if(slots.status!=='unknown'&&Array.isArray(slots.value))item.message=`Gli slot rilevati sono occupati: ${slots.value.filter(s=>s.technology_id).length} su ${slots.value.length}. Nessuna nuova ricerca da avviare; consulta le schede per quelle in corso.`;
+   }
    items.push(item);
   }
   items.sort((a,b)=>a.rank-b.rank||b.priority-a.priority||a.order-b.order);
@@ -111,5 +127,6 @@
   if(!items.length)result.notice='Nessuna attività richiede una spiegazione aggiuntiva in questo momento. Il piano completo resta consultabile.';
   return result;
  }
- const api={project};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiOperationalSummary=api;
+ function reference(step){return {label:title(step),href:['research','select_focus'].includes(step.action.kind)?nativeHref(step):'#operation-'+encodeURIComponent(step.key)};}
+ const api={project,reference};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiOperationalSummary=api;
 })(typeof window!=='undefined'?window:globalThis);

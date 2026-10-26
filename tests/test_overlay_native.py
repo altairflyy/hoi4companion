@@ -61,6 +61,14 @@ class OverlayBridgeTests(unittest.TestCase):
         self.assertTrue(cached['cache_hit'])
         self.assertEqual(sprites.calls,1)
 
+    def test_idle_explanation_never_hides_a_stale_or_invalid_live_state(self):
+        bridge,feed,_=self.create();feed.value=[]
+        feed.explanation=lambda version:{'code':'slots_occupied','message':'Slot occupati'}
+        self.assertEqual(bridge.snapshot()['idle_explanation']['code'],'slots_occupied')
+        feed.updated=0;self.assertIsNone(bridge.snapshot()['idle_explanation'])
+        feed.updated=time.monotonic();feed.error='Lettura non valida'
+        self.assertIsNone(bridge.snapshot()['idle_explanation'])
+
     def test_stale_revision_invalid_feed_and_mid_recognition_change_fail_closed(self):
         bridge,feed,sprites=self.create();feed.version=8
         self.assertFalse(self.frame(bridge)['usable'])

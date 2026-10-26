@@ -28,6 +28,22 @@
   }
   return {state:{...state,facts},details};
  }
+ function actionDomain(step){const p=step.action.params||{};if(step.tracking==='reminder')return null;if(step.action.kind==='special_project')return 'project';if(p.commander_id||['corps_commander','navy_leader'].includes(p.role))return 'appointment';return Object.hasOwn(step,'political_power_cost')||['law_id','law_name','idea_id','idea_name','advisor_id','person_id','person_name','trait_name','role'].some(k=>p[k])?'political':null;}
+ function actionReadiness(step,state,checks){
+  const domain=actionDomain(step);if(!domain)return null;
+  const missing=[],blocked=[],value={domain,unknown:missing,blocked};
+  if(domain==='political'||Object.hasOwn(step,'political_power_cost')){
+   const cost=step.political_power_cost??null,f=c.fact(state,'country.politics.political_power'),amount=typeof f.value==='number'&&Number.isFinite(f.value)?f.value:null;
+   const affordable=cost===null||amount===null?null:amount>=cost;
+   value.political_power={cost,available:amount,affordable,cost_basis:cost===null?'unknown':'guide_declared'};
+   if(cost===null)missing.push('political_cost_unknown');if(amount===null)missing.push('political_power_unknown');if(affordable===false)blocked.push('insufficient_political_power');
+  }
+  if(Object.hasOwn(step,'requirements')){const eligible=c.condition(step.requirements,state,checks);if(eligible===false)blocked.push('action_requirements_false');else if(eligible===null)missing.push('action_requirements_unknown');}
+  else missing.push('action_requirements_unknown');
+  if(domain==='appointment')missing.push('commander_assignment_unobserved');
+  if(domain==='project')missing.push('facility_compatibility_unknown');
+  value.value=blocked.length?false:missing.length?null:true;return value;
+ }
  function compareIds(a,b){
   const left=Array.from(a,c=>c.codePointAt(0)),right=Array.from(b,c=>c.codePointAt(0));
   for(let i=0;i<Math.min(left.length,right.length);i++)if(left[i]!==right[i])return left[i]-right[i];
@@ -74,7 +90,7 @@
   for(const [track,rows]of trackEntries){
    const manual=[];
    for(const step of rows){
-    definitions.set(step.key,step);indices.set(step.key,index++);barriers.set(step.key,Object.hasOwn(step,'depends_on')?[]:[...manual]);
+    definitions.set(step.key,step);indices.set(step.key,index++);barriers.set(step.key,Object.hasOwn(step,'depends_on')||Object.hasOwn(step,'depends_on_started')?[]:[...manual]);
     const kind=step.action.kind,isNative=['select_focus','research'].includes(kind),isFocus=kind==='select_focus',isReminder=step.tracking==='reminder';
     let completion=unknown(),basis='free';
     if(isReminder){completion=unknown('not_tracked');basis='reminder';}
@@ -84,6 +100,7 @@
     const selection=isReminder?unknown():isNative?membership(isFocus?'focus.active':'research.active',step.target):Object.hasOwn(step,'started_when')?calculated(condition(step.started_when),'declared_start'):['manual','special_project'].includes(kind)&&Object.hasOwn(run.started,step.key)?calculated(run.started[step.key],'manual_started:'+step.key):unknown();
     const priorityValue=step.priority_when?condition(step.priority_when):true;
     results.set(step.key,{key:step.key,track,status:'unverifiable',reason:'not_evaluated',blocked_by:[],completion,selection,completion_basis:basis,priority:priorityValue===true?(step.priority||0):0,priority_known:priorityValue!==null,availability:unknown('dynamic_availability_not_evaluated')});
+    const readiness=actionReadiness(step,context,checks);if(readiness){const row=results.get(step.key);row.action_readiness=readiness;row.availability=readiness.value===null?unknown(readiness.unknown.join(',')):calculated(readiness.value,'declared_action_requirements');}
     if(isReminder)results.get(step.key).tracking='reminder';
     if(construction.details.has(step.key))results.get(step.key).construction=construction.details.get(step.key);
     if(assignments.details.has(step.key))results.get(step.key).production=assignments.details.get(step.key);
@@ -91,7 +108,7 @@
    }
   }
   const indegree=new Map(),successors=new Map([...definitions.keys()].map(key=>[key,[]]));
-  for(const [key,step]of definitions){const deps=step.depends_on||[];indegree.set(key,deps.length);for(const dep of deps)successors.get(dep).push(key);}
+  for(const [key,step]of definitions){const deps=[...step.depends_on||[],...step.depends_on_started||[]];indegree.set(key,deps.length);for(const dep of deps)successors.get(dep).push(key);}
   const queue=[...definitions.keys()].filter(key=>indegree.get(key)===0);
   for(let cursor=0;cursor<queue.length;cursor++){
    const key=queue[cursor],step=definitions.get(key),row=results.get(key),kind=step.action.kind;
@@ -111,12 +128,14 @@
    else{
     const deps=step.depends_on||[];
     const explicit=deps.filter(dep=>results.get(dep).status!=='completed');
+    const started=(step.depends_on_started||[]).filter(dep=>results.get(dep).selection.value!==true&&results.get(dep).completion.value!==true);
     const implicit=barriers.get(key).filter(dep=>results.get(dep).completion.value!==true);
-    row.blocked_by=[...new Set([...explicit,...implicit])];
+    row.blocked_by=[...new Set([...explicit,...started,...implicit])];
     if(row.blocked_by.length){
-     const missing=explicit.some(dep=>results.get(dep).status==='unverifiable')||implicit.some(dep=>results.get(dep).completion.value===null);
+     const missing=started.some(dep=>results.get(dep).selection.value===null)||explicit.some(dep=>results.get(dep).status==='unverifiable')||implicit.some(dep=>results.get(dep).completion.value===null);
      set(missing?'unverifiable':'waiting',missing?'dependency_unknown':'dependency_not_completed');
-    }else if(native&&row.selection.value===null)set('unverifiable','selection_unknown');
+    }else if(row.action_readiness?.blocked.length)set('waiting',row.action_readiness.blocked[0]);
+    else if(native&&row.selection.value===null)set('unverifiable','selection_unknown');
     else if(step.tracking==='reminder')set('ready','reminder_available');
     else if(row.completion.value===null&&kind!=='free')set('unverifiable',['manual','special_project'].includes(kind)?'manual_confirmation_required':'completion_unknown');
     else set('ready',kind==='free'?'free_choice':'prerequisites_satisfied');
@@ -143,7 +162,7 @@
    }
    parallel[lane]={capacity:capacity[lane],steps:selected};
   }
-  return {schema_version:1,guide_id:guide.id||'',run_id:run.run_id,progress_status:run.status,mode,country,steps,tracks,ready,parallel};
+  return {schema_version:1,guide_id:guide.id||'',run_id:run.run_id,progress_status:run.status,mode,country,steps,tracks,ready,parallel,action_context:{session_id:state.session_id??null,campaign_id:c.fact(state,'campaign.id').value},action_sequence:{political:[...definitions].find(([key,step])=>actionDomain(step)==='political'&&!settled(results.get(key)))?.[0]||null,projects:[...definitions].filter(([key,step])=>actionDomain(step)==='project'&&!settled(results.get(key))).map(([key])=>key)}};
  }
  const api={evaluate};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiGuideRuntime=api;
 })(typeof window!=='undefined'?window:globalThis);

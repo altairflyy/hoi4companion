@@ -402,11 +402,12 @@ class UiReader:
             current = s.number(current+0x118)
         raise LiveReadError('Cartella della tecnologia non qualificata')
 
-    def snapshot(self, *, focus_ids=(), technology_ids=(), event_ids=(), event_instances=()):
+    def snapshot(self, *, focus_ids=(), technology_ids=(), event_ids=(), event_instances=(), action_ui=False):
         started = time.perf_counter()
         for attempt in range(2):
             try:
                 extra = {'event_ids': event_ids, 'event_instances': event_instances} if event_ids or event_instances else {}
+                if action_ui:extra['action_ui']=True
                 result = self._snapshot(focus_ids=focus_ids, technology_ids=technology_ids, **extra)
                 result['diagnostics'].update(snapshot_ms=(time.perf_counter()-started)*1000,
                                              retry_count=attempt)
@@ -424,7 +425,7 @@ class UiReader:
                 self._cache = None
                 raise
 
-    def _snapshot(self, *, focus_ids=(), technology_ids=(), event_ids=(), event_instances=()):
+    def _snapshot(self, *, focus_ids=(), technology_ids=(), event_ids=(), event_instances=(), action_ui=False):
         started = time.perf_counter()
         p = self.process
         if p.identity() != p.created:
@@ -498,7 +499,7 @@ class UiReader:
                     # Discard pre-discovery witnesses; the recursive sample
                     # starts only after candidate discovery has completed.
                     return self._snapshot(focus_ids=focus_ids, technology_ids=technology_ids,
-                                          event_ids=event_ids, event_instances=event_instances)
+                                          event_ids=event_ids, event_instances=event_instances,action_ui=action_ui)
             if panel == 'focus':
                 # The frontend has separate viewed/selected/context bindings.
                 # Only the qualified own-country mode is admitted; comparison
@@ -554,11 +555,16 @@ class UiReader:
         if event_visible:
             active = ['event']
         nodes.extend(events['nodes'])
+        actions={}
+        if action_ui and not active:
+            from .action_ui_native import discover_roots, read_controls
+            action_roots=discover_roots(self,root,bindings)
+            actions=read_controls(self,s,root,action_roots,resolution,country_pointer)
         s.verify()
         return {'available': True, 'source': 'native_gui', 'pid': p.pid, 'process_created': p.created,
                 'country': country, 'scope': scope, 'resolution': resolution,
                 'active_panel': active[0] if active else None, 'panels': panels, 'nodes': nodes, 'tabs': tabs,
                 'events': {'status': events['status'], 'visible_ids': events['visible_ids']},
-                'event_windows': events['event_windows'],
+                'event_windows': events['event_windows'], 'action_ui':actions,
                 'diagnostics': {'snapshot_ms': (time.perf_counter()-started)*1000,
                                 'discovery_ms': self.discovery_ms, 'bytes': s.used}}

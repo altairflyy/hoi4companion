@@ -40,14 +40,15 @@ test('queued construction stays in progress and disappears on cancellation witho
  assert.equal(project(guide,live).items.some(r=>r.step_key==='build'),false);
 });
 
-test('research dependency messages link to the technology sheet without listing technology names',()=>{
+test('research dependency explains the named prerequisite without creating a future research list',()=>{
  const guide=definition([]);guide.tracks.research=[
   {key:'previous',title:'SECRET NAME A',href:'/technologies?folder=industry&tech=a',action:{kind:'research',entity:{kind:'technology',id:'a'}}},
   {key:'next',title:'SECRET NAME B',href:'/technologies?folder=industry&tech=b',depends_on:['previous'],action:{kind:'research',entity:{kind:'technology',id:'b'}}}];
  const live=state({'research.active':fact(['a']),'research.slots':fact([{technology_id:'a'},{technology_id:null}])});
  const result=project(guide,live),item=result.items.find(r=>r.category==='research');
- assert.equal(item.reason,'dependency_not_completed');assert.match(item.message,/ricerca precedente/);
- assert.match(item.href,/^\/technologies/);assert.equal(JSON.stringify(result).includes('SECRET NAME'),false);
+ assert.equal(item.reason,'dependency_not_completed');assert.match(item.message,/SECRET NAME A/);
+ assert.equal(JSON.stringify(result).includes('SECRET NAME B'),false);
+ assert.match(item.links[0].href,/tech=a/);assert.equal(item.links[0].label,'SECRET NAME A');
  assert.deepEqual(item.blocked_by,['previous']);
 });
 
@@ -106,6 +107,18 @@ test('busy native capacity is explained without inventing an unmet condition',()
  const result=project(guide,state({'research.active':fact(['a']),'research.slots':fact([{technology_id:'a'}])}));
  assert.match(result.items[0].message,/slot rilevati sono occupati/);
  assert.equal(result.items[0].runtime_status,'ready');
+ assert.match(result.items[0].message,/1 su 1/);
+});
+
+test('unknown named dependency remains unverifiable and cannot imply a missing completed action',()=>{
+ const guide=definition([]);guide.tracks.research=[
+  {key:'a',name:'Macchine di prova',action:{kind:'research',entity:{kind:'technology',id:'a'}}},
+  {key:'b',depends_on:['a'],action:{kind:'research',entity:{kind:'technology',id:'b'}}}];
+ const evaluated=runtime.evaluate(guide,state());
+ evaluated.steps[0].status='unverifiable';evaluated.steps[1].reason='dependency_unknown';evaluated.steps[1].blocked_by=['a'];
+ evaluated.tracks.research.next='b';evaluated.parallel.research.steps=[];
+ const before=JSON.stringify(evaluated),item=summary.project(guide,evaluated,state()).items[0];
+ assert.match(item.message,/non verificabile.*Macchine di prova/);assert.equal(JSON.stringify(evaluated),before);
 });
 
 test('an externally supplied hostile href cannot turn a summary link into executable content',()=>{

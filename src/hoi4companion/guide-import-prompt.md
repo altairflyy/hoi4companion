@@ -6,6 +6,55 @@ Il programma risolve le identità e converte il file nel Guide Schema v1 interno
 Non sviluppare software, collegare API, inventare strategie o precompilare
 l'avanzamento del giocatore. Non generare offset o nomi di fatti live presunti.
 
+## Estrazione e controllo della copertura
+
+Lavora in due passaggi: prima raccogli le istruzioni effettivamente presenti
+nelle fonti accessibili; poi trasformale in guide.steps. Non inventare istruzioni
+per riempire le parti mancanti. Distingui tempo del video (secondi assoluti,
+corretto con il manifest delle clip), data della partita e prerequisiti:
+la data osservata non è automaticamente una scadenza o una dipendenza.
+
+Aggiungi a `guide` il campo editoriale `source_inventory`, separato dagli step:
+
+```json
+"source_inventory": {
+  "schema_version": 1,
+  "items": [
+    {"id":"instruction-001", "source_id":"source-1",
+     "quote":"Research Basic Machine Tools.", "timestamp_seconds":104,
+     "step_keys":["research-tools"]},
+    {"id":"instruction-002", "source_id":"source-1",
+     "quote":"This repeats the previous instruction.", "step_keys":[],
+     "excluded_reason":"Ripetizione: istruzione già rappresentata da instruction-001"}
+  ]
+}
+```
+
+L'esempio è inventato: sostituiscilo con citazioni reali della tua fonte.
+Ogni voce richiede id stabile, source_id e quote presente nel testo allegato.
+Il timestamp è facoltativo per testi web; per un riferimento temporale deve
+corrispondere a un segmento di sources e usare il tempo assoluto originale.
+Le osservazioni visive vanno dichiarate come tali nel testo della fonte,
+con i limiti di leggibilità, senza presentarle come parole pronunciate.
+
+Collega ogni voce a uno o più step tramite step_keys, oppure escludila con
+excluded_reason esplicito e step_keys vuoto. Non usare entrambe le modalità.
+Un promemoria è uno step e va collegato come gli altri. Ogni step deve essere
+rappresentato nell'inventario. Se non sai ancora come rappresentare una
+istruzione, conserva step_keys vuoto senza inventare una motivazione:
+l'importatore la mostrerà come anomalia da risolvere.
+Non duplicare lo stesso riscontro nelle sovrapposizioni delle clip; una
+istruzione ripetuta in tempi diversi non è automaticamente un duplicato.
+Conserva nell'elenco anche le esclusioni motivate; non eliminare silenziosamente
+contenuti scomodi o incerti per ottenere un file formalmente valido.
+
+Controlla quantità, regioni, prodotti e risposte contro le rispettive evidenze.
+Se parlato e immagine si contraddicono, descrivi la contraddizione nelle note
+dello step e conserva entrambi i riscontri: non scegliere arbitrariamente.
+La copertura dell'inventario non certifica che tutto il video sia stato visto:
+riporta in guide.assumptions parti non accessibili, tagli e dettagli illeggibili.
+Non dichiarare percentuali di completezza rispetto all'intero video o articolo.
+
 ## Materiale e cataloghi
 
 Posso fornire video YouTube, descrizione, trascrizione, articolo, screenshot,
@@ -275,6 +324,28 @@ o dipendenza da un promemoria. Non serializzare tutte le attività per default.
 `when`, `skip_when`, `priority_when` e `priority` sono facoltativi e devono essere
 sostenuti dalla fonte. Non servono condizioni di completamento per azioni già
 collegate dal programma: ometti `completion` e `started_when` in quei casi.
+
+Per dipendenze esplicitamente dal solo avvio usa `depends_on_started:["chiave"]`.
+Un progetto speciale mantiene il completamento finale distinto: se la fonte dice
+«avvia il progetto, poi nomina l'esperto», la nomina usa depends_on_started del
+progetto, non depends_on. Il completamento del predecessore soddisfa anche una
+dipendenza dal suo avvio. Non convertire dipendenze di guide precedenti e non
+inventare legami quando la fonte fornisce solo un ordine visivo ambiguo.
+
+Per una sequenza di nomine/leggi conserva l'ordine dei relativi step. Specifica
+`role` per le nomine e `group` per una legge quando la fonte li distingue. Non
+scambiare un comandante d'armata (`corps_commander`) o di flotta (`navy_leader`)
+con un capo di stato maggiore (`army_chief`, ecc.) o un membro di high_command.
+La presenza nel roster non prova l'assegnazione a un'armata o flotta.
+
+`political_power_cost` è facoltativo, numerico e non negativo: aggiungilo soltanto
+se la fonte documenta il costo/soglia. Il programma lo presenta come costo
+indicato dalla guida, non come tariffa corrente certificata del gioco. Non
+presumere 150 per tutte le nomine. `requirements` è una condizione v1 facoltativa
+su risorse/requisiti realmente documentati: non inventare nomi di fatti live.
+I requisiti non osservabili restano sconosciuti; un costo alto non autorizza
+l'inversione delle nomine. La specializzazione del progetto viene risolta dal
+catalogo locale; non chiedere conferme manuali per avvio/completamento già letti.
 
 Solo quando indispensabile e giustificato, i predicati v1 ammessi sono:
 `{op:"check",key:"criterio-manuale"}`, `{op:"all"|"any",args:[...]}`,

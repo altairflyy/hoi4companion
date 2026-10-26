@@ -13,6 +13,11 @@ completo resta consultabile sotto il riepilogo.
 - **Costruzioni e progetti:** spiega l'avvio e mantiene separato il criterio
   finale. La scomparsa di un ordine dalla coda non dimostra il completamento.
 - **Dipendenze:** spiega l'attesa delle ricerche e rimanda alla relativa scheda.
+  I prerequisiti bloccanti riportano il nome localizzato e un collegamento al
+  focus, tecnologia o istruzione coinvolti (fino a quattro, con avviso se ce ne
+  sono altri). Un prerequisito non verificabile rimane distinto da uno incompleto.
+  Con tutti gli slot occupati mostra il conteggio osservato, senza aggiungere
+  nuove ricerche oltre la capacità ammessa.
   Focus e tecnologie continuano a essere indicati nei rispettivi alberi;
   il riepilogo non introduce una seconda lista di ricerche.
 - **Dati mancanti:** non deduce esecuzione, disponibilità o completamento. Il
@@ -48,6 +53,29 @@ proietta `view.model.runtime` e quello stato, usando la sottoscrizione SSE
 esistente. Non aggiunge richieste, polling, accesso alla memoria o persistenza.
 Python serve il nuovo asset statico; il formato delle API di guida e
 avanzamento rimane invariato.
+
+## Perché l'HUD non mostra una cornice
+
+«Stato delle evidenziazioni nel gioco» mostra il motivo comunicato dall'HUD:
+gioco in background, pausa, stato live non disponibile, nessuna indicazione
+ammessa, pannello chiuso, categoria diversa, elemento fuori schermo, widget
+nascosto/non individuato/ambiguo o errore tecnico. Per una categoria tecnologica
+diversa offre il collegamento alla scheda del Companion; non preme pulsanti in
+HOI4. Un widget non individuato non viene chiamato arbitrariamente «fuori schermo».
+
+Il controllo nativo e la pagina usano le stesse spiegazioni. Il server legge
+`overlay-status.json` nella cartella dati, limita dimensioni e campi, e mantiene
+una cache per modifica del file. Accetta soltanto informazioni recenti (quattro
+secondi), riferite alla guida attiva e alla stessa istanza del servizio. Non
+condivide contatori dei frame o tempi variabili: aggiornamenti puramente
+diagnostici non generano eventi di gioco continui. La pagina usa il flusso SSE
+esistente; non aggiunge polling del browser. Dati obsoleti, guida diversa o partita
+non valida non mantengono precedenti spiegazioni come osservazioni correnti.
+
+Le spiegazioni GUI sono una proiezione della lettura già qualificata. Non
+ammettono cornici, non sostituiscono ID con testo e non modificano stato della
+guida, ordine strategico o completamenti. Un riepilogo di slot occupati è
+disponibile solo da una valutazione live valida; non nasconde un errore del lettore.
 
 ## Verifiche e limiti
 

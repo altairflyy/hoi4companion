@@ -36,7 +36,7 @@ SPECS = {
     'free': ('free', None, 'lane', ''),
     'advanced_v1': (None, None, 'step', 'step'),
 }
-POLICIES = {'title','note','confirmation','phase','depends_on','when','skip_when','priority','priority_when','completion','started_when'}
+POLICIES = {'title','note','confirmation','phase','depends_on','depends_on_started','political_power_cost','requirements','when','skip_when','priority','priority_when','completion','started_when'}
 COMMON = POLICIES | {'key','type','evidence','timing','instructions','source_seconds','game_date','details'}
 GENERATED = {'verification','production_selector','political_binding','kind','entity','target','completion','started_when'}
 IDENTITIES = {'building_id','building_name','state_id','state_name','quantity','quantity_mode','target_level','target_quantity',
@@ -242,7 +242,7 @@ def compile_document(document):
     if set(document)-{'format','authoring_schema_version','sources','guide'}:raise ValueError('Campi authoring non riconosciuti')
     value=document.get('guide')
     if not isinstance(value,dict) or 'tracks' in value:raise ValueError('Authoring: usa guide.steps, senza tracks')
-    allowed={'id','title','subtitle','applies_to','sources','phases','assumptions','steps','start_date','research_baseline'}
+    allowed={'id','title','subtitle','applies_to','sources','phases','assumptions','steps','start_date','research_baseline','source_inventory'}
     if set(value)-allowed:raise ValueError('Metadati authoring non riconosciuti: '+', '.join(sorted(set(value)-allowed)))
     for field in ('id','title'):_text(value.get(field),'guide',field)
     steps=value.get('steps')

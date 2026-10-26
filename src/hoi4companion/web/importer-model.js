@@ -41,7 +41,7 @@
  function catalogSections(entities,treeId=''){
   const definitions=[['focus','Focus nazionali',['focus']],['research','Ricerche tecnologiche',['technology']],
    ['production','Produzione ed equipaggiamenti',['equipment']],['construction','Costruzioni e regioni',['building','state']],
-   ['projects','Progetti speciali',['project']],['politics','Politica, personaggi e decisioni',['law','idea','advisor','decision']],
+   ['projects','Progetti speciali',['project']],['politics','Politica, personaggi e decisioni',['law','idea','advisor','commander','decision']],
    ['events','Eventi e risposte',['event','event_option']],['other','Altri identificatori',[]]];
   const sections=definitions.map(([id,title])=>({id,title,catalog_schema_version:1,catalog_scope:id,reference_language:'english',catalog:[]}));
   const byKind=new Map(definitions.flatMap(([id,,kinds])=>kinds.map(kind=>[kind,sections.find(s=>s.id===id)])));
@@ -127,6 +127,26 @@
   step.action.params=params;
   return result;
  }
- const api={readDraft,editStep,editConstruction,eventCatalog,catalogSections,countryCompatibility,normalise:c.guide,canPublish:(report,reviewed,busy)=>report?.valid===true&&reviewed===true&&!busy};
+ function editCoverage(guide,id,keys,reason=''){
+  const result=JSON.parse(JSON.stringify(guide)),items=result.source_inventory?.items;
+  const item=items?.find(row=>row.id===id);
+  if(!item)throw Error('Istruzione sorgente sconosciuta');
+  const known=new Set(Object.values(result.tracks).flat().map(row=>row.key));
+  if(!Array.isArray(keys)||keys.some(key=>!known.has(key))||new Set(keys).size!==keys.length)throw Error('Seleziona chiavi di step esistenti e distinte');
+  if(reason&&keys.length)throw Error('Scegli collegamento oppure esclusione');
+  if(!keys.length&&!reason.trim())throw Error('Collega almeno uno step oppure motiva l’esclusione');
+  item.step_keys=keys;delete item.excluded_reason;
+  if(reason.trim())item.excluded_reason=reason.trim();
+  return result;
+ }
+ function sourceHref(source,seconds){
+  const url=source?.url;
+  if(typeof url!=='string'||!/^https?:\/\/[^\s/?#]+(?:[/?#]|$)/i.test(url)||/[\s\u0000-\u001f]/.test(url))return null;
+  if(Number.isFinite(seconds)&&seconds>=0&&/^https:\/\/(?:www\.)?youtube\.com\/watch\?/i.test(url)){
+   return url.split('#')[0].replace(/([?&])t=[^&]*&?/g,'$1').replace(/[?&]$/,'')+'&t='+Math.floor(seconds)+'s';
+  }
+  return url;
+ }
+ const api={editCoverage,sourceHref,readDraft,editStep,editConstruction,eventCatalog,catalogSections,countryCompatibility,normalise:c.guide,canPublish:(report,reviewed,busy)=>report?.valid===true&&reviewed===true&&!busy};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiImporter=api;
 })(typeof window!=='undefined'?window:globalThis);

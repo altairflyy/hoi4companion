@@ -25,6 +25,15 @@ def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
     if (runtime.get('guide_id')!=guide.get('id') or runtime.get('mode')!='live'
             or not state.get('usable') or not country or runtime.get('country')!=country
             or required_country and country!=required_country):return []
+    political=runtime.get('action_sequence',{}).get('political')
+    context=runtime.get('action_context')
+    if isinstance(context,dict):
+        from .contracts import normalise_state
+        normalized=normalise_state(state)
+        session=context.get('session_id');campaign=context.get('campaign_id')
+        observed=normalized['facts'].get('campaign.id',{})
+        if session is not None and normalized.get('session_id')!=session:return []
+        if campaign is not None and (observed.get('status')!='observed' or not observed.get('source') or observed.get('value')!=campaign):return []
     rows={r['key']:r for lane in guide['tracks'].values() for r in lane}
     native=set(k for lane in runtime.get('parallel',{}).values() for k in lane.get('steps',[]))
     overview=state.get('sample',{}).get('country_overview',{})
@@ -64,6 +73,10 @@ def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
             panel='event';identity=params['event_id']+':'+params['event_option_id']
             entries=[e for e in catalog if e['kind']=='event_option' and e['id']==params['event_option_id']]
             labels=[params.get('event_option_name'),params.get('event_option')]
+        elif kind=='special_project':
+            if status=='active':continue
+            panel='projects';identity=ref.get('id')
+            entries=[e for e in catalog if e['kind']=='project' and e['id']==identity]
         elif params.get('category')=='production':
             panel='production';identity=params.get('variant_name') or params.get('equipment_id') or params.get('equipment_name')
             selector=params.get('production_selector')
@@ -77,13 +90,17 @@ def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
                 from .research_upgrades import exact_matches
                 entries=exact_matches(params.get('equipment_id') or params.get('equipment_name',''),[e for e in catalog if e['kind']=='equipment'])
         elif params.get('category') in ('politics','characters'):
-            panel='politics';identity=params.get('law_group') or params.get('role') or params.get('person_id') or params.get('law_id') or params.get('idea_id')
+            if item['key']!=political:continue
+            panel='politics';identity=params.get('advisor_id') or params.get('law_id') or params.get('idea_id')
             identifiers={params.get('law_id'),params.get('idea_id'),params.get('advisor_id')}-{None}
-            entries=[e for e in catalog if e['kind'] in ('law','idea','advisor') and e['id'] in identifiers]
+            entries=[e for e in catalog if e['kind'] in ('law','idea','advisor') and e['id'] in identifiers
+                     and (not params.get('role') or e.get('slot',e.get('group'))==params['role'])
+                     and (not params.get('law_group') or e.get('group')==params['law_group'])]
             labels=[params.get('person_name')] if params.get('person_name') else []
         if not panel or not identity or (panel,identity) in seen:continue
         if len(entries)>1:continue
-        for entry in entries:labels.extend([entry.get('localized_name'),entry.get('name'),*entry.get('aliases',[])])
+        if panel in ('politics','projects') and len(entries)!=1:continue
+        for entry in entries:labels.extend([entry.get('localized_name'),entry.get('name'),*(entry.get('aliases',[]) if panel not in ('politics','projects') else [])])
         labels=list(dict.fromkeys(x for x in labels if isinstance(x,str) and len(text_key(x))>=4))
         if not labels:continue
         seen.add((panel,identity));result.append({'key':item['key'],'panel':panel,'identity':identity,'labels':labels,
@@ -91,6 +108,7 @@ def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
             'folder':row.get('folder'),'folder_name':row.get('folder_name'),
             'event_title':params.get('event_name'),'event_titles':[label for e in catalog if panel=='event' and e['kind']=='event' and e['id']==params.get('event_id') for label in (e.get('name'),e.get('localized_name')) if label],
             'country':country,'scope':ref.get('scope') or (guide.get('applies_to',{}).get('tree_id') if panel=='focus' else None),
+            **({'action_readiness':item.get('action_readiness'),'entity_kind':entries[0]['kind'],'category_id':params.get('law_group') or params.get('role') or entries[0].get('group'), 'specialization':entries[0].get('specialization')} if panel in ('politics','projects') else {}),
             'quantity':(item.get('production') or {}).get('target',params.get('requested_factories',params.get('assigned_factories')))})
     # Conflicting authored answers are not settled by order, priority or text.
     choices={}
@@ -114,6 +132,7 @@ def rectangles(ocr,proposals):
     found=[]
     for proposal in proposals:
         panel=proposal['panel']
+        if panel in ('politics','projects'):continue
         if panel=='event':
             if proposal.get('watch') and not proposal.get('live_visible'):continue
             titles={text_key(t) for t in [proposal.get('event_title'),*proposal.get('event_titles',[])]}-{''}

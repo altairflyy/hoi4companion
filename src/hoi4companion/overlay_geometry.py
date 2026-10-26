@@ -2,6 +2,7 @@
 import math
 from pathlib import Path
 import time
+from .overlay_diagnostics import explain_geometry
 
 
 def _box(value):
@@ -57,8 +58,9 @@ class NativeGeometry:
         event_ids={p.get('event_id') or p['identity'].split(':',1)[0] for p in proposals if p['panel']=='event'}
         instances={instance for p in proposals if p['panel']=='event' for instance in p.get('instances',[])}
         try:
+            options={'action_ui':True} if any(p.get('panel') in ('politics','projects') for p in proposals) else {}
             raw=self.reader.snapshot(focus_ids=focus_ids,technology_ids=tech_ids,
-                                     event_ids=event_ids,event_instances=instances)
+                                     event_ids=event_ids,event_instances=instances,**options)
             result['diagnostics']=raw.get('diagnostics',{})
             if not raw.get('available'):return {**result,'suspend_visual':True,'error':raw.get('error','GUI non verificabile')}
             if raw.get('pid')!=view[1] or raw.get('resolution')!=view[4:]:
@@ -123,6 +125,21 @@ class NativeGeometry:
                         'status':'active' if all(p.get('status')=='active' for p in steps) else 'ready',
                         'rect':rect,'step_keys':[p['key'] for p in steps],
                         'count':len(steps),'basis':'native_gui_identity'})
+            from .action_navigation import navigation_matches
+            actions=raw.get('action_ui',{})
+            if actions.get('status')=='observed':
+                result['handled_panels'] += [panel for panel,qualified in actions.get('coverage',{}).items() if qualified]
+                # Resolve an observed advisor token only to its uniquely bound
+                # catalog role; never turn a numeric native slot into a guess.
+                for control in actions.get('controls',[]):
+                    role={p.get('category_id') for p in proposals if p.get('panel')=='politics' and p.get('entity_kind')=='advisor' and p.get('identity')==control.get('entity_id')}
+                    if control.get('entity_kind')=='advisor' and len(role)==1:control['category_id']=next(iter(role))
+                result['matches']+=navigation_matches(raw,proposals,lambda node,info:_rectangle(node,info,view))
+                if result['active_panel'] is None and actions.get('coverage',{}).get('politics') and any(actions.get('panels',{}).get(p) for p in ('countrypoliticsview','political_ideas_window')):
+                    result['active_panel']='politics'
+                if result['active_panel'] is None and actions.get('coverage',{}).get('projects') and any(actions.get('panels',{}).get(p) for p in ('program_window','facilities_view')):
+                    result['active_panel']='projects'
+            result['explanations']=explain_geometry(raw,proposals,result['matches'])
             return result
         except (OSError,ValueError,RuntimeError) as exc:
             # A torn/invalid observation never keeps the last coordinates and

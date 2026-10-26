@@ -30,6 +30,19 @@ CATALOG=[{'kind':'building','id':'arms_factory','name':'Military Factory'},
 
 
 class AuthoringTests(unittest.TestCase):
+    def test_explicit_start_edges_and_costs_pass_through_the_existing_compiler(self):
+        raw=document({'type':'special_project','target':'Example Project'},
+                     {'type':'law','target':'Example Law','group':'economy','depends_on_started':['s0'],
+                      'political_power_cost':150,'requirements':{'op':'fact','key':'country.manpower.available','test':'gte','value':1}})
+        importer=Importer(lambda:CATALOG)
+        loaded=importer.document(raw);report=importer.preview(loaded['guide'],loaded['sources'])
+        self.assertTrue(report['valid'],report['errors'])
+        project,law=report['guide']['tracks']['operations']
+        self.assertEqual(project['completion']['key'],'projects.completed')
+        self.assertEqual(law['depends_on_started'],['s0'])
+        self.assertEqual(law['political_power_cost'],150)
+        self.assertEqual(law['completion']['key'],'politics.ideas')
+
     def test_simple_document_runs_through_real_importer_and_leaves_input_untouched(self):
         src=document({'type':'build','building':'Military Factory','state':'Example State','quantity':{'mode':'add','value':2}},
                      {'type':'research','target':'Tools'})

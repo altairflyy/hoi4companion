@@ -13,6 +13,28 @@ from hoi4companion.event_country import country_condition, event_condition
 
 
 class PoliticalBindingTests(unittest.TestCase):
+    def test_commander_is_distinct_from_a_government_appointment_and_not_auto_completed(self):
+        with TemporaryDirectory() as directory:
+            root=Path(directory);path=root/'common/characters/test.txt';path.parent.mkdir(parents=True)
+            path.write_text('characters={TST_person={name=person_name corps_commander={traits={infantry_leader}} advisor={slot=high_command idea_token=expert}}}')
+            rows,_=political_catalog(root,[],{}, {'person_name':'Test Person'})
+        commanders=[r for r in rows if r['kind']=='commander']
+        self.assertEqual(commanders[0]['slot'],'corps_commander')
+        step={'key':'unit','action':{'kind':'manual','params':{'person_name':'Test Person','role':'corps_commander'}}}
+        self.assertEqual(bind_political(step,rows,'TST'),'commander_assignment_unobserved')
+        self.assertEqual(step['action']['params']['commander_id'],'TST_person')
+        self.assertNotIn('completion',step)
+        step={'key':'staff','action':{'kind':'manual','params':{'person_name':'Test Person','role':'high_command'}}}
+        self.assertEqual(bind_political(step,rows,'TST'),'politics_live_advisor')
+        self.assertEqual(step['completion']['value'],'expert')
+
+    def test_role_mismatch_is_never_discarded_to_resolve_an_advisor(self):
+        rows=[{'kind':'advisor','id':'p','name':'Person','character_id':'c','slot':'high_command'}]
+        for role in ['political_advisor','unknown_role']:
+            step={'key':'s','action':{'kind':'manual','params':{'advisor_id':'p','role':role}}}
+            self.assertIn('unresolved',bind_political(step,rows,None))
+            self.assertNotIn('completion',step)
+
     def test_political_country_constraints_cover_roles_and_decision_categories_without_availability_guesses(self):
         files={
             'common/ideas/laws.txt':'''ideas={economy={law=yes global={allowed={always=no}} regional={allowed={original_tag=FRA}}}

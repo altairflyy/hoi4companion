@@ -119,3 +119,27 @@ con la tabella generata usare Copia prompt completo, Scarica prompt oppure
 `Importer.prompt()`. La compilazione prova coerenza strutturale e supporto del
 contratto, non autenticità delle citazioni, completezza rispetto al video o
 validazione del lettore live.
+
+## Inventario editoriale delle fonti
+
+Il campo opzionale `guide.source_inventory` ha `schema_version:1` e `items`.
+Ogni voce contiene `id`, `source_id`, `quote`, eventuale `timestamp_seconds`,
+`step_keys` oppure `excluded_reason` con lista di step vuota. È mantenuto nella
+bozza e nella guida senza partecipare alla valutazione live o all'avanzamento.
+I source_id vengono rimappati insieme alle altre evidenze all'importazione.
+
+Il report `coverage` verifica solo le istruzioni dichiarate: collegamenti
+mancanti, step inesistenti, step non rappresentati, citazioni/tempi non riscontrati,
+esclusioni contraddittorie e duplicati esatti della stessa occorrenza.
+Le anomalie impediscono l'installazione finché corrette; non si cancellano step.
+I file precedenti senza inventario restano validi con copertura `unavailable`.
+`accounted` significa inventario contabilizzato, non fonte completa o autentica.
+
+L'anteprima affianca citazione e contesto allegato al collegamento modificabile;
+consente esclusioni motivate e apre la fonte HTTP(S), con tempo per YouTube.
+Il pulsante Mostra fotogramma locale usa soltanto il video già registrato
+dalla preparazione, anche prima di installare la guida. Non scarica né interpreta
+il video durante la revisione. Le voci senza anomalie
+restano in dettagli chiusi. Le citazioni non vengono riscritte dai controlli UI.
+Le contraddizioni semantiche, i dettagli inventati in un testo fornito dall'IA
+e le omissioni non dichiarate nell'inventario richiedono ancora confronto umano.

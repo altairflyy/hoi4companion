@@ -97,7 +97,43 @@
    writeGuide(next);invalidate();await validate();
   });details.append(apply);return details;
  }
- function showReport(value){report=value;$('issues').replaceChildren();$('sourceWarnings').replaceChildren();$('preview').replaceChildren();
+ function sourceEvidence(parent,item){
+  const source=sources.find(row=>row.id===item.source_id);
+  parent.append(node('blockquote',item.quote||'Citazione assente'));
+  parent.append(node('p',(source?.title||item.source_id)+(item.timestamp_seconds!==undefined?' · '+item.timestamp_seconds+'s':'')));
+  const href=m.sourceHref(source,item.timestamp_seconds);
+  if(href){const link=node('a','Apri fonte originale'+(item.timestamp_seconds!==undefined?' al punto indicato':''));link.href=href;link.target='_blank';link.rel='noopener noreferrer';parent.append(link);}
+  if(source?.type==='youtube'&&href&&Number.isFinite(item.timestamp_seconds)&&item.timestamp_seconds>=0){
+   const show=node('button','Mostra fotogramma locale');show.type='button';
+   show.onclick=()=>{show.disabled=true;const img=node('img'),caption=node('p','Caricamento del fotogramma…');img.alt='Fonte video a '+item.timestamp_seconds+' secondi';img.loading='lazy';
+    img.onload=()=>{caption.textContent='Fotogramma del video sorgente, non della partita attuale.';};
+    img.onerror=()=>{img.remove();caption.textContent='Fotogramma non disponibile: prepara il video in Importa guida oppure apri la fonte originale.';show.disabled=false;};
+    img.src='/api/import/frame?url='+encodeURIComponent(source.url)+'&seconds='+encodeURIComponent(item.timestamp_seconds);parent.append(caption,img);};parent.append(show);
+  }
+  if(source?.text){const context=node('details');context.append(node('summary','Contesto allegato (non certifica la fonte originale)'));
+   const at=source.text.indexOf(item.quote),start=Math.max(0,at-300);context.append(node('pre',source.text.slice(start,start+Math.min(5000,(item.quote?.length||0)+600))));parent.append(context);}
+ }
+ function coverageView(value){
+  const coverage=value.coverage,guide=value.guide||value.draft,container=$('coverageReview');container.replaceChildren();
+  if(!coverage||coverage.status==='unavailable'){$('coverageSummary').textContent='Copertura non disponibile: questa guida non contiene l’inventario delle istruzioni estratte. Rimane compatibile; la completezza rispetto alla fonte non è verificata.';return;}
+  $('coverageSummary').textContent=`${coverage.linked} di ${coverage.total} istruzioni collegate · ${coverage.excluded} escluse con motivazione · ${coverage.issues.length} anomalie. Il controllo riguarda l’inventario dichiarato, non certifica che l’IA abbia esaminato tutta la fonte.`;
+  const issues=coverage.issues||[],resolved=node('details');resolved.append(node('summary','Collegamenti ed esclusioni già verificati · modifica facoltativa'));
+  for(const issue of issues.filter(row=>!row.item_id))container.append(node('p',issue.message));
+  const choices=node('details');choices.append(node('summary','Chiavi e titoli degli step per i collegamenti'));
+  for(const row of Object.values(guide?.tracks||{}).flat())choices.append(node('p',row.key+' · '+(row.name||row.title||row.key)));container.append(choices);
+  for(const item of guide?.source_inventory?.items||[]){
+   const problems=issues.filter(row=>row.item_id===item.id),card=node('article');card.className='coverage-card';
+   const evidence=node('div'),editor=node('div');sourceEvidence(evidence,item);editor.append(node('h4','Istruzione '+item.id));
+   for(const problem of problems)editor.append(node('p',problem.message));
+   const label=node('label','Step collegati (chiavi separate da virgole)'),input=node('input');input.value=(item.step_keys||[]).join(', ');label.append(input);editor.append(label);
+   const apply=node('button','Applica collegamento');apply.type='button';apply.onclick=()=>{try{writeGuide(m.editCoverage(readGuide(),item.id,input.value.split(',').map(s=>s.trim()).filter(Boolean)));invalidate();}catch(e){error(e);}};editor.append(apply);
+   const why=node('label','Motivo di esclusione (es. ripetizione della stessa clip)'),reason=node('textarea');reason.value=item.excluded_reason||'';why.append(reason);editor.append(why);
+   const exclude=node('button','Escludi con motivazione');exclude.type='button';exclude.onclick=()=>{try{writeGuide(m.editCoverage(readGuide(),item.id,[],reason.value));invalidate();}catch(e){error(e);}};editor.append(exclude);
+   card.append(evidence,editor);(problems.length?container:resolved).append(card);
+  }
+  if(resolved.children.length>1)container.append(resolved);
+ }
+ function showReport(value){report=value;coverageView(value);$('issues').replaceChildren();$('sourceWarnings').replaceChildren();$('preview').replaceChildren();
   $('validation').textContent=value.valid?'Validazione superata: guida pronta per essere aggiunta. Controlla i dettagli estratti dalla fonte indicati sotto.':'Revisione necessaria: '+value.errors.length+' problemi bloccanti.';
   for(const message of value.errors)$('issues').append(node('li',message));
   for(const message of new Set(value.warnings))$('sourceWarnings').append(node('li',message));
@@ -137,7 +173,7 @@
     select.value=row.tracking||'action';select.onchange=()=>{try{writeGuide(m.editStep(readGuide(),row.key,{tracking:select.value}));invalidate();}catch(e){error(e);}};label.append(select);card.append(label);
     if(row.action.params?.category==='construction')card.append(constructionEditor(row));
    }
-   const politicalReasons={politics_identity_unresolved:'Nome politico, legge o incarico non associato univocamente al catalogo locale. Specifica nome inglese, tratto o ID.',politics_identity_ambiguous:'Più identità corrispondono: indica personaggio e ruolo precisi.',event_identity_unresolved:'Evento/opzione non identificati: specifica event_name e testo inglese della scelta.',event_identity_ambiguous:'Evento o opzione ambigui: serve event_id e una scelta univoca.',event_visible_option:'La finestra e la scelta vengono riconosciute live. La chiusura dell’evento non prova la risposta scelta.',decision_identity_resolved:'Decisione associata al catalogo. Disponibilità, avvio ed esito non ancora qualificati dal lettore: nessun avanzamento automatico.',method_reminder:'Indicazione sul metodo: resta consultabile, senza conferme e senza bloccare la sequenza.'};
+   const politicalReasons={commander_assignment_unobserved:'Comandante e ruolo associati al catalogo. L’assegnazione all’armata o alla flotta non è esposta dal lettore: nessun completamento dedotto dalla presenza nel roster.',politics_identity_unresolved:'Nome politico, legge o incarico non associato univocamente al catalogo locale. Specifica nome inglese, tratto o ID.',politics_identity_ambiguous:'Più identità corrispondono: indica personaggio e ruolo precisi.',event_identity_unresolved:'Evento/opzione non identificati: specifica event_name e testo inglese della scelta.',event_identity_ambiguous:'Evento o opzione ambigui: serve event_id e una scelta univoca.',event_visible_option:'La finestra e la scelta vengono riconosciute live. La chiusura dell’evento non prova la risposta scelta.',decision_identity_resolved:'Decisione associata al catalogo. Disponibilità, avvio ed esito non ancora qualificati dal lettore: nessun avanzamento automatico.',method_reminder:'Indicazione sul metodo: resta consultabile, senza conferme e senza bloccare la sequenza.'};
    if(politicalReasons[operation?.reason])card.append(node('p',politicalReasons[operation.reason]));
    if(row.action.entity){card.append(node('p',row.action.entity.kind+': '+row.action.entity.id+(row.action.entity.scope?' · '+row.action.entity.scope:'')));
     const selectLabel=node('label','Corrispondenza nel catalogo'),select=node('select'),placeholder=node('option','Cerca un’altra associazione…');placeholder.value='';select.append(placeholder);
