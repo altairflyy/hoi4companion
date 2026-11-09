@@ -106,18 +106,21 @@ pub(crate) fn read_entry<R: Read + Seek>(
 }
 pub fn documents(path: &Path) -> Result<Value> {
     let mut archive = archive(std::fs::File::open(path).map_err(|e| e.to_string())?)?;
-    if archive.file_names().any(|s| s == "word/document.xml") {
+    if archive.file_names().any(|s| s.as_deref().unwrap_or("") == "word/document.xml") {
         return Ok(json!({"documents":[],"single_document":true}));
     }
     let mut result = vec![];
     for i in 0..archive.len() {
         let file = archive.by_index_raw(i).map_err(|e| e.to_string())?;
+        let Ok(name) = file.name() else {
+            continue;
+        };
         if !file.is_dir()
-            && safe(file.name())
-            && file.name().to_lowercase().ends_with(".docx")
+            && safe(&name)
+            && name.to_lowercase().ends_with(".docx")
             && file.size() <= 12_000_000
         {
-            result.push(file.name().to_owned());
+            result.push(name.into_owned());
         }
     }
     result.sort_by_key(|s| hoi4companion_catalog_core::casefold(s));
@@ -128,7 +131,9 @@ pub fn document_sizes(path: &Path) -> Result<std::collections::HashMap<String, u
     let mut result = std::collections::HashMap::new();
     for i in 0..archive.len() {
         let file = archive.by_index_raw(i).map_err(|e| e.to_string())?;
-        result.insert(file.name().to_owned(), file.size());
+        if let Ok(name) = file.name() {
+            result.insert(name.into_owned(), file.size());
+        }
     }
     Ok(result)
 }
@@ -188,7 +193,7 @@ fn paragraph(node: Node) -> String {
 type Groups = Vec<Vec<Vec<String>>>;
 fn content(data: &[u8]) -> Result<(String, Groups, usize)> {
     let mut archive = archive(Cursor::new(data))?;
-    if !archive.file_names().any(|s| s == "word/document.xml") {
+    if !archive.file_names().any(|s| s.as_deref().unwrap_or("") == "word/document.xml") {
         return Err("Contenuto Word mancante o duplicato".into());
     }
     let raw = xml_text(&read_entry(&mut archive, "word/document.xml", 8_000_000)?)?;
@@ -200,12 +205,16 @@ fn content(data: &[u8]) -> Result<(String, Groups, usize)> {
         .ok_or("Contenuto Word mancante")?;
     let media = archive
         .file_names()
-        .filter(|s| s.starts_with("word/media/") && !s.ends_with('/'))
+        .filter(|s| {
+            s.as_deref()
+                .map(|name| name.starts_with("word/media/") && !name.ends_with('/'))
+                .unwrap_or(false)
+        })
         .count();
     let mut links = vec![];
     if archive
         .file_names()
-        .any(|s| s == "word/_rels/document.xml.rels")
+        .any(|s| s.as_deref().unwrap_or("") == "word/_rels/document.xml.rels")
     {
         let raw = xml_text(&read_entry(
             &mut archive,
@@ -418,7 +427,7 @@ pub fn prepare_with_vocabulary(
         return Err("La fonte di contesto deve essere diversa dalla guida".into());
     }
     let mut archive = archive(std::fs::File::open(path).map_err(|e| e.to_string())?)?;
-    let (data, title) = if archive.file_names().any(|s| s == "word/document.xml") && entry.is_none()
+    let (data, title) = if archive.file_names().any(|s| s.as_deref().unwrap_or("") == "word/document.xml") && entry.is_none()
     {
         let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
         let mut data = vec![];
@@ -434,7 +443,7 @@ pub fn prepare_with_vocabulary(
         let name = entry
             .filter(|s| safe(s) && s.to_lowercase().ends_with(".docx"))
             .ok_or("Seleziona un documento Word presente nell’archivio")?;
-        if !archive.file_names().any(|s| s == name) {
+        if !archive.file_names().any(|s| s.as_deref().unwrap_or("") == name) {
             return Err("Documento assente o duplicato nell’archivio".into());
         }
         (
