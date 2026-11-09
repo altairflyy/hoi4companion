@@ -154,10 +154,13 @@ pub fn import(root: &Path, path: &Path) -> Result<Value> {
     let mut budget = 180_000_000u64;
     for i in 0..archive.len() {
         let file = archive.by_index_raw(i).map_err(|e| e.to_string())?;
-        if file.is_dir() || !word_sources::safe(file.name()) {
+        let Ok(file_name) = file.name() else {
+            continue;
+        };
+        if file.is_dir() || !word_sources::safe(&file_name) {
             continue;
         }
-        let name = file.name().to_owned();
+        let name = file_name.into_owned();
         let size = file.size();
         drop(file);
         let entry_path = Path::new(&name);
