@@ -30,6 +30,119 @@ CATALOG=[{'kind':'building','id':'arms_factory','name':'Military Factory'},
 
 
 class AuthoringTests(unittest.TestCase):
+    def test_focus_sequence_is_additive_and_requires_an_explicit_complete_baseline(self):
+        raw=document({'type':'focus','target':'First Focus'})
+        self.assertNotIn('focus_sequence',compile_document(raw)['guide'])
+        raw['guide']['focus_sequence']={'schema_version':1,'coverage':'complete','initial_focuses':[]}
+        result=compile_document(raw)['guide']
+        self.assertEqual(result['focus_sequence'],raw['guide']['focus_sequence'])
+        raw['guide']['focus_sequence'].pop('initial_focuses')
+        with self.assertRaises(ValueError):compile_document(raw)
+
+    def test_dependency_policy_is_preserved_without_changing_legacy_documents(self):
+        raw=document({'type':'instruction','category':'politics','instructions':['Follow the guide.']})
+        self.assertNotIn('dependency_policy', compile_document(raw)['guide'])
+        raw['guide']['dependency_policy']='explicit'
+        self.assertEqual(compile_document(raw)['guide']['dependency_policy'],'explicit')
+        raw['guide']['dependency_policy']='invalid'
+        with self.assertRaises(ValueError):compile_document(raw)
+
+    def test_descriptive_category_aliases_compile_without_changing_action_semantics(self):
+        aliases={'mio':'production','resources':'production','naval':'army','intelligence':'projects',
+                 'gameplay':'checkpoints','focus':'checkpoints','doctrine':'army','diplomacy':'politics','editorial':'checkpoints'}
+        for alias,category in aliases.items():
+            with self.subTest(alias=alias):
+                raw=document({'type':'instruction','category':alias,'instructions':['Follow the documented order.']})
+                before=copy.deepcopy(raw)
+                row=compile_document(raw)['guide']['tracks']['operations'][0]
+                self.assertEqual(row['action']['params']['category'],category)
+                self.assertEqual(row['action']['params']['category_hint'],alias)
+                self.assertEqual(row['action']['kind'],'manual')
+                self.assertNotIn('completion',row)
+                self.assertEqual(raw,before)
+        for bad in ['',{},None,42,[]]:
+            with self.assertRaisesRegex(ValueError,'s0: .*category'):
+                compile_document(document({'type':'instruction','category':bad,'instructions':['Order.']}))
+
+    def test_free_descriptive_category_is_retained_without_inventing_an_action_or_completion(self):
+        raw=document({'type':'instruction','category':'Supply and logistics','instructions':['Keep supply routes open.']})
+        before=copy.deepcopy(raw)
+        importer=Importer(lambda:CATALOG);loaded=importer.document(raw)
+        report=importer.preview(loaded['guide'],loaded['sources'])
+        self.assertTrue(report['valid'],report['errors'])
+        row=report['guide']['tracks']['operations'][0]
+        self.assertEqual(row['action']['params']['category'],'checkpoints')
+        self.assertEqual(row['action']['params']['category_hint'],'Supply and logistics')
+        self.assertEqual(row['action']['kind'],'manual')
+        self.assertNotIn('completion',row)
+        self.assertIn('Supply and logistics',' '.join(report['warnings']))
+        self.assertEqual(raw,before)
+        self.assertEqual(importer.document(loaded),loaded)
+
+    def test_category_and_instruction_presentation_can_vary_without_changing_runtime_intent(self):
+        for category in [' MIO ','mIo','MILITARY-INDUSTRIAL ORGANIZATIONS']:
+            result=compile_document(document({'type':'instruction','category':category,'instructions':'Choose the demonstrated designer.'}))
+            row=result['guide']['tracks']['operations'][0]
+            self.assertEqual(row['action']['params']['category'],'production')
+            self.assertEqual(row['action']['params']['instructions'],['Choose the demonstrated designer.'])
+        raw=document({'type':'instruction','instructions':'Follow the source order.'})
+        self.assertEqual(compile_document(raw)['guide']['tracks']['operations'][0]['action']['params']['category'],'checkpoints')
+        for bad in ['',{},None,42]:
+            with self.assertRaises(ValueError):compile_document(document({'type':'instruction','instructions':bad}))
+
+    def test_typed_action_owns_its_group_even_with_a_descriptive_category(self):
+        raw=document({'type':'law','target':{'id':'law'},'category':'Economy and trade','instructions':'Adopt this law.'})
+        importer=Importer(lambda:CATALOG);loaded=importer.document(raw)
+        report=importer.preview(loaded['guide'],loaded['sources'])
+        self.assertTrue(report['valid'],report['errors'])
+        row=report['guide']['tracks']['operations'][0]
+        self.assertEqual(row['action']['params']['category'],'politics')
+        self.assertEqual(row['action']['params']['category_hint'],'Economy and trade')
+        self.assertEqual(row['completion']['key'],'politics.ideas')
+        self.assertEqual(row['action']['params']['law_id'],'law')
+
+    def test_structural_errors_name_multiple_steps_instead_of_stopping_at_the_first(self):
+        raw=document({'key':'first','type':'build','building':'Military Factory'},
+                     {'key':'second','type':'event','event':'An event'})
+        with self.assertRaises(ValueError) as error:compile_document(raw)
+        self.assertIn('first: manca state',str(error.exception))
+        self.assertIn('second: manca option',str(error.exception))
+
+    def test_single_evidence_and_descriptive_details_do_not_create_identity_bindings(self):
+        raw=document({'type':'army','task':'Hold front','details':{'quantity':24}},
+                     {'type':'design','name':'SPG','details':{'role':'Artillery'}})
+        for row in raw['guide']['steps']:row['evidence']=row['evidence'][0]
+        compiled=compile_document(raw)['guide']['tracks']['operations']
+        self.assertEqual(compiled[0]['action']['params']['division_count'],24)
+        self.assertEqual(compiled[1]['action']['params']['design_role'],'Artillery')
+        self.assertNotIn('role',compiled[1]['action']['params'])
+        self.assertIsInstance(compiled[0]['evidence'],list)
+        loaded=Importer(lambda:CATALOG).document(raw)
+        report=Importer(lambda:CATALOG).preview(loaded['guide'],loaded['sources'])
+        self.assertTrue(report['valid'],report['errors'])
+        for row in report['guide']['tracks']['operations']:
+            self.assertNotIn('completion',row)
+        with self.assertRaises(ValueError):
+            compile_document(document({'type':'army','task':'Hold','details':{'quantity':24,'division_count':25}}))
+
+    def test_video_phase_labels_are_metadata_while_real_conditions_remain_conditions(self):
+        raw=document({'type':'army','task':'Hold','phase':'setup'})
+        raw['guide']['phases']=[{'id':'setup','title':'Setup','when':'Video 00:00–03:30; not a campaign date'}]
+        before=copy.deepcopy(raw)
+        phase=compile_document(raw)['guide']['phases'][0]
+        self.assertEqual(phase['timing'],raw['guide']['phases'][0]['when'])
+        self.assertNotIn('when',phase)
+        self.assertEqual(raw,before)
+        raw['guide']['phases'][0]['when']='video 0:00 - 3:30'
+        self.assertEqual(compile_document(raw)['guide']['phases'][0]['timing'],'video 0:00 - 3:30')
+        raw['guide']['phases'][0]['when']='Video 03:30–00:00'
+        with self.assertRaises(ValueError):compile_document(raw)
+        raw['guide']['phases'][0]['when']={'op':'check','key':'ready'}
+        self.assertEqual(compile_document(raw)['guide']['phases'][0]['when'],{'op':'check','key':'ready'})
+        raw['guide']['phases'][0]['when']='After the war starts'
+        with self.assertRaisesRegex(ValueError,'setup.*when'):
+            compile_document(raw)
+
     def test_explicit_start_edges_and_costs_pass_through_the_existing_compiler(self):
         raw=document({'type':'special_project','target':'Example Project'},
                      {'type':'law','target':'Example Law','group':'economy','depends_on_started':['s0'],

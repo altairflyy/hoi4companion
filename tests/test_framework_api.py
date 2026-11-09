@@ -86,7 +86,7 @@ class FrameworkApiTests(unittest.TestCase):
                         self.assertIn(b'operationCards', page)
                         self.assertNotIn(b'id="focusSteps"', page)
                         self.assertNotIn(b'id="researchSteps"', page)
-                    for path in ['/contracts.js', '/guide-presentation.js', '/guide-session.js', '/guide-assist.js']:
+                    for path in ['/contracts.js', '/guide-presentation.js', '/guide-session.js', '/guide-assist.js', '/action-plan.js', '/guide-references.js']:
                         with urlopen(base + path, timeout=2) as response:
                             self.assertIn('javascript', response.headers['Content-Type'])
                     with urlopen(base + '/guide-assist.css', timeout=2) as response:

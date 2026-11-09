@@ -53,6 +53,29 @@ class CoverageTests(unittest.TestCase):
         self.assertEqual(inventory, before)
         self.assertEqual(len(report['guide']['tracks']['research']), 1)
 
+    def test_shared_quote_can_document_distinct_actions_without_becoming_a_duplicate_action(self):
+        from hoi4companion.source_coverage import coverage_report, inventory_items
+        guide={'tracks':{'operations':[{'key':'a'},{'key':'b'}]},'source_inventory':{'schema_version':1,'items':[
+            {'id':'one','source_id':'s','quote':'Upgrade air and naval departments.','timestamp_seconds':12,'step_keys':['a'],'basis':'explicit'},
+            {'id':'two','source_id':'s','quote':'Upgrade air and naval departments.','timestamp_seconds':12,'step_keys':['b'],'basis':'explicit'}]}}
+        sources={'s':{'text':'Upgrade air and naval departments.','segments':[{'start':12,'text':'Upgrade air and naval departments.'}]}}
+        before=copy.deepcopy(guide)
+        report=coverage_report(guide,sources)
+        self.assertEqual(report['status'],'accounted',report['issues'])
+        self.assertEqual(report['linked'],2)
+        self.assertEqual(guide,before)
+        guide['source_inventory']['items'][1]['step_keys']=['a','b']
+        self.assertIn('duplicate_observation',[x['code'] for x in coverage_report(guide,sources)['issues']])
+        guide['source_inventory']['items'][0]['basis']='invented'
+        with self.assertRaises(ValueError):inventory_items(guide)
+
+    def test_repeated_untimed_priority_labels_are_supported_by_repeated_source_occurrences(self):
+        from hoi4companion.source_coverage import coverage_report
+        guide={'tracks':{'research':[{'key':'a'},{'key':'b'}]},'source_inventory':{'schema_version':1,'items':[
+            {'id':'one','source_id':'s','quote':'Tools UP','step_keys':['a']},
+            {'id':'two','source_id':'s','quote':'Tools UP','step_keys':['b']}]}}
+        self.assertEqual(coverage_report(guide,{'s':{'text':'Tools UP\nOther research\nTools UP'}})['status'],'accounted')
+
     def test_invalid_inventory_shapes_fail_and_valid_coverage_does_not_change_runtime(self):
         from hoi4companion.guide_runtime import evaluate
         from hoi4companion.source_coverage import inventory_items

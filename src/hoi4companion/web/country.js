@@ -48,6 +48,8 @@
   empty('divisions',rows('divisionRows',divisions.by_type,(r,x)=>{cell(r,x.name||x.type);cell(r,x.count,{numeric:true,integer:true});}));
   $('templateDetails').hidden=!rows('templateRows',divisions.by_template,(r,x)=>{nameCell(r,x);cell(r,x.type);cell(r,x.count,{numeric:true,integer:true});});
   const manpower=header('manpower');for(const field of ['available','fielded','training'])$('manpower'+field[0].toUpperCase()+field.slice(1)).textContent=number(manpower[field],{integer:true});
+  const experience=header('experience');for(const branch of ['army','navy','air'])$('experience'+branch[0].toUpperCase()+branch.slice(1)).textContent=number(experience[branch]);
+  const diplomacy=header('diplomacy');$('diplomacyWar').textContent=typeof diplomacy.at_war==='boolean'?HoiI18n.t(diplomacy.at_war?'At war':'At peace'):'—';
   header('states');renderStates();
   const production=header('production');
   for(const key of ['civilian','military','dockyards'])$('effective'+key[0].toUpperCase()+key.slice(1)).textContent=number(production.effective_factories?.[key],{integer:true});

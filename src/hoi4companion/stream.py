@@ -1,165 +1,91 @@
-"""One bounded, lazy state producer shared by all local SSE subscribers."""
-from copy import deepcopy
+"""Acquisition adapter for the Rust-owned shared state/event hub.
+
+Only the acquisition callback and its lazy worker remain transitional Python.
+Rust owns revisions, semantic deduplication, subscriber admission, coalescing,
+liveness expiry and waiting. Diagnostic timestamps cannot refresh evidence.
+"""
 from dataclasses import dataclass
-import json
 import threading
 import time
+from .backend_core import NativeEvents,state_signature
 
 
-class SubscriberLimitError(RuntimeError):
-    pass
+class SubscriberLimitError(RuntimeError):pass
 
 
 @dataclass(frozen=True)
 class LiveEvent:
-    revision: int
-    value: dict
-
-
-def state_signature(value):
-    """Transport/liveness measurements do not constitute a gameplay change."""
-    ignored = {'observed_at', 'age_seconds', 'native_tick', 'metrics', 'checked_at'}
-
-    def semantic(item):
-        if isinstance(item, dict):
-            return {key: semantic(child) for key, child in item.items() if key not in ignored}
-        if isinstance(item, (list, tuple)):
-            return [semantic(child) for child in item]
-        return item
-
-    return json.dumps(semantic(value), sort_keys=True, separators=(',', ':'), ensure_ascii=False)
+    revision:int
+    value:dict
 
 
 class Subscription:
-    def __init__(self, hub):
-        self.hub, self.revision, self.closed = hub, -1, False
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_):
-        self.close()
-
-    def wait(self, timeout=5):
-        """Return the newest state; intermediate revisions may be coalesced."""
-        hub = self.hub
-        with hub._condition:
-            hub._expire_if_stale_locked()
-            hub._condition.wait_for(
-                lambda: self.closed or hub._closed or
-                (hub._event is not None and hub._event.revision > self.revision), timeout)
-            hub._expire_if_stale_locked()
-            if self.closed or hub._closed or hub._event is None or hub._event.revision <= self.revision:
-                return None
-            self.revision = hub._event.revision
-            return LiveEvent(self.revision, deepcopy(hub._event.value))
-
+    def __init__(self,hub,identity):self.hub,self.identity,self.closed=hub,identity,False
+    def __enter__(self):return self
+    def __exit__(self,*_):self.close()
+    def wait(self,timeout=5):
+        value=self.hub._native.wait(self.identity,timeout,self.hub.clock())
+        return LiveEvent(value['revision'],value['value']) if value is not None else None
     def close(self):
         with self.hub._condition:
-            self.closed = True
-            self.hub._clients.discard(self)
-            self.hub._condition.notify_all()
+            if self.closed:return
+            self.closed=True;self.hub._native.unsubscribe(self.identity)
+            self.hub._clients.discard(self);self.hub._condition.notify_all()
 
 
 class LiveEventHub:
-    def __init__(self, source, interval=.25, max_subscribers=8, on_idle=None):
-        if interval <= 0 or max_subscribers < 1:
-            raise ValueError('Positive interval and subscriber limit required')
-        self.source, self.interval, self.max_subscribers = source, interval, max_subscribers
-        self.on_idle = on_idle
-        self._condition = threading.Condition()
-        self._clients, self._event = set(), None
-        self._signature, self._revision, self._last_check = None, 0, None
-        self._worker, self._closed = None, False
+    def __init__(self,source,interval=.25,max_subscribers=8,on_idle=None,*,clock=time.monotonic):
+        self._native=NativeEvents(interval,max_subscribers)
+        self.source,self.interval,self.max_subscribers=source,interval,max_subscribers
+        self.on_idle,self.clock=on_idle,clock
+        self._condition=threading.Condition()
+        self._clients=set();self._worker=None;self._closed=False
 
     @property
     def closed(self):
-        with self._condition:
-            return self._closed
+        with self._condition:return self._closed
+
+    @property
+    def _event(self):
+        value=self._native.peek(self.clock())
+        return LiveEvent(value['revision'],value['value']) if value is not None else None
 
     def subscribe(self):
         with self._condition:
-            if self._closed:
-                raise RuntimeError('State stream closed')
-            if len(self._clients) >= self.max_subscribers:
-                raise SubscriberLimitError('Too many state stream subscribers')
-            if not self._clients:
-                # A resumed stream must wait for a fresh read, never revive old data.
-                self._event, self._signature, self._last_check = None, None, None
-            client = Subscription(self)
-            self._clients.add(client)
+            try:identity=self._native.subscribe(self.clock())
+            except ValueError as exc:
+                if 'Too many' in str(exc):raise SubscriberLimitError(str(exc)) from exc
+                if 'closed' in str(exc):raise RuntimeError(str(exc)) from exc
+                raise
+            client=Subscription(self,identity);self._clients.add(client)
             if self._worker is None:
-                self._worker = threading.Thread(target=self._run, name='hoi4-live-state', daemon=True)
+                self._worker=threading.Thread(target=self._run,name='hoi4-live-state',daemon=True)
                 self._worker.start()
-            self._condition.notify_all()
-            return client
+            self._condition.notify_all();return client
 
-    def heartbeat(self):
-        with self._condition:
-            self._expire_if_stale_locked()
-            age = time.monotonic() - self._last_check if self._last_check is not None else None
-            value = self._event.value if self._event is not None else {}
-            fresh = age is not None and age < max(5, self.interval * 8)
-            return {'revision': self._revision, 'usable': bool(fresh and value.get('usable')),
-                    'status': value.get('status', 'connecting') if fresh else 'stale',
-                    'age_seconds': round(age, 3) if age is not None else None}
-
-    def _expire_if_stale_locked(self):
-        """Reader liveness is part of state validity, independent of transport."""
-        if (self._event is None or not self._event.value.get('usable') or self._last_check is None or
-                time.monotonic() - self._last_check < max(5, self.interval * 8)):
-            return
-        value = {**self._event.value, 'usable': False, 'status': 'stale',
-                 'error': 'Il lettore non conferma più uno stato fresco'}
-        self._revision += 1
-        self._event = LiveEvent(self._revision, value)
-        # The next successful source result must be delivered even if gameplay
-        # remained identical throughout the interruption.
-        self._signature = None
-        self._condition.notify_all()
+    def heartbeat(self):return self._native.heartbeat(self.clock())
 
     def _run(self):
         while True:
-            with self._condition:
-                idle = self._closed or not self._clients
+            with self._condition:idle=self._closed or not self._clients
             if idle:
-                # Keep ownership of the worker while releasing the reader. A new
-                # subscriber may arrive during cleanup; that same worker resumes.
                 if self.on_idle is not None:
-                    try:
-                        self.on_idle()
-                    except Exception:
-                        pass
+                    try:self.on_idle()
+                    except Exception:pass
                 with self._condition:
                     if self._closed or not self._clients:
-                        self._worker = None
-                        self._condition.notify_all()
-                        return
+                        self._worker=None;self._condition.notify_all();return
                 continue
-            started = time.monotonic()
-            try:
-                value = deepcopy(self.source())
-                signature = state_signature(value)
+            started=time.monotonic()
+            try:self._native.publish(self.source(),self.clock())
             except Exception as exc:
-                # Unexpected reader failures are visible as unusable state, not a dead stream.
-                value = {'usable': False, 'status': 'disconnected', 'sample': None,
-                         'error': 'Lettore locale non disponibile: ' + str(exc)}
-                signature = state_signature(value)
+                self._native.publish({'usable':False,'status':'disconnected','sample':None,
+                    'error':'Lettore locale non disponibile: '+str(exc)},self.clock())
             with self._condition:
-                self._expire_if_stale_locked()
-                self._last_check = time.monotonic()
-                if signature != self._signature:
-                    self._signature = signature
-                    self._revision += 1
-                    self._event = LiveEvent(self._revision, value)
-                    self._condition.notify_all()
-                remaining = max(0, self.interval - (time.monotonic() - started))
-                self._condition.wait_for(lambda: self._closed or not self._clients, remaining)
+                remaining=max(0,self.interval-(time.monotonic()-started))
+                self._condition.wait_for(lambda:self._closed or not self._clients,remaining)
 
     def close(self):
         with self._condition:
-            self._closed = True
-            self._condition.notify_all()
-            worker = self._worker
-        if worker is not None and worker is not threading.current_thread():
-            worker.join(timeout=1)
+            self._closed=True;self._native.stop();self._condition.notify_all();worker=self._worker
+        if worker is not None and worker is not threading.current_thread():worker.join(timeout=1)

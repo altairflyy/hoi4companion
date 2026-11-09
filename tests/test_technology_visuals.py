@@ -89,10 +89,10 @@ class TechnologyVisualsTest(unittest.TestCase):
             gfx.write_text('spriteTypes={spriteType={name=unused textureFile="gfx/never-open.dds"} spriteType={name=GFX_technology_x_folder_unavailable_item_bg textureFile="gfx/used.dds"}}')
             gui=root/'interface/test.gui'
             gui.write_text('guiTypes={containerWindowType={name=techtree_x_folder_item iconType={name=Icon}}}')
-            with patch.object(visuals,'_dimensions',wraps=visuals._dimensions) as dimensions:
-                result=load_technology_visuals([gui],[gfx])
-                self.assertEqual(dimensions.call_count,1)
-                self.assertEqual(dimensions.call_args.args[0],texture.resolve())
+            from hoi4companion.backend_core import _request
+            packet=_request(0,'source_technology_visuals',gui_files=[str(gui)],gfx_files=[str(gfx)])
+            result=packet['value']
+            self.assertEqual(packet['header_reads'],1)
             self.assertEqual(result['templates']['techtree_x_folder_item']['size']['width'],72)
             write(144)
             result=load_technology_visuals([gui],[gfx])

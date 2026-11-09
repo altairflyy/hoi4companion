@@ -76,6 +76,24 @@ pub fn parse(source: &[u8]) -> Result<Node, String> {
     document::parse(source)
 }
 
+fn parsed(source:&str,reviewed:bool)->Result<(Node,Option<recovery::Evidence>),String>{
+    match parse(source.as_bytes()){
+        Ok(node)=>Ok((node,None)),
+        Err(original) if reviewed=>match recovery::recover(source)? {
+            Some((source,evidence))=>Ok((parse(source.as_bytes())?,Some(evidence))),
+            None=>Err(original)
+        },
+        Err(error)=>Err(error)
+    }
+}
+
+/// Native consumers use the bounded ordered document directly, without a
+/// serialize/deserialize round-trip or an unrelated JSON nesting limit.
+pub fn read_reviewed(source:&[u8])->Result<Node,String>{
+    let(decoded,_)=input::decode(source,0)?;
+    parsed(&decoded,true).map(|(node,_)|node)
+}
+
 pub fn response(source: &[u8]) -> Vec<u8> {
     process(source, 1, 0)
 }
@@ -87,17 +105,8 @@ pub fn process(source: &[u8], encoding: u32, mode: u32) -> Vec<u8> {
             "document_model":"TextTape","typed_models":2,"reviewed_recovery":1,"source_encoding":encoding,
             "capabilities":["windows-1252","jomini-json","typed-focus-relations"]});
         if mode==0 || mode==4 {
-            let node=match parse(decoded.as_bytes()) {
-                Ok(node)=>node,
-                Err(original) if mode==4=>match recovery::recover(&decoded)? {
-                    Some((source,evidence))=>{
-                        result["source_recovery"]=serde_json::to_value(evidence).map_err(|e|e.to_string())?;
-                        parse(source.as_bytes())?
-                    }
-                    None=>return Err(original),
-                },
-                Err(error)=>return Err(error),
-            };
+            let (node,evidence)=parsed(&decoded,mode==4)?;
+            if let Some(evidence)=evidence {result["source_recovery"]=serde_json::to_value(evidence).map_err(|e|e.to_string())?;}
             result["node"]=serde_json::to_value(node).map_err(|e|e.to_string())?;
         }
         else {

@@ -1,0 +1,547 @@
+[
+  {
+    "name": "ready",
+    "guide": {
+      "id": "frontier",
+      "title": "Border",
+      "schema_version": 1,
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "fort",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "bunker",
+                "target_level": 1,
+                "province_selector": {
+                  "kind": "border",
+                  "country": "YUG"
+                }
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.completed",
+              "test": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "value": "HUN",
+          "status": "observed",
+          "source": "fixture"
+        },
+        "fortifications.borders.YUG": {
+          "value": [
+            10,
+            11
+          ],
+          "status": "calculated",
+          "source": "fixture"
+        },
+        "country.fortifications.items.10.bunker": {
+          "value": 0,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "country.fortifications.items.11.bunker": {
+          "value": 0,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "value": [],
+          "status": "calculated",
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "ready"
+  },
+  {
+    "name": "queued",
+    "guide": {
+      "id": "frontier",
+      "title": "Border",
+      "schema_version": 1,
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "fort",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "bunker",
+                "target_level": 1,
+                "province_selector": {
+                  "kind": "border",
+                  "country": "YUG"
+                }
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.completed",
+              "test": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "value": "HUN",
+          "status": "observed",
+          "source": "fixture"
+        },
+        "fortifications.borders.YUG": {
+          "value": [
+            10,
+            11
+          ],
+          "status": "calculated",
+          "source": "fixture"
+        },
+        "country.fortifications.items.10.bunker": {
+          "value": 0,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "country.fortifications.items.11.bunker": {
+          "value": 0,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "value": [
+            "province:10:bunker"
+          ],
+          "status": "calculated",
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "active"
+  },
+  {
+    "name": "partial",
+    "guide": {
+      "id": "frontier",
+      "title": "Border",
+      "schema_version": 1,
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "fort",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "bunker",
+                "target_level": 1,
+                "province_selector": {
+                  "kind": "border",
+                  "country": "YUG"
+                }
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.completed",
+              "test": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "value": "HUN",
+          "status": "observed",
+          "source": "fixture"
+        },
+        "fortifications.borders.YUG": {
+          "value": [
+            10,
+            11
+          ],
+          "status": "calculated",
+          "source": "fixture"
+        },
+        "country.fortifications.items.10.bunker": {
+          "value": 1,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "country.fortifications.items.11.bunker": {
+          "value": 0,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "value": [
+            "province:10:bunker"
+          ],
+          "status": "calculated",
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "active"
+  },
+  {
+    "name": "cancelled",
+    "guide": {
+      "id": "frontier",
+      "title": "Border",
+      "schema_version": 1,
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "fort",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "bunker",
+                "target_level": 1,
+                "province_selector": {
+                  "kind": "border",
+                  "country": "YUG"
+                }
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.completed",
+              "test": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "value": "HUN",
+          "status": "observed",
+          "source": "fixture"
+        },
+        "fortifications.borders.YUG": {
+          "value": [
+            10,
+            11
+          ],
+          "status": "calculated",
+          "source": "fixture"
+        },
+        "country.fortifications.items.10.bunker": {
+          "value": 0,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "country.fortifications.items.11.bunker": {
+          "value": 0,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "value": [],
+          "status": "calculated",
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "ready"
+  },
+  {
+    "name": "completed",
+    "guide": {
+      "id": "frontier",
+      "title": "Border",
+      "schema_version": 1,
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "fort",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "bunker",
+                "target_level": 1,
+                "province_selector": {
+                  "kind": "border",
+                  "country": "YUG"
+                }
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.completed",
+              "test": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "value": "HUN",
+          "status": "observed",
+          "source": "fixture"
+        },
+        "fortifications.borders.YUG": {
+          "value": [
+            10,
+            11
+          ],
+          "status": "calculated",
+          "source": "fixture"
+        },
+        "country.fortifications.items.10.bunker": {
+          "value": 1,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "country.fortifications.items.11.bunker": {
+          "value": 1,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "value": [],
+          "status": "calculated",
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "completed"
+  },
+  {
+    "name": "unknown",
+    "guide": {
+      "id": "frontier",
+      "title": "Border",
+      "schema_version": 1,
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "fort",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "bunker",
+                "target_level": 1,
+                "province_selector": {
+                  "kind": "border",
+                  "country": "YUG"
+                }
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.completed",
+              "test": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "value": "HUN",
+          "status": "observed",
+          "source": "fixture"
+        },
+        "fortifications.borders.YUG": {
+          "value": [
+            10,
+            11
+          ],
+          "status": "calculated",
+          "source": "fixture"
+        },
+        "country.fortifications.items.10.bunker": {
+          "value": 0,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "value": [],
+          "status": "calculated",
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "unverifiable"
+  },
+  {
+    "name": "stale",
+    "guide": {
+      "id": "frontier",
+      "title": "Border",
+      "schema_version": 1,
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "fort",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "bunker",
+                "target_level": 1,
+                "province_selector": {
+                  "kind": "border",
+                  "country": "YUG"
+                }
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.started",
+              "test": "eq",
+              "value": true
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.fortifications.fort.completed",
+              "test": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": false,
+      "facts": {
+        "country": {
+          "value": "HUN",
+          "status": "observed",
+          "source": "fixture"
+        },
+        "fortifications.borders.YUG": {
+          "value": [
+            10,
+            11
+          ],
+          "status": "calculated",
+          "source": "fixture"
+        },
+        "country.fortifications.items.10.bunker": {
+          "value": 0,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "country.fortifications.items.11.bunker": {
+          "value": 0,
+          "status": "observed",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "value": [],
+          "status": "calculated",
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "unverifiable"
+  }
+]

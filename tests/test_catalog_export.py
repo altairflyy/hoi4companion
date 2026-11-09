@@ -8,6 +8,14 @@ from hoi4companion.import_sources import acquire_source
 
 
 class CatalogExportTests(unittest.TestCase):
+    def test_local_sequence_solver_metadata_does_not_enlarge_ai_attachments(self):
+        row={'kind':'focus','id':'A','name':'A','prerequisites':[['B']],
+             'bypass_possible':False,'sequence_effects_safe':True,
+             'external_completion_possible':True,'repeatable':False}
+        out=for_ai([row])[0]
+        self.assertEqual(out,{'kind':'focus','id':'A','name':'A','prerequisites':[['B']]})
+        self.assertIn('external_completion_possible',row)
+
     def test_local_labels_are_removed_but_identity_and_relations_are_unchanged(self):
         entries=[{'kind':'focus','id':'f','name':'Focus','localized_name':'Obiettivo','aliases':['Obiettivo'],
                   'scope':'tree','prerequisites':[['a']],'mutually_exclusive':['b'],'countries':['TST']},

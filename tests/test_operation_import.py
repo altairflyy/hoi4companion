@@ -34,6 +34,16 @@ def state(level=3,queued=(),creating=False,created=False,usable=True,country='TS
 
 
 class OperationImportTests(unittest.TestCase):
+    def test_production_hud_category_inherits_game_data_without_model_name_heuristics(self):
+        with TemporaryDirectory() as directory:
+            game=Path(directory);folder=game/'common'/'units'/'equipment';folder.mkdir(parents=True)
+            (folder/'unusual.txt').write_text('equipments={ odd_root={is_archetype=yes interface_category=interface_category_armor} arbitrary_name={archetype=odd_root} }')
+            entries,warnings=operation_catalog(game,[],{},{});self.assertEqual(warnings,[])
+            row=next(e for e in entries if e['id']=='arbitrary_name')
+            self.assertEqual(row['production_ui_category'],'interface_category_armor')
+            from hoi4companion.catalog_export import for_ai
+            self.assertNotIn('production_ui_category',for_ai([row])[0])
+
     def test_corrected_construction_rebinds_region_and_target_without_completing_from_old_state(self):
         guide,sources=document({'category':'construction','building_id':'infrastructure','state_id':77,
                                 'quantity':1,'quantity_mode':'additional'})

@@ -24,3 +24,20 @@ test('numeric zero has no negative sign and production rates truncate at game di
  assert.deepEqual(model.productionOutput(0,'naval'),{value:0,digits:2});
  assert.equal(model.productionOutput(null,'military'),null);
 });
+
+test('military experience and war status require complete observed values and explicit country identity',()=>{
+ const domains={experience:{status:'observed',army:0,navy:12.5,air:3.75},diplomacy:{status:'observed',at_war:false}};
+ const valid=model.evaluate(current(domains));
+ assert.equal(valid.sections.experience.army,0);assert.equal(valid.sections.experience.navy,12.5);assert.equal(valid.sections.experience.air,3.75);assert.equal(valid.sections.diplomacy.at_war,false);
+ for(const sample of [current({...domains,country:'GER'}),current({...domains,country:undefined}),{...current(domains),usable:false}]){
+  const result=model.evaluate(sample);
+  assert.equal(result.sections.experience.status,'unavailable');assert.equal(result.sections.experience.army,undefined);
+  assert.equal(result.sections.diplomacy.status,'unavailable');assert.equal(result.sections.diplomacy.at_war,undefined);
+ }
+ for(const experience of [{status:'partial',army:1,navy:2,air:3},{status:'observed',army:1,navy:null,air:3},{status:'observed',army:-1,navy:2,air:3},{status:'observed',army:'1',navy:2,air:3},{status:'observed',army:Infinity,navy:2,air:3}]){
+  assert.equal(model.evaluate(current({experience})).sections.experience.army,undefined);
+ }
+ for(const diplomacy of [{status:'partial',at_war:true},{status:'observed',at_war:0},{status:'observed',at_war:'false'},{status:'observed'}]){
+  assert.equal(model.evaluate(current({diplomacy})).sections.diplomacy.at_war,undefined);
+ }
+});

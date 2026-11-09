@@ -7,7 +7,7 @@ def action_domain(step):
     if step.get('tracking')=='reminder':return None
     if step['action']['kind']=='special_project':return 'project'
     if params.get('commander_id') or params.get('role') in ('corps_commander','navy_leader'):return 'appointment'
-    if 'political_power_cost' in step or any(params.get(k) for k in ('law_id','law_name','idea_id','idea_name','advisor_id','person_id','person_name','trait_name','role')):return 'political'
+    if 'political_power_cost' in step or any(params.get(k) for k in ('law_id','law_name','idea_id','idea_name','advisor_id','person_id','person_name','trait_name','role','decision_id','decision_name')):return 'political'
     return None
 
 
@@ -18,7 +18,7 @@ def readiness(step,state,checks):
     resources=[];affordability=[]
     value={'domain':domain,'unknown':missing,'blocked':blocked,'resources':resources,
            'requirements_declared':'requirements' in step}
-    if domain=='political' or 'political_power_cost' in step:
+    if domain=='political' and not step['action'].get('params',{}).get('cost_currency') or 'political_power_cost' in step:
         cost=step.get('political_power_cost')
         fact=state.get('facts',{}).get('country.politics.political_power',{})
         amount=fact.get('value') if (state['usable'] and fact.get('status') in ('observed','calculated') and fact.get('source')) else None

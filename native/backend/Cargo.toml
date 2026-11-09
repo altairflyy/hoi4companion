@@ -1,0 +1,46 @@
+[package]
+name = "hoi4companion-backend"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[lib]
+name = "hoi4companion_backend"
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "hoi4-backend"
+path = "src/main.rs"
+
+[[bin]]
+name = "hoi4-desktop"
+path = "src/desktop_main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }
+sha2 = "0.10"
+csv = "=1.4.0"
+regex = "=1.12.2"
+url = "=2.5.7"
+encoding_rs = "=0.8.44"
+lol_html = "=3.0.3"
+html-escape = "=0.2.13"
+zip = { version = "=2.4.2", default-features = false, features = ["deflate", "bzip2", "lzma"] }
+roxmltree = "=0.20.0"
+image = { version = "=0.25.8", default-features = false, features = ["png", "jpeg", "tga", "bmp"] }
+image_dds = { version = "=0.7.2", default-features = false, features = ["ddsfile", "image"] }
+hoi4companion-observer = { path = "../observer" }
+hoi4companion-catalog-core = { path = "../catalog-core" }
+hoi4companion-guide-core = { path = "../guide-core" }
+hoi4companion-storage = { path = "../storage" }
+hoi4companion-parser = { path = "../parser" }
+hoi4companion-tools = { path = "../tools" }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "=0.61.3", features = ["Win32_Foundation", "Win32_System_Diagnostics_Debug", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading", "Win32_System_Com", "Win32_Storage_FileSystem", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+
+[profile.release]
+lto = true
+codegen-units = 1

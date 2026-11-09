@@ -2,10 +2,12 @@ HOI4 COMPANION + HUD
 ===================
 
 Portable Windows release: extract the complete ZIP, then open HOI4 Companion.exe.
-Source checkout: after installing development dependencies, double-click
+Source checkout: after building the native components, double-click
 START COMPANION AND HUD.bat.
 
-This starts the local server and native HUD, then opens the walkthrough.
+This starts the Rust server and Rust HUD, then opens the walkthrough.
+No Python interpreter is needed to run the native Windows distribution.
+FFmpeg, yt-dlp and Node run only while the requested video/source job needs them.
 An existing server/HUD is reused. Initial game indexing can take several minutes.
 This is the only launcher in the source project root.
 
@@ -23,9 +25,17 @@ Application: http://127.0.0.1:8766/walkthrough
 Import another guide: http://127.0.0.1:8766/importer
 
 Closing the launch window or browser does not stop the background server/HUD.
-Startup errors remain visible in the launch window. Source checkout logs:
-  .local/avvio-server.err.log
-  .local/avvio-hud.err.log
+To stop the native portable application and its HUD:
+  "HOI4 Companion.exe" --stop
+From the source checkout:
+  powershell -NoProfile -File scripts/avvia-tutto.ps1 -Stop
+The stop command targets only this Companion data-directory service; it does
+not close HOI4 or shut down Windows.
+
+Source checkout logs:
+  .local/launcher-error.log
+  .local/server.log
+  .local/hud.log
 Portable release data/logs: %LOCALAPPDATA%/HOI4Companion
 
 See README.md for setup, guide creation, compatibility, and verification limits.

@@ -53,7 +53,7 @@ class ContractTests(unittest.TestCase):
             with self.assertRaises(ValueError): load_guide('../beta', directory=Path(root))
 
     def test_legacy_migration_preserves_order_and_declares_generic_conditions(self):
-        legacy = load_guide()
+        legacy = load_guide(directory=Path(__file__).parent / 'fixtures' / 'legacy-guides')
         result = normalise_guide(legacy)
         self.assertEqual(result['schema_version'], 1)
         self.assertEqual(result['applies_to']['country'], legacy['country'])

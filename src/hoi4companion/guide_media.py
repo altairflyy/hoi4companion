@@ -10,13 +10,12 @@ import shutil
 import subprocess
 import threading
 import time
-import sys
-import importlib.util
 from uuid import uuid4
 
-from .import_sources import youtube_url, ytdlp_path
+from .import_sources import youtube_url, ytdlp_command
 from .video_cache import MasterCache, digest
-from .paths import module_command, bundled_node
+from .paths import javascript_runtime
+from .native_tools import ManagedTool, run as run_tool
 
 MAX_PART_BYTES = 150_000_000
 OVERLAP = 10
@@ -27,7 +26,6 @@ CPU_ARGS = ['-c:v','libx265','-preset','medium','-crf','22',
             '-x265-params','pools=4:frame-threads=2:log-level=error:open-gop=0:keyint=150:min-keyint=150:scenecut=0']
 ENCODING_PROFILE = {'version':1,'height_limit':1080,'fps':15,'codec':'hevc','quality':22,
                     'audio':'aac-mono-64k','keyframe_seconds':KEYFRAME_SECONDS,'encoder_selection':'sample-size-hardware-within-25-percent'}
-FLAGS = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'BELOW_NORMAL_PRIORITY_CLASS', 0)
 
 
 def ffmpeg_path():
@@ -42,8 +40,7 @@ def ffmpeg_path():
 
 
 def command(args, timeout=60, check=True):
-    result = subprocess.run(list(map(str, args)), capture_output=True, text=True,
-                            encoding='utf8', errors='replace', timeout=timeout, creationflags=FLAGS)
+    result = run_tool(list(map(str, args)),timeout=timeout)
     if check and result.returncode:
         raise ValueError('Strumento video: ' + result.stderr[-1200:])
     return result.stdout if check else result.stderr+result.stdout
@@ -141,27 +138,26 @@ class VideoJobs:
     @staticmethod
     def _stop(process):
         if process.poll() is not None:return
-        if os.name=='nt':
-            # yt-dlp may own a merger process. Stop this owned process tree only.
-            try:subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],capture_output=True,timeout=8,creationflags=FLAGS)
-            except (OSError,subprocess.TimeoutExpired):pass
-        if process.poll() is None:process.kill()
+        # The native handle owns a kill-on-close job, including merger children.
+        process.kill()
         process.wait(timeout=8)
 
     def _command(self,key,args,timeout=60,check=True):
         if self.closed:raise ValueError('Preparazione interrotta: programma chiuso')
-        process=subprocess.Popen(list(map(str,args)),stdout=subprocess.PIPE,stderr=subprocess.PIPE,
-                                 text=True,encoding='utf8',errors='replace',creationflags=FLAGS)
+        process=ManagedTool(args,max_seconds=timeout)
         self._own(key,process)
         try:
             try:out,err=process.communicate(timeout=timeout)
             except subprocess.TimeoutExpired:
                 self._stop(process);process.communicate();raise ValueError('Strumento video oltre il limite di tempo') from None
             if self.closed:raise ValueError('Preparazione interrotta: programma chiuso')
+            if process.status()['reason']=='timeout':raise ValueError('Strumento video oltre il limite di tempo')
+            if process.status()['reason']=='output_limit':raise ValueError('Strumento video oltre il limite di output')
             if check and process.returncode:raise ValueError('Strumento video: '+err[-1200:])
             return out if check else err+out
         finally:
             with self.lock:self.processes.pop(key,None)
+            process.close()
 
     def close(self):
         with self.lock:
@@ -174,18 +170,24 @@ class VideoJobs:
         with self.lock:
             if self.closed:
                 self._stop(process)
+                process.close()
                 raise ValueError('Preparazione interrotta: programma chiuso')
             self.processes[key]=process
 
     def _download(self,key,args,log):
-        process=subprocess.Popen(args,stdout=log,stderr=log,creationflags=FLAGS)
+        process=ManagedTool(args,stdout=log,stderr=log,max_seconds=3600,max_output_bytes=64*1024*1024)
         self._own(key,process)
         try:
-            if process.wait(timeout=3600):raise ValueError('Download YouTube non riuscito; controlla la disponibilità pubblica del video')
+            code=process.wait(timeout=3600)
+            reason=process.status()['reason']
+            if reason=='timeout':raise ValueError('Download oltre il limite di tempo')
+            if reason=='output_limit':raise ValueError('Download oltre il limite di output')
+            if code:raise ValueError('Download YouTube non riuscito; controlla la disponibilità pubblica del video')
         except subprocess.TimeoutExpired:
             self._stop(process);raise ValueError('Download oltre il limite di tempo') from None
         finally:
             with self.lock:self.processes.pop(key,None)
+            process.close()
 
     def status(self, key):
         if not re.fullmatch('[0-9a-f]{32}', key or ''):
@@ -286,28 +288,30 @@ class VideoJobs:
         progress=folder/'encoding-progress.txt'
         progress.write_text('',encoding='utf8')
         with (folder/'encoding.log').open('w',encoding='utf8') as log:
-            process=subprocess.Popen([str(ffmpeg),'-hide_banner','-nostdin','-nostats','-y','-threads','4',
+            process=ManagedTool([str(ffmpeg),'-hide_banner','-nostdin','-nostats','-y','-threads','4',
                 '-i',str(source),'-map','0:v:0','-map','0:a:0?',
                 '-vf',"scale=-2:'min(1080,ih)',fps=15",*args,'-pix_fmt','yuv420p','-tag:v','hvc1',
                 '-force_key_frames',f'expr:gte(t,n_forced*{KEYFRAME_SECONDS})','-c:a','aac','-ac','1','-b:a','64k',
                 '-movflags','+faststart','-map_metadata','-1','-progress',str(progress),str(target)],
-                stdout=subprocess.DEVNULL,stderr=log,creationflags=FLAGS)
+                stderr=log,max_seconds=6*3600,max_output_bytes=64*1024*1024)
             self._own(key,process)
-            deadline=time.monotonic()+6*3600
-            offset=0
-            while process.poll() is None:
-                if time.monotonic()>deadline:
-                    self._stop(process);raise ValueError('Codifica video oltre il limite di tempo')
-                try:
-                    with progress.open(encoding='utf8') as stream:
-                        stream.seek(offset);chunk=stream.read();offset=stream.tell()
-                    times=re.findall(r'out_time_us=(\d+)',chunk)
-                    if times:self.update(key,encoded_seconds=round(int(times[-1])/1e6,1))
-                except OSError:pass
-                time.sleep(1)
-            if process.returncode:
-                raise ValueError('Codifica video non riuscita: '+(folder/'encoding.log').read_text(encoding='utf8')[-1200:])
-            with self.lock:self.processes.pop(key,None)
+            try:
+                offset=0
+                while process.poll() is None:
+                    try:
+                        with progress.open(encoding='utf8') as stream:
+                            stream.seek(offset);chunk=stream.read();offset=stream.tell()
+                        times=re.findall(r'out_time_us=(\d+)',chunk)
+                        if times:self.update(key,encoded_seconds=round(int(times[-1])/1e6,1))
+                    except OSError:pass
+                    time.sleep(1)
+                if process.status()['reason']=='timeout':raise ValueError('Codifica video oltre il limite di tempo')
+                if process.status()['reason']=='output_limit':raise ValueError('Codifica video oltre il limite di output')
+                if process.returncode:
+                    raise ValueError('Codifica video non riuscita: '+(folder/'encoding.log').read_text(encoding='utf8')[-1200:])
+            finally:
+                with self.lock:self.processes.pop(key,None)
+                process.close()
 
     def _select_encoder(self,key,ffmpeg,source,info,folder):
         runner=lambda args,**kw:self._command(key,args,**kw)
@@ -364,18 +368,17 @@ class VideoJobs:
         folder=self.root/key
         try:
             folder.mkdir(parents=True,exist_ok=False)
-            ffmpeg=ffmpeg_path();ytdlp=ytdlp_path()
+            ffmpeg=ffmpeg_path()
             runner=lambda args,**kw:self._command(key,args,**kw)
             (folder/'job.json').write_text(json.dumps({'source_url':url}),encoding='utf8')
             from .guide_frames import GuideFrames
             frames=GuideFrames(self.root.parent/'guide-frames')
             try:cached=None if self.status(key).get('refresh_source') else frames.source(url)
             except ValueError:cached=None
-            module_available=importlib.util.find_spec('yt_dlp') is not None
-            if not ytdlp and not module_available and cached is None:raise ValueError('yt-dlp non trovato: installa le dipendenze video o configura HOI4_YTDLP')
-            launcher=[ytdlp] if os.environ.get('HOI4_YTDLP') or not module_available else module_command('yt_dlp')
+            launcher=ytdlp_command()
+            if not launcher and cached is None:raise ValueError('yt-dlp non trovato: installa le dipendenze video o configura HOI4_YTDLP')
             base=[*launcher,'--ignore-config','--no-plugin-dirs','--no-playlist','--socket-timeout','20','--retries','2']
-            if bundled_node():base+=['--js-runtimes','node:'+str(bundled_node())]
+            if javascript_runtime():base+=['--js-runtimes','node:'+str(javascript_runtime())]
             self.update(key,stage='metadata',message='Lettura delle informazioni YouTube')
             metadata={'title':url,'description':'',**frames.metadata(url),'duration':duration(ffmpeg,cached,runner)} if cached else json.loads(runner([*base,'--skip-download','--dump-single-json','--',url],timeout=120))
             seconds=metadata.get('duration')

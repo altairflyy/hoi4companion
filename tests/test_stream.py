@@ -101,6 +101,7 @@ class StreamTests(unittest.TestCase):
 
     def test_hung_reader_never_replays_usable_state_to_new_subscriber(self):
         reading, release = threading.Event(), threading.Event()
+        now=[time.monotonic()]
         count = []
         def source():
             count.append(1)
@@ -108,13 +109,12 @@ class StreamTests(unittest.TestCase):
                 reading.set()
                 release.wait(1)
             return {'usable': True, 'status': 'observed', 'sample': {'focus': 'a'}}
-        hub = self.hub(source)
+        hub = self.hub(source,clock=lambda:now[0])
         self.addCleanup(release.set)
         with hub.subscribe() as first:
             first.wait(1)
             self.assertTrue(reading.wait(1))
-            with hub._condition:
-                hub._last_check -= 6
+            now[0]+=6
             with hub.subscribe() as second:
                 stale = second.wait(0)
                 self.assertFalse(stale.value['usable'])
@@ -127,6 +127,7 @@ class StreamTests(unittest.TestCase):
 
     def test_heartbeat_expiration_and_identical_source_recovery(self):
         reading, release = threading.Event(), threading.Event()
+        now=[time.monotonic()]
         count = []
         def source():
             count.append(1)
@@ -134,13 +135,12 @@ class StreamTests(unittest.TestCase):
                 reading.set()
                 release.wait(1)
             return {'usable': True, 'status': 'observed', 'sample': {'focus': 'unchanged'}}
-        hub = self.hub(source)
+        hub = self.hub(source,clock=lambda:now[0])
         self.addCleanup(release.set)
         with hub.subscribe() as client:
             original = client.wait(1)
             self.assertTrue(reading.wait(1))
-            with hub._condition:
-                hub._last_check -= 6
+            now[0]+=6
             beat = hub.heartbeat()
             self.assertFalse(beat['usable'])
             expired = client.wait(0)

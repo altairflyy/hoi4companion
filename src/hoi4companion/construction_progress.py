@@ -14,18 +14,20 @@ def integer(value, minimum=0):
 def relative_spec(step):
     params = step['action'].get('params', {})
     building = params.get('building_id')
-    field = BUILDING_FACTS.get(building) if isinstance(building, str) else None
+    provincial=building in ('bunker','coastal_bunker') and integer(params.get('province_id'),1)
+    field = building if provincial else BUILDING_FACTS.get(building) if isinstance(building, str) else None
     if (step['action']['kind'] not in ('manual', 'special_project') or not field
             or params.get('category') != 'construction' or params.get('quantity_mode') != 'additional'
-            or not integer(params.get('state_id'), 1) or not integer(params.get('quantity'), 1)):
+            or not provincial and not integer(params.get('state_id'), 1) or not integer(params.get('quantity'), 1)):
         return None
     key = 'guide.construction.' + step['key'] + '.added'
     condition = {'op': 'fact', 'key': key, 'test': 'gte', 'value': params['quantity']}
     if step.get('completion') != condition:
         return None
-    return {'fact_key': f"country.states.items.{params['state_id']}.{field}",
+    return {'fact_key': f"country.fortifications.items.{params['province_id']}.{field}" if provincial else f"country.states.items.{params['state_id']}.{field}",
             'quantity': params['quantity'], 'derived_key': key,
-            'queue_key': f"state:{params['state_id']}:{params['building_id']}"}
+            'queue_key': f"province:{params['province_id']}:{building}" if provincial else f"state:{params['state_id']}:{params['building_id']}",
+            **({'province_id':params['province_id'],'building_id':building} if provincial else {})}
 
 
 def validate_baselines(value):
@@ -47,23 +49,6 @@ def observed_count(state, key):
                     and item.get('source') and integer(item.get('value'))) else None
 
 
-def construction_context(guide, state, baselines):
-    facts, details = dict(state['facts']), {}
-    country = facts.get('country', {}).get('value') if state['usable'] else None
-    for rows in guide['tracks'].values():
-        for step in rows:
-            spec = relative_spec(step)
-            if spec is None:
-                continue
-            baseline = baselines.get(step['key'])
-            current = observed_count(state, spec['fact_key'])
-            valid = (baseline is not None and baseline['country'] == country
-                     and baseline['fact_key'] == spec['fact_key'] and baseline['quantity'] == spec['quantity']
-                     and baseline['value'] + spec['quantity'] <= MAX_INTEGER)
-            delta = current['value'] - baseline['value'] if valid and current else None
-            # This namespace belongs to the runtime, never to external live input.
-            facts[spec['derived_key']] = fact(delta, 'calculated', 'run_baseline:' + step['key']) if delta is not None else fact(reason='Conteggio iniziale non verificabile')
-            details[step['key']] = {'baseline': baseline['value'] if valid else None,
-                                    'current': current['value'] if current else None,
-                                    'target': baseline['value'] + spec['quantity'] if valid else None}
-    return {**state, 'facts': facts}, details
+def construction_context(guide,state,baselines):
+    from .backend_core import _request
+    return tuple(_request(0,'domain_context',kind='construction',guide=guide,state=state,baselines=baselines))

@@ -1,5 +1,6 @@
 """Resources stay with the app; user data stays outside a frozen distribution."""
 import os
+import shutil
 from pathlib import Path
 import sys
 
@@ -25,3 +26,10 @@ def module_command(module,*args):
 def bundled_node():
     candidate=Path(__file__).parent/'_native'/'node'/'node.exe'
     return candidate if getattr(sys,'frozen',False) and candidate.is_file() else None
+
+
+def javascript_runtime():
+    """Frozen builds stay self-contained; source checkouts can use PATH Node."""
+    if getattr(sys,'frozen',False):return bundled_node()
+    executable=shutil.which('node')
+    return Path(executable) if executable else None

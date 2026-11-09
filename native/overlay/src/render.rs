@@ -1,4 +1,4 @@
-//! Native external Direct2D overlay. No hooks, game input, or process-memory APIs.
+//! Native external Direct2D overlay. No injected hooks, game input, or process-memory APIs.
 //!
 //! Rendering and native controls live on one dedicated STA/message-loop thread.
 //! Callers only publish the latest frame, so a busy renderer cannot queue stale
@@ -27,7 +27,20 @@ use windows::Win32::Graphics::Dwm::DwmFlush;
 use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::HiDpi::{GetDpiForWindow, SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2};
+use windows::Win32::UI::Accessibility::{HWINEVENTHOOK,SetWinEventHook,UnhookWinEvent};
 use windows::Win32::UI::WindowsAndMessaging::*;
+use crate::wake::Wake;
+
+thread_local! {static FOREGROUND_WAKE:std::cell::RefCell<Option<Arc<Wake>>>=const {std::cell::RefCell::new(None)};}
+unsafe extern "system" fn foreground_changed(_hook:HWINEVENTHOOK,_event:u32,_window:HWND,
+    _object:i32,_child:i32,_thread:u32,_time:u32) {
+    FOREGROUND_WAKE.with(|slot|{if let Some(wake)=slot.borrow().as_ref(){wake.notify();}});
+}
+struct ForegroundEvents(HWINEVENTHOOK);
+impl Drop for ForegroundEvents {
+    fn drop(&mut self){unsafe {if !self.0.0.is_null(){let _=UnhookWinEvent(self.0);}}
+        FOREGROUND_WAKE.with(|slot|*slot.borrow_mut()=None);}
+}
 
 const UPDATE: u32 = WM_APP + 33;
 const STOP: u32 = WM_APP + 34;
@@ -52,7 +65,61 @@ pub struct Highlight {
     pub rect: [f32; 4],
     pub caption: String,
     pub active: bool,
+    pub choice: bool,
     pub panel: String,
+}
+
+fn overlaps(a:[f32;4],b:[f32;4],gap:f32)->bool {
+    a[0]<b[2]+gap && a[2]+gap>b[0] && a[1]<b[3]+gap && a[3]+gap>b[1]
+}
+
+/// Place captions outside all highlighted controls. Production uses a compact
+/// side column, rather than covering the previous line's name/factory counters.
+/// When no safe space remains, keep the border and omit its caption.
+fn caption_layout(frame:&OverlayFrame,scale:f32)->Vec<Option<[f32;4]>> {
+    let width=frame.target.width as f32;let height=frame.target.height as f32;
+    let gap=6.0*scale;
+    let production_right=frame.marks.iter().filter(|m|m.panel=="production")
+        .map(|m|m.rect[2]).fold(0.0_f32,f32::max);
+    let mut placed=Vec::new();let mut result=Vec::new();
+    for mark in &frame.marks {
+        let production=mark.panel=="production";
+        if mark.caption.is_empty() || production&&mark.active {result.push(None);continue;}
+        let label_height=if production {20.0}else{25.0}*scale;
+        let label_width=((mark.caption.chars().count() as f32*if production {6.5}else{7.6}+16.0)*scale)
+            .min(if production {300.0}else{460.0}*scale).min(width);
+        let [left,top,right,bottom]=mark.rect;
+        let mut candidates=Vec::new();
+        if production {
+            // The outer edge of the full production list keeps every caption
+            // away from the icons, model names and factory assignment widgets.
+            let x=production_right+gap;
+            if x+label_width<=width {
+                let y=top.max(90.0*scale).min((height-label_height).max(0.0));
+                candidates.push([x,y,x+label_width,y+label_height]);
+                let mut y=90.0*scale;
+                while y+label_height<=height {
+                    candidates.push([x,y,x+label_width,y+label_height]);
+                    y+=label_height+gap;
+                }
+            }
+        }else{
+            let x=left.min(width-label_width).max(0.0);
+            candidates.extend([
+                [x,top-label_height-gap,x+label_width,top-gap],
+                [right+gap,top,right+gap+label_width,top+label_height],
+                [x,bottom+gap,x+label_width,bottom+gap+label_height],
+                [left-gap-label_width,top,left-gap,top+label_height],
+            ]);
+        }
+        let selected=candidates.into_iter().find(|r|
+            r[0]>=0.0&&r[1]>=0.0&&r[2]<=width&&r[3]<=height&&
+            !frame.marks.iter().any(|other|overlaps(*r,other.rect,gap/2.0))&&
+            !placed.iter().any(|other|overlaps(*r,*other,gap/2.0)));
+        if let Some(rect)=selected {placed.push(rect);}
+        result.push(selected);
+    }
+    result
 }
 
 #[derive(Clone, Debug)]
@@ -78,9 +145,19 @@ struct Shared {
     actions: VecDeque<ControlAction>,
     excluded: bool,
     revision: u64,
+    foreground_events:bool,
 }
 
 impl Shared {
+    fn set_guides(&mut self,guides:Vec<(String,String)>,selected:&str)->bool {
+        let guides:Vec<_>=guides.into_iter().take(256).collect();
+        if self.guides==guides && self.selected==selected {return false;}
+        self.guides=guides;self.selected=selected.to_owned();true
+    }
+    fn set_status(&mut self,text:String)->bool {
+        if self.status==text {return false;}
+        self.status=text;true
+    }
     fn publish(&mut self,frame:OverlayFrame) {
         // A new witnessed image renews the safety deadline. It is not a visual
         // change: keep the existing composition surface until geometry, content
@@ -104,6 +181,7 @@ pub struct Renderer {
     paused: Arc<AtomicBool>,
     exit: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
+    wake:Arc<Wake>,
 }
 
 fn hwnd(value: isize) -> HWND { HWND(value as *mut core::ffi::c_void) }
@@ -114,15 +192,17 @@ impl Renderer {
         let shared=Arc::new(Mutex::new(Shared { excluded:true, ..Shared::default() }));
         let paused=Arc::new(AtomicBool::new(false));
         let exit=Arc::new(AtomicBool::new(false));
+        let wake=Arc::new(Wake::default());
         let (ready, receiver)=mpsc::sync_channel(1);
         let (s,p,e)=(shared.clone(),paused.clone(),exit.clone());
+        let events=wake.clone();
         let thread=thread::Builder::new().name("overlay-window".into()).spawn(move || {
-            let result=unsafe { run(s,p,e.clone(),&ready) };
+            let result=unsafe { run(s,p,e.clone(),events,&ready) };
             if let Err(error)=result { let _=ready.send(Err(error)); }
             e.store(true,Ordering::Release);
         }).map_err(|e|e.to_string())?;
         match receiver.recv_timeout(Duration::from_secs(15)).map_err(|e|e.to_string())? {
-            Ok((window,layer))=>Ok(Self { hwnd:window,layer,shared,paused,exit,thread:Some(thread) }),
+            Ok((window,layer))=>Ok(Self { hwnd:window,layer,shared,paused,exit,thread:Some(thread),wake }),
             Err(error)=>{let _=thread.join();Err(error)}
         }
     }
@@ -141,14 +221,12 @@ impl Renderer {
     }
     pub fn set_status(&self,text:&str) {
         let localized=crate::i18n::text(text);let text=localized.as_str();
-        if let Ok(mut s)=self.shared.lock() {s.status=text.chars().take(300).collect();}
-        self.update();
+        let changed=self.shared.lock().map(|mut s|s.set_status(text.chars().take(300).collect())).unwrap_or(false);
+        if changed {self.update();}
     }
     pub fn set_guides(&self,guides:Vec<(String,String)>,selected_id:&str) {
-        if let Ok(mut s)=self.shared.lock() {
-            s.guides=guides.into_iter().take(256).collect();s.selected=selected_id.to_owned();
-        }
-        self.update();
+        let changed=self.shared.lock().map(|mut s|s.set_guides(guides,selected_id)).unwrap_or(false);
+        if changed {self.update();}
     }
     pub fn take_action(&self)->Option<ControlAction> {
         self.shared.lock().ok()?.actions.pop_front()
@@ -158,6 +236,9 @@ impl Renderer {
         self.update();
     }
     pub fn is_paused(&self)->bool {self.paused.load(Ordering::Acquire)}
+    pub fn wake_revision(&self)->u64 {self.wake.revision()}
+    pub fn foreground_events(&self)->bool {self.shared.lock().map(|s|s.foreground_events).unwrap_or(false)}
+    pub fn wait_idle(&self,previous:u64,timeout:Duration) {self.wake.wait(previous,timeout);}
     pub fn set_paused(&self,paused:bool) {
         self.paused.store(paused,Ordering::Release);self.update();
     }
@@ -243,6 +324,41 @@ pub fn save_proof(target:&TargetWindow,path:&Path)->Result<(),String> {
     }
 }
 
+/// Direct2D strokes are centered on their path. Inset that path so the painted
+/// border stays inside the actual clipped widget, including fractional zoom.
+fn border_width(rect:[f32;4],requested:f32)->f32 {
+    requested.min((rect[2]-rect[0]).min(rect[3]-rect[1])/2.0)
+}
+fn border_path(rect:[f32;4],stroke:f32,scale:f32)->D2D1_ROUNDED_RECT {
+    let [left,top,right,bottom]=rect;
+    let inset=stroke/2.0;
+    let rect=D2D_RECT_F {left:left+inset,top:top+inset,right:right-inset,bottom:bottom-inset};
+    let width=(rect.right-rect.left).max(0.0);let height=(rect.bottom-rect.top).max(0.0);
+    let radius=(5.0*scale).min(width/2.0).min(height/2.0);
+    D2D1_ROUNDED_RECT {rect,radiusX:radius,radiusY:radius}
+}
+
+struct Paint {
+    strokes:[ID2D1SolidColorBrush;3],
+    fills:[ID2D1SolidColorBrush;3],
+    shadow:ID2D1SolidColorBrush,
+    label_bg:ID2D1SolidColorBrush,
+}
+impl Paint {
+    unsafe fn new(context:&ID2D1DeviceContext)->windows::core::Result<Self> {
+        unsafe {
+            let colors=[D2D1_COLOR_F {r:1.0,g:0.83,b:0.30,a:1.0},
+                        D2D1_COLOR_F {r:0.27,g:0.84,b:1.0,a:1.0},
+                        D2D1_COLOR_F {r:0.78,g:0.59,b:1.0,a:1.0}];
+            let stroke=|i:usize|context.CreateSolidColorBrush(&colors[i],None);
+            let fill=|i:usize|context.CreateSolidColorBrush(&D2D1_COLOR_F {a:0.09,..colors[i]},None);
+            Ok(Self {strokes:[stroke(0)?,stroke(1)?,stroke(2)?],fills:[fill(0)?,fill(1)?,fill(2)?],
+                shadow:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.01,g:0.02,b:0.03,a:0.85},None)?,
+                label_bg:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.035,g:0.055,b:0.075,a:0.82},None)?})
+        }
+    }
+}
+
 struct Graphics {
     context: ID2D1DeviceContext,
     swap: IDXGISwapChain1,
@@ -250,6 +366,8 @@ struct Graphics {
     _target: IDCompositionTarget,
     _visual: IDCompositionVisual,
     write: IDWriteFactory,
+    paint: Paint,
+    formats: Option<(f32,IDWriteTextFormat,IDWriteTextFormat)>,
     bitmap: Option<ID2D1Bitmap1>,
     size:(u32,u32),
 }
@@ -279,7 +397,8 @@ impl Graphics {
             let visual=composition.CreateVisual()?;
             visual.SetContent(&swap)?;target.SetRoot(&visual)?;composition.Commit()?;
             let write:IDWriteFactory=DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
-            Ok(Self {context,swap,_composition:composition,_target:target,_visual:visual,write,bitmap:None,size:(0,0)})
+            let paint=Paint::new(&context)?;
+            Ok(Self {context,swap,_composition:composition,_target:target,_visual:visual,write,paint,formats:None,bitmap:None,size:(0,0)})
         }
     }
     unsafe fn size(&mut self,width:u32,height:u32)->windows::core::Result<()> {
@@ -300,38 +419,42 @@ impl Graphics {
         unsafe {
             self.size(frame.target.width,frame.target.height)?;
             let scale=(GetDpiForWindow(hwnd(frame.target.hwnd)) as f32/96.0).clamp(1.0,3.0);
+            if self.formats.as_ref().is_none_or(|(previous,_,_)|*previous!=scale) {
             let format=self.write.CreateTextFormat(w!("Segoe UI"),None,DWRITE_FONT_WEIGHT_SEMI_BOLD,
                 DWRITE_FONT_STYLE_NORMAL,DWRITE_FONT_STRETCH_NORMAL,14.0*scale,w!("it-IT"))?;
             format.SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP)?;
             format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
+            let compact=self.write.CreateTextFormat(w!("Segoe UI"),None,DWRITE_FONT_WEIGHT_NORMAL,
+                DWRITE_FONT_STYLE_NORMAL,DWRITE_FONT_STRETCH_NORMAL,12.0*scale,w!("it-IT"))?;
+            compact.SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP)?;
+            compact.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
+            self.formats=Some((scale,format,compact));
+            }
+            let (_,format,compact)=self.formats.as_ref().unwrap();
+            let captions=caption_layout(frame,scale);
             self.context.BeginDraw();self.context.Clear(Some(&D2D1_COLOR_F {r:0.0,g:0.0,b:0.0,a:0.0}));
-            let result=(|| {
-                let shadow=self.context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.01,g:0.02,b:0.03,a:0.85},None)?;
-                let label_bg=self.context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.035,g:0.055,b:0.075,a:0.95},None)?;
-                for mark in &frame.marks {
-                    let color=if mark.active && mark.panel!="event" {D2D1_COLOR_F {r:0.27,g:0.84,b:1.0,a:1.0}}
-                              else {D2D1_COLOR_F {r:1.0,g:0.83,b:0.30,a:1.0}};
-                    let stroke=self.context.CreateSolidColorBrush(&color,None)?;
-                    let fill=self.context.CreateSolidColorBrush(&D2D1_COLOR_F {a:0.09,..color},None)?;
-                    let [left,top,right,bottom]=mark.rect;
-                    let rect=D2D_RECT_F {left,top,right,bottom};
-                    let round=D2D1_ROUNDED_RECT {rect,radiusX:5.0*scale,radiusY:5.0*scale};
-                    self.context.DrawRoundedRectangle(&round,&shadow,6.0*scale,None);
-                    self.context.FillRoundedRectangle(&round,&fill);
-                    self.context.DrawRoundedRectangle(&round,&stroke,2.3*scale,None);
+            let result={
+                for (index,mark) in frame.marks.iter().enumerate() {
+                    let tone=if mark.choice {2}else if mark.active && mark.panel!="event" {1}else{0};
+                    let stroke=&self.paint.strokes[tone];let fill=&self.paint.fills[tone];
+                    let width=border_width(mark.rect,if mark.panel=="production" {1.4}else{1.8}*scale);
+                    let round=border_path(mark.rect,width,scale);
+                    if mark.panel!="production" {
+                        let shadow_width=border_width(mark.rect,4.0*scale);
+                        self.context.DrawRoundedRectangle(&border_path(mark.rect,shadow_width,scale),&self.paint.shadow,shadow_width,None);
+                        self.context.FillRoundedRectangle(&round,fill);
+                    }
+                    self.context.DrawRoundedRectangle(&round,stroke,width,None);
                     let caption:Vec<u16>=mark.caption.chars().filter(|c|!c.is_control()).take(150).collect::<String>().encode_utf16().collect();
                     if caption.is_empty() {continue;}
-                    let height=25.0*scale;
-                    let y=if top>=height+4.0*scale {top-height-4.0*scale}else{top+4.0*scale};
-                    let width=((caption.len() as f32*7.6+16.0)*scale).min(620.0*scale).min(frame.target.width as f32);
-                    let x=left.min(frame.target.width as f32-width).max(0.0);
-                    let label=D2D_RECT_F {left:x,top:y,right:x+width,bottom:(y+height).min(frame.target.height as f32)};
-                    self.context.FillRoundedRectangle(&D2D1_ROUNDED_RECT {rect:label,radiusX:4.0*scale,radiusY:4.0*scale},&label_bg);
+                    let Some([left,top,right,bottom])=captions[index] else {continue;};
+                    let label=D2D_RECT_F {left,top,right,bottom};
+                    self.context.FillRoundedRectangle(&D2D1_ROUNDED_RECT {rect:label,radiusX:4.0*scale,radiusY:4.0*scale},&self.paint.label_bg);
                     let label_text=D2D_RECT_F {left:label.left+8.0*scale,..label};
-                    self.context.DrawText(&caption,&format,&label_text,&stroke,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
+                    self.context.DrawText(&caption,if mark.panel=="production" {compact}else{format},&label_text,stroke,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
                 }
                 Ok::<(),windows::core::Error>(())
-            })();
+            };
             let finished=self.context.EndDraw(None,None);
             result?;finished?;self.swap.Present(0,DXGI_PRESENT(0)).ok()?;Ok(())
         }
@@ -355,6 +478,7 @@ struct Ui {
     visible:bool,
     _font:HFONT,
     last_paused:bool,
+    wake:Arc<Wake>,
 }
 
 impl Ui {
@@ -437,6 +561,7 @@ impl Ui {
                 }
                 _=>{}
             }
+            self.wake.notify();
         }
     }
 }
@@ -464,6 +589,7 @@ unsafe extern "system" fn window_proc(window:HWND,message:u32,wparam:WPARAM,lpar
 }
 
 unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBool>,
+    wake:Arc<Wake>,
               ready:&mpsc::SyncSender<Result<(isize,isize),String>>)->Result<(),String> {
     unsafe {
         CoInitializeEx(None,COINIT_APARTMENTTHREADED).ok().map_err(|e|e.to_string())?;
@@ -497,10 +623,14 @@ unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBo
         let graphics=Graphics::new(overlay).map_err(|e|e.to_string())?;
         let mut ui=Box::new(Ui {overlay,status,pause,combo,shared,paused,exit,
             graphics:Some(graphics),last_revision:u64::MAX,last_guides:Vec::new(),last_selected:String::new(),
-            last_status:String::new(),excluded:true,visible:false,_font:font,last_paused:false});
+            last_status:String::new(),excluded:true,visible:false,_font:font,last_paused:false,wake:wake.clone()});
         let pointer=(&mut *ui) as *mut Ui as isize;
         SetWindowLongPtrW(overlay,GWLP_USERDATA,pointer);SetWindowLongPtrW(control,GWLP_USERDATA,pointer);
         SetTimer(Some(control),1,50,None);
+        FOREGROUND_WAKE.with(|slot|*slot.borrow_mut()=Some(wake));
+        let foreground=ForegroundEvents(SetWinEventHook(EVENT_SYSTEM_FOREGROUND,EVENT_SYSTEM_FOREGROUND,None,
+            Some(foreground_changed),0,0,WINEVENT_OUTOFCONTEXT));
+        if let Ok(mut state)=ui.shared.lock(){state.foreground_events = !foreground.0.0.is_null();}
         let _=ShowWindow(control,SW_SHOWNOACTIVATE);
         ready.send(Ok((control.0 as isize,overlay.0 as isize))).map_err(|e|e.to_string())?;
         let mut message=MSG::default();
@@ -527,8 +657,36 @@ impl Drop for ComGuard {fn drop(&mut self) {unsafe {CoUninitialize();}}}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn repeated_metadata_updates_do_not_queue_render_messages() {
+        let mut shared=Shared::default();let guides=vec![("one".into(),"Guide one".into())];
+        assert!(shared.set_guides(guides.clone(),"one"));
+        assert!(!shared.set_guides(guides.clone(),"one"));
+        assert!(shared.set_guides(guides,"two"));
+        assert!(shared.set_status("Ready".into()));
+        assert!(!shared.set_status("Ready".into()));
+        assert!(shared.set_status("Unavailable".into()));
+        assert_eq!(shared.revision,0,"Metadata must never reset an admitted visual");
+    }
+    #[test]
+    fn strokes_stay_inside_fractional_clipped_widgets_at_all_dpis() {
+        for scale in [1.0,1.25,1.5,2.0,3.0] {
+            for rect in [[0.0,0.0,8.0,8.0],[0.25,60.75,40.5,100.125],[770.0,580.0,800.0,600.0]] {
+                for requested in [1.4*scale,1.8*scale,4.0*scale] {
+                    let width=border_width(rect,requested);let path=border_path(rect,width,scale);
+                    let [left,top,right,bottom]=rect;let p=path.rect;let epsilon=0.0001;
+                    assert!((p.left-width/2.0-left).abs()<epsilon);
+                    assert!((p.top-width/2.0-top).abs()<epsilon);
+                    assert!((p.right+width/2.0-right).abs()<epsilon);
+                    assert!((p.bottom+width/2.0-bottom).abs()<epsilon);
+                    assert!(p.right>p.left && p.bottom>p.top);
+                    assert!(path.radiusX<=(p.right-p.left)/2.0 && path.radiusY<=(p.bottom-p.top)/2.0);
+                }
+            }
+        }
+    }
     fn frame()->OverlayFrame {OverlayFrame {target:TargetWindow {hwnd:1,pid:1,x:0,y:0,width:800,height:600},
-        marks:vec![Highlight {rect:[10.0,20.0,80.0,60.0],caption:"Ricerca".into(),active:false,panel:"research".into()}],
+        marks:vec![Highlight {rect:[10.0,20.0,80.0,60.0],caption:"Ricerca".into(),active:false,choice:false,panel:"research".into()}],
         observed_at:Instant::now(),valid_for:Duration::from_secs(1)}}
     #[test]
     fn nonfinite_out_of_bounds_and_excessive_lifetimes_are_rejected() {
@@ -556,5 +714,38 @@ mod tests {
         assert_eq!(shared.revision,revision+3);
         assert!(shared.invalidate());let hidden_revision=shared.revision;
         assert!(!shared.invalidate());assert_eq!(shared.revision,hidden_revision);
+    }
+    #[test]
+    fn production_captions_stay_outside_rows_and_each_other_at_multiple_dpis() {
+        for scale in [1.0,1.5,2.0] {
+            let mut f=frame();f.target.width=(1280.0*scale) as u32;f.target.height=(900.0*scale) as u32;
+            f.marks=(0..8).map(|i|Highlight {rect:[8.0*scale,(120.0+i as f32*80.0)*scale,508.0*scale,(190.0+i as f32*80.0)*scale],
+                caption:"Tank · requested factories and configuration".into(),active:false,choice:false,panel:"production".into()}).collect();
+            // The add-category cue can be close to the first row without its
+            // caption covering any game controls or colliding with the row cue.
+            f.marks.push(Highlight {rect:[100.0*scale,90.0*scale,170.0*scale,120.0*scale],caption:"Add tank".into(),active:false,choice:false,panel:"production".into()});
+            let layout=caption_layout(&f,scale);
+            assert!(layout.iter().all(Option::is_some));
+            for (i,rect) in layout.iter().enumerate() {
+                let r=rect.unwrap();assert!(r[0]>508.0*scale);assert!(r[2]-r[0]<=300.0*scale);assert_eq!(r[3]-r[1],20.0*scale);
+                assert!(f.marks.iter().all(|m|!overlaps(r,m.rect,0.0)));
+                assert!(layout[..i].iter().flatten().all(|other|!overlaps(r,*other,0.0)));
+            }
+        }
+    }
+    #[test]
+    fn completed_production_keeps_border_without_caption_and_narrow_view_never_covers_controls() {
+        let mut f=frame();f.marks[0].panel="production".into();f.marks[0].active=true;
+        assert_eq!(caption_layout(&f,1.0),vec![None]);
+        f.marks[0].active=false;f.marks[0].rect=[0.0,60.0,800.0,150.0];
+        assert_eq!(caption_layout(&f,1.0),vec![None]);
+    }
+    #[test]
+    fn tree_labels_use_external_space_or_omit_instead_of_covering_any_highlight() {
+        let mut f=frame();f.marks[0].rect=[0.0,0.0,800.0,600.0];
+        assert_eq!(caption_layout(&f,1.0),vec![None]);
+        f.marks[0].rect=[10.0,0.0,80.0,40.0];
+        let r=caption_layout(&f,1.0)[0].unwrap();
+        assert!(!overlaps(r,f.marks[0].rect,0.0));assert!(r[0]>=0.0&&r[1]>=0.0&&r[2]<=800.0&&r[3]<=600.0);
     }
 }

@@ -10,7 +10,7 @@ from datetime import date
 import re
 from urllib.parse import urlsplit
 
-from .contracts import is_json_number, validate_condition
+from .contracts import is_json_number, validate_condition, EXPERIENCE_CURRENCIES, SPIRIT_CURRENCIES
 
 
 def _identifiers(items, label, limit):
@@ -68,6 +68,8 @@ def validate_guide_extensions(guide: dict) -> None:
     'completion', 'depends_on' ed 'evidence' sono dichiarazioni: non abilitano
     da soli valutazione live, completamenti o nuovi tipi di azione.
     """
+    from .focus_sequence import validate_metadata
+    validate_metadata(guide)
     sources = _identifiers(guide.get('sources', []), 'Fonti', 32)
     phases = _identifiers(guide.get('phases', []), 'Fasi', 128)
 
@@ -90,6 +92,14 @@ def validate_guide_extensions(guide: dict) -> None:
 
     for step in rows:
         key = step['key']
+        if 'focus_criteria' in step:
+            from .focus_criteria import validate_rules
+            if step['action']['kind']!='select_focus':raise ValueError('Focus criteria on a non-focus step')
+            validate_rules(step['focus_criteria'])
+        from .relative_research import validate_relative
+        validate_relative(step)
+        from .research_choices import validate_choice
+        validate_choice(step)
         if step.get('tracking', 'action') not in ('action', 'reminder'):
             raise ValueError(f'Modalità monitoraggio non valida: {key}')
         if step.get('tracking') == 'reminder' and (step['action']['kind'] != 'manual'
@@ -136,6 +146,35 @@ def validate_guide_extensions(guide: dict) -> None:
             if not isinstance(params, dict):
                 raise ValueError(f'Parametri azione non validi: {key}')
             _json_data(params)
+            if 'production_revision' in params:
+                revision=params['production_revision']
+                if (params.get('category')!='production' or not isinstance(revision,dict) or set(revision)!={'group','order'}
+                        or not isinstance(revision['group'],str) or not 0<len(revision['group'])<=160
+                        or type(revision['order']) is not int or not 0<=revision['order']<=10_000_000):
+                    raise ValueError(f'Revisione produzione non valida: {key}')
+            if 'production_section_when' in params:
+                if 'production_revision' not in params:raise ValueError(f'Fase produzione senza revisione: {key}')
+                validate_condition(params['production_section_when'])
+            if 'production_milestones' in params:
+                if params.get('category')!='production':raise ValueError('Milestone outside production')
+                from .production_milestones import validate as validate_milestone
+                validate_milestone(params['production_milestones'],rows,key)
+            for production in [params,*params.get('production_targets',[])] if isinstance(params.get('production_targets',[]),list) else [params]:
+                if isinstance(production,dict) and 'production_priority' in production:
+                    if (production['production_priority'] not in ('first','last') or production.get('production_category')!='military'
+                            or production.get('quantity_mode')=='additional'):
+                        raise ValueError(f'Priorità produzione non valida: {key}')
+            if 'cost_currency' in params:
+                currency=params['cost_currency']
+                if (not isinstance(currency,str) or currency not in EXPERIENCE_CURRENCIES or step['action']['kind']!='manual'
+                        or not isinstance(params.get('idea_id'),str) or not params['idea_id']
+                        or not isinstance(params.get('idea_group'),str) or SPIRIT_CURRENCIES.get(params['idea_group'])!=currency
+                        or EXPERIENCE_CURRENCIES[currency] not in step.get('resource_costs',{})):
+                    raise ValueError(f'Valuta di esperienza incompatibile: {key}')
+            if 'focus_mode' in params and (step['action']['kind']!='select_focus' or params['focus_mode']!='continuous'):
+                raise ValueError(f'Modalità focus non valida: {key}')
+            if 'focus_optional' in params and (step['action']['kind']!='select_focus' or params.get('focus_mode')!='continuous' or type(params['focus_optional']) is not bool):
+                raise ValueError(f'Opzione focus non valida: {key}')
             if 'game_date' in params:
                 value=params['game_date']
                 if not isinstance(value,str) or not re.fullmatch(r'\d{1,4}\.\d{1,2}\.\d{1,2}',value):

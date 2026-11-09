@@ -92,8 +92,14 @@ class CampaignProgressTests(unittest.TestCase):
         self.assertFalse(self.store.bind_campaign(A,'TST','one',101))
         self.assertEqual(self.store._database.revision,revision)
         before=self.store.snapshot()
-        with patch.object(self.store._database,'save',side_effect=ProgressStorageError('disk full')):
+        # Force an actual native filesystem error, rather than intercepting a
+        # Python save method that no longer owns the transaction.
+        backup=self.path.with_suffix('.saved')
+        self.path.rename(backup);self.path.mkdir()
+        try:
             with self.assertRaises(ProgressStorageError):self.store.update('guide',{'done':True})
+        finally:
+            self.path.rmdir();backup.rename(self.path)
         self.assertEqual(self.store.snapshot(),before)
         self.assertEqual(RunStore(path=self.path).snapshot(),before)
 

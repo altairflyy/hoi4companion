@@ -84,7 +84,7 @@ class GuideSchemaExtensionTests(unittest.TestCase):
 
     def test_existing_legacy_guide_stays_valid(self):
         from hoi4companion.guide import load_guide
-        old = load_guide()
+        old = load_guide(directory=Path(__file__).parent / 'fixtures' / 'legacy-guides')
         self.assertEqual(len(old['tracks']['focus']), 34)
         self.assertEqual(len(old['tracks']['research']), 48)
 

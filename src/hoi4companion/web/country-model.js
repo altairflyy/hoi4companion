@@ -1,7 +1,7 @@
 'use strict';
 ((root)=>{
  const uiText=typeof module!=='undefined'&&module.exports?require('./i18n.js').t:root.HoiI18n.t;
- const sections=['divisions','manpower','states','production','equipment','resources','politics','events','decisions'];
+ const sections=['divisions','manpower','experience','diplomacy','states','production','equipment','resources','politics','events','decisions'];
  function evaluate(value,enabled=true){
   const sample=enabled&&value?.usable===true?value.sample:null;
   const overview=sample?.country_overview;
@@ -9,8 +9,10 @@
   const result={current:!!sample,country:sample?.country||null,observed_at:matching?overview.observed_at:null,
    mode:!enabled?'disabled':!sample?(value?.sample?'stale':'disconnected'):!matching?'unavailable':'current',sections:{}};
   for(const key of sections){
-   const section=matching&&overview[key];
-   const status=section&&['observed','partial'].includes(section.status)?section.status:'unavailable';
+   const strict=['experience','diplomacy'].includes(key);
+   const section=matching&&(!strict||typeof sample.country==='string'&&/^[A-Z0-9]{3}$/.test(sample.country)&&overview.country===sample.country)&&overview[key];
+   const qualified=!strict||section?.status==='observed'&&(key==='experience'?['army','navy','air'].every(k=>number(section[k])!==null):typeof section.at_war==='boolean');
+   const status=qualified&&section&&['observed','partial'].includes(section.status)?section.status:'unavailable';
    result.sections[key]=status==='unavailable'?{status,reason:sample?(section?.reason||uiText("This data is not available from the reader yet.")):null}:{...section,status};
   }
   return result;

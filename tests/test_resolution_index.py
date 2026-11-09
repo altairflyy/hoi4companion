@@ -1,5 +1,80 @@
 import copy
 import unittest
+
+
+class NumberedAliasTests(unittest.TestCase):
+    def test_slash_adjectives_in_a_scripted_name_are_one_native_focus_not_two_branches(self):
+        from hoi4companion.resolution import CatalogIndex,ResolutionContext
+        entries=[{'kind':'focus','id':'future','name':'An [AUS.GetAdjective] Future','countries':['AUS'],
+                  'aliases':['An Austrian Future'],'scope':'austria'}]
+        index=CatalogIndex(entries,adjectives=['Austrian','Austro-Hungarian'])
+        query='An Austrian/Austro-Hungarian Future'
+        self.assertEqual([r['id'] for r in index.matches(query,('focus',),ResolutionContext(country='AUS'))],['future'])
+        self.assertEqual(index.matches(query,('focus',),ResolutionContext(country='GER')),[])
+        self.assertEqual(index.matches('An Austrian/Unknown Future',('focus',)),[])
+    def test_focus_route_prefix_and_turkish_transliteration_preserve_native_identity(self):
+        from hoi4companion.resolution import CatalogIndex
+        index=CatalogIndex([{'kind':'focus','id':'real_to','name':'To Steal an Army'},
+                            {'kind':'focus','id':'endpoint','name':'War Plan Orange'},
+                            {'kind':'focus','id':'turkish','name':'The Kırıkkale Tank'}])
+        self.assertEqual(index.matches('To Steal an Army',('focus',))[0]['id'],'real_to')
+        self.assertEqual(index.matches('Steal an Army',('focus',))[0]['id'],'real_to')
+        self.assertEqual(index.matches('To War Plan Orange',('focus',))[0]['id'],'endpoint')
+        self.assertEqual(index.matches('The Kirikkale Tank',('focus',))[0]['id'],'turkish')
+        self.assertEqual(index.matches('To endpoint',('focus',),explicit=True),[])
+    def test_country_title_requires_distinct_focus_support_and_rejects_warlord_mismatch(self):
+        from hoi4companion.resolution import CatalogIndex
+        from hoi4companion.guide_importer import preview
+        from hoi4companion.import_sources import acquire_source
+        rows=[{'kind':'focus','id':f'{tag}{n}','scope':tag,'countries':[tag],
+               'name':name,'prerequisites':[],'mutually_exclusive':[]} for tag,n,name in
+              [('ITA',1,'Unique Italian One'),('ITA',2,'Unique Italian Two'),
+               ('GER',1,'Unique German One'),('GER',2,'Unique German Two')]]
+        index=CatalogIndex(rows,country_names={'ITA':{'Italy'},'GER':{'Germany'},'CHI':{'China'}})
+        src=acquire_source(text='Unique Italian One\nUnique Italian Two')
+        guide={'id':'country-title','title':'ITALY (Fascist) Guide','sources':[{'id':src['id'],'type':'manual'}],
+               'tracks':{'focus':[{'key':str(n),'action':{'kind':'select_focus','entity':{'kind':'focus','id':name}},
+                   'evidence':[{'source_id':src['id'],'basis':'explicit','quote':name}]} for n,name in enumerate(src['text'].splitlines())]}}
+        result=preview(guide,[src],index)
+        self.assertEqual(result['guide']['applies_to']['country'],'ITA')
+        guide['title']='CHINA Sichuan guide'
+        self.assertNotIn('country',preview(guide,[src],index)['guide']['applies_to'])
+        guide['title']='GERMANY Guide'
+        self.assertNotIn('country',preview(guide,[src],index)['guide']['applies_to'])
+    def test_similarity_candidates_are_review_only_and_do_not_bind(self):
+        from hoi4companion.resolution import CatalogIndex,ResolutionContext
+        index=CatalogIndex([{'kind':'focus','id':'council','name':'Reinstate the Herrenhaus','countries':['AUS']},
+                            {'kind':'focus','id':'other','name':'Reinstate the House','countries':['GER']}])
+        context=ResolutionContext(country='AUS')
+        self.assertEqual(index.matches('Reinstate The Herrenbuilding',('focus',),context,typos=True),[])
+        result=index.suggest('Reinstate The Herrenbuilding',('focus',),context)
+        self.assertEqual([r['id'] for r in result],['council'])
+        self.assertTrue(result[0]['suggestion']['requires_review'])
+        result[0]['id']='corrupted'
+        self.assertEqual(index.suggest('Reinstate The Herrenbuilding',('focus',),context)[0]['id'],'council')
+        self.assertEqual(index.suggest('zzzz zzzz',('focus',)),[])
+        empty=CatalogIndex([{'kind':'focus','id':'blank_title','name':'','aliases':[]}])
+        self.assertEqual(empty.suggest('blank title',('focus',)),[])
+    def test_family_abbreviations_preserve_explicit_level_and_native_ids(self):
+        from hoi4companion.resolution import CatalogIndex
+        index=CatalogIndex([{'kind':'technology','id':'c1','name':'Concentrated Industry I'},
+                            {'kind':'technology','id':'c2','name':'Concentrated Industry II'},
+                            {'kind':'technology','id':'e1','name':'Engineer Company I'}])
+        self.assertEqual([r['id'] for r in index.matches('Concentrated 1',('technology',))],['c1'])
+        self.assertEqual([r['id'] for r in index.matches('Eng Company II',('technology',))],[])
+        self.assertEqual([r['id'] for r in index.matches('Eng Company 1',('technology',))],['e1'])
+        self.assertEqual(index.matches('Concentrated 1',('technology',),explicit=True),[])
+        self.assertEqual(index.matches('c1',('technology',),explicit=True)[0]['id'],'c1')
+    def test_long_model_name_can_omit_only_numeric_suffix_without_choosing_among_versions(self):
+        from hoi4companion.resolution import CatalogIndex
+        rows=[{'kind':'technology','id':'at','name':'Infantry Anti-Tank I','aliases':['Panzerfaust 30']},
+              {'kind':'technology','id':'rocket','name':'Other','aliases':['Fliegende Panzerfaust']}]
+        index=CatalogIndex(rows)
+        self.assertEqual([r['id'] for r in index.matches('Panzerfaust',('technology',))],['at'])
+        self.assertEqual(index.matches('Panzer',('technology',)),[])
+        self.assertEqual(index.matches('Panzerfaust',('technology',),explicit=True),[])
+        rows.append({'kind':'technology','id':'at2','name':'Infantry Anti-Tank II','aliases':['Panzerfaust 60']})
+        self.assertEqual(len(CatalogIndex(rows).matches('Panzerfaust',('technology',))),2)
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 from unittest.mock import patch
@@ -73,14 +148,16 @@ class ResolutionIndexTests(unittest.TestCase):
     def test_concurrent_queries_are_bounded_and_unknown_names_do_not_grow_name_indexes(self):
         from hoi4companion.resolution import CatalogIndex, ResolutionContext
         index=CatalogIndex([{'kind':'state','id':'64','name':'Brandenburg'}])
-        sizes=[len(index._ids),len(index._names),len(index._aliases),len(index._prefixes)]
+        sizes=index.diagnostics()
         def lookup(i):
             context=ResolutionContext(country=str(i))
             self.assertEqual(index.matches('missing-'+str(i),('state',),context),[])
             self.assertEqual(index.matches('Brandenburg',('state',),context)[0]['id'],'64')
         with ThreadPoolExecutor(max_workers=8) as pool:list(pool.map(lookup,range(150)))
-        self.assertLessEqual(len(index._contexts),64)
-        self.assertEqual([len(index._ids),len(index._names),len(index._aliases),len(index._prefixes)],sizes)
+        after=index.diagnostics()
+        self.assertEqual(after['engine'],'rust-catalog-core')
+        self.assertLessEqual(after['contexts'],64)
+        for key in ('ids','names','aliases','prefixes'):self.assertEqual(after[key],sizes[key])
 
     def test_indexes_preserve_duplicates_name_precedence_scope_and_explicit_id(self):
         from hoi4companion.resolution import CatalogIndex, ResolutionContext

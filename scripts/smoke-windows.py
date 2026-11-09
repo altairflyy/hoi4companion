@@ -28,6 +28,11 @@ def run(folder):
         if result.returncode:raise RuntimeError(result.stdout+result.stderr)
         checks=json.loads((data/'self-check.json').read_text(encoding='utf8'))
         assert checks['cwtools_engine_executed']=='cwtools' and checks['hevc_encode_verified']
+        assert checks['native_storage_roundtrip_verified']
+        assert checks['native_campaign_roundtrip_verified'] and checks['native_state_expiry_verified']
+        for key,engine in (('guide_core','rust-guide-core'),('catalog_core','rust-catalog-core'),
+                           ('tools','rust-tools'),('storage','rust-storage'),('backend','rust-backend')):
+            assert checks[key]['engine']==engine,(key,checks[key])
         assert checks['node_version'] and Path(checks['data_directory'])==data
         with socket.socket() as listener:listener.bind(('127.0.0.1',0));port=listener.getsockname()[1]
         # Force the demo, without touching the current user's installed HOI4.

@@ -23,8 +23,8 @@ fn substitute(source:String,values:&[&str])->String{
     let mut output=String::new();let mut rest=source.as_str();
     while let Some(start)=rest.find('{'){
         output.push_str(&rest[..start]);rest=&rest[start..];
-        if let Some(end)=rest.find('}'){
-            if let Ok(index)=rest[1..end].parse::<usize>(){if let Some(value)=values.get(index){output.push_str(value);rest=&rest[end+1..];continue;}}
+        if let Some(end)=rest.find('}') && let Ok(index)=rest[1..end].parse::<usize>() && let Some(value)=values.get(index){
+            output.push_str(value);rest=&rest[end+1..];continue;
         }
         output.push('{');rest=&rest[1..];
     }

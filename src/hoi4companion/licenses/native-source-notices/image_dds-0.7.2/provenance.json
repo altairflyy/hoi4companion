@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "crate": "image_dds",
+  "version": "0.7.2",
+  "repository_commit": "cfa8c076517845cd59e2d07e80c4c2953a64c98e",
+  "files": {
+    "LICENSE-MIT": {
+      "url": "https://raw.githubusercontent.com/ScanMountGoat/image_dds/cfa8c076517845cd59e2d07e80c4c2953a64c98e/LICENSE",
+      "sha256": "0194fa871df6d82a26d58f3b6e035bed033afdc413e2a6ac0ae2f15b7becbb20"
+    }
+  }
+}

@@ -7,9 +7,18 @@ from __future__ import annotations
 
 from copy import deepcopy
 import math
+import re
 from typing import Any, Literal, NotRequired, TypeAlias, TypedDict
 
 VERSION = 1
+EXPERIENCE_CURRENCIES = {'army_experience':'country.experience.army','navy_experience':'country.experience.navy',
+                         'air_experience':'country.experience.air'}
+SPIRIT_CURRENCIES = {group:currency for currency,groups in (
+    ('army_experience',('academy_spirit','army_spirit','division_command_spirit')),
+    ('navy_experience',('naval_academy_spirit','navy_spirit','naval_command_spirit')),
+    ('air_experience',('air_force_spirit','air_force_command_spirit','air_force_academy_spirit')))
+    for group in groups}
+MILITARY_SPIRIT_GROUPS = frozenset(SPIRIT_CURRENCIES)
 EntityKind = Literal['country', 'focus', 'technology', 'state', 'equipment', 'project', 'building']
 Knowledge = Literal['observed', 'calculated', 'unknown']
 
@@ -176,7 +185,8 @@ class VisibleEvent(TypedDict):
 
 
 class ProductionProgress(TypedDict):
-    basis: NotRequired[Literal['requested','assigned']]
+    superseded_by: NotRequired[list[str]]
+    basis: NotRequired[Literal['requested','assigned','remaining']]
     assigned: int | None
     requested: int | None
     active: int | None
@@ -202,6 +212,12 @@ class OperationBaseline(TypedDict):
 ConstructionBaseline = OperationBaseline
 
 
+class CampaignObservations(TypedDict):
+    country: str
+    war_seen: NotRequired[Literal[True]]
+    milestones: NotRequired[dict[str, Literal[True]]]
+
+
 class GuideProgress(TypedDict):
     schema_version: Literal[1]
     guide_id: str
@@ -215,6 +231,10 @@ class GuideProgress(TypedDict):
     checks: NotRequired[dict[str, bool]]
     started: NotRequired[dict[str, bool]]
     baselines: NotRequired[dict[str, OperationBaseline]]
+    campaign_conditions: NotRequired[CampaignObservations]
+    research_bindings: NotRequired[dict[str, str]]
+    research_history: NotRequired[dict[str, str]]
+    research_options: NotRequired[dict[str, list[str]]]
 
 
 StepStatus = Literal['completed', 'active', 'ready', 'waiting', 'not_applicable', 'unverifiable']
@@ -248,7 +268,22 @@ class ActionContext(TypedDict):
     campaign_id: str | None
 
 
+class FortificationProgress(TypedDict):
+    target_level: int | None
+    building_id: Literal['bunker', 'coastal_bunker']
+    province_ids: list[int]
+    completed_provinces: int | None
+    total_provinces: int | None
+
+
 class RuntimeStep(TypedDict):
+    fortifications: NotRequired[FortificationProgress]
+    research_target: NotRequired[str]
+    focus_readiness: NotRequired[FocusReadiness]
+    production_admitted: NotRequired[bool]
+    superseded_by: NotRequired[list[str]]
+    original_completion: NotRequired[Fact]
+    original_selection: NotRequired[Fact]
     key: str
     track: str
     status: StepStatus
@@ -275,13 +310,16 @@ class RuntimeTrack(TypedDict):
 class RuntimeLane(TypedDict):
     capacity: int | None
     steps: list[str]
+    optional_steps: NotRequired[list[str]]
+    alternative_steps: NotRequired[list[str]]
 
 
 class GuideEvaluation(TypedDict):
+    focus_plan: NotRequired[FocusPlan]
     schema_version: Literal[1]
     guide_id: str
     run_id: str | None
-    progress_status: Literal['none', 'accepted', 'wrong_guide', 'wrong_session', 'session_unverified']
+    progress_status: Literal['none', 'accepted', 'wrong_guide', 'wrong_session', 'session_unverified', 'wrong_campaign', 'campaign_unverified']
     mode: Literal['live', 'preview', 'wrong_country', 'wrong_tree']
     country: str | None
     steps: list[RuntimeStep]
@@ -290,6 +328,34 @@ class GuideEvaluation(TypedDict):
     parallel: dict[Literal['focus', 'research'], RuntimeLane]
     action_sequence: ActionSequence
     action_context: ActionContext
+
+
+class GuideProjection(TypedDict):
+    """Coherent API snapshot; state retains the existing transport envelope."""
+    schema_version: Literal[1]
+    engine: Literal['rust-guide-core']
+    server_id: str
+    guide_id: str
+    definition_revision: str
+    state: dict[str, Any]
+    progress: GuideProgress
+    evaluation: GuideEvaluation
+
+
+class FocusReadiness(TypedDict):
+    value: bool | None
+    available: bool | None
+    branch: bool | None
+    prerequisites: bool | None
+    excluded: bool | None
+    checks: list[dict[str, Any]]
+    reason: str
+
+
+class FocusPlan(TypedDict):
+    primary: str
+    blocked: FocusReadiness | dict[str, Any]
+    steps: list[str]
 
 
 def is_json_number(value) -> bool:
@@ -365,215 +431,10 @@ def validate_condition(value: Condition, depth: int = 0) -> None:
         raise ValueError('Operatore condizione non supportato')
 
 
-def _valid_fact_type(key, value):
-    if key in ('politics.ideas','politics.advisors','events.visible','events.visible_options','decisions.listed','decisions.executed'):
-        return (isinstance(value,list) and len(value)<=4096 and all(isinstance(x,str) and 0<len(x)<=512 for x in value)
-                and len(set(value))==len(value))
-    if key == 'production.lines':
-        return _valid_production_lines(value)
-    if key in ('country.intelligence.is_created', 'country.intelligence.in_creation'):
-        return type(value) is bool
-    if key in ('country', 'focus.tree'):
-        return isinstance(value, str) and bool(value)
-    if key in ('focus.completed', 'focus.active', 'focus.continuous', 'focus.ids', 'research.completed', 'research.active', 'research.ids', 'construction.queued', 'projects.active', 'projects.completed'):
-        return isinstance(value, list) and all(isinstance(item, str) and item for item in value)
-    if key == 'research.slots':
-        return isinstance(value, list) and all(isinstance(item, dict) and 'technology_id' in item and
-                (item['technology_id'] is None or isinstance(item['technology_id'], str) and bool(item['technology_id'])) for item in value)
-    return True
-
-
-def _valid_production_lines(lines):
-    if not isinstance(lines, list) or len(lines) > 4096:
-        return False
-    identities = set()
-    for row in lines:
-        if (not isinstance(row, dict) or any(not isinstance(row.get(key), str) or not row[key]
-                for key in ('id', 'equipment', 'name')) or row['id'] in identities
-                or row.get('category') not in ('military', 'naval')
-                or any(type(row.get(key)) not in (int, float) or not is_json_number(row[key])
-                       or row[key] != int(row[key]) or not 0 <= row[key] <= 9007199254740991
-                       for key in ('requested_factories', 'assigned_factories', 'active_factories', 'damaged_factories'))
-                or row['assigned_factories'] != row['active_factories'] + row['damaged_factories']
-                or row['assigned_factories'] > row['requested_factories']):
-            return False
-        identities.add(row['id'])
-    return True
-
-
-def _queued_construction(section):
-    """Project a complete qualified queue into membership, never completions."""
-    if not isinstance(section, dict) or section.get('status') != 'observed' or not isinstance(section.get('lines'), list):
-        return None
-    keys, identities = set(), set()
-    def integer(value, minimum=0):
-        return type(value) in (int, float) and is_json_number(value) and value == int(value) and value >= minimum
-    for row in section['lines']:
-        if (not isinstance(row, dict) or any(not isinstance(row.get(key), str) or not row[key] for key in ('id', 'building_id'))
-                or row['id'] in identities or row.get('location_status') != 'observed'
-                or not integer(row.get('state_id'), 1)
-                or ('province_id' not in row or row['province_id'] is not None and not integer(row['province_id'], 1))
-                or any(not integer(row.get(key)) for key in ('amount', 'active_factories', 'built_level', 'repair_levels'))
-                or type(row.get('conversion')) is not bool):
-            return None
-        identities.add(row['id'])
-        if row['amount'] > 0 and row['repair_levels'] == 0 and not row['conversion']:
-            keys.add('building:' + row['building_id'])
-            keys.add(f"state:{int(row['state_id'])}:{row['building_id']}")
-            if row['province_id'] is not None:
-                keys.add(f"province:{int(row['province_id'])}:{row['building_id']}")
-    return sorted(keys)
-
-
 def normalise_state(value: dict) -> LiveState:
-    """Convert the legacy transport at the consumer seam; stale bytes stay unknown.
-
-    Empty membership is known only when supplied and not explicitly incomplete.
-    Absence of an active selection is known via an empty slots list / null focus,
-    represented by active-ID lists (known empty), never by an unknown null fact.
-    """
-    value = value if isinstance(value, dict) else {}
-    if 'schema_version' in value:
-        if not is_json_number(value['schema_version']) or value['schema_version'] != VERSION or value.get('usable') is not True or not isinstance(value.get('facts'), dict):
-            return {'schema_version': VERSION, 'usable': False, 'session_id': None, 'facts': {}}
-        facts = {}
-        for key, item in value.get('facts', {}).items():
-            try:
-                if not _valid_fact_type(key, item.get('value')) and item.get('status') != 'unknown':
-                    raise ValueError('Tipo fatto non valido')
-                facts[key] = fact(item.get('value'), item.get('status'), item.get('source'), reason=item.get('reason', ''))
-            except (ValueError, AttributeError):
-                facts[key] = fact(reason='Dato contratto non valido')
-        return {'schema_version': VERSION, 'usable': True, 'session_id': value.get('session_id'), 'facts': facts}
-    sample = value.get('sample') if value.get('usable') is True else None
-    sample = sample if isinstance(sample, dict) else {}
-    usable = bool(sample)
-    facts = {}
-    source = value.get('source') or 'process_memory'
-    def put(key, data, known=True, calculated=False, reason='Campo non osservato'):
-        facts[key] = fact(data, 'calculated' if calculated else 'observed', source if not calculated else 'legacy_adapter') if known and data is not None and _valid_fact_type(key, data) else fact(reason=reason)
-    put('country', sample.get('country'))
-    from .campaign import observed_id
-    campaign_id=observed_id(sample)
-    if campaign_id:facts['campaign.id']=fact(campaign_id,'observed','native_game_unique_id_and_seed')
-    put('focus.tree', sample.get('focus_tree_id'), calculated=True)
-    put('focus.completed', sample.get('completed_focuses'), sample.get('focus_complete') is not False)
-    put('research.completed', sample.get('researched_technologies'), sample.get('research_complete') is not False)
-    put('focus.active', [sample['current_focus']] if sample.get('current_focus') else [], 'current_focus' in sample)
-    put('focus.continuous', [sample['continuous_focus']] if sample.get('continuous_focus') else [], 'continuous_focus' in sample)
-    slots = sample.get('research_slots')
-    slots = slots if _valid_fact_type('research.slots', slots) else None
-    put('research.active', [s['technology_id'] for s in slots if s.get('technology_id')] if isinstance(slots, list) else None)
-    put('research.slots', slots)
-    for key, native in [('focus.ids', 'focus_ids'), ('research.ids', 'technology_ids')]:
-        put(key, sample.get(native))
-    overview = sample.get('country_overview') or {}
-    overview = overview if isinstance(overview, dict) else {}
-    queued = _queued_construction(overview.get('construction')) if isinstance(sample.get('country'), str) and sample['country'] and overview.get('country') == sample['country'] else None
-    facts['construction.queued'] = fact(queued, 'calculated', 'construction_adapter') if queued is not None else fact(reason='Coda costruzioni non qualificata')
-    production = overview.get('production', {})
-    lines = production.get('lines') if isinstance(production, dict) else None
-    production_known = (isinstance(sample.get('country'), str) and bool(sample['country'])
-                        and overview.get('country') == sample['country'] and isinstance(production, dict)
-                        and production.get('status') == 'observed' and _valid_production_lines(lines))
-    facts['production.lines'] = fact(deepcopy(lines), 'calculated', 'production_adapter') if production_known else fact(reason='Linee di produzione non qualificate')
-    projects=overview.get('projects',{})
-    items=projects.get('items') if isinstance(projects,dict) else None
-    projects_known=(overview.get('country')==sample.get('country') and bool(sample.get('country'))
-                    and isinstance(projects,dict) and projects.get('status')=='observed'
-                    and isinstance(items,list) and len(items)<=1024
-                    and all(isinstance(row,dict) and isinstance(row.get('id'),str) and row['id']
-                        and type(row.get('active')) is bool and type(row.get('completed')) is bool
-                        and not(row['active'] and row['completed']) for row in items)
-                    and len({row['id'] for row in items})==len(items))
-    for field in ('active','completed'):
-        facts['projects.'+field]=fact([row['id'] for row in items if row[field]],'calculated','projects_adapter') if projects_known else fact(reason='Progetti speciali non qualificati')
-    breakthroughs=projects.get('breakthroughs',{}) if isinstance(projects,dict) else {}
-    points=breakthroughs.get('items')
-    if (overview.get('country')==sample.get('country') and bool(sample.get('country'))
-            and breakthroughs.get('status')=='observed' and isinstance(points,list) and len(points)<=64
-            and all(isinstance(row,dict) and isinstance(row.get('id'),str) and row['id']
-                    and type(row.get('available')) is int and 0<=row['available']<=100000 for row in points)
-            and len({row['id'] for row in points})==len(points)):
-        for row in points:facts['projects.points.'+row['id']]=fact(row['available'],'calculated','breakthrough_points_adapter')
-    power=overview.get('politics',{}).get('power',{}) if isinstance(overview.get('politics'),dict) else {}
-    amount=power.get('available')
-    facts['country.politics.political_power']=(fact(amount,'observed',source)
-        if overview.get('country')==sample.get('country') and bool(sample.get('country'))
-        and power.get('status')=='observed' and is_json_number(amount) else fact(reason='Potere politico non qualificato'))
-    facts.update(_political_facts(overview if isinstance(sample.get('country'),str) and sample['country'] and overview.get('country')==sample['country'] else {}))
-    if overview.get('country') == sample.get('country'):
-        # These fields are derivations in country.py, not direct observations.
-        derived = {'by_type', 'by_template', 'total', 'effective_factories', 'output_per_day',
-                   'assigned_factories', 'category', 'balance', 'used', 'owned', 'controlled', 'name'}
-        def flatten(path, data, known, calculated=False):
-            if isinstance(data, dict):
-                for key, child in data.items():
-                    if key not in ('status', 'reason'):
-                        flatten(path + '.' + key, child, known, calculated or key in derived)
-            elif isinstance(data, list):
-                put(path + '.count', len(data), known, True)
-                for index, child in enumerate(data):
-                    identifier = child.get('id', str(index)) if isinstance(child, dict) else str(index)
-                    flatten(path + '.' + str(identifier), child, known, calculated)
-            else:
-                aggregated_stockpile = path.startswith('country.equipment.items.') and path.endswith('.stockpile')
-                enumerated_line = path.startswith('country.production.lines.') and path.endswith('.id')
-                construction_label = path.startswith('country.construction.lines.') and path.rsplit('.', 1)[-1] in ('position', 'location_status', 'state_name')
-                put(path, data, known, calculated or aggregated_stockpile or enumerated_line or construction_label)
-        for section, data in overview.items():
-            if isinstance(data, dict):
-                # Available manpower is a computed sum; explicit zero is known.
-                if section == 'manpower':
-                    for key, child in data.items():
-                        if key not in ('status', 'reason'):
-                            put('country.manpower.' + key, child, data.get('status') in ('observed', 'partial'), key == 'available')
-                else:
-                    flatten('country.' + section, data, data.get('status') in ('observed', 'partial'))
-    return {'schema_version': VERSION, 'usable': usable, 'session_id': sample.get('session_id'), 'facts': facts}
-
-
-def _political_facts(overview):
-    """Only complete identity lists can prove membership or known absence."""
-    result={key:fact(reason='Sezione politica non qualificata') for key in
-            ('politics.ideas','politics.advisors','events.visible','events.visible_options','decisions.listed','decisions.executed')}
-    def identifier(value):
-        import re
-        return isinstance(value,str) and 0<len(value)<=160 and re.fullmatch(r'[A-Za-z0-9_.-]+',value) is not None
-    def publish(key,values): result[key]=fact(sorted(set(values)),'calculated','politics_adapter')
-    politics=overview.get('politics',{})
-    if isinstance(politics,dict) and politics.get('status') in ('observed','partial'):
-        for part in ('ideas','advisors'):
-            section=politics.get(part,{})
-            rows=section.get('items') if isinstance(section,dict) and section.get('status')=='observed' else None
-            if not isinstance(rows,list) or len(rows)>4096: continue
-            ids=[]
-            for row in rows:
-                if not isinstance(row,dict) or not identifier(row.get('id')): break
-                if part=='ideas' and (not identifier(row.get('group')) or not identifier(row.get('category')) or type(row.get('is_law')) is not bool): break
-                if part=='advisors' and (not identifier(row.get('character_id')) or type(row.get('slot')) is not int or not 0<=row['slot']<=2_000_000_000): break
-                ids.append(row['id'])
-            else:
-                if len(set(ids))==len(ids): publish('politics.'+part,ids)
-    events=overview.get('events',{})
-    rows=events.get('visible') if isinstance(events,dict) and events.get('status')=='observed' else None
-    if isinstance(rows,list) and len(rows)<=256:
-        identities=set(); visible=[]; options=[]; options_known=True
-        for row in rows:
-            if (not isinstance(row,dict) or not identifier(row.get('instance_id')) or row['instance_id'] in identities
-                    or not identifier(row.get('event_id'))): break
-            identities.add(row['instance_id']); visible.append(row['event_id'])
-            choices=row.get('option_ids')
-            if not isinstance(choices,list) or len(choices)>256 or not all(identifier(x) for x in choices) or len(set(choices))!=len(choices): options_known=False
-            else: options.extend(row['event_id']+':'+choice for choice in choices)
-        else:
-            publish('events.visible',visible)
-            if options_known: publish('events.visible_options',options)
-    decisions=overview.get('decisions',{})
-    listed=decisions.get('listed_ids') if isinstance(decisions,dict) and decisions.get('status')=='observed' else None
-    if isinstance(listed,list) and len(listed)<=4096 and all(identifier(x) for x in listed) and len(set(listed))==len(listed):
-        publish('decisions.listed',listed)
-    return result
+    """Pure Rust v1 normalization; stale and missing evidence remains unknown."""
+    from .backend_core import _request
+    return _request(0,'state_normalize',value=value)
 
 
 def evaluate_condition(node: Condition, state: LiveState, checks: dict[str, bool] | None = None) -> bool | None:

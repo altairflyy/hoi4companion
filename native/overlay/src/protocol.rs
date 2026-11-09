@@ -7,8 +7,8 @@ use std::time::Duration;
 use serde_json::{Value, json};
 
 const MAX_LINE: usize = 16_000_000;
-pub struct Bridge { child:Child, input:ChildStdin, output:Receiver<Result<Value,String>>, token:u64 }
-impl Bridge {
+pub struct Worker { child:Child, input:ChildStdin, output:Receiver<Result<Value,String>>, token:u64 }
+impl Worker {
     pub fn new(python:&str,port:u16,guide:&str)->Result<Self,String> {
         #[cfg(windows)] use std::os::windows::process::CommandExt;
         let mut command=Command::new(python);
@@ -42,12 +42,25 @@ impl Bridge {
         if response["ok"]!=true {return Err(response["error"].as_str().unwrap_or("Guide worker failed").into());}
         Ok(response)
     }
-    pub fn snapshot(&mut self,refresh:bool)->Result<Value,String> {
-        self.request(json!({"kind":"snapshot","refresh_guides":refresh}),&[])
-    }
 }
-impl Drop for Bridge {
+impl Drop for Worker {
     fn drop(&mut self) {let _=self.child.kill();let _=self.child.wait();}
+}
+pub enum Bridge{Worker(Worker),Native{client:crate::native_protocol::Client,token:u64}}
+impl Bridge{
+    pub fn new(python:&str,port:u16,guide:&str)->Result<Self,String>{
+        if let Some(client)=crate::native_protocol::Client::probe(port)?{return Ok(Self::Native{client,token:0});}
+        Ok(Self::Worker(Worker::new(python,port,guide)?))
+    }
+    pub fn request(&mut self,mut input:Value,raw:&[u8])->Result<Value,String>{
+        match self{
+            Self::Worker(worker)=>worker.request(input,raw),
+            Self::Native{client,token}=>{*token=token.wrapping_add(1);input["schema_version"]=json!(1);input["token"]=json!(*token);let response=client.request(&input,raw)?;
+                if response["schema_version"]!=1 || response["token"]!=*token || response["kind"]!=input["kind"] || response["ok"]!=true{return Err("Outdated or incompatible native HUD response".into());}Ok(response)
+            }
+        }
+    }
+    pub fn snapshot(&mut self,refresh:bool)->Result<Value,String>{self.request(json!({"kind":"snapshot","refresh_guides":refresh}),&[])}
 }
 fn read_response(reader:&mut impl BufRead)->Result<Value,String> {
     let mut data=Vec::new();

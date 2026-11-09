@@ -1,0 +1,19 @@
+[package]
+name = "hoi4companion-storage"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[lib]
+name = "hoi4companion_storage"
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+rusqlite = { version = "=0.37.0", features = ["bundled"] }
+
+[profile.release]
+lto = true
+codegen-units = 1

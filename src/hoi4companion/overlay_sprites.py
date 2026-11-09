@@ -47,7 +47,7 @@ class ResearchSprites:
         visible={m.get('folder') for m in node_matches if m['panel']=='research'}
         for proposal in proposals:
             folder=proposal.get('folder')
-            if proposal['panel']=='research' and folder and folder not in visible:
+            if proposal['panel']=='research' and proposal.get('status')!='active' and folder and folder not in visible:
                 requested.setdefault(folder,[]).append(proposal)
         if not requested:return []
         try:

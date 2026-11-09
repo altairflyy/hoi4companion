@@ -1,9 +1,12 @@
 import copy
 import json
+import subprocess
 from pathlib import Path
 import unittest
 
 from hoi4companion.guide_runtime import evaluate
+from hoi4companion.guide import normalise_guide
+from hoi4companion.guide_sequence import sequence_report
 
 
 def observed(value):
@@ -28,6 +31,46 @@ def guide(*rows):
 
 
 class GuideRuntimeTests(unittest.TestCase):
+    def test_explicit_policy_preserves_python_javascript_parity(self):
+        fixtures = json.loads((Path(__file__).parent / 'fixtures' / 'guide-runtime.json').read_text(encoding='utf-8'))
+        wanted = ('declared start true does not complete dependencies', 'declared start unknown does not fall back to manual start', 'unknown skip cannot imply applicability', 'declared priorities reorder parallel proposals')
+        examples = [copy.deepcopy(row) for row in fixtures if row['name'] in wanted]
+        self.assertEqual(len(examples), len(wanted))
+        for example in examples:
+            example['guide']['dependency_policy'] = 'explicit'
+        module = (Path(__file__).parent.parent / 'src' / 'hoi4companion' / 'web' / 'guide-runtime.js').as_posix()
+        script = 'const r=require(process.argv[1]);let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>process.stdout.write(JSON.stringify(JSON.parse(s).map(x=>r.evaluate(x.guide,x.state,x.progress)))));'
+        result = subprocess.run(['node', '-e', script, module], input=json.dumps(examples), text=True, encoding='utf-8', capture_output=True, check=True)
+        self.assertEqual(json.loads(result.stdout), [evaluate(row['guide'], row['state'], row.get('progress')) for row in examples])
+
+    def test_explicit_policy_removes_only_implicit_barriers(self):
+        definition = guide({'key':'gate','action':{'kind':'manual'}}, focus('independent'),
+                           focus('dependent', depends_on=['gate']),
+                           focus('conditional', when={'op':'check','key':'unknown'}))
+        original = copy.deepcopy(definition)
+        legacy = evaluate(definition, state())
+        explicit = evaluate({**definition, 'dependency_policy':'explicit'}, state())
+        self.assertEqual(legacy['steps'][1]['reason'], 'dependency_unknown')
+        self.assertEqual(explicit['steps'][1]['status'], 'ready')
+        self.assertEqual(explicit['steps'][2]['reason'], 'dependency_unknown')
+        self.assertEqual(explicit['steps'][3]['reason'], 'condition_unknown')
+        self.assertEqual(definition, original)
+
+    def test_sequence_report_is_structural_and_does_not_mutate(self):
+        definition = normalise_guide(guide({'key':'gate','action':{'kind':'manual'}},
+             focus('first'), focus('independent', depends_on=[]), focus('last')))
+        before = copy.deepcopy(definition)
+        report = sequence_report(definition)
+        self.assertEqual((report['implicit_barrier_steps'], report['implicit_barrier_edges']), (2, 2))
+        self.assertEqual([item['key'] for item in report['examples']], ['first', 'last'])
+        self.assertEqual(sequence_report({**definition, 'dependency_policy':'explicit'})['implicit_barrier_steps'], 0)
+        self.assertEqual(definition, before)
+
+    def test_dependency_policy_is_validated(self):
+        for value in (None, [], {}, 1, 'bad'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                normalise_guide({**guide(focus('a')), 'dependency_policy':value})
+
     def test_shared_runtime_fixtures_are_pure_and_deterministic(self):
         cases = json.loads((Path(__file__).parent / 'fixtures' / 'guide-runtime.json').read_text(encoding='utf-8'))
         for example in cases:

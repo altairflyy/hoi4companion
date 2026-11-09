@@ -12,7 +12,7 @@ import re
 import struct
 import time
 
-from .live import ExecutableProfile, WindowsGame, NativeSample, LiveReadError, WORLD_RVA
+from .live import ExecutableProfile, WindowsGame, NativeSample, LiveReadError, WORLD_RVA, UPDATED_HASH, MILITARY_HASH
 from .events_native import GUI_RVA
 
 
@@ -34,11 +34,7 @@ class GuiSample(NativeSample):
         return bool(value)
 
     def verify(self):
-        super().verify()
-        for address,expected in self.visibility.items():
-            value=self.process.read(address,1)
-            if len(value)!=1 or value[0] & 8 != expected:
-                raise LiveReadError('Campione incoerente: riprovare')
+        self._verify(self.visibility)
 
 
 def _intersect(a, b):
@@ -104,17 +100,32 @@ class UiReader:
     """
     def __init__(self, executable_path=None, *, process=None):
         self._owns = process is None
-        self.process = process or WindowsGame(ExecutableProfile(executable_path))
+        profile = ExecutableProfile(executable_path) if process is None else process.profile
+        if getattr(profile, 'sha256', None) in (UPDATED_HASH,MILITARY_HASH) and not getattr(profile,'gui_layout',None):
+            raise LiveReadError('Geometria GUI non verificata per questa versione di HOI4')
+        self.process = process or WindowsGame(profile)
         self.profile = self.process.profile
         self._cache = None
         self._missing_refreshes = {}
         self.discovery_ms = 0.
+        self.discovery_reads = {}
+        # Method-wide lru_cache keys retain every old reader (and its PE image).
+        # Keep caches local to this handle; fixture overrides stay uncached.
+        for name,limit in (('_rtti',16384),('_primary_base',256)):
+            if getattr(type(self),name) is getattr(UiReader,name):
+                setattr(self,name,lru_cache(maxsize=limit)(getattr(self,name)))
+
+    def layout(self,key,legacy):
+        return getattr(self.profile,'gui_layout',{}).get(key,legacy)
 
     def close(self):
-        if self._owns:
-            self.process.close()
+        try:
+            if self._owns:self.process.close()
+        finally:
+            for name in ('_rtti','_primary_base'):
+                cached=self.__dict__.pop(name,None)
+                if cached is not None:cached.cache_clear()
 
-    @lru_cache(maxsize=16384)
     def _rtti(self, vtable):
         p = self.profile
         locator = struct.unpack('<Q', p.bytes(vtable-self.process.base-8, 8))[0]-p.image_base
@@ -128,7 +139,6 @@ class UiReader:
             raise LiveReadError('Tipo GUI inatteso: '+name)
         return address
 
-    @lru_cache(maxsize=256)
     def _primary_base(self, vtable, required):
         """Qualify a nonvirtual base from immutable, build-checked MSVC RTTI."""
         p=self.profile
@@ -153,7 +163,7 @@ class UiReader:
         raise LiveReadError('Tipo sprite GUI non qualificato')
 
     def _discover(self, s, root):
-        headers = tuple(s.read(root+off, 16) for off in (0x108, 0x120))
+        headers = tuple(s.read(root+off, 16) for off in self.layout('registry',(0x108,0x120)))
         # Registry occupancy changes with unrelated transient UI widgets. The
         # allocation identity is stable; selected bindings are fully validated
         # on every snapshot and invalidate this cache on any mismatch.
@@ -165,17 +175,45 @@ class UiReader:
             return self._cache[2]
         start = time.perf_counter()
         process, pages, seen, owners = self.process, {}, set(), {}
+        failed_pages=set()
+        candidates=[]
+        types={}
+        image_size=getattr(self.profile,'image_size',None)
+
+        def rtti(vtable):
+            if image_size is not None and not process.base<=vtable<process.base+image_size:
+                return None
+            if vtable not in types:
+                try:value=self._rtti(vtable)
+                except (LiveReadError,UnicodeError,struct.error,OSError):value=None
+                if len(types)<16384:types[vtable]=value
+            else:value=types[vtable]
+            return value
 
         def pointer(address):
             page = address & ~4095
             if address+8 > page+4096:
                 return struct.unpack('<Q', process.read(address, 8))[0]
+            if page in failed_pages:raise LiveReadError('Pagina candidato GUI non leggibile')
             if page not in pages:
-                pages[page] = process.read(page, 4096)
+                try:pages[page] = process.read(page, 4096)
+                except (LiveReadError,OSError):
+                    failed_pages.add(page)
+                    raise
             return struct.unpack_from('<Q', pages[page], address-page)[0]
 
+        class CandidateBytes:
+            # Reuse only bytes already fetched for pointer discovery. Unlike
+            # GuiSample, these bytes are candidates, never published evidence.
+            def read(_,address,size):
+                page=address & ~4095
+                if page in pages and address+size<=page+4096:
+                    return pages[page][address-page:address-page+size]
+                return process.read(address,size)
+        memory=CandidateBytes()
+
         allowed = {'CNationalFocusView', 'CCountryTechnologyView', 'CCountryTechTreeView', 'CEventWindow',
-                   'CNationalFocusTreeItem', 'CTechnologyTreeTechItem'}
+                   'CNationalFocusTreeItem', 'CTechnologyTreeTechItem','CTopBar','CCountryProductionLineView','CProductionLineMilitaryItem','CProductionEquipmentWindow'}
         for raw, dynamic in zip(headers, (False, True)):
             data, capacity, count = struct.unpack('<Qii', raw)
             if not 0 <= count <= capacity <= 500000:
@@ -188,8 +226,15 @@ class UiReader:
                         continue
                     seen.add(gui)
                     try:
+                        # Registry capacity includes cleared allocator slots.
+                        # A null polymorphic GUI vtable is not a live widget.
+                        if not pointer(gui):continue
+                        candidates.append(gui)
                         observer = pointer(gui+80)
-                        name, displacement = self._rtti(pointer(observer))
+                        if not 0x10000<=observer<0x7FFFFFFFFFFF:continue
+                        kind=rtti(pointer(observer))
+                        if kind is None:continue
+                        name, displacement = kind
                         # MSVC spelling is .?AV + class + @@ (four-byte prefix).
                         short = name[4:-2] if name.startswith('.?AV') else ''
                         if short in allowed:
@@ -211,24 +256,26 @@ class UiReader:
             if name != 'CCountryTechTreeView':
                 continue
             try:
-                container = pointer(address+0x578)
+                container = pointer(address+self.layout('view_container',0x578))
                 definition = pointer(container+0x90)
-                if NativeSample(process).string(definition+0x28) == 'countrytechtreeview':
+                if NativeSample(memory).string(definition+0x28) == 'countrytechtreeview':
                     trees.append(address)
             except (LiveReadError, OSError, struct.error):
                 continue
         if len(trees) != 1:
             raise LiveReadError('Albero ricerca mancante o ambiguo')
         bindings['views']['CCountryTechTreeView'] = trees[0]
-        tree_container = pointer(trees[0]+0x578)
+        tree_container = pointer(trees[0]+self.layout('view_container',0x578))
         bindings['folders'] = {}
         bindings['tabs_container'] = None
-        for gui in NativeSample(process).array(tree_container+0x10F0, maximum=2048):
+        for gui in NativeSample(memory).array(tree_container+self.layout('container_children',0x10F0), maximum=2048):
             try:
-                class_name, displacement = self._rtti(pointer(gui))
+                kind=rtti(pointer(gui))
+                if kind is None:continue
+                class_name, displacement = kind
                 if class_name != '.?AVCContainerWindow@@' or displacement != 48:
                     continue
-                name = NativeSample(process).string(pointer(gui+0x60)+0x28)
+                name = NativeSample(memory).string(pointer(gui+0x60)+0x28)
                 if name == 'folder_tabs':
                     bindings['tabs_container'] = gui-48
                 if name.endswith('_folder') or name in ('mtgnavalfolder', 'mtgnavalsupportfolder'):
@@ -241,22 +288,52 @@ class UiReader:
             try:
                 if name == 'CNationalFocusTreeItem':
                     definition = pointer(address+0x20)
-                    key = NativeSample(process).string(definition+0x18)
+                    key = NativeSample(memory).string(definition+0x18)
                     bindings['focus'].setdefault(key, []).append(address)
                 elif name == 'CTechnologyTreeTechItem':
                     model = pointer(address+0xC8)
                     definition = pointer(model+0x160)
-                    key = NativeSample(process).string(definition+0x10)
+                    key = NativeSample(memory).string(definition+0x10)
                     bindings['research'].setdefault(key, []).append(address)
             except (LiveReadError, OSError, struct.error):
                 continue
+        bindings['production_owners']={a:n for a,n in owners.items() if n in ('CTopBar','CCountryProductionLineView','CProductionLineMilitaryItem','CProductionEquipmentWindow')}
+        bindings['production_access']=[]
+        bindings['production_add']=[];bindings['production_pickers']=[]
+        for address in candidates:
+            try:
+                resolved=rtti(pointer(address))
+                if resolved is None:continue
+                kind,base_offset=resolved
+                if kind=='.?AVCContainerWindow@@' and base_offset in (0,48):
+                    container=address-base_offset;observer=pointer(container+0x80)
+                    resolved=rtti(pointer(observer))
+                    if resolved is None:continue
+                    typ,displacement=resolved;owner=observer-displacement
+                    if typ=='.?AVCProductionEquipmentWindow@@' and owners.get(owner)=='CProductionEquipmentWindow':
+                        name=NativeSample(memory).string(pointer(container+0x90)+0x28)
+                        if name in ('production_equipment_window_military','production_equipment_window'):
+                            bindings['production_pickers'].append({'container':container,'owner':owner,'observer_offset':displacement,'name':name})
+                if (kind,base_offset)!=('.?AVCButtonStandard@@',0):continue
+                observer=pointer(address+0x50);resolved=rtti(pointer(observer))
+                if resolved is None:continue
+                typ,displacement=resolved
+                owner=observer-displacement;name=NativeSample(memory).string(pointer(address+0x60)+0x28)
+                if typ=='.?AVCTopBar@@' and owners.get(owner)=='CTopBar' and name=='production_button':bindings['production_access'].append(address)
+                if (typ=='.?AVCCountryProductionLineView@@' and owners.get(owner)=='CCountryProductionLineView'
+                        and name in ('infantry_button','tank_button','aircraft_button','naval_button')):
+                    bindings['production_add'].append({'address':address,'owner':owner,'name':name})
+            except (LiveReadError,OSError,ValueError,struct.error,UnicodeError):continue
         self.discovery_ms = (time.perf_counter()-start)*1000
+        self.discovery_reads={'pages':len(pages),'failed_pages':len(failed_pages),
+                              'types':len(types),'cache_bytes':len(pages)*4096,
+                              'registry_objects':len(seen),'non_null_widgets':len(candidates)}
         self._cache = (root, allocation, bindings)
         return bindings
 
     def _country(self, s):
         u = s.number
-        world = self._typed(s, u(self.process.base+WORLD_RVA), 'CCurrentGameState')
+        world = self._typed(s, u(self.process.base+getattr(self.profile,'world_rva',WORLD_RVA)), 'CCurrentGameState')
         native = u(world+0x520, '<i')
         count = u(world+0x364, '<i')
         if not 0 < native < count <= 8192:
@@ -299,9 +376,9 @@ class UiReader:
 
     def _focus_geometry(self, s, container, root, observer, resolution, clip):
         parts = {}
-        parent = self._typed(s, s.number(container+0x15F8), 'C2dPositionObject')
+        parent = self._typed(s, s.number(container+self.layout('container_inner',0x15F8)), 'C2dPositionObject')
         transform = struct.unpack('<16f', s.read(parent+0x90, 64))
-        for button in s.array(container+0x1120, maximum=64):
+        for button in s.array(container+self.layout('container_buttons',0x1120), maximum=64):
             self._typed(s, button, 'CButtonStandard')
             definition = self._typed(s, s.number(button+0x60), 'CButtonType')
             name = s.string(definition+0x28)
@@ -309,8 +386,8 @@ class UiReader:
                 continue
             if s.number(button+0x68) != root or s.number(button+0x50) != observer:
                 raise LiveReadError('Pulsante focus di un altro proprietario')
-            sprite = self._sprite(s, s.number(button+0xF0))
-            if s.number(button+0x1B0) != parent or s.number(sprite+0x118) != parent:
+            sprite = self._sprite(s, s.number(button+self.layout('button_sprite',0xF0)))
+            if s.number(button+self.layout('button_anchor',0x1B0)) != parent or s.number(sprite+0x118) != parent:
                 raise LiveReadError('Ancoraggio pulsante estraneo al focus')
             parts[name] = self._sprite_bounds(s, sprite, parent, transform, clip)
         if set(parts) != {'bg', 'symbol'}:
@@ -328,10 +405,10 @@ class UiReader:
 
     def _research_geometry(self, s, container, root, observer, clip):
         """Read the real background button; keep its icon as supporting data."""
-        outer = self._typed(s, s.number(container+0x15F0), 'C2dPositionObject')
+        outer = self._typed(s, s.number(container+self.layout('container_outer',0x15F0)), 'C2dPositionObject')
         outer_transform = struct.unpack('<16f', s.read(outer+0x90, 64))
         backgrounds = []
-        for button in s.array(container+0x10D8, maximum=64):
+        for button in s.array(container+self.layout('container_drags',0x10D8), maximum=64):
             self._typed(s, button, 'CButtonDrag')
             definition = self._typed(s, s.number(button+0x60), 'CButtonType')
             # Installed compact/support templates name this same CButtonDrag
@@ -340,23 +417,23 @@ class UiReader:
                 continue
             if s.number(button+0x68) != root or s.number(button+0x50) != observer:
                 raise LiveReadError('Sfondo ricerca di un altro proprietario')
-            if s.number(button+0x110) != outer:
+            if s.number(button+self.layout('drag_anchor',0x110)) != outer:
                 raise LiveReadError('Ancoraggio sfondo ricerca non qualificato')
-            backgrounds.append(self._sprite_bounds(s, s.number(button+0x118), outer, outer_transform, clip))
+            backgrounds.append(self._sprite_bounds(s, s.number(button+self.layout('drag_sprite',0x118)), outer, outer_transform, clip))
         if len(backgrounds) != 1:
             raise LiveReadError('Sfondo tecnologia mancante o ambiguo')
-        parent = self._typed(s, s.number(container+0x15F8), 'C2dPositionObject')
+        parent = self._typed(s, s.number(container+self.layout('container_inner',0x15F8)), 'C2dPositionObject')
         transform = struct.unpack('<16f', s.read(parent+0x90, 64))
         matches = []
-        for icon in s.array(container+0x1150, maximum=64):
+        for icon in s.array(container+self.layout('container_icons',0x1150), maximum=64):
             self._typed(s, icon, 'CIcon')
             definition = self._typed(s, s.number(icon+0x60), 'CIconType')
             if s.string(definition+0x28) != 'Icon':
                 continue
             if s.number(icon+0x68) != root or s.number(icon+0x50) != observer:
                 raise LiveReadError('Icona ricerca di un altro proprietario')
-            sprite = self._sprite(s, s.number(icon+0xE8))
-            if s.number(icon+0xF0) != parent or s.number(sprite+0x118) != parent:
+            sprite = self._sprite(s, s.number(icon+self.layout('icon_sprite',0xE8)))
+            if s.number(icon+self.layout('icon_anchor',0xF0)) != parent or s.number(sprite+0x118) != parent:
                 raise LiveReadError('Ancoraggio icona estraneo alla ricerca')
             result = self._sprite_bounds(s, sprite, parent, transform, clip)
             matches.append(result)
@@ -368,10 +445,10 @@ class UiReader:
 
     def _research_tabs(self, s, container, root, observer, clip, folders):
         self._container(s, container, root, observer)
-        parent = self._typed(s, s.number(container+0x15F8), 'C2dPositionObject')
+        parent = self._typed(s, s.number(container+self.layout('container_inner',0x15F8)), 'C2dPositionObject')
         transform = struct.unpack('<16f', s.read(parent+0x90, 64))
         result = []
-        for button in s.array(container+0x1120, maximum=64):
+        for button in s.array(container+self.layout('container_buttons',0x1120), maximum=64):
             self._typed(s, button, 'CButtonStandard')
             definition = self._typed(s, s.number(button+0x60), 'CButtonType')
             name = s.string(definition+0x28)
@@ -379,8 +456,8 @@ class UiReader:
                 continue
             if s.number(button+0x68) != root or s.number(button+0x50) != observer:
                 raise LiveReadError('Scheda ricerca di un altro proprietario')
-            sprite = self._sprite(s, s.number(button+0xF0))
-            if s.number(button+0x1B0) != parent or s.number(sprite+0x118) != parent:
+            sprite = self._sprite(s, s.number(button+self.layout('button_sprite',0xF0)))
+            if s.number(button+self.layout('button_anchor',0x1B0)) != parent or s.number(sprite+0x118) != parent:
                 raise LiveReadError('Ancoraggio scheda ricerca non qualificato')
             data = self._sprite_bounds(s, sprite, parent, transform, clip)
             data.update(panel='research_tab', identity=name[:-4],
@@ -389,8 +466,8 @@ class UiReader:
         return result
 
     def _research_folder(self, s, container, folders):
-        anchors = {s.number(c+0x15F8): name for name, c in folders.items()}
-        current = s.number(container+0x15F0)
+        anchors = {s.number(c+self.layout('container_inner',0x15F8)): name for name, c in folders.items()}
+        current = s.number(container+self.layout('container_outer',0x15F0))
         visited = set()
         for _ in range(16):
             if not current or current in visited:
@@ -402,12 +479,13 @@ class UiReader:
             current = s.number(current+0x118)
         raise LiveReadError('Cartella della tecnologia non qualificata')
 
-    def snapshot(self, *, focus_ids=(), technology_ids=(), event_ids=(), event_instances=(), action_ui=False):
+    def snapshot(self, *, focus_ids=(), technology_ids=(), event_ids=(), event_instances=(), action_ui=False, production_ui=False):
         started = time.perf_counter()
         for attempt in range(2):
             try:
                 extra = {'event_ids': event_ids, 'event_instances': event_instances} if event_ids or event_instances else {}
                 if action_ui:extra['action_ui']=True
+                if production_ui:extra['production_ui']=True
                 result = self._snapshot(focus_ids=focus_ids, technology_ids=technology_ids, **extra)
                 result['diagnostics'].update(snapshot_ms=(time.perf_counter()-started)*1000,
                                              retry_count=attempt)
@@ -425,7 +503,7 @@ class UiReader:
                 self._cache = None
                 raise
 
-    def _snapshot(self, *, focus_ids=(), technology_ids=(), event_ids=(), event_instances=(), action_ui=False):
+    def _snapshot(self, *, focus_ids=(), technology_ids=(), event_ids=(), event_instances=(), action_ui=False, production_ui=False):
         started = time.perf_counter()
         p = self.process
         if p.identity() != p.created:
@@ -434,12 +512,12 @@ class UiReader:
         # registries contain unrelated transient widgets. Those bytes are not
         # observations: do not retain their witnesses in the final sample.
         candidate = NativeSample(p)
-        candidate_root = self._typed(candidate, candidate.number(p.base+GUI_RVA), 'CGameGui')
+        candidate_root = self._typed(candidate, candidate.number(p.base+self.layout('root_rva',GUI_RVA)), 'CGameGui')
         bindings = self._discover(candidate, candidate_root)
         from .event_ui_native import refresh_candidates, read_event_ui
-        event_owners = refresh_candidates(self, candidate_root, bindings, event_instances)
+        event_owners = refresh_candidates(self, candidate_root, bindings, event_instances) if not getattr(self.profile,'gui_layout',None) else bindings.get('events',[])
         s = GuiSample(p)
-        root = self._typed(s, s.number(p.base+GUI_RVA), 'CGameGui')
+        root = self._typed(s, s.number(p.base+self.layout('root_rva',GUI_RVA)), 'CGameGui')
         if root != candidate_root:
             raise LiveReadError('Contesto GUI cambiato durante la ricerca')
         country, tree, scope, technology, country_pointer = self._country(s)
@@ -447,9 +525,9 @@ class UiReader:
         for panel, name, targets in (('focus', 'CNationalFocusView', set(focus_ids)),
                                      ('research', 'CCountryTechTreeView', set(technology_ids))):
             owner = self._typed(s, bindings['views'][name], name)
-            container = s.number(owner+0x578)
+            container = s.number(owner+self.layout('view_container',0x578))
             visible = self._container(s, container, root, owner+40)
-            position = self._typed(s, s.number(container+0x15F0), 'C2dPositionObject')
+            position = self._typed(s, s.number(container+self.layout('container_outer',0x15F0)), 'C2dPositionObject')
             data = s.read(position+0x130, 8)
             current_resolution = list(struct.unpack('<ii', data))
             if not all(64 <= v <= 32768 for v in current_resolution):
@@ -457,7 +535,7 @@ class UiReader:
             if resolution is not None and resolution != current_resolution:
                 raise LiveReadError('Viste con risoluzioni incoerenti')
             resolution = current_resolution
-            raw_clip = struct.unpack('<4i', s.read(container+0x1594, 16))
+            raw_clip = struct.unpack('<4i', s.read(container+self.layout('container_clip',0x1594), 16))
             clip = _intersect([raw_clip[0], raw_clip[1], raw_clip[2]-raw_clip[0], raw_clip[3]-raw_clip[1]],
                               [0, 0, *resolution])
             panels[panel] = {'visible': visible, 'clip': clip}
@@ -480,7 +558,7 @@ class UiReader:
                     raise LiveReadError('Cartella ricerca visibile mancante o ambigua')
                 panels[panel]['folder'] = selected[0][0] if len(selected)==1 else None
                 if visible:
-                    folder_raw = struct.unpack('<4i', s.read(selected[0][1]+0x1594, 16))
+                    folder_raw = struct.unpack('<4i', s.read(selected[0][1]+self.layout('container_clip',0x1594), 16))
                     clip = _intersect(clip, [folder_raw[0], folder_raw[1],
                                             folder_raw[2]-folder_raw[0], folder_raw[3]-folder_raw[1]])
                     panels[panel]['clip'] = clip
@@ -499,18 +577,18 @@ class UiReader:
                     # Discard pre-discovery witnesses; the recursive sample
                     # starts only after candidate discovery has completed.
                     return self._snapshot(focus_ids=focus_ids, technology_ids=technology_ids,
-                                          event_ids=event_ids, event_instances=event_instances,action_ui=action_ui)
+                                          event_ids=event_ids, event_instances=event_instances,action_ui=action_ui,production_ui=production_ui)
             if panel == 'focus':
                 # The frontend has separate viewed/selected/context bindings.
                 # Only the qualified own-country mode is admitted; comparison
                 # or foreign-country views are deliberately not extrapolated.
-                if any(s.number(owner+offset) != tree for offset in (0x20E8, 0x20F0)):
+                if any(s.number(owner+offset) != tree for offset in self.layout('focus_tree_fields',(0x20E8,0x20F0))):
                     raise LiveReadError('Vista focus di un altro albero')
                 # +20F8 is nullable (observed null in an own-country view).
                 # The two persistent bindings must still identify the player.
-                optional_country = s.number(owner+0x20F8)
+                optional_country = s.number(owner+self.layout('focus_country_optional',0x20F8))
                 if (optional_country not in (0, country_pointer)
-                        or any(s.number(owner+offset) != country_pointer for offset in (0x2100, 0x2108))):
+                        or any(s.number(owner+offset) != country_pointer for offset in self.layout('focus_country_fields',(0x2100,0x2108)))):
                     raise LiveReadError('Vista focus di un’altra nazione')
             for key in sorted(targets):
                 for item in bindings[panel].get(key, ()):
@@ -518,8 +596,14 @@ class UiReader:
                     item_container = s.number(item+0x10)
                     shown = self._container(s, item_container, root, item+24)
                     if panel == 'focus':
-                        definition = self._typed(s, s.number(item+0x20), 'CNationalFocus')
-                        if s.number(definition+0x160) != tree or s.string(definition+0x18) != key:
+                        definition = s.number(item+0x20)
+                        kind=self._rtti(s.number(definition))
+                        joint=(kind==('.?AVCJointNationalFocus@@',0) and
+                               s.number(definition)-p.base==getattr(self.profile,'joint_focus_vtable',None))
+                        if kind!=('.?AVCNationalFocus@@',0) and not joint:
+                            raise LiveReadError('Tipo focus GUI non qualificato')
+                        if (s.number(definition+0x160) != (0 if joint else tree) or s.string(definition+0x18) != key
+                                or joint and definition not in s.array(tree+0x30,maximum=4096)):
                             raise LiveReadError('Focus GUI estraneo alla nazione o ID cambiato')
                     else:
                         model = self._typed(s, s.number(item+0xC8), 'CTechnology')
@@ -531,9 +615,9 @@ class UiReader:
                         tree_view = self._typed(s, s.number(item+0x30), 'CCountryTechTreeView')
                         if tree_view != owner:
                             raise LiveReadError('Tecnologia di un altro albero visualizzato')
-                        tree_container = s.number(tree_view+0x578)
+                        tree_container = s.number(tree_view+self.layout('view_container',0x578))
                         tree_shown = self._container(s, tree_container, root, tree_view+40)
-                        raw = struct.unpack('<4i', s.read(tree_container+0x1594, 16))
+                        raw = struct.unpack('<4i', s.read(tree_container+self.layout('container_clip',0x1594), 16))
                         tree_clip = _intersect(clip, [raw[0], raw[1], raw[2]-raw[0], raw[3]-raw[1]])
                         shown = shown and tree_shown
                         item_folder = self._research_folder(s, item_container, bindings['folders'])
@@ -549,22 +633,43 @@ class UiReader:
         active = [key for key, value in panels.items() if value['visible']]
         if len(active) > 1:
             raise LiveReadError('Viste sovrapposte: geometria non esclusiva')
-        events = read_event_ui(self, s, root, event_owners, set(event_ids), resolution)
+        if getattr(self.profile,'gui_layout',None):
+            # Popup choice fields are not qualified on this build. Witness all
+            # discovered popup visibility and suppress tree annotations if open.
+            for event in event_owners:
+                container=s.number(event+self.layout('view_container',0x578))
+                if self._container(s,container,root,event+40):
+                    raise LiveReadError('Evento in primo piano: geometria risposte non ancora qualificata')
+            events={'event_windows':[],'nodes':[],'status':'unavailable','visible_ids':[]}
+        else:events = read_event_ui(self, s, root, event_owners, set(event_ids), resolution)
         event_visible = bool(events['event_windows'])
         panels['event'] = {'visible': event_visible, 'clip': [0, 0, *resolution], 'status': events['status']}
         if event_visible:
             active = ['event']
         nodes.extend(events['nodes'])
         actions={}
-        if action_ui and not active:
+        if action_ui and not active and not getattr(self.profile,'gui_layout',None):
             from .action_ui_native import discover_roots, read_controls
             action_roots=discover_roots(self,root,bindings)
             actions=read_controls(self,s,root,action_roots,resolution,country_pointer)
+        production={}
+        if production_ui and not active and getattr(self.profile,'gui_layout',None):
+            from .production_ui_native import read
+            production=read(self,s,root,bindings,resolution,country_pointer)
+            context=('production',country,production.get('discovery_context'))
+            if production.get('visible') and context not in self._missing_refreshes:
+                self._missing_refreshes[context]=None
+                if len(self._missing_refreshes)>128:self._missing_refreshes.pop(next(iter(self._missing_refreshes)))
+                self._cache=None
+                return self._snapshot(focus_ids=focus_ids,technology_ids=technology_ids,event_ids=event_ids,
+                                      event_instances=event_instances,action_ui=action_ui,production_ui=production_ui)
+            if production.get('visible'):active=['production']
         s.verify()
         return {'available': True, 'source': 'native_gui', 'pid': p.pid, 'process_created': p.created,
                 'country': country, 'scope': scope, 'resolution': resolution,
                 'active_panel': active[0] if active else None, 'panels': panels, 'nodes': nodes, 'tabs': tabs,
                 'events': {'status': events['status'], 'visible_ids': events['visible_ids']},
-                'event_windows': events['event_windows'], 'action_ui':actions,
+                'event_windows': events['event_windows'], 'action_ui':actions,'production_ui':production,
                 'diagnostics': {'snapshot_ms': (time.perf_counter()-started)*1000,
-                                'discovery_ms': self.discovery_ms, 'bytes': s.used}}
+                                'verification_ms': s.verification_ms, 'verification_engine': s.verification_engine,
+                                'discovery_ms': self.discovery_ms, 'discovery':dict(self.discovery_reads),'bytes': s.used}}

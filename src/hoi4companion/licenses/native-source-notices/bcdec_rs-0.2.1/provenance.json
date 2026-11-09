@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "crate": "bcdec_rs",
+  "version": "0.2.1",
+  "repository_commit": "5e1ef829f8c44980e21bdcda2e1ffb574b81b57b",
+  "files": {
+    "LICENSE-MIT": {
+      "url": "https://raw.githubusercontent.com/ScanMountGoat/image_dds/5e1ef829f8c44980e21bdcda2e1ffb574b81b57b/LICENSE",
+      "sha256": "0194fa871df6d82a26d58f3b6e035bed033afdc413e2a6ac0ae2f15b7becbb20"
+    },
+    "LICENSE-BCDEC-UPSTREAM": {
+      "url": "https://raw.githubusercontent.com/iOrange/bcdec/993f4ded65e7b5f98215c35ae3b46432f623e54b/LICENSE",
+      "sha256": "2414c782587f6e96661cb0d19d752432ddecfcc1a221b4cb12bc2253a54dc5ac"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+[package]
+name = "hoi4companion-observer"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[lib]
+name = "hoi4companion_observer"
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+lto = true
+codegen-units = 1

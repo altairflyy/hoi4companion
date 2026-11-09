@@ -59,6 +59,7 @@ class NativeGeometry:
         instances={instance for p in proposals if p['panel']=='event' for instance in p.get('instances',[])}
         try:
             options={'action_ui':True} if any(p.get('panel') in ('politics','projects') for p in proposals) else {}
+            if any(p.get('panel')=='production' for p in proposals):options['production_ui']=True
             raw=self.reader.snapshot(focus_ids=focus_ids,technology_ids=tech_ids,
                                      event_ids=event_ids,event_instances=instances,**options)
             result['diagnostics']=raw.get('diagnostics',{})
@@ -70,7 +71,8 @@ class NativeGeometry:
             active=raw.get('active_panel')
             windows=[w for w in raw.get('event_windows',[]) if w.get('visible') is True]
             if windows:active='event'
-            if active in ('focus','research') and panels.get(active,{}).get('visible') is True:
+            if active=='production' and raw.get('production_ui',{}).get('status')=='observed':result['active_panel']='production'
+            elif active in ('focus','research') and panels.get(active,{}).get('visible') is True:
                 result['active_panel']=active
             elif active=='event':result['active_panel']='event'
             country=raw.get('country')
@@ -110,7 +112,7 @@ class NativeGeometry:
             if active=='research' and info.get('visible') is True and info.get('folder'):
                 folders={}
                 for p in proposals:
-                    if (p['panel']=='research' and p.get('country')==country and p.get('folder')
+                    if (p['panel']=='research' and p.get('status')!='active' and p.get('country')==country and p.get('folder')
                             and p['folder']!=info['folder']):folders.setdefault(p['folder'],[]).append(p)
                 for folder,steps in folders.items():
                     tabs=[t for t in raw.get('tabs',[]) if t.get('panel')=='research_tab'
@@ -124,9 +126,14 @@ class NativeGeometry:
                     result['matches'].append({'key':'research-tab:'+folder,'panel':'research_tab',
                         'identity':folder,'folder':folder,'title':steps[0].get('folder_name') or folder,
                         'status':'active' if all(p.get('status')=='active' for p in steps) else 'ready',
+                        'tone':'choice' if all(p.get('tone')=='choice' for p in steps) else 'next',
                         'rect':rect,'step_keys':[p['key'] for p in steps],
                         'count':len(steps),'basis':'native_gui_identity'})
             from .action_navigation import navigation_matches
+            from .production_navigation import matches as production_matches
+            if raw.get('production_ui',{}).get('status')=='observed':
+                result['handled_panels'].append('production')
+                if active!='event':result['matches']+=production_matches(raw,proposals,lambda node,info:_rectangle(node,info,view))
             actions=raw.get('action_ui',{})
             if actions.get('status')=='observed':
                 result['handled_panels'] += [panel for panel,qualified in actions.get('coverage',{}).items() if qualified]

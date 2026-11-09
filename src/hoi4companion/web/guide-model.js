@@ -4,22 +4,36 @@
  const common=typeof module!=='undefined'&&module.exports;
  const c=common?require('./contracts.js'):root.HoiContracts;
  const runtime=common?require('./guide-runtime.js'):root.HoiGuideRuntime;
- const settled=row=>row.runtime_status==='completed'||row.runtime_reason==='skip_condition_true';
+ const settled=row=>row.runtime_status==='completed'||['skip_condition_true','research_line_complete'].includes(row.runtime_reason);
+ function sharedResult(guide,state,progress,value){
+  const rows=Object.entries(guide.tracks).flatMap(([track,steps])=>steps.map(step=>({track,step}))),keys=new Set(rows.map(({step})=>step.key));
+  if(value){
+   if(value.schema_version!==1||value.guide_id!==(guide.id||'')||value.run_id!==null&&value.run_id!==progress.run_id||!['live','preview','wrong_country','wrong_tree'].includes(value.mode)||!Array.isArray(value.steps)||value.steps.length!==keys.size||new Set(value.steps.map(r=>r.key)).size!==keys.size||value.steps.some(r=>!keys.has(r.key)||!['completed','active','ready','waiting','not_applicable','unverifiable'].includes(r.status))||!value.tracks||!value.parallel||!value.action_sequence)throw Error('Invalid shared guide evaluation');
+   return value;
+  }
+  const unknown={status:'unknown',source:'',value:null,reason:'runtime_snapshot_unavailable'};
+  return {schema_version:1,guide_id:guide.id||'',run_id:null,progress_status:'none',mode:'preview',country:null,
+   steps:rows.map(({track,step})=>({key:step.key,track,status:'unverifiable',reason:'runtime_snapshot_unavailable',blocked_by:[],completion:unknown,selection:unknown,availability:unknown,priority:0,priority_known:false,completion_basis:'condition'})),
+   tracks:Object.fromEntries(Object.entries(guide.tracks).map(([track,steps])=>[track,{keys:steps.map(r=>r.key),order:steps.map(r=>r.key),next:null}])),
+   ready:[],parallel:{focus:{capacity:null,steps:[]},research:{capacity:null,steps:[]}},action_sequence:{political:null,projects:[]},action_context:{session_id:null,campaign_id:null}};
+ }
  function evaluate(input,value,local={}){
   const guide=c.guide(input),state=c.state(value);
-  const progress=local.progress||{schema_version:1,guide_id:guide.id||'',run_id:local.run_id||'legacy',session_id:local.session_id||null,checks:local.checks||{},started:local.started||{},baselines:local.baselines||{},...(local.campaign_id?{campaign_id:local.campaign_id,country:local.country}:{}),...(local.campaign_required?{campaign_required:true}:{})};
-  const result=runtime.evaluate(guide,state,progress),byKey=new Map(result.steps.map(row=>[row.key,row]));
+  const progress=local.progress||{schema_version:1,guide_id:guide.id||'',run_id:local.run_id||'legacy',session_id:local.session_id||null,checks:local.checks||{},started:local.started||{},baselines:local.baselines||{},research_bindings:local.research_bindings||{},research_options:local.research_options||{},campaign_conditions:local.campaign_conditions||{},...(local.campaign_id?{campaign_id:local.campaign_id,country:local.country}:{}),...(local.campaign_required?{campaign_required:true}:{})};
+  const authoritative=guide.runtime_engine==='rust-guide-core',missingShared=authoritative&&!local.evaluation;
+  const result=authoritative?sharedResult(guide,state,progress,local.evaluation):runtime.evaluate(guide,state,progress),byKey=new Map(result.steps.map(row=>[row.key,row]));
   function row(step,index){
    const decision=byKey.get(step.key),kind=step.action.kind;
    let status;
    if(['manual','special_project'].includes(kind))status=decision.status==='completed'?'confirmed':'manual';
    else if(kind==='free')status='free';
    else if(['completed','active'].includes(decision.status))status=decision.status;
-   else if(decision.reason==='skip_condition_true')status='skipped';
+   else if(['skip_condition_true','research_line_complete'].includes(decision.reason))status='skipped';
    else if(decision.reason==='catalog_unmatched')status='unavailable';
-   else if(['entity_scope_mismatch','condition_false','condition_unknown','phase_condition_false','phase_condition_unknown'].includes(decision.reason)||Object.hasOwn(step,'depends_on')&&decision.blocked_by.length)status='waiting';
+   else if(decision.reason.startsWith('focus_requirements_')||['focus_excluded','focus_prerequisites_false','research_binding_unknown','research_previous_level_incomplete','entity_scope_mismatch','condition_false','condition_unknown','phase_condition_false','phase_condition_unknown'].includes(decision.reason)||Object.hasOwn(step,'depends_on')&&decision.blocked_by.length)status='waiting';
    else status=result.mode==='live'?'pending':'planned';
-   return {...step,...(step.completion?{completion_condition:step.completion}:{}),...decision,
+   const target=decision.research_target??step.target,choiceInfo=step.choice_entities?.[target]||{};
+   return {...step,...choiceInfo,target,...(decision.research_target?{action:{...step.action,entity:{...step.action.entity,id:target}}}:{}),...(step.completion?{completion_condition:step.completion}:{}),...decision,
     order:index+1,status,runtime_status:decision.status,runtime_reason:decision.reason,
     provenance:decision.completion_basis==='manual'?'manual':'calculated'};
   }
@@ -36,12 +50,13 @@
   research.suggestions=result.mode==='live'?result.parallel.research.steps.map(key=>mapped.get(key)).filter(Boolean):[];
   if(result.mode!=='live')for(const candidate of queue){if(['waiting','unavailable','free'].includes(candidate.status))break;research.suggestions.push(candidate);if(research.suggestions.length>=5)break;}
   research.projects=research.rows.filter((row,i)=>row.action.kind==='special_project'&&!settled(row)&&
-   (Object.hasOwn(row,'depends_on')?row.runtime_status==='ready'||row.runtime_reason==='manual_confirmation_required':research.rows.slice(0,i).filter(p=>p.action.kind!=='special_project'&&p.tracking!=='reminder').every(p=>settled(p)||p.runtime_status==='active')));
+   (guide.dependency_policy==='explicit'||Object.hasOwn(row,'depends_on')||Object.hasOwn(row,'depends_on_started')?row.runtime_status==='ready'||row.runtime_reason==='manual_confirmation_required':research.rows.slice(0,i).filter(p=>p.action.kind!=='special_project'&&p.tracking!=='reminder').every(p=>settled(p)||p.runtime_status==='active')));
   const context=result.mode==='live'?state:null,slots=c.fact(context,'research.slots').value;
   research.slots=Array.isArray(slots)?slots:[];research.free_slots=result.parallel.research.capacity;
   const activeTech=c.fact(context,'research.active').value,activeFocus=c.fact(context,'focus.active').value;
   research.outside=(Array.isArray(activeTech)?activeTech:[]).filter(id=>!research.rows.some(row=>row.target===id));
   focus.outside=(Array.isArray(activeFocus)?activeFocus:[]).find(id=>!focus.rows.some(row=>row.target===id))||null;
+  if(missingShared){focus.next=null;research.next=null;research.suggestions=[];research.projects=[];}
   return {schema_version:c.VERSION,mode:result.mode,country:result.country,tracks,focus,research,runtime:result};
  }
  const model={evaluate};if(typeof module!=='undefined'&&module.exports)module.exports=model;else root.HoiGuideModel=model;

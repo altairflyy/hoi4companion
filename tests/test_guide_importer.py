@@ -29,6 +29,31 @@ ENTITIES = [{'kind': 'technology', 'id': 'basic_machine_tools', 'name': 'Basic M
 
 
 class ImportTests(unittest.TestCase):
+    def test_research_column_can_name_an_exact_project_but_does_not_override_a_technology(self):
+        src=acquire_source(text='Flammpanzer')
+        guide=definition(src)
+        row=guide['tracks']['research'][0]
+        row['action']['entity']['id']='Flammpanzer'
+        row['evidence'][0].update(quote='Flammpanzer',source_id=src['id'])
+        project={'kind':'project','id':'flame_project','name':'Flamethrower Tank','aliases':['Flammpanzer']}
+        report=preview(guide,[src],[project])
+        self.assertTrue(report['valid'],report['errors'])
+        self.assertEqual(report['guide']['tracks']['research'][0]['action']['kind'],'special_project')
+        tech={'kind':'technology','id':'actual_tech','name':'Flammpanzer'}
+        report=preview(guide,[src],[project,tech])
+        self.assertEqual(report['guide']['tracks']['research'][0]['action']['kind'],'research')
+    def test_installed_file_source_retains_reference_text_without_persisting_other_sources(self):
+        src = source(); src.update(type='file', title='Guide.docx')
+        guide = definition(src); guide['sources'][0]['type'] = 'file'
+        with TemporaryDirectory() as root:
+            importer = Importer(lambda: ENTITIES, root)
+            importer.install(guide, [src], reviewed=True)
+            loaded = load_guide(guide['id'], directory=Path(root))
+            self.assertEqual(loaded['sources'][0]['text'], src['text'])
+            self.assertEqual(loaded['sources'][0]['content_sha256'], src['content_sha256'])
+        manual = source()
+        self.assertNotIn('text', preview(definition(manual), [manual], ENTITIES)['guide']['sources'][0])
+
     def test_prompt_monitoring_examples_import_without_manual_gates_and_respect_unknown_state(self):
         prompt=Importer(lambda:[]).prompt()
         match=re.search(r'<!-- esempi-authoring-v1 -->\s*```json\s*(.*?)```',prompt,re.S)
@@ -74,6 +99,19 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(guide, before)
         self.assertNotIn('completion', result['guide']['tracks']['research'][0])
 
+    def test_preview_exposes_sequence_policy_without_changing_source(self):
+        src = source(); guide = definition(src)
+        for policy in ('legacy', 'explicit'):
+            candidate = copy.deepcopy(guide)
+            if policy == 'explicit':
+                candidate['dependency_policy'] = policy
+            before = copy.deepcopy(candidate)
+            report = preview(candidate, [src], ENTITIES)
+            self.assertTrue(report['valid'], report['errors'])
+            self.assertEqual(report['sequence_report']['policy'], policy)
+            self.assertEqual(report['sequence_report']['step_count'], 1)
+            self.assertEqual(candidate, before)
+
     def test_ambiguity_stays_blocked_and_a_unique_small_typo_resolves(self):
         src = source(); guide = definition(src)
         entities = ENTITIES + [{**ENTITIES[0], 'id': 'other_tools'}]
@@ -82,6 +120,69 @@ class ImportTests(unittest.TestCase):
         guide['tracks']['research'][0]['action']['entity']['id'] = 'Basic Machine Tool'
         report = preview(guide, [src], ENTITIES)
         self.assertTrue(report['valid']); self.assertEqual(report['resolutions'][0]['matching_basis'],'minor_typo')
+
+    def test_numeric_research_levels_match_roman_only_at_the_same_level(self):
+        src=source(); guide=definition(src)
+        entities=[{'kind':'technology','id':'industry1','name':'Concentrated Industry I'},
+                  {'kind':'technology','id':'industry2','name':'Concentrated Industry II'}]
+        guide['tracks']['research'][0]['action']['entity']['id']='Concentrated Industry 1'
+        report=preview(guide,[src],entities)
+        self.assertTrue(report['valid'],report['errors'])
+        self.assertEqual(report['guide']['tracks']['research'][0]['target'],'industry1')
+        guide['tracks']['research'][0]['action']['entity']['id']='Concentrated Industry 2'
+        report=preview(guide,[src],entities)
+        self.assertEqual(report['guide']['tracks']['research'][0]['target'],'industry2')
+
+    def test_focus_tree_inference_requires_multiple_distinct_names_and_unique_intersection(self):
+        src=source();guide=definition(src)
+        base=guide['tracks'].pop('research')[0]
+        def step(key,name):
+            row=copy.deepcopy(base);row['key']=key;row['action']={'kind':'select_focus','entity':{'kind':'focus','id':name}};return row
+        guide['tracks']['focus']=[step('one','Shared Name'),step('two','Unique Name')]
+        rows=[{'kind':'focus','id':'shared_a','name':'Shared Name','scope':'tree_a'},
+              {'kind':'focus','id':'shared_b','name':'Shared Name','scope':'tree_b'},
+              {'kind':'focus','id':'unique_a','name':'Unique Name','scope':'tree_a'}]
+        before=copy.deepcopy(guide);report=preview(guide,[src],rows)
+        self.assertTrue(report['valid'],report['errors'])
+        self.assertEqual(report['guide']['applies_to']['tree_id'],'tree_a')
+        self.assertEqual(guide,before)
+        guide['tracks']['focus']=[step('one','Shared Name')]
+        self.assertFalse(preview(guide,[src],rows)['valid'])
+        guide['tracks']['focus']=[step('one','Shared Name'),step('two','Unique Name')]
+        guide['applies_to']={'tree_id':'tree_b'}
+        report=preview(guide,[src],rows)
+        self.assertEqual(report['guide']['applies_to']['tree_id'],'tree_b')
+        self.assertFalse(report['valid'])
+
+    def test_catalog_expands_country_adjectives_in_dynamic_focus_names(self):
+        focus = SimpleNamespace(name='A [ROOT.GetAdjective] Galicia', prerequisites=[], mutually_exclusive=[])
+        tree = SimpleNamespace(focuses={'test_focus':focus},eligible_countries=['TST'])
+        reference = {'test_focus':'A [ROOT.GetAdjective] Galicia',
+                     'TST_cosmetic_neutrality_ADJ':'Transleithanian', 'OTHER_neutrality_ADJ':'Foreign'}
+        entries = catalog_entities({'tree_a':tree}, {}, {}, reference)
+        self.assertIn('A Transleithanian Galicia', entries[0]['aliases'])
+        self.assertNotIn('A Foreign Galicia', entries[0]['aliases'])
+        src=source();guide=definition(src);row=guide['tracks'].pop('research')[0]
+        row['action']={'kind':'select_focus','entity':{'kind':'focus','id':'A Transleithanian Galicia'}}
+        guide['tracks']['focus']=[row];guide['applies_to']={'tree_id':'tree_a'}
+        report=preview(guide,[src],entries)
+        self.assertTrue(report['valid'],report['errors'])
+        self.assertEqual(report['guide']['tracks']['focus'][0]['target'],'test_focus')
+
+    def test_research_can_match_an_equipment_name_unlocked_by_that_technology(self):
+        technologies={'motorised_infantry':{'name':'Motorized Infantry','paths':[],
+                        'unlocks':[{'kind':'Equipaggiamento','id':'motorized_equipment_1'}]},
+                      'interwar_antiair':{'name':'Anti-Air','paths':[],
+                        'unlocks':[{'kind':'Equipaggiamento','id':'anti_air_equipment_1'}]}}
+        labels={'motorised_infantry':'Motorized Infantry','motorized_equipment_1':'Truck',
+                'interwar_antiair':'Anti-Air','anti_air_equipment_1':'Towed Anti-Aircraft'}
+        entries=catalog_entities({},technologies,{},labels)
+        src=source();guide=definition(src);row=guide['tracks']['research'][0]
+        for query,expected in [('Truck','motorised_infantry'),('Towed Anti-Air','interwar_antiair')]:
+            row['action']['entity']['id']=query
+            report=preview(guide,[src],entries)
+            self.assertTrue(report['valid'],report['errors'])
+            self.assertEqual(report['guide']['tracks']['research'][0]['target'],expected)
 
     def test_cycles_missing_evidence_and_invented_quotes_block_install(self):
         src = source(); guide = definition(src)
@@ -181,9 +282,50 @@ class ImportTests(unittest.TestCase):
         loaded = Importer(lambda: ENTITIES, Path('unused')).document({'import_schema_version':1, 'sources':[src], 'guide':guide})
         report = preview(loaded['guide'], loaded['sources'], ENTITIES)
         self.assertTrue(report['valid']); self.assertTrue(any('visiva' in item for item in report['warnings']))
+        self.assertEqual(report['visual_review'], {'count':1, 'step_keys':['tools']})
         self.assertNotIn('completion', report['guide']['tracks']['research'][0])
         loaded['guide']['tracks']['research'][0]['evidence'][0].pop('timestamp_seconds')
         self.assertFalse(preview(loaded['guide'], loaded['sources'], ENTITIES)['valid'])
+
+    def test_visual_review_counts_qualified_inventory_and_direct_evidence_once_per_step(self):
+        text='Research Basic Machine Tools. Visual observation at 12s: inspect the research panel.'
+        raw_source={'id':'s','type':'youtube','title':'Source','text':text,
+                    'segments':[{'start':12,'text':'Visual observation at 12s: inspect the research panel.'}]}
+        quote='Visual observation at 12s: inspect the research panel.'
+        guide={'id':'visual-review','title':'Visual review','applies_to':{},'sources':[{'id':'s','type':'youtube'}],
+               'tracks':{'research':[{'key':'tools','action':{'kind':'research','entity':{'kind':'technology','id':'basic_machine_tools'}},
+                                      'evidence':[{'source_id':'s','basis':'visual','quote':quote,'timestamp_seconds':12}]}]},
+               'source_inventory':{'schema_version':1,'items':[{'id':'i','source_id':'s','basis':'visual',
+                    'quote':quote,'timestamp_seconds':12,'step_keys':['tools']}]}}
+        importer=Importer(lambda:ENTITIES)
+        loaded=importer.document({'import_schema_version':1,'sources':[raw_source],'guide':guide})
+        report=importer.preview(loaded['guide'],loaded['sources'])
+        self.assertTrue(report['valid'],report['errors'])
+        self.assertEqual(report['visual_review'],{'count':1,'step_keys':['tools']})
+        broken=copy.deepcopy(loaded['guide'])
+        broken['source_inventory']['items'][0]['quote']='Unknown observation.'
+        broken['tracks']['research'][0]['evidence'][0]['quote']='Unknown observation.'
+        invalid=importer.preview(broken,loaded['sources'])
+        self.assertFalse(invalid['valid'])
+        self.assertEqual(invalid['visual_review']['count'],0)
+
+    def test_visual_inventory_alone_counts_a_relevant_step_but_excluded_items_do_not(self):
+        quote='Visual observation at 12s: research panel.'
+        raw_source={'id':'s','type':'youtube','title':'Source','text':'Research Basic Machine Tools. '+quote,
+                    'segments':[{'start':12,'text':quote}]}
+        guide={'id':'visual-inventory','title':'Visual inventory','applies_to':{},'sources':[{'id':'s','type':'youtube'}],
+               'tracks':{'research':[{'key':'tools','action':{'kind':'research','entity':{'kind':'technology','id':'basic_machine_tools'}},
+                                      'evidence':[{'source_id':'s','basis':'explicit','quote':'Research Basic Machine Tools.'}]}]},
+               'source_inventory':{'schema_version':1,'items':[{'id':'i','source_id':'s','basis':'visual',
+                    'quote':quote,'timestamp_seconds':12,'step_keys':['tools']}]}}
+        importer=Importer(lambda:ENTITIES)
+        loaded=importer.document({'import_schema_version':1,'sources':[raw_source],'guide':guide})
+        report=importer.preview(loaded['guide'],loaded['sources'])
+        self.assertTrue(report['valid'],report['errors'])
+        self.assertEqual(report['visual_review'],{'count':1,'step_keys':['tools']})
+        loaded['guide']['source_inventory']['items'][0].update(step_keys=[],excluded_reason='not used')
+        report=importer.preview(loaded['guide'],loaded['sources'])
+        self.assertEqual(report['visual_review']['count'],0)
 
     def test_strict_payloads_and_source_integrity(self):
         src = source(); guide = definition(src)
@@ -240,10 +382,9 @@ class ImportTests(unittest.TestCase):
         def run(args, **kwargs):
             self.assertIn('--skip-download', args); self.assertIn('--ignore-config', args)
             self.assertNotIn('--cookies-from-browser', args)
-            kwargs['stdout'].write(json.dumps(metadata).encode())
-            return SimpleNamespace(returncode=0)
+            return SimpleNamespace(returncode=0,stdout=json.dumps(metadata))
         captions = json.dumps({'events': [{'tStartMs': 5000, 'segs': [{'utf8': 'Research tools'}]}]}).encode()
-        with patch('hoi4companion.import_sources.ytdlp_path', return_value='yt-dlp'), patch('hoi4companion.import_sources.subprocess.run', side_effect=run), patch('hoi4companion.import_sources.fetch_public', return_value=(captions, 'application/json', 'url')):
+        with patch('hoi4companion.import_sources.ytdlp_path', return_value='yt-dlp'), patch('hoi4companion.import_sources.run_tool', side_effect=run), patch('hoi4companion.import_sources.fetch_public', return_value=(captions, 'application/json', 'url')):
             value = acquire_source(url='https://youtu.be/FBPdhlwqMwM')
             self.assertEqual(value['segments'][0]['start'], 5)
             self.assertIn('Research tools.', value['text'])
@@ -261,7 +402,8 @@ class ImportTests(unittest.TestCase):
 
     def test_local_guide_catalog_is_additive_and_keeps_bundled_default(self):
         src = source()
-        with TemporaryDirectory() as folder, patch('hoi4companion.guide.LOCAL_GUIDES', Path(folder)):
+        with TemporaryDirectory() as folder, patch('hoi4companion.guide.LOCAL_GUIDES', Path(folder)), \
+                patch('hoi4companion.guide.GUIDES', Path(__file__).parent / 'fixtures' / 'legacy-guides'):
             importer = Importer(lambda: ENTITIES, Path(folder))
             value = definition(src); value['default'] = True
             importer.install(value, [src], reviewed=True)

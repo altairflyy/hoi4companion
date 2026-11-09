@@ -40,7 +40,7 @@
     metadata_available:entities.some(e=>e.kind==='event'&&e.country_condition)}};
  }
  function catalogSections(entities,treeId=''){
-  const definitions=[['focus',uiText("National focuses"),['focus']],['research',uiText("Technology research"),['technology']],
+  const definitions=[['focus',uiText("National focuses"),['focus']],['research',uiText("Technology research"),['technology','doctrine']],
    ['production',uiText("Production and equipment"),['equipment']],['construction',uiText("Construction and states"),['building','state']],
    ['projects',uiText("Special projects"),['project']],['politics',uiText("Politics, characters and decisions"),['law','idea','advisor','commander','decision']],
    ['events',uiText("Events and choices"),['event','event_option']],['other',uiText("Other identifiers"),[]]];
@@ -90,7 +90,7 @@
  function editStep(guide,key,patch){
   const result=JSON.parse(JSON.stringify(guide)),step=Object.values(result.tracks).flat().find(row=>row.key===key);
   if(!step)throw Error(uiText("Unknown step"));
-  if(patch.entity)step.action.entity=patch.entity;
+  if(patch.entity){step.action.entity=patch.entity;if(step.focus_resolution)step.focus_resolution={...step.focus_resolution,entity:structuredClone(patch.entity),classification:'direct',locked:true};}
   if(patch.title!==undefined)step.title=patch.title;
   if(patch.tracking!==undefined){
    if(!['action','reminder'].includes(patch.tracking)||step.action.kind!=='manual')throw Error(uiText("Invalid tracking mode"));
@@ -113,6 +113,7 @@
   if(patch.province_id!=null&&(!Number.isSafeInteger(patch.province_id)||patch.province_id<1))throw Error(uiText("Province must be a positive integer ID"));
   if(typeof patch.instruction!=='string'||!patch.instruction.trim())throw Error(uiText("Enter the corrected instruction"));
   const started=step.started_when,completed=step.completion;
+    for(const [field,suffix]of [['started_when','started'],['completion','completed']]){const condition=step[field];if(condition&&Object.keys(condition).length===4&&condition.op==='fact'&&condition.key===`guide.fortifications.${key}.${suffix}`&&condition.test==='eq'&&condition.value===true)delete step[field];}
   const counter={infrastructure:'infrastructure',arms_factory:'military_factories',industrial_complex:'civilian_factories',dockyard:'dockyards'}[before.building_id];
   const target=before.target_level??before.target_quantity??(before.quantity_mode==='target_total'?before.quantity:before.quantity_mode==='additional'&&Number.isSafeInteger(before.baseline_level)?before.baseline_level+before.quantity:undefined);
   // Rebuild only recognisable construction bindings. Preserve custom conditions.
@@ -123,7 +124,7 @@
     (counter&&completed.key===`country.states.items.${before.state_id}.${counter}`&&completed.value===target)))delete step.completion;
   if(step.started_when||step.completion)throw Error(uiText("This step has custom criteria: review them in the JSON editor before changing construction. No correction applied."));
   const params={...before,state_id:Number(patch.state.id),state_name:patch.state.name,building_id:patch.building.id,building_name:patch.building.name,quantity:patch.quantity,quantity_mode:patch.quantity_mode,instructions:[patch.instruction.trim()]};
-  for(const field of ['baseline_level','target_level','target_quantity','province_id'])delete params[field];
+    for(const field of ['baseline_level','target_level','target_quantity','province_id','province_ids','province_selector'])delete params[field];
   if(patch.province_id!=null)params.province_id=patch.province_id;
   step.action.params=params;
   return result;
@@ -148,6 +149,20 @@
   }
   return url;
  }
- const api={editCoverage,sourceHref,readDraft,editStep,editConstruction,eventCatalog,catalogSections,countryCompatibility,normalise:c.guide,canPublish:(report,reviewed,busy)=>report?.valid===true&&reviewed===true&&!busy};
+ function referenceGroups(data,query=''){
+  const groups=[['templates','Division templates'],['armor','Armor designs'],['air','Aircraft designs'],['navy','Naval designs'],['multiplayer','Multiplayer'],['other','Other references']];
+  const needle=String(query).trim().toLocaleLowerCase(),images=Array.isArray(data?.images)?data.images:[];
+  const legacy=[['templates',/^(?:division\s+)?templates?(?:\s|\(|$)/i],['armor',/^(?:armor|armour|tank)(?:\s|\(|$)/i],['air',/^(?:air|aircraft|aviation)(?:\s|\(|$)/i],['navy',/^(?:navy|naval|ship)(?:\s|\(|$)/i],['multiplayer',/^multiplayer(?:\s|\(|$)/i]];
+  const category=ref=>groups.some(([id])=>id===ref.category)?ref.category:(legacy.find(([,pattern])=>pattern.test(ref.section||''))?.[0]||'other');
+  return groups.map(([id,title])=>({id,title,images:images.filter(ref=>ref&&typeof ref.name==='string'&&category(ref)===id&&ref.name.toLocaleLowerCase().includes(needle)).slice().sort((a,b)=>a.name.localeCompare(b.name,'en',{numeric:true,sensitivity:'base'}))})).filter(group=>group.images.length);
+ }
+ function referenceDesigns(data,category='all',query=''){
+  const needle=String(query).trim().toLocaleLowerCase();
+  return (Array.isArray(data?.designs)?data.designs:[]).filter(row=>row&&typeof row.name==='string'&&
+   (category==='all'||row.category===category)&&row.name.toLocaleLowerCase().includes(needle))
+   .map(row=>({...row,preset:data.game_presets?.designs?.[row.id]||{status:'unknown',folders:[]}}))
+   .sort((a,b)=>a.name.localeCompare(b.name,'en',{numeric:true,sensitivity:'base'}));
+ }
+ const api={referenceDesigns,referenceGroups,editCoverage,sourceHref,readDraft,editStep,editConstruction,eventCatalog,catalogSections,countryCompatibility,normalise:c.guide,canPublish:(report,reviewed,busy)=>report?.valid===true&&!report.compatibility?.blocked&&reviewed===true&&!busy};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiImporter=api;
 })(typeof window!=='undefined'?window:globalThis);

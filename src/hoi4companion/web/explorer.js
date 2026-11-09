@@ -84,7 +84,7 @@ function showTooltip(focus,node){
   if(focus.description)tip.append(richText(focus.description.length>480?focus.description.slice(0,480)+'…':focus.description));
   const effects=focus.tooltip_sections?.find(x=>x.heading===HoiI18n.t("Effects"));
   if(effects){tip.append(el('strong','tooltip-subheading',HoiI18n.t("Effects from files")),richText(effects.text.length>220?effects.text.slice(0,220)+'…':effects.text));}
-  const guidance=window.hoiGuideTree?.marker(focus.id,state.tree.id);if(guidance)tip.append(el('strong','tooltip-subheading',HoiI18n.t("Guide: ")+({next:HoiI18n.t("Next focus"),upcoming:HoiI18n.t("After the current focus"),active:HoiI18n.t("In progress"),waiting:HoiI18n.t("Waiting"),preview:HoiI18n.t("Next focus preview")}[guidance.tone])));
+  const guidance=window.hoiGuideTree?.marker(focus.id,state.tree.id);if(guidance)tip.append(el('strong','tooltip-subheading',HoiI18n.t("Guide: ")+({next:HoiI18n.t("Next focus"),alternative:HoiI18n.t('Optional alternative'),upcoming:HoiI18n.t("After the current focus"),active:HoiI18n.t("In progress"),waiting:HoiI18n.t("Waiting"),preview:HoiI18n.t("Next focus preview")}[guidance.tone])));
   tip.append(el('p','tooltip-note',HoiI18n.t("Click for full details. Game conditions and values have not been evaluated.")));
   tip.hidden=false;node.setAttribute('aria-describedby','focusTooltip');
   const rect=node.getBoundingClientRect(),width=tip.offsetWidth,height=tip.offsetHeight;

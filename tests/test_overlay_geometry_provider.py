@@ -19,6 +19,24 @@ class Reader:
 
 
 class NativeGeometryProviderTests(unittest.TestCase):
+    def test_production_uses_native_route_for_access_and_exact_owned_line(self):
+        self.proposals=[{'key':'p','panel':'production','country':'GER','identity':'inf','title':'Infantry',
+                         'production_line_ids':['1'],'production_selector':{'equipment_ids':['inf']}}]
+        self.reader.value['active_panel']=None
+        self.reader.value['panels']['focus']['visible']=False
+        control={'visible':True,'rect':[20,10,30,30],'clip':[0,0,400,300]}
+        self.reader.value['production_ui']={'status':'observed','visible':False,'access':[control]}
+        self.assertEqual(self.read()['matches'][0]['navigation_stage'],'access')
+        self.reader.value['active_panel']='production'
+        self.reader.value['production_ui'].update(visible=True,lines=[{**control,'line_id':'1','equipment':'inf'}])
+        result=self.read()
+        self.assertEqual(result['active_panel'],'production')
+        self.assertIn('production',result['handled_panels'])
+        self.assertEqual(result['matches'][0]['navigation_stage'],'line')
+        # Even if a raw producer omits active_panel, an observed popup prevents
+        # production navigation underneath the event window.
+        self.reader.value['event_windows']=[{'visible':True}]
+        self.assertEqual(self.read()['matches'],[])
     def test_common_action_geometry_uses_live_control_and_role_then_discards_duplicates(self):
         self.proposals=[{'key':'a','panel':'politics','identity':'expert','entity_kind':'advisor','category_id':'high_command','country':'GER','action_readiness':{'resources_available':True,'blocked':[],'unknown':[]}}]
         self.reader.value['active_panel']=None

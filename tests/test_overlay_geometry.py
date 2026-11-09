@@ -21,6 +21,41 @@ class GeometryProvider:
 
 
 class OverlayGeometryTests(unittest.TestCase):
+    def test_combined_observation_keeps_legacy_admission_with_one_request(self):
+        bridge,feed,geometry=self.bridge()
+        request={'schema_version':1,'kind':'observe','token':9,'view':[99,42,0,0,400,300]}
+        result=bridge.handle(request)
+        self.assertTrue(result['usable']);self.assertEqual(result['version'],feed.version)
+        self.assertEqual(result['kind'],'observe');self.assertEqual(result['token'],9)
+        self.assertEqual(result['guides'][0]['id'],'test')
+        self.assertEqual(len(geometry.calls),1)
+        legacy=self.request(bridge)
+        for key in ('matches','proposed','version','view','usable','native_available'):
+            self.assertEqual(result[key],legacy[key])
+        # The combined reply omits the redundant second full proposal packet.
+        import json
+        old_snapshot=bridge.handle({'schema_version':1,'kind':'snapshot','token':8})
+        self.assertLess(len(json.dumps(result)),len(json.dumps(old_snapshot))+len(json.dumps(legacy)))
+
+    def test_combined_observation_never_reuses_geometry_across_revision_or_outage(self):
+        bridge,feed,geometry=self.bridge()
+        request={'schema_version':1,'kind':'observe','view':[99,42,0,0,400,300]}
+        original=geometry.read
+        def changing(*args):
+            result=original(*args);feed.version+=1;return result
+        geometry.read=changing
+        result=bridge.handle(request)
+        self.assertFalse(result['usable']);self.assertEqual(result['matches'],[])
+        geometry.read=original;feed.updated=0
+        self.assertFalse(bridge.handle(request)['usable'])
+        self.assertEqual(len(geometry.calls),1)
+        bridge.guides=None;feed.get=lambda path:(_ for _ in ()).throw(ConnectionError('offline'))
+        result=bridge.handle(request)
+        self.assertFalse(result['usable']);self.assertEqual(result['matches'],[])
+        self.assertEqual(len(geometry.calls),1)
+        for view in ([99,0,0,0,400,300],[99,42,0,0,90000,300]):
+            with self.assertRaises(ValueError):bridge.handle({**request,'view':view})
+
     def bridge(self):
         feed=FakeFeed()
         feed.value=[{'key':'focus','panel':'focus','identity':'F','labels':['Focus'],'title':'Focus','status':'ready'}]
@@ -41,6 +76,17 @@ class OverlayGeometryTests(unittest.TestCase):
         second=self.request(bridge)
         self.assertEqual(second['matches'][0]['rect'],[125,100,185,140])
         self.assertEqual(len(geometry.calls),2)
+
+    def test_one_production_proposal_keeps_both_its_category_and_exact_product(self):
+        bridge,feed,geometry=self.bridge()
+        feed.value=[{'key':'product','panel':'production','identity':'tank','title':'Required tank','status':'ready'}]
+        geometry.result['matches']=[
+            {'key':'product','panel':'production','identity':'tank','navigation_stage':'add','rect':[10,20,60,50]},
+            {'key':'product','panel':'production','identity':'tank','navigation_stage':'equipment','rect':[100,80,200,140]}]
+        result=self.request(bridge)
+        self.assertEqual([m['navigation_stage'] for m in result['matches']],['add','equipment'])
+        feed.version+=1
+        self.assertEqual(self.request(bridge)['matches'],[])
 
     def test_revision_and_live_failure_cannot_reuse_old_native_rectangles(self):
         bridge,feed,geometry=self.bridge()

@@ -84,16 +84,44 @@ def launch(*,port=8766,browser=True,hud=True):
 def self_check(output):
     """Offline deployment proof, independent of any installed game or save."""
     from .jomini_parser import backend_info,parse
+    from .native_observer import self_check as observer_check
+    from .guide_core import engine_info as guide_core_info, evaluate as evaluate_guide
+    from .catalog_core import engine_info as catalog_core_info, NativeCatalog
+    from .native_tools import engine_info as tools_info
+    from .storage_core import engine_info as storage_info
+    from .progress_storage import ProgressDatabase
+    from .progress_core import NativeRuns
+    from .backend_core import engine_info as backend_services_info, NativeEvents
     from .cwtools_engine import _verify,HOST_ROOT,RULES,analyze
     from .guide_media import ffmpeg_path,command,media_info
     from .overlay_native import native_executable
-    from .paths import bundled_node
+    from .paths import javascript_runtime
     import cv2,numpy,yt_dlp,yt_dlp_ejs
     from tempfile import TemporaryDirectory
     assert parse('test={item=1 item=2}').blocks('test')[0].all('item')==['1','2']
+    assert evaluate_guide({'id':'self-check','tracks':{}},{'schema_version':1,'usable':False,'facts':{}})['mode']=='preview'
+    with NativeCatalog([{'kind':'technology','id':'test','name':'Tools'}]) as catalog:
+        assert catalog.query('matches',query='Tools',kinds=['technology'])==[0]
+    with NativeEvents(.25,1) as events:
+        client=events.subscribe(1);events.publish({'usable':True,'status':'observed'},1)
+        assert events.wait(client,0,1)['value']['usable']
+        assert not events.heartbeat(7)['usable']
     _verify(HOST_ROOT);_verify(RULES)
-    ffmpeg=ffmpeg_path();node=bundled_node()
+    ffmpeg=ffmpeg_path();node=javascript_runtime()
     with TemporaryDirectory(prefix='hoi4-distribution-') as temporary:
+        database=ProgressDatabase(Path(temporary)/'progress.sqlite3')
+        assert database.load() is None
+        snapshot={'schema_version':1,'runs':{},'active':{},'campaign_active':{}}
+        database.save(snapshot)
+        assert ProgressDatabase(database.path).load()==snapshot
+        with NativeRuns(path=Path(temporary)/'campaign.sqlite3') as runs:
+            runs.ensure('deployment-check')
+            runs.bind_campaign('hoi4:11111111-1111-4111-8111-111111111111:00000001','TST','session',100)
+            record=runs.update('deployment-check',{'completed':True})
+        with NativeRuns(path=Path(temporary)/'campaign.sqlite3') as restored:
+            restored.bind_campaign('hoi4:11111111-1111-4111-8111-111111111111:00000001','TST','new-session',101)
+            assert restored.get('deployment-check')['run_id']==record['run_id']
+            assert restored.get('deployment-check')['checks']=={'completed':True}
         script=Path(temporary)/'event.txt';script.write_text('country_event={id=example.1 title=example.1.t option={name=example.1.a}}',encoding='utf8')
         analysis=analyze({'events/event.txt':str(script)})
         assert analysis['engine']=='cwtools'
@@ -102,10 +130,12 @@ def self_check(output):
             'color=c=black:s=160x90:r=15','-t','1','-c:v','libx265','-x265-params',
             'pools=1:frame-threads=1:log-level=error',video],timeout=45)
         media=media_info(ffmpeg,video)
-    result={'parser':backend_info(),'cwtools_manifest_verified':True,'rules_manifest_verified':True,
+    result={'parser':backend_info(),'observer':observer_check(),'guide_core':guide_core_info(),'catalog_core':catalog_core_info(),'tools':tools_info(),'storage':storage_info(),'backend':backend_services_info(),'cwtools_manifest_verified':True,'rules_manifest_verified':True,
         'hud':str(native_executable()),'ffmpeg_version':command([ffmpeg,'-version']).splitlines()[0],
         'opencv':cv2.__version__,'numpy':numpy.__version__,'yt_dlp':yt_dlp.version.__version__,
         'cwtools_engine_executed':analysis['engine'],'hevc_encode_verified':media['height']==90,
+        'native_storage_roundtrip_verified':True,
+        'native_campaign_roundtrip_verified':True,'native_state_expiry_verified':True,
         'node_version':command([node,'--version']).strip() if node else None,'data_directory':str(data_directory())}
     Path(output).write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf8')
 

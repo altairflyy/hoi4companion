@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "crate": "crc-catalog",
+  "version": "2.5.0",
+  "repository_commit": "ed4ad631f22b05055c21a3a4127eb7cf6d75bb62",
+  "files": {
+    "LICENSE-MIT": {
+      "url": "https://raw.githubusercontent.com/akhilles/crc-catalog/ed4ad631f22b05055c21a3a4127eb7cf6d75bb62/LICENSES/MIT.txt",
+      "sha256": "5ef8fcfb6cccec8fcae043c834099a60c8b7406408db576e026d2b7e67dc5cf5"
+    },
+    "LICENSE-APACHE-2.0": {
+      "url": "https://raw.githubusercontent.com/akhilles/crc-catalog/ed4ad631f22b05055c21a3a4127eb7cf6d75bb62/LICENSES/Apache-2.0.txt",
+      "sha256": "d3cdb764b98283ee7c3a3cea8d374e2a2957322374378d1f3263f4d512741fc3"
+    }
+  }
+}

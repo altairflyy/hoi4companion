@@ -68,8 +68,8 @@ class GeographyTests(unittest.TestCase):
         row,report=bind({'building_name':'Land Fort','state_name':'Berlin'})
         self.assertEqual(row['action']['params']['province_id'],6521)
         self.assertEqual(row['started_when']['value'],'province:6521:bunker')
-        self.assertEqual(report['monitoring'],'start_only')
-        self.assertNotIn('completion',row)  # No province level exposed by acquisition.
+        self.assertEqual(report['monitoring'],'automatic')
+        self.assertEqual(row['completion']['key'],'guide.construction.build.added')
         row,report=bind({'building_name':'Land Fort','state_name':'Brandenburg'})
         self.assertNotIn('started_when',row)
         self.assertEqual(report['reason'],'province_required')

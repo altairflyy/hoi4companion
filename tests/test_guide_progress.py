@@ -1,5 +1,11 @@
 import itertools
+import json
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from hoi4companion.guide_progress import RunStore
 
@@ -15,6 +21,46 @@ class GuideProgressTests(unittest.TestCase):
                                  'session_id': None, 'checks': {'done': True, 'pending': False}, 'started': {},'run_revision':0})
         self.assertNotIn('unknown', first['checks'])
         self.assertEqual(self.store.ensure('one', {'replacement': True}), first)
+
+    def test_observe_without_relative_targets_skips_history_snapshot_without_mutating_runs(self):
+        self.store.ensure('one', {'done': True})
+        for _ in range(5):
+            self.store.create('one')
+        before = self.store.snapshot()
+        guide = {'id': 'one', 'tracks': {'operations': [
+            {'key': 'hold', 'action': {'kind': 'manual', 'params': {'category': 'army'}}}]}}
+        with patch.object(self.store, 'snapshot', side_effect=AssertionError('unneeded history snapshot')):
+            self.assertFalse(self.store.observe(guide, {}))
+        self.assertEqual(self.store.snapshot(), before)
+        with self.assertRaisesRegex(ValueError, 'non trovata'):
+            self.store.observe({'id': 'unknown', 'tracks': {}}, {})
+
+    def test_concurrent_observation_captures_a_baseline_once(self):
+        fixture = json.loads((Path(__file__).parent / 'fixtures' / 'construction-progress.json').read_text(encoding='utf8'))[0]
+        self.store.create('build', 'session')
+        barrier = Barrier(2)
+        def observe():
+            barrier.wait(timeout=2)
+            return self.store.observe(fixture['guide'], fixture['state'])
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first, second = [pool.submit(observe) for _ in range(2)]
+            self.assertEqual(sorted([first.result(timeout=5), second.result(timeout=5)]), [False, True])
+        self.assertEqual(self.store.get('build')['baselines']['factory']['value'], 5)
+        self.assertEqual(self.store.get('build')['run_revision'], 1)
+
+    def test_failed_baseline_persistence_rolls_back_and_can_be_retried(self):
+        fixture = json.loads((Path(__file__).parent / 'fixtures' / 'construction-progress.json').read_text(encoding='utf8'))[0]
+        self.store.create('build', 'session')
+        before = self.store.snapshot()
+        def fail(_):
+            raise OSError('storage failed')
+        self.store._database = SimpleNamespace(save=fail)
+        with self.assertRaisesRegex(OSError, 'storage failed'):
+            self.store.observe(fixture['guide'], fixture['state'])
+        self.assertEqual(self.store.snapshot(), before)
+        self.store._database = None
+        self.assertTrue(self.store.observe(fixture['guide'], fixture['state']))
+        self.assertEqual(self.store.get('build')['baselines']['factory']['value'], 5)
 
     def test_guides_and_runs_are_isolated_and_historical_runs_can_be_selected(self):
         first = self.store.ensure('one', {'done': True})

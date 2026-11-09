@@ -32,12 +32,42 @@ function boot(){
   return {window,document,streams:EventSource.instances,toggle:made.find(x=>x.type==='checkbox')};
 }
 const state={usable:true,status:'observed',sample:{country:'ROM',completed_focuses:[],researched_technologies:[],research_slots:[],continuous_focus:'training'}};
+test('guide selection, server identity, storage and HUD changes propagate without a gameplay change',()=>{
+ const app=boot(),received=[];
+ app.window.hoiLive.subscribe(value=>{if(value?.usable)received.push(value);});
+ const initial={...state,active_guide_id:'first',active_guide_revision:1,guide_server_id:'server-a',guide_storage:{status:'persistent'},overlay:{status:'active'}};
+ app.streams[0].send('state',initial);
+ app.streams[0].send('state',{...initial,active_guide_id:'second',active_guide_revision:2});
+ app.streams[0].send('state',{...initial,active_guide_id:'second',active_guide_revision:2,guide_server_id:'server-b'});
+ app.streams[0].send('state',{...initial,active_guide_id:'second',active_guide_revision:2,guide_server_id:'server-b',guide_storage:{status:'temporary',error:'write failed'}});
+ app.streams[0].send('state',{...initial,active_guide_id:'second',active_guide_revision:2,guide_server_id:'server-b',guide_storage:{status:'temporary',error:'write failed'},overlay:{status:'disconnected'}});
+ assert.equal(received.length,5);
+ assert.equal(received[1].active_guide_id,'second');
+ assert.equal(received[2].guide_server_id,'server-b');
+ assert.equal(received[3].guide_storage.status,'temporary');
+ assert.equal(received[4].overlay.status,'disconnected');
+ app.streams[0].send('state',{...initial,active_guide_id:'second',active_guide_revision:2,guide_server_id:'server-b',guide_storage:{status:'temporary',error:'write failed'},overlay:{status:'disconnected'}});
+ assert.equal(received.length,5);
+});
 test('shared checklist events reach subscribers even while gameplay is unchanged',()=>{
  const app=boot(),received=[];
  app.window.hoiLive.subscribe(value=>received.push(value.guide_revision));
  app.streams[0].send('state',{...state,guide_revision:0,guide_checks:{}});
  app.streams[0].send('state',{...state,guide_revision:1,guide_checks:{f12:true}});
  assert.deepEqual(received.slice(-2),[0,1]);
+});
+
+test('qualified campaign days propagate for deadlines while hourly ticks stay quiet',()=>{
+ const app=boot(),received=[];
+ app.window.HoiContracts=require('../src/hoi4companion/web/contracts.js');
+ app.window.hoiLive.subscribe(value=>{if(value?.usable)received.push(value);});
+ const tick=((1938+5000)*365+180)*24;
+ const qualified={...state,sample:{...state.sample,native_tick:tick,session_id:'one',executable_sha256:'a'.repeat(64),country_identity_validation:'primary_selector_and_country_map'}};
+ app.streams[0].send('state',qualified);
+ app.streams[0].send('state',{...qualified,sample:{...qualified.sample,native_tick:tick+1}});
+ assert.equal(received.length,1);
+ app.streams[0].send('state',{...qualified,sample:{...qualified.sample,native_tick:tick+24}});
+ assert.equal(received.length,2);
 });
 
 test('run identity changes reach subscribers with identical gameplay and checks',()=>{

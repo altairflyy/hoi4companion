@@ -74,8 +74,12 @@ fn adapt(source: &str, entry: &Entry) -> Result<String, String> {
     }
     output.push_str(&source[previous..]);
     let node = crate::parse(output.as_bytes())?;
-    let canonical = serde_json::to_vec(&serde_json::to_value(node).map_err(|e|e.to_string())?)
-        .map_err(|e|e.to_string())?;
+    // Manifest fingerprints predate serde_json preserve_order. A linked host
+    // can enable that feature globally; JSON object insertion order must never
+    // alter content admission. Ordered script entries remain arrays.
+    let mut canonical=serde_json::to_value(node).map_err(|e|e.to_string())?;
+    canonical.sort_all_objects();
+    let canonical = serde_json::to_vec(&canonical).map_err(|e|e.to_string())?;
     if digest(&canonical) != entry.expected_ast_sha256 {
         return Err("Reviewed recovery AST fingerprint differs".into());
     }
@@ -110,8 +114,9 @@ mod tests {
     fn fixture(source:&str,replacement:&str)->Entry {
         let candidate=format!("{source}{replacement}");
         let node=crate::parse(candidate.as_bytes()).unwrap();
+        let mut canonical=serde_json::to_value(node).unwrap();canonical.sort_all_objects();
         Entry {file:"fixture.txt".into(),decoded_sha256:digest(source.as_bytes()),source_sha256:String::new(),
-            original_error:"unclosed block".into(),expected_ast_sha256:digest(&serde_json::to_vec(&serde_json::to_value(node).unwrap()).unwrap()),
+            original_error:"unclosed block".into(),expected_ast_sha256:digest(&serde_json::to_vec(&canonical).unwrap()),
             edits:vec![Edit {start:source.len(),end:source.len(),original:String::new(),replacement:replacement.into(),kind:"close_reviewed_eof_block".into()}]}
     }
     #[test]
@@ -122,6 +127,12 @@ mod tests {
         assert!(candidate.starts_with(source));
         assert!(candidate.contains("x>=001 x=002"));
         assert!(recover("unreviewed={x=1").unwrap().is_none());
+    }
+    #[test]
+    fn typed_projection_fingerprint_does_not_depend_on_host_json_map_features(){
+        let source="focus_tree={id=tree focus={id=one x=1 cost=5}";
+        let entry=fixture(source,"\n}");
+        assert!(adapt(source,&entry).is_ok());
     }
     #[test]
     fn incorrect_spans_changed_ast_and_invented_values_fail_closed() {

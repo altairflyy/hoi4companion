@@ -1,0 +1,2896 @@
+[
+  {
+    "name": "blocked support with independent alternative",
+    "guide": {
+      "id": "criteria",
+      "title": "Guide",
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN",
+        "tree_id": "t"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "main",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "M"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">",
+                    "value": 0.84,
+                    "trigger": "has_war_support"
+                  }
+                ]
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "D"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "M"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "independent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "R"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "HUN"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "t"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "source": "fixture",
+          "value": [
+            "A"
+          ]
+        },
+        "focus.active": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.7
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "guide_id": "criteria",
+      "run_id": null,
+      "focus_plan": {
+        "primary": "main",
+        "blocked": {
+          "value": false,
+          "available": false,
+          "branch": true,
+          "prerequisites": true,
+          "excluded": false,
+          "checks": [
+            {
+              "trigger": "has_war_support",
+              "fact": "country.metrics.war_support",
+              "test": ">",
+              "required": 0.84,
+              "actual": 0.7,
+              "value": false
+            }
+          ],
+          "reason": "focus_requirements_false"
+        },
+        "steps": [
+          "independent"
+        ]
+      },
+      "progress_status": "none",
+      "mode": "live",
+      "country": "HUN",
+      "steps": [
+        {
+          "key": "main",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_requirements_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": false,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [
+              {
+                "trigger": "has_war_support",
+                "fact": "country.metrics.war_support",
+                "test": ">",
+                "required": 0.84,
+                "actual": 0.7,
+                "value": false
+              }
+            ],
+            "reason": "focus_requirements_false"
+          }
+        },
+        {
+          "key": "dependent",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_prerequisites_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": true,
+            "branch": true,
+            "prerequisites": false,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_prerequisites_false"
+          }
+        },
+        {
+          "key": "independent",
+          "track": "focus",
+          "status": "ready",
+          "reason": "prerequisites_satisfied",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": true,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": true,
+            "available": true,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_requirements_satisfied"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": {
+          "keys": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "order": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "next": "main"
+        }
+      },
+      "ready": [
+        "independent"
+      ],
+      "parallel": {
+        "focus": {
+          "capacity": 1,
+          "steps": [],
+          "alternative_steps": [
+            "independent"
+          ]
+        },
+        "research": {
+          "capacity": null,
+          "steps": []
+        }
+      },
+      "action_context": {
+        "session_id": null,
+        "campaign_id": null
+      },
+      "action_sequence": {
+        "political": null,
+        "projects": []
+      }
+    }
+  },
+  {
+    "name": "strict boundary",
+    "guide": {
+      "id": "criteria",
+      "title": "Guide",
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN",
+        "tree_id": "t"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "main",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "M"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">",
+                    "value": 0.84,
+                    "trigger": "has_war_support"
+                  }
+                ]
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "D"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "M"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "independent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "R"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "HUN"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "t"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "source": "fixture",
+          "value": [
+            "A"
+          ]
+        },
+        "focus.active": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.84
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "guide_id": "criteria",
+      "run_id": null,
+      "focus_plan": {
+        "primary": "main",
+        "blocked": {
+          "value": false,
+          "available": false,
+          "branch": true,
+          "prerequisites": true,
+          "excluded": false,
+          "checks": [
+            {
+              "trigger": "has_war_support",
+              "fact": "country.metrics.war_support",
+              "test": ">",
+              "required": 0.84,
+              "actual": 0.84,
+              "value": false
+            }
+          ],
+          "reason": "focus_requirements_false"
+        },
+        "steps": [
+          "independent"
+        ]
+      },
+      "progress_status": "none",
+      "mode": "live",
+      "country": "HUN",
+      "steps": [
+        {
+          "key": "main",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_requirements_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": false,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [
+              {
+                "trigger": "has_war_support",
+                "fact": "country.metrics.war_support",
+                "test": ">",
+                "required": 0.84,
+                "actual": 0.84,
+                "value": false
+              }
+            ],
+            "reason": "focus_requirements_false"
+          }
+        },
+        {
+          "key": "dependent",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_prerequisites_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": true,
+            "branch": true,
+            "prerequisites": false,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_prerequisites_false"
+          }
+        },
+        {
+          "key": "independent",
+          "track": "focus",
+          "status": "ready",
+          "reason": "prerequisites_satisfied",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": true,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": true,
+            "available": true,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_requirements_satisfied"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": {
+          "keys": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "order": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "next": "main"
+        }
+      },
+      "ready": [
+        "independent"
+      ],
+      "parallel": {
+        "focus": {
+          "capacity": 1,
+          "steps": [],
+          "alternative_steps": [
+            "independent"
+          ]
+        },
+        "research": {
+          "capacity": null,
+          "steps": []
+        }
+      },
+      "action_context": {
+        "session_id": null,
+        "campaign_id": null
+      },
+      "action_sequence": {
+        "political": null,
+        "projects": []
+      }
+    }
+  },
+  {
+    "name": "primary becomes eligible",
+    "guide": {
+      "id": "criteria",
+      "title": "Guide",
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN",
+        "tree_id": "t"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "main",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "M"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">",
+                    "value": 0.84,
+                    "trigger": "has_war_support"
+                  }
+                ]
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "D"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "M"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "independent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "R"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "HUN"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "t"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "source": "fixture",
+          "value": [
+            "A",
+            "R"
+          ]
+        },
+        "focus.active": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.9
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "guide_id": "criteria",
+      "run_id": null,
+      "focus_plan": {
+        "primary": "main",
+        "blocked": {
+          "value": true,
+          "available": true,
+          "branch": true,
+          "prerequisites": true,
+          "excluded": false,
+          "checks": [
+            {
+              "trigger": "has_war_support",
+              "fact": "country.metrics.war_support",
+              "test": ">",
+              "required": 0.84,
+              "actual": 0.9,
+              "value": true
+            }
+          ],
+          "reason": "focus_requirements_satisfied"
+        },
+        "steps": []
+      },
+      "progress_status": "none",
+      "mode": "live",
+      "country": "HUN",
+      "steps": [
+        {
+          "key": "main",
+          "track": "focus",
+          "status": "ready",
+          "reason": "prerequisites_satisfied",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": true,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": true,
+            "available": true,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [
+              {
+                "trigger": "has_war_support",
+                "fact": "country.metrics.war_support",
+                "test": ">",
+                "required": 0.84,
+                "actual": 0.9,
+                "value": true
+              }
+            ],
+            "reason": "focus_requirements_satisfied"
+          }
+        },
+        {
+          "key": "dependent",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_prerequisites_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": true,
+            "branch": true,
+            "prerequisites": false,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_prerequisites_false"
+          }
+        },
+        {
+          "key": "independent",
+          "track": "focus",
+          "status": "completed",
+          "reason": "completion_true",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": true,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": true,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": true,
+            "available": true,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_requirements_satisfied"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": {
+          "keys": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "order": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "next": "main"
+        }
+      },
+      "ready": [
+        "main"
+      ],
+      "parallel": {
+        "focus": {
+          "capacity": 1,
+          "steps": [
+            "main"
+          ],
+          "alternative_steps": []
+        },
+        "research": {
+          "capacity": null,
+          "steps": []
+        }
+      },
+      "action_context": {
+        "session_id": null,
+        "campaign_id": null
+      },
+      "action_sequence": {
+        "political": null,
+        "projects": []
+      }
+    }
+  },
+  {
+    "name": "active focus consumes capacity",
+    "guide": {
+      "id": "criteria",
+      "title": "Guide",
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN",
+        "tree_id": "t"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "main",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "M"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">",
+                    "value": 0.84,
+                    "trigger": "has_war_support"
+                  }
+                ]
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "D"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "M"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "independent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "R"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "HUN"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "t"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "source": "fixture",
+          "value": [
+            "A"
+          ]
+        },
+        "focus.active": {
+          "status": "observed",
+          "source": "fixture",
+          "value": [
+            "M"
+          ]
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.7
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "guide_id": "criteria",
+      "run_id": null,
+      "focus_plan": {
+        "primary": "dependent",
+        "blocked": {
+          "value": false,
+          "available": true,
+          "branch": true,
+          "prerequisites": false,
+          "excluded": false,
+          "checks": [],
+          "reason": "focus_prerequisites_false"
+        },
+        "steps": []
+      },
+      "progress_status": "none",
+      "mode": "live",
+      "country": "HUN",
+      "steps": [
+        {
+          "key": "main",
+          "track": "focus",
+          "status": "active",
+          "reason": "selection_true",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": true,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": false,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [
+              {
+                "trigger": "has_war_support",
+                "fact": "country.metrics.war_support",
+                "test": ">",
+                "required": 0.84,
+                "actual": 0.7,
+                "value": false
+              }
+            ],
+            "reason": "focus_requirements_false"
+          }
+        },
+        {
+          "key": "dependent",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_prerequisites_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": true,
+            "branch": true,
+            "prerequisites": false,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_prerequisites_false"
+          }
+        },
+        {
+          "key": "independent",
+          "track": "focus",
+          "status": "ready",
+          "reason": "prerequisites_satisfied",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": true,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": true,
+            "available": true,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_requirements_satisfied"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": {
+          "keys": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "order": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "next": "dependent"
+        }
+      },
+      "ready": [
+        "independent"
+      ],
+      "parallel": {
+        "focus": {
+          "capacity": 0,
+          "steps": [],
+          "alternative_steps": []
+        },
+        "research": {
+          "capacity": null,
+          "steps": []
+        }
+      },
+      "action_context": {
+        "session_id": null,
+        "campaign_id": null
+      },
+      "action_sequence": {
+        "political": null,
+        "projects": []
+      }
+    }
+  },
+  {
+    "name": "unknown support",
+    "guide": {
+      "id": "criteria",
+      "title": "Guide",
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN",
+        "tree_id": "t"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "main",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "M"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">",
+                    "value": 0.84,
+                    "trigger": "has_war_support"
+                  }
+                ]
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "D"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "M"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "independent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "R"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "HUN"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "t"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "source": "fixture",
+          "value": [
+            "A"
+          ]
+        },
+        "focus.active": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "guide_id": "criteria",
+      "run_id": null,
+      "focus_plan": {
+        "primary": "main",
+        "blocked": {
+          "value": null,
+          "available": null,
+          "branch": true,
+          "prerequisites": true,
+          "excluded": false,
+          "checks": [
+            {
+              "trigger": "has_war_support",
+              "fact": "country.metrics.war_support",
+              "test": ">",
+              "required": 0.84,
+              "actual": null,
+              "value": null
+            }
+          ],
+          "reason": "focus_requirements_unknown"
+        },
+        "steps": []
+      },
+      "progress_status": "none",
+      "mode": "live",
+      "country": "HUN",
+      "steps": [
+        {
+          "key": "main",
+          "track": "focus",
+          "status": "ready",
+          "reason": "prerequisites_satisfied",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "unknown",
+            "value": null,
+            "source": "",
+            "reason": "focus_requirements_unknown"
+          },
+          "focus_readiness": {
+            "value": null,
+            "available": null,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [
+              {
+                "trigger": "has_war_support",
+                "fact": "country.metrics.war_support",
+                "test": ">",
+                "required": 0.84,
+                "actual": null,
+                "value": null
+              }
+            ],
+            "reason": "focus_requirements_unknown"
+          }
+        },
+        {
+          "key": "dependent",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_prerequisites_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": true,
+            "branch": true,
+            "prerequisites": false,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_prerequisites_false"
+          }
+        },
+        {
+          "key": "independent",
+          "track": "focus",
+          "status": "ready",
+          "reason": "prerequisites_satisfied",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": true,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": true,
+            "available": true,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_requirements_satisfied"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": {
+          "keys": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "order": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "next": "main"
+        }
+      },
+      "ready": [
+        "main",
+        "independent"
+      ],
+      "parallel": {
+        "focus": {
+          "capacity": 1,
+          "steps": [
+            "main"
+          ],
+          "alternative_steps": []
+        },
+        "research": {
+          "capacity": null,
+          "steps": []
+        }
+      },
+      "action_context": {
+        "session_id": null,
+        "campaign_id": null
+      },
+      "action_sequence": {
+        "political": null,
+        "projects": []
+      }
+    }
+  },
+  {
+    "name": "explicit dependency",
+    "guide": {
+      "id": "criteria",
+      "title": "Guide",
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN",
+        "tree_id": "t"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "main",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "M"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">",
+                    "value": 0.84,
+                    "trigger": "has_war_support"
+                  }
+                ]
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "D"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "M"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "independent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "R"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            },
+            "depends_on": [
+              "main"
+            ]
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "HUN"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "t"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "source": "fixture",
+          "value": [
+            "A"
+          ]
+        },
+        "focus.active": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.7
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "guide_id": "criteria",
+      "run_id": null,
+      "focus_plan": {
+        "primary": "main",
+        "blocked": {
+          "value": false,
+          "available": false,
+          "branch": true,
+          "prerequisites": true,
+          "excluded": false,
+          "checks": [
+            {
+              "trigger": "has_war_support",
+              "fact": "country.metrics.war_support",
+              "test": ">",
+              "required": 0.84,
+              "actual": 0.7,
+              "value": false
+            }
+          ],
+          "reason": "focus_requirements_false"
+        },
+        "steps": []
+      },
+      "progress_status": "none",
+      "mode": "live",
+      "country": "HUN",
+      "steps": [
+        {
+          "key": "main",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_requirements_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": false,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [
+              {
+                "trigger": "has_war_support",
+                "fact": "country.metrics.war_support",
+                "test": ">",
+                "required": 0.84,
+                "actual": 0.7,
+                "value": false
+              }
+            ],
+            "reason": "focus_requirements_false"
+          }
+        },
+        {
+          "key": "dependent",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_prerequisites_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": true,
+            "branch": true,
+            "prerequisites": false,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_prerequisites_false"
+          }
+        },
+        {
+          "key": "independent",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "dependency_not_completed",
+          "blocked_by": [
+            "main"
+          ],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": true,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": true,
+            "available": true,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_requirements_satisfied"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": {
+          "keys": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "order": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "next": "main"
+        }
+      },
+      "ready": [],
+      "parallel": {
+        "focus": {
+          "capacity": 1,
+          "steps": [],
+          "alternative_steps": []
+        },
+        "research": {
+          "capacity": null,
+          "steps": []
+        }
+      },
+      "action_context": {
+        "session_id": null,
+        "campaign_id": null
+      },
+      "action_sequence": {
+        "political": null,
+        "projects": []
+      }
+    }
+  },
+  {
+    "name": "incompatible future route",
+    "guide": {
+      "id": "criteria",
+      "title": "Guide",
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN",
+        "tree_id": "t"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "main",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "M"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">",
+                    "value": 0.84,
+                    "trigger": "has_war_support"
+                  }
+                ]
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "D"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "M"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "independent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "R"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": [
+                "M"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "HUN"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "t"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "source": "fixture",
+          "value": [
+            "A"
+          ]
+        },
+        "focus.active": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.7
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "guide_id": "criteria",
+      "run_id": null,
+      "focus_plan": {
+        "primary": "main",
+        "blocked": {
+          "value": false,
+          "available": false,
+          "branch": true,
+          "prerequisites": true,
+          "excluded": false,
+          "checks": [
+            {
+              "trigger": "has_war_support",
+              "fact": "country.metrics.war_support",
+              "test": ">",
+              "required": 0.84,
+              "actual": 0.7,
+              "value": false
+            }
+          ],
+          "reason": "focus_requirements_false"
+        },
+        "steps": []
+      },
+      "progress_status": "none",
+      "mode": "live",
+      "country": "HUN",
+      "steps": [
+        {
+          "key": "main",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_requirements_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": false,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [
+              {
+                "trigger": "has_war_support",
+                "fact": "country.metrics.war_support",
+                "test": ">",
+                "required": 0.84,
+                "actual": 0.7,
+                "value": false
+              }
+            ],
+            "reason": "focus_requirements_false"
+          }
+        },
+        {
+          "key": "dependent",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_prerequisites_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": true,
+            "branch": true,
+            "prerequisites": false,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_prerequisites_false"
+          }
+        },
+        {
+          "key": "independent",
+          "track": "focus",
+          "status": "ready",
+          "reason": "prerequisites_satisfied",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": true,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": true,
+            "available": true,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_requirements_satisfied"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": {
+          "keys": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "order": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "next": "main"
+        }
+      },
+      "ready": [
+        "independent"
+      ],
+      "parallel": {
+        "focus": {
+          "capacity": 1,
+          "steps": [],
+          "alternative_steps": []
+        },
+        "research": {
+          "capacity": null,
+          "steps": []
+        }
+      },
+      "action_context": {
+        "session_id": null,
+        "campaign_id": null
+      },
+      "action_sequence": {
+        "political": null,
+        "projects": []
+      }
+    }
+  },
+  {
+    "name": "unknown alternative criterion",
+    "guide": {
+      "id": "criteria",
+      "title": "Guide",
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN",
+        "tree_id": "t"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "main",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "M"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">",
+                    "value": 0.84,
+                    "trigger": "has_war_support"
+                  }
+                ]
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "D"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "M"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "independent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "R"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "unknown",
+                    "trigger": "unobserved_trigger",
+                    "value": "yes"
+                  }
+                ]
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "HUN"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "t"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "source": "fixture",
+          "value": [
+            "A"
+          ]
+        },
+        "focus.active": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.7
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "guide_id": "criteria",
+      "run_id": null,
+      "focus_plan": {
+        "primary": "main",
+        "blocked": {
+          "value": false,
+          "available": false,
+          "branch": true,
+          "prerequisites": true,
+          "excluded": false,
+          "checks": [
+            {
+              "trigger": "has_war_support",
+              "fact": "country.metrics.war_support",
+              "test": ">",
+              "required": 0.84,
+              "actual": 0.7,
+              "value": false
+            }
+          ],
+          "reason": "focus_requirements_false"
+        },
+        "steps": []
+      },
+      "progress_status": "none",
+      "mode": "live",
+      "country": "HUN",
+      "steps": [
+        {
+          "key": "main",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_requirements_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": false,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [
+              {
+                "trigger": "has_war_support",
+                "fact": "country.metrics.war_support",
+                "test": ">",
+                "required": 0.84,
+                "actual": 0.7,
+                "value": false
+              }
+            ],
+            "reason": "focus_requirements_false"
+          }
+        },
+        {
+          "key": "dependent",
+          "track": "focus",
+          "status": "waiting",
+          "reason": "focus_prerequisites_false",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "calculated",
+            "value": false,
+            "source": "game_focus_criteria"
+          },
+          "focus_readiness": {
+            "value": false,
+            "available": true,
+            "branch": true,
+            "prerequisites": false,
+            "excluded": false,
+            "checks": [],
+            "reason": "focus_prerequisites_false"
+          }
+        },
+        {
+          "key": "independent",
+          "track": "focus",
+          "status": "ready",
+          "reason": "prerequisites_satisfied",
+          "blocked_by": [],
+          "completion": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.completed"
+          },
+          "selection": {
+            "status": "calculated",
+            "value": false,
+            "source": "membership:focus.active"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "unknown",
+            "value": null,
+            "source": "",
+            "reason": "focus_requirements_unknown"
+          },
+          "focus_readiness": {
+            "value": null,
+            "available": null,
+            "branch": true,
+            "prerequisites": true,
+            "excluded": false,
+            "checks": [
+              {
+                "trigger": "unobserved_trigger",
+                "value": null,
+                "reason": "unsupported_trigger"
+              }
+            ],
+            "reason": "focus_requirements_unknown"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": {
+          "keys": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "order": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "next": "main"
+        }
+      },
+      "ready": [
+        "independent"
+      ],
+      "parallel": {
+        "focus": {
+          "capacity": 1,
+          "steps": [],
+          "alternative_steps": []
+        },
+        "research": {
+          "capacity": null,
+          "steps": []
+        }
+      },
+      "action_context": {
+        "session_id": null,
+        "campaign_id": null
+      },
+      "action_sequence": {
+        "political": null,
+        "projects": []
+      }
+    }
+  },
+  {
+    "name": "wrong nation",
+    "guide": {
+      "id": "criteria",
+      "title": "Guide",
+      "dependency_policy": "explicit",
+      "applies_to": {
+        "country": "HUN",
+        "tree_id": "t"
+      },
+      "tracks": {
+        "focus": [
+          {
+            "key": "main",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "M"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">",
+                    "value": 0.84,
+                    "trigger": "has_war_support"
+                  }
+                ]
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "dependent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "D"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "M"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          },
+          {
+            "key": "independent",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "R"
+              }
+            },
+            "focus_criteria": {
+              "schema_version": 1,
+              "available": {
+                "op": "all",
+                "args": []
+              },
+              "branch": {
+                "op": "const",
+                "value": true
+              },
+              "prerequisites": [
+                [
+                  "A"
+                ]
+              ],
+              "mutex": [],
+              "conflicts": []
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "GER"
+        },
+        "focus.tree": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "t"
+        },
+        "focus.completed": {
+          "status": "observed",
+          "source": "fixture",
+          "value": [
+            "A"
+          ]
+        },
+        "focus.active": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.7
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "guide_id": "criteria",
+      "run_id": null,
+      "progress_status": "none",
+      "mode": "wrong_country",
+      "country": "GER",
+      "steps": [
+        {
+          "key": "main",
+          "track": "focus",
+          "status": "not_applicable",
+          "reason": "guide_scope_mismatch",
+          "blocked_by": [],
+          "completion": {
+            "status": "unknown",
+            "value": null,
+            "source": "",
+            "reason": "not_observed"
+          },
+          "selection": {
+            "status": "unknown",
+            "value": null,
+            "source": "",
+            "reason": "not_observed"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "unknown",
+            "value": null,
+            "source": "",
+            "reason": "focus_requirements_unknown"
+          },
+          "focus_readiness": {
+            "value": null,
+            "available": null,
+            "branch": true,
+            "prerequisites": null,
+            "excluded": null,
+            "checks": [
+              {
+                "trigger": "has_war_support",
+                "fact": "country.metrics.war_support",
+                "test": ">",
+                "required": 0.84,
+                "actual": null,
+                "value": null
+              }
+            ],
+            "reason": "focus_requirements_unknown"
+          }
+        },
+        {
+          "key": "dependent",
+          "track": "focus",
+          "status": "not_applicable",
+          "reason": "guide_scope_mismatch",
+          "blocked_by": [],
+          "completion": {
+            "status": "unknown",
+            "value": null,
+            "source": "",
+            "reason": "not_observed"
+          },
+          "selection": {
+            "status": "unknown",
+            "value": null,
+            "source": "",
+            "reason": "not_observed"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "unknown",
+            "value": null,
+            "source": "",
+            "reason": "focus_requirements_unknown"
+          },
+          "focus_readiness": {
+            "value": null,
+            "available": true,
+            "branch": true,
+            "prerequisites": null,
+            "excluded": null,
+            "checks": [],
+            "reason": "focus_requirements_unknown"
+          }
+        },
+        {
+          "key": "independent",
+          "track": "focus",
+          "status": "not_applicable",
+          "reason": "guide_scope_mismatch",
+          "blocked_by": [],
+          "completion": {
+            "status": "unknown",
+            "value": null,
+            "source": "",
+            "reason": "not_observed"
+          },
+          "selection": {
+            "status": "unknown",
+            "value": null,
+            "source": "",
+            "reason": "not_observed"
+          },
+          "completion_basis": "native_membership",
+          "priority": 0,
+          "priority_known": true,
+          "availability": {
+            "status": "unknown",
+            "value": null,
+            "source": "",
+            "reason": "focus_requirements_unknown"
+          },
+          "focus_readiness": {
+            "value": null,
+            "available": true,
+            "branch": true,
+            "prerequisites": null,
+            "excluded": null,
+            "checks": [],
+            "reason": "focus_requirements_unknown"
+          }
+        }
+      ],
+      "tracks": {
+        "focus": {
+          "keys": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "order": [
+            "main",
+            "dependent",
+            "independent"
+          ],
+          "next": null
+        }
+      },
+      "ready": [],
+      "parallel": {
+        "focus": {
+          "capacity": null,
+          "steps": []
+        },
+        "research": {
+          "capacity": null,
+          "steps": []
+        }
+      },
+      "action_context": {
+        "session_id": null,
+        "campaign_id": null
+      },
+      "action_sequence": {
+        "political": null,
+        "projects": []
+      }
+    }
+  }
+]

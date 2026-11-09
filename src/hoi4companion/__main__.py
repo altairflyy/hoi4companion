@@ -3,6 +3,11 @@ import argparse
 from pathlib import Path
 from .api import Store, serve
 from .jomini_parser import ParserUnavailableError
+from .guide_core import GuideCoreUnavailable, engine_info as guide_core_info
+from .catalog_core import CatalogCoreUnavailable, engine_info as catalog_core_info
+from .native_tools import NativeToolsUnavailable, engine_info as tools_info
+from .storage_core import StorageCoreUnavailable, engine_info as storage_info
+from .backend_core import BackendUnavailable, engine_info as backend_info
 
 
 def main():
@@ -58,8 +63,13 @@ def main():
     if args.country:
         overrides['country'] = args.country.upper()
     try:
+        guide_core_info()
+        catalog_core_info()
+        tools_info()
+        storage_info()
+        backend_info()
         store = Store(overrides)
-    except ParserUnavailableError as exc:
+    except (ParserUnavailableError,GuideCoreUnavailable,CatalogCoreUnavailable,NativeToolsUnavailable,StorageCoreUnavailable,BackendUnavailable) as exc:
         parser.exit(1, f'{exc}\n')
     serve(store, port=args.port, open_browser=not args.no_browser)
 

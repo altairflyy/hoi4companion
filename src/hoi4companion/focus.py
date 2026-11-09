@@ -38,6 +38,12 @@ class Focus:
     position_warning: bool = False
     icon_variants: list[str] = field(default_factory=list)
     tooltip_sections: list[dict] = field(default_factory=list)
+    localization_key: str = ''
+    bypass_possible: bool | None = None
+    sequence_effects_safe: bool | None = None
+    external_completion_possible: bool | None = None
+    repeatable: bool = False
+    criteria: dict | None = None
 
     def to_json(self) -> dict:
         value = asdict(self)
@@ -54,135 +60,39 @@ class Tree:
     country_selector: Node | None = None
     default: bool = False
     eligible_countries: list[str] = field(default_factory=list)
+    branch_conditions: dict[str, Node] = field(default_factory=dict, repr=False)
 
     def to_json(self) -> dict:
         return {'id': self.id, 'source': self.source, 'count': len(self.focuses),
                 'focuses': [f.to_json() for f in self.focuses.values()]}
 
 
-def _build_focus(node: Node, labels: dict[str, str], source: str) -> Focus | None:
-    fields = node.projection if node.projection and node.projection.get('kind') == 'focus' else None
-    def scalar(key):
-        return (fields.get(key) or '') if fields is not None else node.scalar(key)
-    focus_id = scalar('id')
-    if not focus_id:
-        return None
-    prerequisites = fields['prerequisites'] if fields else []
-    if fields is None:
-        for block in node.blocks('prerequisite'):
-            group = _refs(block, 'focus')
-            if group:
-                prerequisites.append(group)
-    mutex = fields['mutually_exclusive'] if fields else [reference for block in node.blocks('mutually_exclusive') for reference in _refs(block, 'focus')]
-    filt = node.first('search_filters')
-    filters = [value for key, value in filt.entries if key == '' and isinstance(value, str)] if isinstance(filt, Node) else []
-    variants = []
-    icon = scalar('icon')
-    for block in node.blocks('icon'):
-        variants.extend(k for k, v in block.entries if k.startswith('GFX_'))
-    return Focus(
-        id=focus_id, name=localise(labels.get(focus_id, focus_id), labels),
-        description=localise(labels.get(focus_id+'_desc', ''), labels), icon=icon,
-        x=_num(scalar('x'), 0), y=_num(scalar('y'), 0),
-        relative_to=scalar('relative_position_id'),
-        cost=_num(scalar('cost'), 10), prerequisites=prerequisites,
-        mutually_exclusive=list(dict.fromkeys(mutex)),
-        has_conditions=bool(node.blocks('available') or node.blocks('allow_branch') or node.blocks('visible')),
-        has_bypass=bool(node.blocks('bypass')), filters=filters, source=source,
-        icon_variants=list(dict.fromkeys(variants)), tooltip_sections=focus_tooltips(node, labels),
-    )
+def _build_focus(node: Node, labels: dict[str, str], source: str, *, jointly_completed=False) -> Focus | None:
+    from .backend_core import _request
+    from .script_document import encode
+    value=_request(0,'focus_build',node=encode(node),labels=labels,source=source,joint=jointly_completed)
+    return Focus(**value) if value is not None else None
 
 
-def _position_tree(tree: Tree) -> None:
-    coords: dict[str, tuple[float, float]] = {}
-    visiting: set[str] = set()
-
-    def resolve(focus_id: str) -> tuple[float, float]:
-        focus = tree.focuses[focus_id]
-        if focus_id in coords:
-            return coords[focus_id]
-        if focus_id in visiting:
-            focus.position_warning = True
-            return focus.x, focus.y
-        visiting.add(focus_id)
-        ref = focus.relative_to
-        if ref and ref in tree.focuses:
-            px, py = resolve(ref)
-            result = (px + focus.x, py + focus.y)
-        else:
-            if ref:
-                focus.position_warning = True
-            result = (focus.x, focus.y)
-        visiting.remove(focus_id)
-        coords[focus_id] = result
-        return result
-
-    for fid in tree.focuses:
-        resolve(fid)
-    for fid, (x, y) in coords.items():
-        tree.focuses[fid].x, tree.focuses[fid].y = x, y
 
 
-def load_trees(files: list[Path], labels: dict[str, str]) -> tuple[dict[str, Tree], list[str]]:
-    trees: dict[str, Tree] = {}
-    shared: dict[str, Focus] = {}
-    warnings: list[str] = []
-    for filename in files:
-        try:
-            root = parse_file(filename)
-        except (OSError, ValueError, RecursionError) as exc:
-            warnings.append(f'File ignorato: {filename.name} ({exc})')
-            continue
-        for key, value in root.entries:
-            if key in ('shared_focus', 'joint_focus') and isinstance(value, Node):
-                focus = _build_focus(value, labels, filename.name)
-                if focus:
-                    shared[focus.id] = focus
-            elif key == 'focus_tree' and isinstance(value, Node):
-                tree_id = value.scalar('id')
-                if not tree_id:
-                    continue
-                tree = Tree(id=tree_id, source=filename.name,
-                            country_selector=value.first('country'), default=value.scalar('default') == 'yes')
-                for child_key, child_value in value.entries:
-                    if child_key == 'focus' and isinstance(child_value, Node):
-                        focus = _build_focus(child_value, labels, filename.name)
-                        if focus:
-                            tree.focuses[focus.id] = focus
-                    elif child_key in ('shared_focus', 'joint_focus') and isinstance(child_value, str):
-                        tree.shared.append(child_value)
-                trees[tree.id] = tree
+def load_trees(files: list[Path], labels: dict[str,str]) -> tuple[dict[str,Tree],list[str]]:
+    from .backend_core import _request
+    from .script_document import decode
+    value=_request(0,'focus_trees',files=list(map(str,files)),labels=labels)
+    trees={}
+    for identity,item in value['trees'].items():
+        item={**item,'focuses':{key:Focus(**focus) for key,focus in item['focuses'].items()},
+              'country_selector':decode(item['country_selector']),
+              'branch_conditions':{key:decode(node) for key,node in item['branch_conditions'].items()}}
+        trees[identity]=Tree(**item)
+    return trees,value['warnings']
 
-    shared_children: dict[str, list[str]] = {}
-    for fid, item in shared.items():
-        for parent in {ref for group in item.prerequisites for ref in group}:
-            shared_children.setdefault(parent, []).append(fid)
-    for tree in trees.values():
-        # A referenced root imports its descendants. Required ancestors remain
-        # available, without pulling in their unrelated sibling branches.
-        branch, expanded = tree.shared.copy(), set()
-        while branch:
-            fid = branch.pop()
-            if fid in expanded:
-                continue
-            expanded.add(fid)
-            branch.extend(shared_children.get(fid, []))
-        pending = sorted(expanded, reverse=True)
-        while pending:
-            fid = pending.pop()
-            if fid in tree.focuses:
-                continue
-            if fid not in shared:
-                warnings.append(f'Focus condiviso non trovato: {fid} ({tree.id})')
-                continue
-            # Copia: le coordinate sono specifiche dell'albero.
-            from dataclasses import replace
-            item = replace(shared[fid])
-            tree.focuses[fid] = item
-            for group in item.prerequisites:
-                pending.extend(x for x in group if x in shared and x not in tree.focuses)
-        _position_tree(tree)
-    return trees, warnings
+
+def load_continuous_focuses(files,labels):
+    from .backend_core import _request
+    value=_request(0,'focus_continuous',files=list(map(str,files)),labels=labels)
+    return {key:Focus(**focus) for key,focus in value['focuses'].items()},value['warnings']
 
 
 def evaluate(tree: Tree, completed: set[str], current: str | None = None) -> dict[str, str]:

@@ -2,9 +2,10 @@
 (()=>{
  const $=id=>document.getElementById(id),m=HoiImporter;
  const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
- let sources=[],report=null,busy=false,aiConfigured=false,generation=0,entities=[],eventExport={catalog:[]},sections=[];
+ let sources=[],report=null,busy=false,aiConfigured=false,generation=0,entities=[],eventExport={catalog:[]},sections=[],wordFile=null,wordSingle=false,scenarioGuideId=null;
  let aiCatalogPromise=null;
- const buttons=['acquire','packet','extract','validate','saveDraft','exportGuide','install','copyPrompt','downloadPrompt','downloadCatalog','downloadSection'];
+ let referenceData={designs:[],images:[]},referenceCategory=null;
+ const buttons=['acquire','packet','extract','validate','saveDraft','exportGuide','install','copyPrompt','downloadPrompt','downloadCatalog','downloadSection','applyFocusSequence'];
  function exportedCatalog(section){return section?.id==='events'&&$('eventsMultiple').checked?{...section,...eventExport,catalog_scope:section.id}:section;}
  function selectedCatalog(){return exportedCatalog(sections.find(s=>s.id===$('catalogSection').value));}
  function missingCountryMetadata(sectionId){return sections.some(section=>(!sectionId||section.id===sectionId)&&section.country_filter?.metadata_available===false&&section.catalog.length>0);}
@@ -69,6 +70,106 @@
    details.append(node('p',src.url||HoiI18n.t("Local text")),node('p',(src.warnings||[]).join(' ')),node('pre',src.text));const remove=node('button',HoiI18n.t("Remove source"));remove.type='button';remove.onclick=()=>{sources=sources.filter(item=>item.id!==src.id);invalidate();sourceList();};details.append(remove);$('sources').append(details);
   }
  }
+ async function uploadWord(file,query=''){
+  let response;
+  try{response=await fetch('/api/import/word'+query,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});}
+  catch(error){
+   // An old server can reject the request before the browser finishes uploading,
+   // leaving fetch with a network error instead of its 404 response.
+   let probe;try{probe=await fetch('/api/import/word',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:new Uint8Array([0])});}catch{}
+   if(probe?.status===404)throw Error(HoiI18n.t('The running Companion service is outdated. Restart Companion and reload this page.'));
+   throw Error(HoiI18n.t('The file upload was interrupted. Check that Companion is running and try again.'));
+  }
+  const result=await response.json();if(!response.ok)throw Error(result.error||HoiI18n.t('Request failed'));return result;
+ }
+ function referenceView(data){
+  referenceData=data;
+  $('referenceStatus').textContent=HoiI18n.t('Reference library: {0} designs, {1} images',data.designs.length,data.images.length);
+  const groups=m.referenceGroups(data);
+  if(referenceCategory!=='all'&&!groups.some(group=>group.id===referenceCategory))referenceCategory=groups[0]?.id||'all';
+  renderReferences();
+ }
+ function renderReferences(){
+  const available=m.referenceGroups(referenceData),filtered=m.referenceGroups(referenceData,$('referenceSearch').value);
+  $('referenceCategories').replaceChildren();
+  for(const group of [{id:'all',title:'All references',images:referenceData.images},...available]){
+   const button=node('button',HoiI18n.t(group.title)+' · '+group.images.length);button.type='button';
+   button.setAttribute('aria-pressed',String(group.id===referenceCategory));button.setAttribute('aria-controls','referenceImages');
+   button.onclick=()=>{referenceCategory=group.id;renderReferences();};$('referenceCategories').append(button);
+  }
+  const images=filtered.filter(group=>referenceCategory==='all'||group.id===referenceCategory).flatMap(group=>group.images);
+  $('referenceResults').textContent=HoiI18n.t('{0} reference images · select a thumbnail to open the original',images.length);
+  $('referenceImages').replaceChildren();
+  if(!images.length)$('referenceImages').append(node('p',HoiI18n.t('No reference images match this selection.')));
+  for(const ref of images){
+   const figure=node('figure'),image=node('img'),link=node('a'),caption=node('figcaption',ref.name);
+   figure.className='reference-card';image.src='/api/reference-library/image?id='+encodeURIComponent(ref.id);image.alt=ref.name;image.loading='lazy';image.decoding='async';
+   link.href=image.src;link.target='_blank';link.rel='noopener';link.setAttribute('aria-label',HoiI18n.t('Open reference image: {0}',ref.name));link.append(image);
+   for(const tag of ['situational','outdated'])if(ref.tags?.includes(tag)||new RegExp('\\b'+tag+'\\b','i').test(ref.section||'')){
+    const badge=node('span',HoiI18n.t(tag==='situational'?'Situational':'Outdated'));badge.className='reference-badge '+tag;caption.append(badge);
+   }
+   figure.append(link,caption);$('referenceImages').append(figure);
+  }
+  const presets=referenceData.game_presets;
+  $('presetStatus').textContent=presets?.status==='file_observed'?HoiI18n.t('HOI4 saved design file: {0} entries, {1} distinct recipes. This does not verify their availability in the current campaign.',presets.count,presets.distinct_recipes):
+   HoiI18n.t(presets?.status==='file_missing'?'No saved equipment design file found in the configured HOI4 documents folder.':'Saved equipment design file not verified.');
+  $('referenceDesigns').replaceChildren();
+  const designs=m.referenceDesigns(referenceData,$('referenceDesignCategory').value||'all',$('referenceSearch').value);
+  for(const ref of designs){
+   const card=node('article');card.className='reference-card design-card';card.append(node('h4',ref.name));
+   card.append(node('p',ref.equipment_id||''));
+   const location=ref.preset;
+   const label=location.status==='present'?'Saved in HOI4':location.status==='missing'?'Not found in the saved design file':location.status==='different_recipe'?'Same name, different saved recipe':'Saved design presence not verified';
+   card.append(node('p',HoiI18n.t(label)));
+   for(const folder of location.folders||[])card.append(node('p',HoiI18n.t('Saved design group: {0}',folder||HoiI18n.t('Ungrouped'))));
+   const detail=node('details');detail.append(node('summary',HoiI18n.t('Recipe: modules and upgrades')));
+   for(const [key,value] of Object.entries({...ref.modules,...ref.upgrades}))detail.append(node('p',key+' → '+value));
+   card.append(detail);$('referenceDesigns').append(card);
+  }
+  if(!designs.length)$('referenceDesigns').append(node('p',HoiI18n.t('No equipment designs match this selection.')));
+ }
+ $('referenceSearch').oninput=()=>renderReferences();
+ $('referenceDesignCategory').onchange=()=>renderReferences();
+ $('showReferences').onclick=()=>run(async()=>{const response=await fetch('/api/reference-library');if(!response.ok)throw Error(HoiI18n.t('Request failed'));referenceView(await response.json());$('referenceGallery').open=true;});
+ $('referenceFile').onchange=()=>run(async()=>{
+  const file=$('referenceFile').files[0];if(!file)return;if(file.size>200000000)throw Error(HoiI18n.t('File exceeds 200 MB'));
+  const response=await fetch('/api/import/templates',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});const data=await response.json();if(!response.ok)throw Error(data.error||HoiI18n.t('Request failed'));referenceView(data);invalidate();$('referenceGallery').open=true;
+ });
+ $('wordFile').onchange=()=>run(async()=>{
+  wordFile=null;wordSingle=false;$('wordDocument').replaceChildren();$('wordContext').replaceChildren();$('wordDocument').disabled=true;$('wordContext').disabled=true;$('prepareWord').disabled=true;
+  const file=$('wordFile').files[0];if(!file)return;if(file.size>200000000)throw Error(HoiI18n.t('File exceeds 200 MB'));
+  $('wordStatus').textContent=HoiI18n.t('Reading the collection…');const result=await uploadWord(file);
+  wordFile=file;wordSingle=!!result.single_document;
+  const none=node('option',HoiI18n.t('No additional document'));none.value='';$('wordContext').append(none);
+  const documents=result.documents||[],display=name=>name.split('/').pop().replace(/\.docx$/i,'');
+  const inCountry=name=>{const parts=name.split('/'),index=parts.findIndex(p=>p.toLocaleLowerCase()==='country guides');return index<0?null:!parts.slice(index+1,-1).some(p=>p.toLocaleLowerCase()==='tools');};
+  const hasCountry=documents.some(name=>inCountry(name)!==null);
+  const guides=documents.filter(name=>!hasCountry||inCountry(name)===true).sort((a,b)=>display(a).localeCompare(display(b),undefined,{sensitivity:'base'}));
+  function appendOptions(select,paths){const counts=new Map(),seen=new Map();for(const path of paths){const key=display(path).toLocaleLowerCase();counts.set(key,(counts.get(key)||0)+1);}
+   for(const path of paths){const label=display(path),key=label.toLocaleLowerCase(),index=(seen.get(key)||0)+1;seen.set(key,index);const option=node('option',label+(counts.get(key)>1?' ('+index+')':''));option.value=path;
+    if(select===$('wordDocument')&&typeof HoiGuideAvailability!=='undefined')HoiGuideAvailability.decorate(option,result.compatibility?.[path],HoiI18n.t);select.append(option);}}
+  appendOptions($('wordDocument'),guides);appendOptions($('wordContext'),documents);
+  const glossary=documents.filter(name=>/(?:abbreviations|glossary)/i.test(name.split('/').pop()));
+  if(glossary.length===1)$('wordContext').value=glossary[0];
+  $('wordContext').disabled=wordSingle||!result.documents?.length;
+  const available=[...$('wordDocument').children].find(option=>!option.disabled);if(available)$('wordDocument').value=available.value;
+  $('wordDocument').disabled=wordSingle||!guides.length;$('prepareWord').disabled=!wordSingle&&!available;
+  $('wordStatus').textContent=wordSingle?HoiI18n.t('Word document ready.'):HoiI18n.t('{0} Word documents found.',guides.length);
+  const unavailable=guides.filter(path=>result.compatibility?.[path]?.blocked).length;
+  if(unavailable)$('wordStatus').textContent+=' '+HoiI18n.t('{0} guides require different DLC settings.',unavailable);
+ });
+ $('prepareWord').onclick=()=>run(async()=>{
+  if(!wordFile)throw Error(HoiI18n.t('Choose a Word document or ZIP collection.'));
+  const entry=$('wordDocument').value;if(!wordSingle&&!entry)throw Error(HoiI18n.t('Choose a document from the collection.'));
+  $('wordStatus').textContent=HoiI18n.t('Preparing the draft…');
+  const context=$('wordContext').value||'';
+  if(context&&context===entry)throw Error(HoiI18n.t('Choose a different reference document.'));
+  const query=wordSingle?'?prepare=1':'?entry='+encodeURIComponent(entry)+(context?'&context='+encodeURIComponent(context):'');
+  const result=await uploadWord(wordFile,query);
+  if($('treeScope').value)result.document.guide.applies_to={tree_id:$('treeScope').value};
+  sources=result.sources;writeGuide(result.document);invalidate();sourceList();
+  $('wordStatus').textContent=(result.warnings||[]).map(text=>HoiI18n.t(text)).join(' ');
+ });
  function writeGuide(value){$('guideJson').value=JSON.stringify(value,null,2);}
  function constructionEditor(row){
   const params=row.action.params,details=node('details');details.className='construction-editor';details.append(node('summary',HoiI18n.t("Correct construction")));
@@ -134,20 +235,46 @@
   if(resolved.children.length>1)container.append(resolved);
  }
  function showReport(value){report=value;coverageView(value);$('issues').replaceChildren();$('sourceWarnings').replaceChildren();$('preview').replaceChildren();
+  if(value.compatibility?.blocked){
+   const requirements=(value.compatibility.requirements||[]).flatMap(group=>[...(group.enable||[]),...(group.disable||[])]).join(', ');
+   const notice=typeof HoiGuideAvailability!=='undefined'?HoiGuideAvailability.notice(value.compatibility,HoiI18n.t):requirements;
+   $('validation').textContent=HoiI18n.t('Guide unavailable with the current DLC configuration.')+' '+notice;
+   for(const id of ['monitoringSummary','sequenceSummary','focusSequenceSummary','coverageSummary'])$(id).textContent='';
+   $('coverageReview').replaceChildren();
+   $('reviewSummary').textContent=HoiI18n.t('Missing or incompatible DLC content is not an import error and does not require association review.');
+   controls();return;
+  }
   $('validation').textContent=value.valid?HoiI18n.t("Validation passed: the guide is ready to add. Check the source details shown below."):HoiI18n.t("Review required: ")+value.errors.length+HoiI18n.t(" blocking issues.");
   for(const message of value.errors)$('issues').append(node('li',message));
   for(const message of new Set(value.warnings))$('sourceWarnings').append(node('li',message));
   const operations=value.operations||[],count=mode=>operations.filter(row=>row.monitoring===mode).length;
   $('monitoringSummary').textContent=operations.length?count('automatic')+HoiI18n.t(" automatic · ")+count('start_only')+HoiI18n.t(" with automatic start detection only · ")+count('manual')+HoiI18n.t(" requiring confirmation · ")+count('reminder')+HoiI18n.t(" reminders. Monitoring starts in the walkthrough when live state is available."):'';
-  const visual=value.warnings.filter(text=>text.includes(HoiI18n.t("declared visual observation"))).length;
+  const seq=value.sequence_report;
+  const focusSeq=value.focus_sequence;
+  const focusStatuses={partial:HoiI18n.t('Partial coverage'),validated:HoiI18n.t('Structurally consistent'),conflict:HoiI18n.t('Conflicting sequence'),incomplete:HoiI18n.t('Sequence not verifiable'),limit:HoiI18n.t('Search limit reached')};
+  $('focusSequenceSummary').textContent=focusSeq?HoiI18n.t('Focus sequence: {0} · {1} slots · {2} reconstructed.',focusStatuses[focusSeq.status]||focusSeq.status,focusSeq.slot_count,focusSeq.reconstructed_count)+(focusSeq.status==='partial'?' '+HoiI18n.t('Missing prerequisites may be omitted by the source; positions are not used as proof.'):focusSeq.status==='limit'||focusSeq.status==='incomplete'?' '+HoiI18n.t('No sequence inference was confirmed: ')+(focusSeq.limitations||[]).join(', '):''):'';
+  $('sequenceSummary').textContent=seq?.policy==='explicit'?HoiI18n.t("Sequence uses declared dependencies. A missing condition is not inferred from the text."):
+   seq?.implicit_barrier_steps?HoiI18n.t("{0} steps have legacy implicit dependencies on earlier manual actions. Review the sequence; the original guide is not changed.",seq.implicit_barrier_steps):'';
+  const visual=Number.isSafeInteger(value.visual_review?.count)&&value.visual_review.count>0?value.visual_review.count:0;
   $('reviewSummary').textContent=visual?visual+HoiI18n.t(" instructions include details extracted from video images: check quantities, states and compositions. Expand warnings for details."):HoiI18n.t("Review concerns the guide's content; the application checks IDs and live bindings.");
   if(!value.guide){if(value.draft)writeGuide(value.draft);return;}
+  $('focusCoverage').value=value.guide.focus_sequence?.coverage||'partial';
+  $('focusInitial').value=(value.guide.focus_sequence?.initial_focuses||[]).join(', ');
+  if(scenarioGuideId!==value.guide.id){$('startCountry').value='';$('startDate').value='';scenarioGuideId=value.guide.id;}
+  if(['1936.1.1','1939.8.14'].includes(value.guide.start_date))$('startDate').value=value.guide.start_date;
+  if(!$('startCountry').value){
+   const scope=value.guide.applies_to?.tree_id;
+   const countries=[...new Set(entities.filter(e=>e.kind==='focus'&&e.scope===scope).flatMap(e=>e.countries||[]))];
+   if(value.guide.applies_to?.country)$('startCountry').value=value.guide.applies_to.country;
+   else if(countries.length===1)$('startCountry').value=countries[0];
+  }
   writeGuide(value.guide);
   const resolvedGroup=node('details'),resolvedItems=node('div');resolvedGroup.className='resolved-associations';resolvedItems.className='preview-cards';let resolvedCount=0;
   for(const [lane,rows]of Object.entries(value.guide.tracks))for(const row of rows){
    const resolution=value.resolutions.find(item=>item.key===row.key),operation=operations.find(item=>item.key===row.key),card=node('article');card.className='preview-card'+(resolution&&resolution.status!=='resolved'?' unresolved':'');
    const monitoring={automatic:HoiI18n.t("automatic completion"),start_only:HoiI18n.t("automatic start · outcome needs verification"),manual:HoiI18n.t("criterion still manual"),reminder:HoiI18n.t("reminder · no confirmation")};
    card.append(node('p',lane+' · '+row.key+' · '+(operation?monitoring[operation.monitoring]:resolution?.status==='unresolved_route'?HoiI18n.t("path cannot be verified"):resolution?.status||HoiI18n.t("manual verification"))));
+   if(resolution?.classification){const labels={direct:HoiI18n.t('Direct identification'),reconstructed:HoiI18n.t('Reconstructed by sequence constraints'),probable:HoiI18n.t('Probable · review required'),unresolved:HoiI18n.t('Unresolved')};card.append(node('p',HoiI18n.t('Source position {0}: {1}',resolution.source_position,labels[resolution.classification])));}
    const reasons={additional_baseline_missing:HoiI18n.t("Additional construction requires the pre-order building count or a target total."),building_completion_not_observed:HoiI18n.t("The reader detects the queue; the final level of this building is not exposed yet."),target_not_defined:HoiI18n.t("The guide does not specify a target total or level."),building_or_state_not_resolved:HoiI18n.t("Building or state not uniquely identified."),declared_manual_completion:HoiI18n.t("The criterion declared in the guide requires confirmation.")};
    Object.assign(reasons,{location_unresolved:HoiI18n.t("City, province or state not found in the local catalog. An unknown explicit ID is never replaced with another location."),location_ambiguous:HoiI18n.t("This location matches multiple destinations: specify the state and, for a province building, the province."),location_conflict:HoiI18n.t("The specified city, province and state are inconsistent. Correct the destination."),province_required:HoiI18n.t("This building requires a precise province: specify a unique city or province ID as well as the state.")});
    if(operation?.location){const p=operation.location;card.append(node('p',HoiI18n.t("Destination: ")+p.state_name+HoiI18n.t(" · state ")+p.state_id+(p.province_id?HoiI18n.t(" · province ")+p.province_id:'')+(p.via==='city'?HoiI18n.t(" · resolved from the specified city"):'')));}
@@ -218,6 +345,22 @@
  $('extract').onclick=()=>run(async()=>{const version=generation;const value=await request('/api/import/extract',{sources,tree_id:$('treeScope').value||null});if(version===generation){$('reviewed').checked=false;showReport(value);}});
  $('guideJson').oninput=invalidate;$('reviewed').onchange=controls;
  $('validate').onclick=()=>run(validate);
+ $('applyFocusSequence').onclick=()=>run(async()=>{
+  const coverage=$('focusCoverage').value,initial=$('focusInitial').value.trim().split(/[,\s]+/).filter(Boolean);
+  const parsed=await loadDocument($('guideJson').value);
+  if(parsed.sources){sources=parsed.sources;sourceList();}
+  const guide=parsed.guide;if(!guide?.tracks)throw Error(HoiI18n.t('Load a guide draft first.'));
+  guide.focus_sequence={schema_version:1,coverage,initial_focuses:initial};writeGuide(guide);invalidate();await validate();
+ });
+ $('applyStart').onclick=()=>run(async()=>{
+  const country=$('startCountry').value.trim().toUpperCase(),date=$('startDate').value;
+  if(!/^[A-Z0-9]{3}$/.test(country)||!['1936.1.1','1939.8.14'].includes(date))throw Error(HoiI18n.t('Choose a three-character country tag and a start date.'));
+  const guide=readGuide();if(!guide?.tracks)throw Error(HoiI18n.t('Validate the draft before selecting a starting scenario.'));
+  if(guide.applies_to?.country&&guide.applies_to.country!==country)throw Error(HoiI18n.t('The chosen country conflicts with the guide.'));
+  const scope=guide.applies_to?.tree_id,eligible=entities.filter(e=>e.kind==='focus'&&e.scope===scope&&e.countries?.length);
+  if(eligible.length&&!eligible.some(e=>e.countries.includes(country)))throw Error(HoiI18n.t('The chosen country conflicts with the focus tree.'));
+  guide.applies_to={...guide.applies_to,country};guide.start_date=date;writeGuide(guide);invalidate();await validate();
+ });
  $('saveDraft').onclick=()=>run(async()=>{const parsed=$('guideJson').value.trim()?m.readDraft($('guideJson').value):null;download('guide-import.draft.json',parsed?.authoring?parsed.document:{import_schema_version:1,guide:parsed?.guide||null,sources});});
  $('draftFile').onchange=()=>run(async()=>{const file=$('draftFile').files[0];if(!file)return;if(file.size>2000000)throw Error(HoiI18n.t("File exceeds 2 MB"));invalidate();const text=await file.text();$('guideJson').value=text;const version=generation,draft=await loadDocument(text);if(version!==generation)return;if(draft.sources)sources=draft.sources;if(draft.guide)writeGuide(draft.guide);sourceList();if(draft.guide)await validate();});
  $('exportGuide').onclick=()=>{if(m.canPublish(report,$('reviewed').checked,busy))download(report.guide.id+'.json',report.guide);};

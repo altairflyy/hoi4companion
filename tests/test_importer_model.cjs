@@ -3,6 +3,19 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const m=require('../src/hoi4companion/web/importer-model.js');
 const guide={schema_version:1,id:'opening',title:'Opening',tracks:{research:[{key:'tools',action:{kind:'research',entity:{kind:'technology',id:'basic_machine_tools'}}}]}};
 
+test('reference categories are stable, searchable and retain legacy sections without guessing situational domains',()=>{
+ const data={images:[{id:'1',name:'Zeta',category:'armor',section:'SITUATIONAL',tags:['situational']},
+  {id:'2',name:'OFF',section:'TEMPLATES (UPDATED)'},{id:'3',name:'F1',category:'air'},
+  {id:'4',name:'Alpha',category:'armor'},{id:'5',name:'Unknown',section:'SITUATIONAL'}]};
+ const before=JSON.stringify(data),groups=m.referenceGroups(data);
+ assert.deepEqual(groups.map(g=>[g.id,g.images.length]),[['templates',1],['armor',2],['air',1],['other',1]]);
+ assert.deepEqual(groups[1].images.map(i=>i.name),['Alpha','Zeta']);
+ assert.equal(m.referenceGroups(data,'zeta')[0].id,'armor');
+ assert.equal(m.referenceGroups(data,'nonexistent').length,0);
+ assert.equal(m.referenceGroups({images:[]}).length,0);
+ assert.equal(JSON.stringify(data),before);
+});
+
 test('authoring documents are delegated intact to the server rather than interpreted as runtime guides',()=>{
  const value={format:'hoi4-guide-authoring',authoring_schema_version:1,sources:[{id:'s'}],guide:{id:'new',steps:[{type:'build'}]}};
  const result=m.readDraft(JSON.stringify(value));
@@ -31,6 +44,7 @@ test('final exports require current valid preview and human review',()=>{
  assert.equal(m.canPublish({valid:false},true,false),false);
  assert.equal(m.canPublish({valid:true},true,true),false);
  assert.equal(m.canPublish(null,true,false),false);
+ assert.equal(m.canPublish({valid:true,compatibility:{blocked:true}},true,false),false);
 });
 test('normalisation and dependencies reuse the same JavaScript schema contract',()=>{
  assert.equal(m.normalise(guide).tracks.research[0].target,'basic_machine_tools');

@@ -14,16 +14,11 @@ from .jomini_parser import parse_file
 from .dlc import DlcInventory
 
 
-def load_scripted_triggers(files: list[Path]) -> tuple[dict[str, Node], list[str]]:
-    result: dict[str, Node] = {}
-    warnings = []
-    for file in files:
-        try:
-            node = parse_file(file)
-            result.update((k, v) for k, v in node.entries if isinstance(v, Node))
-        except (OSError, ValueError, UnicodeError, RecursionError) as exc:
-            warnings.append(f'Trigger non leggibili ({file.name}): {exc}')
-    return result, warnings
+def load_scripted_triggers(files: list[Path]) -> tuple[dict[str,Node],list[str]]:
+    from .backend_core import _request
+    from .script_document import decode
+    value=_request(0,'source_scripted_triggers',files=list(map(str,files)))
+    return {key:decode(node) for key,node in value['scripts'].items()},value['warnings']
 
 
 def _and(values: list[bool | None]) -> bool | None:
@@ -36,6 +31,55 @@ def _or(values: list[bool | None]) -> bool | None:
 
 def _not(value: bool | None) -> bool | None:
     return None if value is None else not value
+
+
+def government_exclusions(node):
+    """Project provably false ideology variants; unknown triggers stay unknown."""
+    if not isinstance(node,Node):return []
+    governments={'communism','fascism','neutrality','democratic'}
+    def gather(block):
+        for key,value in block.entries:
+            if key=='has_government' and isinstance(value,str):governments.add(value)
+            elif isinstance(value,Node):gather(value)
+    gather(node)
+    def project(block,government):
+        entries=[]
+        for key,value in block.entries:
+            if key=='has_government' and isinstance(value,str):entries.append(('always','yes' if value==government else 'no'))
+            elif key.upper() in ('AND','OR','NOT','NAND','NOR') and isinstance(value,Node):entries.append((key.upper(),project(value,government)))
+            elif key=='always':entries.append((key,value))
+            else:entries.append(('unobserved_runtime_predicate','unknown'))
+        return Node(entries)
+    return sorted(government for government in governments if condition(project(node,government),'',None,{}) is False)
+
+
+def excluded_focus_branches(trees, dlcs):
+    """Proven DLC-disabled identities, distinct from dynamic availability.
+
+    Evaluate only DLC/always/boolean predicates. Country, game-rule and other
+    runtime predicates remain unknown. Descendants are excluded only when an
+    entire required prerequisite group is already excluded; an OR alternative,
+    missing parent or unknown condition does not establish exclusion.
+    """
+    if dlcs is None:return []
+    def static(node):
+        return Node([(key.upper() if key.upper() in ('AND','OR','NOT','NAND','NOR') else
+                      key if key in ('has_dlc','always') else 'unobserved_runtime_predicate',
+                      static(value) if isinstance(value,Node) else value) for key,value in node.entries])
+    excluded=[]
+    for scope,tree in trees.items():
+        disabled={key:'DLC condition on allow_branch is false.' for key,node in getattr(tree,'branch_conditions',{}).items()
+                  if condition(static(node),'',dlcs,{}) is False}
+        changed=True
+        while changed:
+            changed=False
+            for key,focus in tree.focuses.items():
+                if key not in disabled and any(group and all(parent in disabled for parent in group)
+                                               for group in focus.prerequisites):
+                    disabled[key]='Every alternative in a required branch is excluded by DLC conditions.'
+                    changed=True
+        excluded.extend({'scope':scope,'id':key,'reason':reason} for key,reason in sorted(disabled.items()))
+    return excluded
 
 
 def condition(node: Node, tag: str, dlcs: DlcInventory, scripts: dict[str, Node],
@@ -117,43 +161,12 @@ def score(selector: Node, tag: str, dlcs: DlcInventory, scripts: dict[str, Node]
     return value
 
 
-def filter_trees(trees: dict, dlcs: DlcInventory, scripts: dict[str, Node]) -> tuple[dict, list[dict]]:
-    scores: dict[str, dict[str, float | None]] = {}
-    tags = {tag for tree in trees.values() if isinstance(tree.country_selector, Node)
-            for tag in selector_tags(tree.country_selector, scripts)} | {''}
-    for tree in trees.values():
-        if isinstance(tree.country_selector, Node):
-            scores[tree.id] = {tag: score(tree.country_selector, tag, dlcs, scripts) for tag in tags}
-    winners: dict[str, set[str]] = {}
-    uncertain_tags = set()
-    for tag in {tag for values in scores.values() for tag in values}:
-        candidates = {key: values[tag] for key, values in scores.items() if tag in values}
-        if any(value is None for value in candidates.values()):
-            uncertain_tags.add(tag)
-            continue
-        best = max(candidates.values(), default=0)
-        selected = {key for key, value in candidates.items() if value == best and value > 0}
-        # Parità: non scegliere arbitrariamente quale albero il gioco assegnerebbe.
-        if len(selected) == 1:
-            winners[tag] = selected
-    visible, excluded = {}, []
-    for tree in trees.values():
-        values = scores.get(tree.id, {})
-        countries = sorted(tag for tag, selected in winners.items() if tree.id in selected and tag)
-        chosen = any(tree.id in selected for selected in winners.values())
-        if chosen:
-            tree.eligible_countries = countries
-            visible[tree.id] = tree
-            continue
-        if (not values or any(value is None for value in values.values()) or
-                any(tag in uncertain_tags and value > 0 for tag, value in values.items() if value is not None)):
-            reason = 'Condizioni della partita o attivazione DLC non verificabili dai file locali.'
-            category = 'unknown'
-        elif any(value > 0 for value in values.values()):
-            reason = 'Albero alternativo: priorità inferiore o parità con un altro albero per gli stessi paesi.'
-            category = 'alternative'
-        else:
-            reason = 'Requisiti DLC non soddisfatti, oppure assegnazione solo tramite eventi della partita.'
-            category = 'unavailable'
-        excluded.append({'id': tree.id, 'source': tree.source, 'reason': reason, 'category': category})
-    return visible, excluded
+def filter_trees(trees: dict, dlcs: DlcInventory, scripts: dict[str,Node]) -> tuple[dict,list[dict]]:
+    from .backend_core import _request
+    from .script_document import encode
+    value=_request(0,'source_filter_trees',trees={key:{'id':key,'source':tree.source,'country_selector':encode(tree.country_selector)} for key,tree in trees.items()},
+                   dlcs={'items':dlcs.items,'complete':dlcs.complete} if dlcs is not None else None,
+                   scripts={key:encode(node) for key,node in scripts.items()})
+    visible={key:trees[key] for key in value['visible']}
+    for key,tree in visible.items():tree.eligible_countries=value['countries'][key]
+    return visible,value['excluded']
