@@ -6,9 +6,10 @@ import time
 
 def explain_geometry(raw,proposals,matches):
     groups={};matched={m['key'] for m in matches};tabs={k for m in matches if m.get('panel')=='research_tab' for k in m.get('step_keys',[])}
+    matched.update(k for m in matches if m.get('panel')=='production' and m.get('navigation_stage')=='add' for k in m.get('step_keys',[]))
     for p in proposals:
         panel=p.get('panel')
-        if panel not in ('focus','research','event','politics','projects'):continue
+        if panel not in ('focus','research','event','politics','projects','production'):continue
         info=raw.get('panels',{}).get(panel,{})
         folder=p.get('folder');name=p.get('folder_name') or folder or 'ricerche'
         message='';code=''
@@ -19,8 +20,45 @@ def explain_geometry(raw,proposals,matches):
             code='highlighted';message='Pulsante individuato ed evidenziato.'
             stage=next((m.get('navigation_stage') for m in matches if m['key']==p['key']),None)
             if stage in ('access','slot','facility'):message='Evidenziato il punto di accesso; l’entità verrà indicata solo nel pannello e contesto qualificati.'
+            if panel=='production':
+                stages={m.get('navigation_stage') for m in matches if m['key']==p['key'] or p['key'] in m.get('step_keys',[])}
+                if 'equipment' in stages:
+                    message=('Production category and exact product highlighted.' if 'add' in stages
+                             else 'Prodotto esatto individuato: selezionalo per creare la linea.')
+                elif 'design_candidate' in stages:
+                    check=p.get('production_design_check',{})
+                    message=('La configurazione live differisce dalla ricetta richiesta: confronta moduli e potenziamenti nel walkthrough.' if check.get('status')=='different'
+                             else 'Configurazione live non verificabile: nessuna corrispondenza dedotta dal nome.' if check.get('status')=='unknown'
+                             else 'Carica o crea il progetto richiesto nel progettista dei mezzi.')
+                    if 'add' in stages:
+                        message=('Production category highlighted. The current design differs from the required recipe.' if check.get('status')=='different'
+                                 else 'Production category highlighted. The current design configuration is not verifiable.' if check.get('status')=='unknown'
+                                 else 'Production category highlighted. Create or load the required design.')
+                elif 'add' in stages:message='Evidenziata la categoria per aggiungere i prodotti mancanti.'
+                elif p.get('goal_satisfied') is True:message='Quota della guida raggiunta: linea evidenziata in azzurro.'
             if p.get('action_readiness',{}):
                 if p['action_readiness'].get('unknown'):message+=' Restano requisiti non verificabili; la cornice non certifica disponibilità o esecuzione.'
+        elif panel=='production':
+            production=raw.get('production_ui',{})
+            if production.get('status')!='observed':
+                code='production_gui_unqualified';message='Contesto GUI della produzione non qualificato: '+production.get('reason','copertura incompleta')
+            elif not production.get('visible'):
+                code='panel_closed';message='Apri Produzione nel gioco.'
+            elif not p.get('production_line_ids'):
+                if p.get('production_missing') is not True:
+                    code='production_evidence_unknown';message='Presenza della linea non verificabile: non deduco che il prodotto sia assente.'
+                elif production.get('picker_open'):
+                    code='production_product_unqualified';message='Prodotto richiesto non individuato in modo univoco: verifica modello, ricerche e filtri del selettore.'
+                else:
+                    code='production_line_missing';message='Prodotto da aggiungere: '+p.get('title',p.get('identity',''))
+            elif len(p['production_line_ids'])>1:
+                code='widget_ambiguous';message='Più linee corrispondenti: nessuna riga scelta arbitrariamente.'
+            else:
+                controls=[c for c in production.get('lines',[]) if c.get('line_id') in p['production_line_ids']]
+                if len(controls)==1 and controls[0].get('visible') is False:
+                    code='offscreen';message='Linea fuori dall’area visibile: scorri Produzione.'
+                else:
+                    code='production_row_unqualified';message='Identità o posizione della linea non qualificata; nessuna evidenziazione arbitraria.'
         elif panel in ('politics','projects'):
             code='action_gui_unqualified'
             message='Slot o ruolo non individuato in modo univoco nella GUI qualificata.' if panel=='politics' else 'Impianto e specializzazione non ancora qualificati: nessun progetto scelto arbitrariamente.'

@@ -117,6 +117,29 @@ class CountryFixture(Fixture):
 
 
 class CountryTest(unittest.TestCase):
+    def test_legacy_variant_name_matches_without_losing_utf8_accents(self):
+        f=CountryFixture()
+        f.string(f.variant+0x28,'Turán I')
+        self.assertEqual(f.reader().name(f.variant+0x28),'Turán I')
+        # The real Hungarian variant stores this name in Windows-1252.
+        raw='Turán I'.encode('cp1252')+b'\0'
+        f.put(f.variant+0x28+16,'<QQ',len(raw)-1,15)
+        for i,value in enumerate(raw):f.put(f.variant+0x28+i,'<B',value)
+        self.assertEqual(f.reader().name(f.variant+0x28),'Turán I')
+
+    def test_profile_specific_production_offsets_and_unsupported_sections(self):
+        f=CountryFixture(); f.profile.world_rva=0x123450
+        f.put(f.base+f.profile.world_rva,'<Q',f.world)
+        f.profile.production_owner_offset=0x2A8
+        f.profile.production_totals=(0x2D0,0x330,0x390)
+        f.profile.country_sections=('production',)
+        f.put(f.production_status+0x290,'<Q',0)
+        f.put(f.production_status+0x2A8,'<Q',f.country)
+        for offset,value in zip(f.profile.production_totals,(5,0,12)): f.put(f.production_status+offset,'<q',value*100000)
+        result=collect_country(f,f.world,f.country,1,'ROM')
+        self.assertEqual(result['production']['effective_factories']['military'],5)
+        self.assertEqual(result['construction']['status'],'unavailable')
+        self.assertEqual(result['divisions']['status'],'unavailable')
     def test_divisions_count_primary_type_and_foreign_expeditionary_template(self):
         fixture = CountryFixture()
         value = fixture.reader().divisions()

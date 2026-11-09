@@ -17,6 +17,18 @@ CATALOG=[{'kind':'focus','id':key,'scope':'tree','name':key,'countries':['TST'],
 
 
 class AssociationTests(unittest.TestCase):
+    def test_explicit_research_correction_disables_relative_rule_until_restored(self):
+        with TemporaryDirectory() as directory:
+            source=guide();row=source['tracks']['research'][0]
+            row['relative_research']={'query':'Tools UP','chain':['tools','construction']}
+            old=row['action']['entity'];new={'kind':'technology','id':'construction'}
+            change_association(source,'r',old,new,CATALOG,Path(directory))
+            current=apply_associations(source,Path(directory))['tracks']['research'][0]
+            self.assertNotIn('relative_research',current)
+            self.assertEqual(current['target'],'construction')
+            change_association(source,'r',new,None,CATALOG,Path(directory))
+            restored=apply_associations(source,Path(directory))['tracks']['research'][0]
+            self.assertEqual(restored['relative_research']['chain'],['tools','construction'])
     def test_correction_persists_without_modifying_original_definition_or_progress(self):
         with TemporaryDirectory() as directory:
             source=guide();before=deepcopy(source);old=source['tracks']['focus'][0]['action']['entity'];new={**old,'id':'two'}

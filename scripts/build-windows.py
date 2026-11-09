@@ -88,8 +88,27 @@ def build(skip_native=False):
         subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'scripts/build-parser.ps1'),'-NoInstall'],cwd=ROOT,check=True)
         shutil.copyfile(ROOT/'.local/rust-target/release/hoi4companion_parser.dll',
                         native/'hoi4companion_parser.dll')
+        subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'scripts/build-observer.ps1'),'-NoInstall'],cwd=ROOT,check=True)
+        shutil.copyfile(ROOT/'.local/rust-observer-target/release/hoi4companion_observer.dll',
+                        native/'hoi4companion_observer.dll')
+        subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'scripts/build-guide-core.ps1'),'-NoInstall'],cwd=ROOT,check=True)
+        shutil.copyfile(ROOT/'.local/rust-guide-core-target/release/hoi4companion_guide_core.dll',
+                        native/'hoi4companion_guide_core.dll')
+        subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'scripts/build-catalog-core.ps1'),'-NoInstall'],cwd=ROOT,check=True)
+        shutil.copyfile(ROOT/'.local/rust-catalog-core-target/release/hoi4companion_catalog_core.dll',
+                        native/'hoi4companion_catalog_core.dll')
+        subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'scripts/build-tools.ps1'),'-NoInstall'],cwd=ROOT,check=True)
+        shutil.copyfile(ROOT/'.local/rust-tools-target/release/hoi4companion_tools.dll',
+                        native/'hoi4companion_tools.dll')
+        subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'scripts/build-storage.ps1'),'-NoInstall'],cwd=ROOT,check=True)
+        shutil.copyfile(ROOT/'.local/rust-storage-target/release/hoi4companion_storage.dll',
+                        native/'hoi4companion_storage.dll')
+        subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'scripts/build-backend.ps1'),'-NoInstall'],cwd=ROOT,check=True)
+        shutil.copyfile(ROOT/'.local/rust-backend-target/release/hoi4companion_backend.dll',
+                        native/'hoi4companion_backend.dll')
         for name,folder in (('build-cwtools.py','cwtools'),('build-overlay.py','overlay')):
             runpy.run_path(str(ROOT/'scripts'/name))['build'](native/folder)
+    runpy.run_path(str(ROOT/'scripts/native-migration-notices.py'))['main']()
     node=download_node()
     env=os.environ.copy();env['HOI4_BUILD_NODE']=str(node);env['HOI4_BUILD_NATIVE']=str(native)
     subprocess.run([sys.executable,'-m','PyInstaller','--noconfirm','--clean','--distpath',str(ROOT/'dist'),

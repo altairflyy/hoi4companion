@@ -4,7 +4,11 @@ mod capture;
 mod ocr;
 mod render;
 mod protocol;
+mod local_api;
+mod native_protocol;
+mod subscription;
 mod evidence;
+mod wake;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
@@ -25,15 +29,17 @@ struct Options {
     ocr_image:Option<PathBuf>, ocr_scale:u32, ocr_repeat:usize, ocr_prepared:bool,
     prepare_dir:Option<PathBuf>,
     capture_access_check:bool,
+    native_protocol_check:bool,
     status:PathBuf,
 }
 fn options()->Result<Options,String> {
     let mut result=Options {ui_language:"english".into(),port:8766,guide:String::new(),python:"python.exe".into(),start:false,
-        proof:None,ocr_image:None,ocr_scale:2,ocr_repeat:3,ocr_prepared:false,prepare_dir:None,capture_access_check:false,
+        proof:None,ocr_image:None,ocr_scale:2,ocr_repeat:3,ocr_prepared:false,prepare_dir:None,capture_access_check:false,native_protocol_check:false,
         status:PathBuf::from(".local/overlay-status.json")};
     let mut args=std::env::args().skip(1);
     while let Some(arg)=args.next() {
         match arg.as_str() {
+            "--native-protocol-check"=>result.native_protocol_check=true,
             "--ui-language"=>result.ui_language=args.next().ok_or("Missing interface language")?,
             "--port"=>result.port=args.next().ok_or("Missing port")?.parse().map_err(|_|"Invalid port")?,
             "--guide"=>result.guide=args.next().ok_or("Missing guide")?,
@@ -89,12 +95,42 @@ fn native_route(snapshot:&Value,geometry:&Value)->bool {
     if geometry["native_available"]!=true{return false;}
     // Native trees and event popups route through the same renderer. A popup
     // takes priority over recommendations in the tree underneath it.
-    if matches!(geometry["active_panel"].as_str(),Some("focus"|"research"|"event"|"politics"|"projects")){return true;}
+    if matches!(geometry["active_panel"].as_str(),Some("focus"|"research"|"event"|"politics"|"projects"|"production")){return true;}
     if geometry["matches"].as_array().is_some_and(|rows| rows.iter().any(|row|
         row["basis"]=="native_gui_action_identity")) {return true;}
     let handled=geometry["handled_panels"].as_array();
     snapshot["proposed"].as_array().is_some_and(|rows| !rows.is_empty()&&rows.iter().all(|row|
         handled.is_some_and(|panels|panels.iter().any(|panel|panel==&row["panel"]))))
+}
+fn production_caption(row:&Value,title:&str)->String {
+    if row["navigation_stage"]=="access" {return i18n::text("Open Production");}
+    if row["navigation_stage"]=="design_candidate" {
+        if row["production_design_check"]["status"]=="different" {
+            let differences=row["production_design_check"]["candidates"][0]["differences"].as_array().map_or(0,Vec::len).to_string();
+            return i18n::format("{0} · configuration differs ({1})",&[title,&differences]);
+        }
+        if row["production_design_check"]["status"]=="unknown" {
+            return i18n::format("{0} · configuration not verifiable",&[title]);
+        }
+        let action=if row["production_saved_design"]["status"]=="present" {
+            let folders=row["production_saved_design"]["folders"].as_array().map(|items|items.iter().filter_map(Value::as_str).filter(|s|!s.is_empty()).collect::<Vec<_>>().join(", ")).unwrap_or_default();
+            if folders.is_empty(){i18n::text("Load saved design in the equipment designer")}
+            else{i18n::format("Load saved design · folder: {0}",&[&folders])}
+        }else{i18n::text("Create or load the required design")};
+        return i18n::format("{0} → {1} · {2}",&[row["production_candidate_name"].as_str().unwrap_or("?"),title,&action]);
+    }
+    if row["navigation_stage"]=="add" {
+        let names=row["production_add_names"].as_array().map(|items|items.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ")).unwrap_or_else(||title.into());
+        return i18n::format("Add production: {0}",&[&names]);
+    }
+    let goal=if row["quantity_mode"]=="remaining" {i18n::text("ALL remaining factories")}
+        else {row["quantity"].as_u64().map(|n|i18n::format("Target {0}",&[&n.to_string()])).unwrap_or_else(||i18n::text("Target unverified"))};
+    let count=|key:&str|row[key].as_u64().map(|n|n.to_string()).unwrap_or_else(||"?".into());
+    let mut caption=i18n::format("{0} · {1} · requested {2} / assigned {3}",&[title,&goal,&count("requested"),&count("assigned")]);
+    if row["navigation_stage"]=="equipment" {caption=i18n::format("Select product: {0}",&[&caption]);}
+    if row["goal_satisfied"]==true {caption.push_str(" · ");caption.push_str(&i18n::text("Target met"));}
+    if let Some(priority)=row["production_priority"].as_str(){caption.push_str(" · ");caption.push_str(&i18n::text(if priority=="first"{"Top priority"}else{"Last line"}));}
+    caption
 }
 fn marks(rows:&[Value],width:u32,height:u32)->Vec<Highlight> {
     rows.iter().filter_map(|row|{
@@ -103,11 +139,13 @@ fn marks(rows:&[Value],width:u32,height:u32)->Vec<Highlight> {
         let title=if panel=="research"||panel=="focus"||panel=="event" {row["labels"][0].as_str().or_else(||row["title"].as_str())}
             else{row["title"].as_str()}.unwrap_or("Guide recommendation");
         let count=row["count"].as_u64().unwrap_or(1);
-        let caption=if panel=="research_tab" {format!("{} · {} {}",title,count,if count==1{"ricerca"}else{"ricerche"})}
+        let caption=if panel=="production" {production_caption(row,title)}
+            else if panel=="research_tab" {format!("{} · {} {}",title,count,if count==1{"ricerca"}else{"ricerche"})}
             else if let Some(quantity)=row["quantity"].as_u64() {format!("{} · totale {} fabbriche",title,quantity)}
             else {title.to_owned()};
         Some(Highlight {rect:rect.map(|n|n as f32),caption:caption.chars().take(140).collect(),
-             active:row["status"]=="active"&&panel!="event",panel})
+             choice:row["tone"]=="choice",
+             active:if panel=="production"{row["goal_satisfied"]==true&&row["navigation_stage"]=="line"}else{row["status"]=="active"&&panel!="event"},panel})
     }).take(64).collect()
 }
 fn guides(snapshot:&Value)->Vec<(String,String)> {
@@ -119,10 +157,9 @@ fn geometry_notice(geometry:&Value,count:usize)->(String,String) {
         return ("technical_error".into(),i18n::format("GUI reading suspended: {0}",&[error]));
     }
     let items=geometry["explanations"].as_array();
-    if let Some(item)=items.and_then(|rows|rows.iter().find(|r|r["code"]!="highlighted")) {
-        if let (Some(code),Some(message))=(item["code"].as_str(),item["message"].as_str()) {
+    if let Some(item)=items.and_then(|rows|rows.iter().find(|r|r["code"]!="highlighted"))
+        && let (Some(code),Some(message))=(item["code"].as_str(),item["message"].as_str()) {
             return (code.to_owned(),if count>0 {i18n::format("{0} visible highlights. {1}",&[&count.to_string(),message])}else{message.to_owned()});
-        }
     }
     if count>0 {("highlighted".into(),i18n::format("{0} highlights identified by ID and GUI geometry",&[&count.to_string()]))}
     else {("no_visible_targets".into(),"No guide target was identified on the current screen.".into())}
@@ -170,8 +207,16 @@ fn benchmark(options:&Options)->Result<(),String> {
     Ok(())
 }
 
+fn idle_status(snapshot:&Value,message:&str,code:&str,windows:[isize;2],foreground_events:bool)->Value {
+    json!({"engine":"rust-wgc-winrtocr-direct2d","visible":false,"error":message,"memory_access":false,"host_pid":std::process::id(),"guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],"capture_active":false,"guide_server_id":snapshot["guide_server_id"],"status_message":message,"status_code":code,"foreground_events":foreground_events,"explanations":[],"overlay_window":windows[0],"control_window":windows[1]})
+}
+
 fn run(options:Options)->Result<(),String> {
     i18n::set_language(&options.ui_language)?;
+    if options.native_protocol_check{
+        let mut client=native_protocol::Client::probe(options.port)?.ok_or("Native backend is not running")?;
+        println!("{}",client.diagnose()?);return Ok(());
+    }
     if options.capture_access_check {
         let _apartment=capture::Apartment::new().map_err(|e|e.to_string())?;
         save_status(&options.status,&json!({"capture_borderless_allowed":capture::borderless_access(),"capture_active":false}));
@@ -193,6 +238,7 @@ fn run(options:Options)->Result<(),String> {
     let mut native_unchanged_since=Instant::now();
     let mut ocr_ms=0.;let mut matching_ms=0.;
     while !renderer.should_exit() {
+        let wake_revision=renderer.wake_revision();
         let mut refresh=false;
         while let Some(action)=renderer.take_action(){
             renderer.hide();last_matches.clear();last_version=None;
@@ -201,32 +247,34 @@ fn run(options:Options)->Result<(),String> {
                 ControlAction::RefreshGuides=>refresh=true,
             }
         }
-        let snapshot=bridge.snapshot(refresh)?;
-        renderer.set_guides(guides(&snapshot),snapshot["guide_id"].as_str().unwrap_or(""));
         let current=game_view();
+        let geometry_observed=Instant::now();
+        let snapshot=if !renderer.is_paused() && let Some(view)=current.as_ref() {
+            bridge.request(json!({"kind":"observe","view":view_json(view),"refresh_guides":refresh}),&[])?
+        }else{bridge.snapshot(refresh)?};
+        renderer.set_guides(guides(&snapshot),snapshot["guide_id"].as_str().unwrap_or(""));
         if renderer.is_paused()||current.is_none()||snapshot["usable"]!=true {
             renderer.hide();capture=None;target=None;last_scene=None;last_matches.clear();cached_ocr=None;
             let message=if renderer.is_paused(){"Overlay paused"}else if current.is_none(){"Switch to HOI4 to show highlights"}
                 else{snapshot["idle_explanation"]["message"].as_str().or_else(||snapshot["error"].as_str().filter(|s|!s.is_empty())).unwrap_or("No current guide recommendation")};
             let code=if renderer.is_paused(){"paused"}else if current.is_none(){"game_background"}else{snapshot["idle_explanation"]["code"].as_str().unwrap_or("live_unavailable")};
             if last_status.elapsed()>Duration::from_millis(500) {
-                renderer.set_status(message);save_status(&options.status,&json!({"engine":"rust-wgc-winrtocr-direct2d","visible":false,"error":message,"memory_access":false,"host_pid":std::process::id(),"guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],"capture_active":false,"guide_server_id":snapshot["guide_server_id"],"status_message":message,"status_code":code,"explanations":[]}));last_status=Instant::now();
+                renderer.set_status(message);save_status(&options.status,&idle_status(&snapshot,message,code,[renderer.overlay_window(),renderer.control_window()],renderer.foreground_events()));last_status=Instant::now();
             }
-            std::thread::sleep(Duration::from_millis(100));continue;
+            renderer.wait_idle(wake_revision,Duration::from_millis(100));continue;
         }
         let view=current.unwrap();
         if target.as_ref()!=Some(&view) {
             renderer.hide();capture=None;
             target=Some(view.clone());last_scene=None;cached_ocr=None;last_matches.clear();
         }
-        let started=Instant::now();
+        let started=geometry_observed;
         let version=snapshot["version"].as_u64().ok_or("Missing guide revision")?;
         // Runtime identities and freshly witnessed game GUI rectangles take
         // precedence over OCR. Neither the label nor a previous image supplies
         // the tree transform; panning/zooming changes these native rectangles.
-        let geometry_observed=Instant::now();
-        let geometry=bridge.request(json!({"kind":"geometry","version":version,"view":view_json(&view)}),&[])?;
-        if native_route(&snapshot,&geometry) {
+        let geometry=&snapshot;
+        if native_route(&snapshot,geometry) {
             // Native identities/geometry do not depend on a captured image or
             // OCR availability. No WGC readback or image bytes on this path.
             capture=None;
@@ -243,7 +291,7 @@ fn run(options:Options)->Result<(),String> {
             native_frames+=1;
             if last_status.elapsed()>Duration::from_millis(500){
                 let ms=geometry["geometry_ms"].as_f64().unwrap_or(0.);
-                let (code,message)=geometry_notice(&geometry,last_matches.len());
+                let (code,message)=geometry_notice(geometry,last_matches.len());
                 renderer.set_status(&message);
                 save_status(&options.status,&json!({"engine":"rust-native-gui-direct2d","host_pid":std::process::id(),
                     "guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],
@@ -251,7 +299,7 @@ fn run(options:Options)->Result<(),String> {
                     "visible":!last_matches.is_empty(),"overlay_window":renderer.overlay_window(),"control_window":renderer.control_window(),
                     "game_window":view.hwnd,"target_count":snapshot["proposed"].as_array().map_or(0,Vec::len),
                     "matches":last_matches,"geometry_ms":ms,"native_frames":native_frames,"frames_observed":total_frames,
-                    "ocr_calls":total_ocr,"diagnostics":geometry["diagnostics"],"active_panel":geometry["active_panel"],
+                    "ocr_calls":total_ocr,"diagnostics":geometry["diagnostics"],"active_panel":geometry["active_panel"],"foreground_events":renderer.foreground_events(),
                     "error":geometry["native_error"],"capture_active":false,
                     "iteration_ms":started.elapsed().as_secs_f64()*1000.,
                     "evidence_age_ms":geometry_observed.elapsed().as_secs_f64()*1000.,"memory_access":true,"memory_access_mode":"query_vm_read",
@@ -350,6 +398,54 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn inactive_hud_preserves_owned_control_identity_for_native_stop() {
+        let snapshot=json!({"guide_id":"g","guide_server_id":"s"});
+        for code in ["game_background","paused","live_unavailable"] {
+            let value=idle_status(&snapshot,"Waiting",code,[123,456],true);
+            assert_eq!(value["control_window"],456);
+            assert_eq!(value["overlay_window"],123);
+            assert_eq!(value["guide_server_id"],"s");
+            assert_eq!(value["memory_access"],false);
+            assert_eq!(value["visible"],false);
+        }
+    }
+    #[test]
+    fn production_captions_keep_requested_distinct_from_assigned_and_remaining() {
+        let row=json!({"quantity":10,"requested":10,"assigned":3,"quantity_mode":"total"});
+        assert!(production_caption(&row,"Infantry").contains("requested 10 / assigned 3"));
+        assert!(production_caption(&json!({"quantity_mode":"remaining","requested":150,"assigned":7}),"Tank").contains("ALL remaining"));
+        assert_eq!(production_caption(&json!({"navigation_stage":"access"}),"Tank"),"Open Production");
+        let candidate=json!({"panel":"production","title":"Required recipe","rect":[10,20,100,80],"navigation_stage":"design_candidate","production_candidate_name":"National tank","goal_satisfied":null});
+        assert!(production_caption(&candidate,"Required recipe").contains("Create or load"));
+        let mut saved=candidate.clone();saved["production_saved_design"]=json!({"status":"present","folders":["delete"]});
+        assert!(production_caption(&saved,"Required recipe").contains("folder: delete"));
+        let mut changed=candidate.clone();changed["production_design_check"]=json!({"status":"different","candidates":[{"differences":[{},{}]}]});
+        assert!(production_caption(&changed,"Required recipe").contains("configuration differs (2)"));
+        assert!(!marks(&[candidate],2560,1440)[0].active);
+    }
+
+    #[test]
+    fn production_highlights_turn_blue_only_after_a_qualified_goal_and_keep_missing_products_actionable() {
+        let row=json!({"panel":"production","title":"Support","rect":[10,20,100,80],"quantity":7,"requested":7,"assigned":3,"navigation_stage":"line","status":"completed","goal_satisfied":true});
+        let blue=marks(std::slice::from_ref(&row),2560,1440);
+        assert_eq!(blue.len(),1);assert!(blue[0].active);assert!(blue[0].caption.contains("Target met"));
+        let mut pending=row.clone();pending["goal_satisfied"]=json!(false);pending["status"]=json!("active");
+        assert!(!marks(&[pending],2560,1440)[0].active);
+        let mut unknown=row.clone();unknown["goal_satisfied"]=Value::Null;
+        assert!(!marks(&[unknown],2560,1440)[0].active);
+        assert_eq!(production_caption(&json!({"navigation_stage":"add","production_add_names":["Truck","Support"]}),"Truck"),"Add production: Truck, Support");
+        let mut selected=row;selected["navigation_stage"]=json!("equipment");selected["goal_satisfied"]=json!(false);
+        let mark=marks(&[selected],2560,1440);assert!(!mark[0].active);assert!(mark[0].caption.starts_with("Select product:"));
+    }
+    #[test]
+    fn research_choice_tone_reaches_native_renderer_for_nodes_and_tabs() {
+        let rows=vec![json!({"rect":[10,20,80,70],"panel":"research","tone":"choice","status":"ready","labels":["Industry"]}),
+                      json!({"rect":[90,20,160,70],"panel":"research_tab","tone":"choice","title":"Industry"})];
+        let result=marks(&rows,500,400);
+        assert_eq!(result.len(),2);
+        assert!(result.iter().all(|mark|mark.choice&&!mark.active));
+    }
     #[test]
     fn explanations_separate_unknown_evidence_from_visible_marks_and_errors() {
         let mut geometry=json!({"explanations":[{"code":"highlighted","message":"Visibile"},

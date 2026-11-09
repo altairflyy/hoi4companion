@@ -1,0 +1,4 @@
+# Native compilation cache grew beyond what this checkout needs. Keep the
+# compiled dependencies, but do not accumulate per-edit incremental snapshots.
+[build]
+incremental = false

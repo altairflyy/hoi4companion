@@ -6,17 +6,23 @@ const descendants=n=>[n,...(n.children||[]).flatMap(descendants)];
 const definition={schema_version:1,id:'opening',title:'Opening',sources:[{id:'src',type:'manual'}],tracks:{research:[{key:'tools',title:'Tools',action:{kind:'research',entity:{kind:'technology',id:'tools'}},evidence:[{source_id:'src',basis:'explicit',quote:'Research tools.'}]}]}};
 function harness(){
  class Node{
-  constructor(tag=''){this.tag=tag;this.children=[];this.value='';this.hidden=false;this.checked=false;this.text='';}
+  constructor(tag=''){this.tag=tag;this.children=[];this.value='';this.hidden=false;this.checked=false;this.text='';this.style={};}
   set textContent(value){this.text=String(value);this.children=[];}get textContent(){return this.text+this.children.map(n=>n.textContent||'').join('');}
   append(...nodes){this.children.push(...nodes);}replaceChildren(...nodes){this.text='';this.children=nodes;}
+  setAttribute(key,value){this[key]=value;}
   click(){this.onclick?.();}remove(){}
  }
  const nodes=new Map(),get=id=>{if(!nodes.has(id))nodes.set(id,new Node());return nodes.get(id);};
- const requests=[],downloads=[],clipboard=[],catalog=[];let release,documentError='';
+ const requests=[],downloads=[],clipboard=[],catalog=[];let release,documentError='',wordNetworkFailure=false,wordDocuments=['guides/example.docx'];
+ let references={designs:[{name:'Example'}],images:[{id:'a'.repeat(64),name:'OFF',section:'Templates'}]};
  const source={id:'src',type:'manual',title:'Fixture',text:'Research tools.',warnings:[]};
  const report={valid:true,guide:definition,errors:[],warnings:[],resolutions:[{key:'tools',status:'resolved',candidates:[{kind:'technology',id:'tools',name:'Tools'}]}]};
  const fetch=async(path,options)=>{
-  const body=options?.body?JSON.parse(options.body):null;requests.push({path,body});
+  const body=options?.body?(typeof options.body==='string'?JSON.parse(options.body):options.body):null;requests.push({path,body});
+  if(path==='/api/import/templates'||path==='/api/reference-library')return {ok:true,json:async()=>references};
+  if(path==='/api/import/word'&&wordNetworkFailure){if(ArrayBuffer.isView(body))return {ok:false,status:404,json:async()=>({error:'Not found'})};throw new TypeError('Failed to fetch');}
+  if(path==='/api/import/word')return {ok:true,json:async()=>({documents:wordDocuments,single_document:false})};
+  if(path.startsWith('/api/import/word?'))return {ok:true,json:async()=>({sources:[source],document:{format:'hoi4-guide-authoring',authoring_schema_version:1,sources:[source],guide:{id:'opening',title:'Opening',steps:[]}},warnings:['Partial draft']})};
   if(path.endsWith('/document')&&documentError)return {ok:false,json:async()=>({error:documentError})};
   if(path.endsWith('/preview')&&release)await new Promise(resolve=>release(resolve));
   const video={id:'a'.repeat(32),status:'completed',message:'Video pronto',parts:[{name:'parte-01.mp4',bytes:149000000,start_seconds:0,end_seconds:400,url:'/api/import/video/file?id=a&name=parte-01.mp4'}],audio:{name:'audio.m4a',bytes:1000000,url:'/audio'},manifest_url:'/manifest',description_url:'/description'};
@@ -27,8 +33,107 @@ function harness(){
  const document={getElementById:get,createElement:tag=>new Node(tag),body:new Node('body')};
  runLocalized(fs.readFileSync('src/hoi4companion/web/importer.js','utf8'),{HoiImporter:model,document,fetch,
   navigator:{clipboard:{async writeText(text){clipboard.push(text);}}},structuredClone,Blob,URL:{createObjectURL(blob){downloads.push(blob);return 'blob:fixture';},revokeObjectURL(){}},setTimeout:fn=>fn()});
- return {get,requests,downloads,clipboard,source,report,catalog,document,setRelease:fn=>release=fn,setDocumentError:value=>documentError=value};
+ return {get,requests,downloads,clipboard,source,report,catalog,document,setReferences:value=>references=value,setRelease:fn=>release=fn,setDocumentError:value=>documentError=value,setWordNetworkFailure:value=>wordNetworkFailure=value,setWordDocuments:value=>wordDocuments=value};
 }
+
+test('reference gallery shows one category in a grid, supports search and opens original images',async()=>{
+ const h=harness();await tick();h.setReferences({designs:[],images:[
+  {id:'a'.repeat(64),name:'OFF',category:'templates'},
+  {id:'b'.repeat(64),name:'Tank',category:'armor',tags:['situational']}]});
+ await h.get('showReferences').onclick();
+ assert.equal(descendants(h.get('referenceImages')).filter(n=>n.tag==='img').length,1);
+ const categories=h.get('referenceCategories').children;
+ assert.ok(categories.some(n=>n.textContent.includes('Corazzati')));
+ categories.find(n=>n.textContent.includes('Corazzati')).onclick();
+ assert.equal(descendants(h.get('referenceImages')).find(n=>n.tag==='img').alt,'Tank');
+ assert.equal(descendants(h.get('referenceImages')).find(n=>n.tag==='a').target,'_blank');
+ h.get('referenceSearch').value='Missing';h.get('referenceSearch').oninput();
+ assert.equal(descendants(h.get('referenceImages')).filter(n=>n.tag==='img').length,0);
+ h.get('referenceSearch').value='';h.get('referenceSearch').oninput();
+ assert.equal(descendants(h.get('referenceImages')).filter(n=>n.tag==='img').length,1);
+});
+
+test('saved equipment recipes show their real folder separately from campaign availability',async()=>{
+ const h=harness();await tick();h.setReferences({designs:[
+  {id:'tank',name:'Required tank',category:'land',equipment_id:'medium',modules:{gun:'howitzer'},upgrades:{armor:'4'}},
+  {id:'plane',name:'Other plane',category:'air',equipment_id:'plane',modules:{gun:'mg'}}],images:[],
+  game_presets:{status:'file_observed',count:3,distinct_recipes:2,designs:{tank:{status:'present',folders:['delete']},plane:{status:'different_recipe',folders:[]}}}});
+ await h.get('showReferences').onclick();
+ assert.match(h.get('presetStatus').textContent,/3/);
+ assert.equal(h.get('referenceDesigns').children.filter(n=>n.tag==='article').length,2);
+ assert.match(h.get('referenceDesigns').textContent,/delete/);
+ assert.match(h.get('referenceDesigns').textContent,/howitzer/);
+ h.get('referenceDesignCategory').value='land';h.get('referenceDesignCategory').onchange();
+ assert.equal(h.get('referenceDesigns').children.filter(n=>n.tag==='article').length,1);
+ h.get('referenceSearch').value='not present';h.get('referenceSearch').oninput();
+ assert.equal(h.get('referenceDesigns').children.filter(n=>n.tag==='article').length,0);
+});
+
+test('reference archive import shows local images and invalidates preview without installing a guide',async()=>{
+ const h=harness();await tick();const file={name:'references.zip',size:100};h.get('referenceFile').files=[file];await h.get('referenceFile').onchange();
+ assert.equal(h.requests.find(r=>r.path==='/api/import/templates').body,file);
+ assert.match(h.get('referenceStatus').textContent,/1/);assert.equal(h.get('referenceGallery').open,true);
+ const img=descendants(h.get('referenceImages')).find(n=>n.tag==='img');assert.equal(img.src,'/api/reference-library/image?id='+'a'.repeat(64));assert.equal(img.alt,'OFF');assert.equal(img.loading,'lazy');
+ assert.equal(h.requests.some(r=>r.path==='/api/import/install'),false);
+ await h.get('showReferences').onclick();assert.ok(h.requests.some(r=>r.path==='/api/reference-library'));
+});
+
+test('Word collection can be selected and prepared as a reviewable draft without installing it',async()=>{
+ const h=harness();await tick();const file={name:'guides.zip',size:100};h.get('wordFile').files=[file];await h.get('wordFile').onchange();
+ assert.equal(h.get('wordDocument').children[0].value,'guides/example.docx');
+ h.get('wordDocument').value='guides/example.docx';await h.get('prepareWord').onclick();
+ assert.equal(h.requests.find(r=>r.path==='/api/import/word').body,file);
+ assert.ok(h.requests.some(r=>r.path.includes('entry=guides%2Fexample.docx')));
+ assert.match(h.get('wordStatus').textContent,/Partial draft/);
+ assert.equal(h.requests.some(r=>r.path==='/api/import/install'),false);
+});
+
+test('country collection displays guide names only while retaining exact archive paths',async()=>{
+ const h=harness();await tick();h.setWordDocuments(['Collection/COUNTRY GUIDES/Italy.docx','Collection/COUNTRY GUIDES/OLD-UNFINISHED GUIDES/Poland old.docx','Collection/COUNTRY GUIDES/TOOLS/ABBREVIATIONS & TOOLS.docx','Collection/TEMPLATES/Readme.docx']);
+ h.get('wordFile').files=[{name:'guides.zip',size:100}];await h.get('wordFile').onchange();
+ assert.deepEqual(h.get('wordDocument').children.map(o=>o.textContent),['Italy','Poland old']);
+ assert.equal(h.get('wordDocument').children[0].value,'Collection/COUNTRY GUIDES/Italy.docx');
+ assert.equal(h.get('wordContext').value,'Collection/COUNTRY GUIDES/TOOLS/ABBREVIATIONS & TOOLS.docx');
+ assert.match(h.get('wordStatus').textContent,/2/);
+ h.get('wordDocument').value='Collection/COUNTRY GUIDES/Italy.docx';await h.get('prepareWord').onclick();
+ assert.ok(h.requests.some(r=>r.path.includes('entry=Collection%2FCOUNTRY%20GUIDES%2FItaly.docx')));
+});
+
+test('generic collections retain their documents when country guides folder is absent',async()=>{
+ const h=harness();await tick();h.setWordDocuments(['custom/First.docx','elsewhere/Second.docx']);
+ h.get('wordFile').files=[{name:'guides.zip',size:100}];await h.get('wordFile').onchange();
+ assert.deepEqual(h.get('wordDocument').children.map(o=>o.textContent),['First','Second']);
+});
+
+test('guides with identical filenames stay distinguishable and retain separate targets',async()=>{
+ const h=harness();await tick();h.setWordDocuments(['COUNTRY GUIDES/One/Opening.docx','COUNTRY GUIDES/Two/Opening.docx']);
+ h.get('wordFile').files=[{name:'guides.zip',size:100}];await h.get('wordFile').onchange();
+ assert.deepEqual(h.get('wordDocument').children.map(o=>o.textContent),['Opening (1)','Opening (2)']);
+ assert.deepEqual(h.get('wordDocument').children.map(o=>o.value),['COUNTRY GUIDES/One/Opening.docx','COUNTRY GUIDES/Two/Opening.docx']);
+});
+
+test('scenario baseline is applied only after an explicit country and date selection',async()=>{
+ const h=harness();await tick();h.get('guideJson').value=JSON.stringify({...definition,applies_to:{tree_id:'test_tree'}});
+ h.get('startCountry').value='HUN';h.get('startDate').value='1936.1.1';await h.get('applyStart').onclick();
+ const req=h.requests.find(r=>r.path==='/api/import/preview');
+ assert.equal(req.body.guide.applies_to.country,'HUN');assert.equal(req.body.guide.applies_to.tree_id,'test_tree');assert.equal(req.body.guide.start_date,'1936.1.1');
+ assert.equal(h.requests.some(r=>r.path==='/api/import/install'),false);
+});
+
+test('scenario baseline rejects missing dates and incompatible guide countries',async()=>{
+ const h=harness();await tick();h.get('guideJson').value=JSON.stringify({...definition,applies_to:{country:'POL'}});
+ h.get('startCountry').value='HUN';h.get('startDate').value='';await h.get('applyStart').onclick();
+ assert.equal(h.requests.some(r=>r.path==='/api/import/preview'),false);
+ h.get('startDate').value='1936.1.1';await h.get('applyStart').onclick();
+ assert.equal(h.requests.some(r=>r.path==='/api/import/preview'),false);
+});
+
+test('interrupted Word upload diagnoses a service that has not been restarted',async()=>{
+ const h=harness();await tick();h.setWordNetworkFailure(true);h.get('wordFile').files=[{name:'guides.zip',size:100}];
+ await h.get('wordFile').onchange();
+ assert.match(h.get('error').textContent,/riavvia.*companion/i);
+ assert.equal(h.requests.filter(r=>r.path==='/api/import/word').length,2);
+});
 
 test('simplified file is compiled on server and a malformed original stays editable and downloadable',async()=>{
  const h=harness();await tick();
@@ -319,6 +424,7 @@ test('preview separates import review from live monitoring and groups source not
   {key:'build',title:'Factories',monitoring:'start_only',reason:'additional_baseline_missing'},
   {key:'policy',title:'Policy',monitoring:'manual'}];
  h.report.warnings=['agency: osservazione visiva dichiarata dall’IA esterna, da confrontare con la fonte'];
+ h.report.visual_review={count:1,step_keys:['agency']};
  h.get('sourceText').value='Research tools.';await h.get('acquire').onclick();
  h.get('guideJson').value=JSON.stringify(definition);await h.get('validate').onclick();
  assert.match(h.get('monitoringSummary').textContent,/1 automatiche.*1 con solo avvio.*1 da confermare/);
@@ -326,6 +432,27 @@ test('preview separates import review from live monitoring and groups source not
  assert.equal(h.get('issues').children.length,0);
  assert.equal(h.get('sourceWarnings').children.length,1);
  assert.match(h.get('reviewSummary').textContent,/1 istruzioni.*video/);
+});
+test('visual review count is independent of language and warning text',async()=>{
+ for(const locale of ['italian','english']){
+  const h=harness();await tick();require('../src/hoi4companion/web/i18n.js').setLanguage(locale);
+  h.report.visual_review={count:2,step_keys:['one','two']};h.report.warnings=['unrelated diagnostic'];
+  h.get('sourceText').value='Research tools.';await h.get('acquire').onclick();
+  h.get('guideJson').value=JSON.stringify(definition);await h.get('validate').onclick();
+  assert.match(h.get('reviewSummary').textContent,locale==='italian'?/2 istruzioni.*video/:/2 instructions.*video/);
+ }
+});
+test('preview explains legacy implicit dependencies and explicit policies without changing the guide',async()=>{
+ const h=harness();await tick();
+ h.get('sourceText').value='Research tools.';await h.get('acquire').onclick();
+ h.get('guideJson').value=JSON.stringify(definition);
+ h.report.sequence_report={policy:'legacy',step_count:10,implicit_barrier_steps:7,implicit_barrier_edges:20,examples:[]};
+ await h.get('validate').onclick();
+ assert.match(h.get('sequenceSummary').textContent,/7.*dipendenze implicite/i);
+ assert.equal(h.requests.some(x=>x.path==='/api/import/install'),false);
+ h.report.sequence_report={policy:'explicit',step_count:10,implicit_barrier_steps:0,implicit_barrier_edges:0,examples:[]};
+ await h.get('validate').onclick();
+ assert.match(h.get('sequenceSummary').textContent,/dipendenze dichiarate/i);
 });
 test('an edit during validation invalidates the pending report and blocks publishing',async()=>{
  const h=harness();await tick();h.get('sourceText').value='Research tools.';await h.get('acquire').onclick();
@@ -376,4 +503,34 @@ test('legacy coverage is unavailable and resolved IDs stay collapsed',async()=>{
  assert.match(h.get('preview').textContent,/associazioni risolte/);
 });
 
+test('complete focus coverage and its baseline require an explicit preview action',async()=>{
+ const h=harness();await tick();h.get('guideJson').value=JSON.stringify(definition);
+ await h.get('validate').onclick();
+ assert.equal(h.requests.filter(r=>r.path.endsWith('/preview')).at(-1).body.guide.focus_sequence,undefined);
+ h.get('focusCoverage').value='complete';h.get('focusInitial').value='A, B';
+ await h.get('applyFocusSequence').onclick();
+ assert.deepEqual(h.requests.filter(r=>r.path.endsWith('/preview')).at(-1).body.guide.focus_sequence,
+  {schema_version:1,coverage:'complete',initial_focuses:['A','B']});
+ assert.equal(h.requests.some(r=>r.path.endsWith('/install')),false);
+});
+
+test('focus preview explains structural reconstruction separately from live progress',async()=>{
+ const h=harness();await tick();h.report.focus_sequence={status:'validated',slot_count:12,reconstructed_count:10};
+ Object.assign(h.report.resolutions[0],{classification:'reconstructed',source_position:2});
+ h.get('guideJson').value=JSON.stringify(definition);await h.get('validate').onclick();
+ assert.match(h.get('focusSequenceSummary').textContent,/12.*10/);
+ assert.match(h.get('preview').textContent,/Posizione nella fonte 2.*Ricostruito/);
+ assert.equal(h.report.guide.tracks.research[0].completed,undefined);
+});
+
 function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}
+
+test('missing DLC shows availability instead of asking to review resolved content',async()=>{
+ const h=harness();await tick();h.report.valid=false;h.report.errors=['tools: ID unresolved'];
+ h.report.compatibility={blocked:true,requirements:[{enable:['Pack'],disable:[]}]};
+ h.get('guideJson').value=JSON.stringify(definition);await h.get('validate').onclick();
+ assert.equal(h.get('issues').children.length,0);
+ assert.equal(h.get('preview').children.length,0);
+ assert.match(h.get('validation').textContent,/DLC/);
+ assert.equal(h.get('install').disabled,true);
+});

@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "tasks": {
+    "improve_relations": [
+      "improve relations",
+      "improving relations",
+      "start improving relations",
+      "rel",
+      "migliorare le relazioni"
+    ],
+    "stop_improving_relations": [
+      "cancel rel",
+      "stop rel",
+      "cancel improve relations",
+      "stop improving relations",
+      "cancel relations",
+      "interrompere il miglioramento delle relazioni"
+    ],
+    "non_aggression_pact": [
+      "non aggression pact",
+      "non-aggression pact",
+      "sign non aggression pact",
+      "na",
+      "patto di non aggressione"
+    ],
+    "build_intel_network": [
+      "build intel network",
+      "build intelligence network",
+      "build network",
+      "create network",
+      "creare una rete"
+    ],
+    "quiet_network": [
+      "quiet network",
+      "quiet intel network"
+    ],
+    "counter_intelligence": [
+      "counter intelligence",
+      "counterintelligence",
+      "controspionaggio"
+    ],
+    "root_out_resistance": [
+      "root out resistance",
+      "contrastare la resistenza"
+    ],
+    "boost_ideology": [
+      "boost ideology",
+      "boost party popularity"
+    ],
+    "control_trade": [
+      "control trade",
+      "controllare il commercio"
+    ],
+    "diplomatic_pressure": [
+      "diplomatic pressure",
+      "spy pressure",
+      "pressure",
+      "pre",
+      "pressione diplomatica"
+    ],
+    "propaganda": [
+      "propaganda",
+      "spread propaganda"
+    ]
+  }
+}

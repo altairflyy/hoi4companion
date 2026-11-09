@@ -35,6 +35,14 @@
    const step=definitions.get(row.key);if(!step||step.tracking==='reminder'||row.status==='not_applicable'||['select_focus','research','free'].includes(step.action.kind))continue;
    if(row.action_readiness?.domain==='political'&&runtime.action_sequence?.political!==row.key)continue;
    const p=step.action.params||{},category=p.category||(step.action.kind==='special_project'?'projects':'checkpoints');
+   if(p.production_revision&&['condition_false','condition_unknown','phase_condition_false','phase_condition_unknown'].includes(row.reason))continue;
+   if(['milestone_unknown','milestone_not_completed'].includes(row.reason)){
+    const links=dependencyLinks(row),names=links.map(l=>l.label).join(', '),unknown=row.reason==='milestone_unknown';
+    items.push({key:row.key,step_key:row.key,category,title:uiText('Production waiting for guide milestones'),tone:unknown?'unknown':'ready',
+      message:uiText(unknown?'Prerequisites to verify:':'Waiting for prerequisites:')+' '+names,guide_goal:title(step),
+      evidence:[],runtime_status:row.status,reason:row.reason,blocked_by:[...(row.blocked_by||[])],links,
+      href:'#operation-'+encodeURIComponent(row.key),link_label:uiText('Show instruction'),rank:45,priority:row.priority||0,order:order++});continue;
+   }
    // Future blocked instructions stay in the full plan, not in the current summary.
    if(row.blocked_by?.length||row.reason==='skip_condition_unknown')continue;
    let item={key:row.key,step_key:row.key,category,title:title(step),tone:'ready',message:'',guide_goal:'',
@@ -43,16 +51,16 @@
    const knownKeys=new Set();for(const node of [step.when,step.completion,step.started_when,guide.phases?.find(p=>p.id===step.phase)?.when])factKeys(node,knownKeys);
    item.evidence=[...knownKeys].map(key=>evidence(state,key,label(key)));
    if(row.production){
-    const comparisons=(row.production.layout||[row.production]).map((detail,i)=>({
+    const comparisons=(row.production.layout||[row.production]).map((detail,i)=>detail.superseded_by?.length?null:({
      name:row.production.layout?(p.production_targets?.[i]?.variant_name||p.production_targets?.[i]?.equipment_name||p.production_targets?.[i]?.equipment_id||uiText("Product ")+(i+1)):(p.variant_name||p.equipment_name||p.equipment_id||title(step)),
      target:count(detail.target)?detail.target:null,requested:count(detail.requested)?detail.requested:null,
      assigned:count(detail.assigned)?detail.assigned:null,active:count(detail.active)?detail.active:null,
-     basis:detail.basis,reason:detail.reason||''}));
+     basis:detail.basis,reason:detail.reason||''})).filter(Boolean);
     const gap=comparisons.some(p=>p.requested!==null&&p.assigned!==null&&p.requested>p.assigned);
     if(row.status==='completed'&&!gap)continue;
     item.comparisons=comparisons;
     item.evidence=comparisons.flatMap(p=>[metric(uiText("Requested factories"),p.requested),metric(uiText("Assigned factories"),p.assigned)]);
-    item.guide_goal=comparisons.map(p=>p.name+': '+(p.target===null?uiText("total cannot be verified"):p.target+uiText(" factories ")+(p.basis==='requested'?uiText("requested"):uiText("assigned")))).join(' · ');
+    item.guide_goal=comparisons.map(p=>p.name+': '+(p.basis==='remaining'?uiText('ALL remaining factories'):p.target===null?uiText("total cannot be verified"):p.target+uiText(" factories ")+(p.basis==='requested'?uiText("requested"):uiText("assigned")))).join(' · ');
     if(gap){item.tone='attention';item.rank=10;item.title=uiText("Production: attention required");item.reason='requested_exceeds_assigned';
      item.message=comparisons.filter(p=>p.requested!==null&&p.assigned!==null&&p.requested>p.assigned).map(p=>uiText("{0}: {1} requested, {2} assigned.",p.name,p.requested,p.assigned)).join(' ');
      item.message+=row.status==='completed'?uiText(" The guide's criterion is met; requested allocation and assigned capacity remain separate values."):uiText(" Requested factories do not yet match assigned factories.");
@@ -88,7 +96,10 @@
      item.message=row.reason==='catalog_unmatched'?uiText("The required identity does not match the local catalog."):uiText("The runtime has insufficient evidence of the final criterion. Completion is not inferred.");
     }else{item.title=uiText("Instruction ready to check");item.message=uiText("Declared dependencies are satisfied. Actual availability in the game is not certified.");}
     item.guide_goal=title(step);
-    if(category==='construction'){
+    if(category==='construction'&&row.fortifications){
+     const f=row.fortifications;item.guide_goal=uiText('Fortifications: {0} / {1} provinces at level {2}',f.completed_provinces??'?',f.total_provinces??'?',f.target_level);
+     item.evidence.push({label:uiText('Fortified provinces'),value:f.completed_provinces,status:f.completed_provinces===null?'unknown':'calculated',source:'runtime.fortifications'});
+    }else if(category==='construction'){
      const target=row.construction?.target??(step.completion?.op==='fact'&&number(step.completion.value)?step.completion.value:null);
      item.guide_goal=(count(target)?uiText("Reach ")+target:count(p.quantity)?(p.quantity_mode==='target_total'?uiText("Reach "):uiText("Add "))+p.quantity:uiText("Check the construction target"))+(p.building_name?' '+p.building_name:'')+(p.state_name?' · '+p.state_name:'');
      if(row.construction){item.evidence.push({label:uiText("Baseline count"),value:row.construction.baseline,status:row.construction.baseline===null?'unknown':'calculated',source:'runtime.construction'},

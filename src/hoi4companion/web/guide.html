@@ -2,7 +2,7 @@
 <html lang="en"><head><script src="/i18n.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
 <title>HOI4 Companion — Operational plan</title>
 <link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/guide.css"><link rel="stylesheet" href="/live-state.css">
-<script defer src="/contracts.js"></script><script defer src="/production-progress.js"></script><script defer src="/guide-runtime.js"></script><script defer src="/guide-model.js"></script><script defer src="/guide-presentation.js"></script><script defer src="/operational-summary.js"></script><script defer src="/live-state.js"></script><script defer src="/guide-session.js"></script><script defer src="/guide.js"></script>
+<script defer src="/focus-criteria.js"></script><script defer src="/design-matching.js"></script><script defer src="/contracts.js"></script><script defer src="/production-progress.js"></script><script defer src="/guide-runtime.js"></script><script defer src="/guide-model.js"></script><script defer src="/guide-presentation.js"></script><script defer src="/action-plan.js"></script><script defer src="/operational-summary.js"></script><script defer src="/live-state.js"></script><script defer src="/guide-availability.js"></script><script defer src="/guide-session.js"></script><script defer src="/guide-references.js"></script><script defer src="/guide.js"></script>
 </head><body>
 <header class="topbar"><nav aria-label="Views"><a href="/">National focuses</a><a href="/technologies">Technologies</a><a href="/country">Country</a><a href="/walkthrough" aria-current="page">Walkthrough</a><a href="/importer">Import guide</a> <a href="/analysis">Script analysis</a></nav><span>HOI4 COMPANION</span></header>
 <main>
@@ -25,9 +25,17 @@
 <details id="hudDiagnostics"><summary>In-game highlight status</summary><p id="hudDiagnosticMessage"></p><ul id="hudDiagnosticItems"></ul></details>
 </section>
 <section id="nextOperation" class="next-operation" aria-label="Next operational instruction"></section>
-<section id="operationsPlan"><div class="section-head"><div><p class="eyebrow">WHAT TO DO AND WHEN</p><h2>Operational instructions <span id="operationProgress"></span> <span id="operationActive" role="status"></span></h2></div><label class="filter"><input type="checkbox" id="hideDone" checked>Hide completed</label></div>
+<section id="ongoingOperations" class="compact-activity" hidden><h2>In progress</h2><ul id="ongoingOperationsList"></ul></section>
+<details id="waitingOperations" class="compact-activity" hidden><summary>Waiting for conditions</summary><ul id="waitingOperationsList"></ul></details>
+<details id="operationsPlan"><summary class="complete-plan-heading">Complete plan <span id="operationProgress"></span> <span id="operationActive" role="status"></span></summary><div class="section-head"><div><p class="eyebrow">WHAT TO DO AND WHEN</p><h2>Operational instructions</h2></div><label class="filter"><input type="checkbox" id="hideDone" checked>Hide completed</label></div>
 <p class="section-note">Start and completion are detected automatically when live criteria exist, including while paused. For additional construction, the application records a baseline and tracks the target total. Canceling the queue without reaching that total does not complete the instruction. Laws and appointments are checked against current state. Open events and guide choices are highlighted. Method reminders require no confirmation and are excluded from progress counts. Manual confirmation remains for unobservable criteria. Reference timestamps refer to the video.</p>
-<nav id="operationFilters" class="operation-filters" aria-label="Instruction type"></nav><div id="operationCards" class="operation-cards"></div></section>
-<details id="sourceDetails"><summary>Guide sources, bindings and limitations</summary><p id="sourceBasis"></p><ul id="assumptions"></ul><div id="catalogWarnings"></div><h3>Video chapters</h3><ul id="chapters"></ul></details>
+<p id="operationOrderNotice" class="section-note" role="status" hidden></p>
+<nav id="operationFilters" class="operation-filters" aria-label="Instruction type"></nav><div id="operationCards" class="operation-cards"></div></details>
+<details id="sourceDetails"><summary>Guide sources, bindings and limitations</summary><p id="sourceBasis"></p><ul id="assumptions"></ul><div id="catalogWarnings"></div><div id="sourceDocuments"></div><h3>Video chapters</h3><ul id="chapters"></ul></details>
 </main><footer>Local · read-only game access · instructions do not send commands to HOI4</footer>
+<dialog id="sourceMediaDialog" class="source-media-dialog" aria-labelledby="sourceMediaTitle">
+<div class="source-media-heading"><h2 id="sourceMediaTitle"></h2><button id="sourceMediaClose" type="button">Close</button></div>
+<p id="sourceMediaDescription" class="section-note"></p><p id="sourceMediaStatus" class="section-note" role="status"></p>
+<video id="sourceMediaVideo" controls preload="none"></video><p><a id="sourceMediaOriginal" target="_blank" rel="noopener noreferrer">Open the original video ↗</a></p>
+</dialog>
 </body></html>

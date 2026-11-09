@@ -48,7 +48,11 @@ pub fn run(host: &Path, data: &[u8], timeout: Duration) -> Result<Vec<u8>, Strin
     if !host.is_absolute() || !host.is_file() {
         return Err("CWTools host missing; run scripts/build-cwtools.ps1".into());
     }
-    let mut command = Command::new(host);
+    run_command(Command::new(host), data, timeout)
+}
+
+fn run_command(mut command: Command, data: &[u8], timeout: Duration) -> Result<Vec<u8>, String> {
+    let started = Instant::now();
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -70,21 +74,20 @@ pub fn run(host: &Path, data: &[u8], timeout: Duration) -> Result<Vec<u8>, Strin
             .map(|_| bytes)
     });
     let mut input = child.stdin.take().ok_or("No CWTools stdin")?;
-    if let Err(e) = input.write_all(data) {
-        let _ = child.kill();
-        let _ = child.wait();
-        let _ = reader.join();
-        return Err(e.to_string());
-    }
-    drop(input);
-    let started = Instant::now();
+    // Pipe capacity is bounded: a hung host can block write_all before the
+    // previous response-only timer ever starts. The main thread owns the
+    // deadline from spawn through input, analysis and output drainage.
+    let payload = data.to_vec();
+    let writer = thread::spawn(move || input.write_all(&payload));
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
+                let written = writer.join().map_err(|_| "CWTools writer panic");
                 let bytes = reader
                     .join()
                     .map_err(|_| "CWTools reader panic")?
                     .map_err(|e| e.to_string())?;
+                written?.map_err(|e| e.to_string())?;
                 if bytes.len() > 64_000_000 {
                     return Err("CWTools response exceeds 64 MB".into());
                 }
@@ -106,6 +109,7 @@ pub fn run(host: &Path, data: &[u8], timeout: Duration) -> Result<Vec<u8>, Strin
             other => {
                 let _ = child.kill();
                 let _ = child.wait();
+                let _ = writer.join();
                 let _ = reader.join();
                 return Err(match other {
                     Err(e) => e.to_string(),
@@ -147,6 +151,31 @@ mod tests {
             run(Path::new("missing"), &data, Duration::from_secs(1))
                 .unwrap_err()
                 .contains("host missing")
+        );
+    }
+    #[test]
+    fn blocked_stdin_fixture() {
+        if std::env::var_os("HOI4_TEST_BLOCKED_CWTOOLS").is_some() {
+            thread::sleep(Duration::from_secs(8));
+        }
+    }
+    #[test]
+    fn deadline_includes_a_child_that_never_reads_input() {
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command
+            .args([
+                "--exact",
+                "analysis::tests::blocked_stdin_fixture",
+                "--nocapture",
+            ])
+            .env("HOI4_TEST_BLOCKED_CWTOOLS", "1");
+        let began = Instant::now();
+        let error =
+            run_command(command, &vec![b' '; 1_000_000], Duration::from_millis(150)).unwrap_err();
+        assert!(error.contains("timed out"), "{error}");
+        assert!(
+            began.elapsed() < Duration::from_secs(2),
+            "stdin stalled beyond the analysis deadline"
         );
     }
 }

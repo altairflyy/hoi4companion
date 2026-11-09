@@ -211,6 +211,33 @@ class FocusUiGeometryTests(unittest.TestCase):
 
 
 class FocusUiSnapshotTests(unittest.TestCase):
+
+    def test_current_build_layout_preserves_focus_and_research_geometry(self):
+        from hoi4companion.live import EXECUTABLE_PROFILES,MILITARY_HASH
+        for panel in ('focus','research'):
+            f=UiFixture();getattr(f,'visible_'+panel)()
+            before=FixtureReader(process=f).snapshot(focus_ids=['ROM_test'],technology_ids=['construction4'])
+            original=dict(f.memory)
+            # Relocate only fields whose native type changed layout. Objects,
+            # country bindings, IDs, transforms and expected rectangles remain.
+            for address in range(0x200000000,f.next_address,0x2000):
+                vt=struct.unpack('<Q',f.read(address,8))[0]-f.base
+                kind=f.classes.get(vt,'')
+                moves=[]
+                if kind=='.?AVCContainerWindow@@':moves=[(0x10D8,0x1258,16),(0x10F0,0x1270,16),(0x1120,0x12A0,16),(0x1150,0x12D8,16),(0x1594,0x1794,16),(0x15F0,0x17F0,16)]
+                elif kind in ('.?AVCNationalFocusView@@','.?AVCCountryTechTreeView@@'):moves=[(0x578,0x5F8,8),(0x20E8,0x3A48,40)]
+                elif kind=='.?AVCButtonStandard@@':moves=[(0xF0,0xF8,8),(0x1B0,0x1B8,8)]
+                elif kind=='.?AVCIcon@@':moves=[(0xE8,0xF0,16)]
+                elif kind=='.?AVCButtonDrag@@':moves=[(0x110,0x118,16)]
+                for old,new,size in moves:
+                    for i in range(size):f.memory[address+new+i]=original.get(address+old+i,0)
+            f.profile.gui_layout=EXECUTABLE_PROFILES[MILITARY_HASH]['gui_layout']
+            f.put(f.base+f.profile.gui_layout['root_rva'],'<Q',f.root)
+            result=FixtureReader(process=f).snapshot(focus_ids=['ROM_test'],technology_ids=['construction4'])
+            self.assertEqual(result['active_panel'],panel)
+            self.assertEqual(result['nodes'],before['nodes'])
+
+
     def test_native_research_painted_icon_is_not_its_container(self):
         f = UiFixture(); f.visible_research()
         got = FixtureReader(process=f).snapshot(technology_ids=['construction4'])

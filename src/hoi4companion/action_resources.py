@@ -18,19 +18,9 @@ def project_costs(node):
 
 
 def enrich_resource_costs(guide, catalog):
-    """Enrich the response only; never write costs back to the installed guide."""
-    projects={}
-    for entry in catalog:
-        if entry.get('kind')=='project':projects.setdefault(entry['id'],[]).append(entry)
-    for rows in guide['tracks'].values():
-        for step in rows:
-            action=step['action']
-            if action['kind']!='special_project' or step.get('tracking')=='reminder':continue
-            entries=projects.get(action.get('entity',{}).get('id'),[])
-            if len(entries)!=1:continue
-            costs=entries[0].get('resource_costs')
-            if isinstance(costs,dict):
-                # The installed game defines its prices; authored conditions
-                # and dependencies remain unchanged.
-                step['resource_costs']=dict(costs)
+    from .backend_core import _request
+    value=_request(0,'source_project_costs',guide=guide,catalog=list(catalog))
+    for track,rows in guide['tracks'].items():
+        for row,enriched in zip(rows,value['tracks'][track]):
+            if 'resource_costs' in enriched:row['resource_costs']=enriched['resource_costs']
     return guide

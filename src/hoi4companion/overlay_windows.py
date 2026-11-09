@@ -61,8 +61,27 @@ class Feed:
         with self.lock:return self.version,list(self.value),self.updated,self.error,self.guide_title
     def explanation(self,version):
         with self.lock:return self.idle_explanation if version==self.explanation_version else None
+    def projection(self,guide,suffix,state):
+        """Use one state/run/decision snapshot; never mix two HTTP revisions."""
+        if guide.get('runtime_engine')!='rust-guide-core':
+            return guide,self.get('/api/guide/runtime'+suffix),state
+        packet=self.get('/api/guide/projection'+suffix)
+        progress=packet.get('progress',{});runtime=packet.get('evaluation',{})
+        if (packet.get('schema_version')!=1 or packet.get('engine')!='rust-guide-core'
+                or packet.get('guide_id')!=guide['id'] or progress.get('guide_id')!=guide['id']
+                or runtime.get('guide_id')!=guide['id'] or 'run_id' not in runtime
+                or runtime['run_id'] is not None and runtime['run_id']!=progress.get('run_id')
+                or not isinstance(packet.get('state'),dict) or not packet.get('server_id')
+                or self.selection_server and packet['server_id']!=self.selection_server):
+            raise ValueError('Invalid shared guide evaluation')
+        if packet.get('definition_revision')!=guide.get('runtime_definition_revision'):
+            guide=self.get('/api/guide'+suffix)
+            if (guide.get('id')!=packet['guide_id'] or guide.get('runtime_engine')!='rust-guide-core'
+                    or guide.get('runtime_definition_revision')!=packet.get('definition_revision')):
+                raise ValueError('Shared guide definition changed; waiting for the next qualified snapshot')
+        return guide,runtime,packet['state']
     def run(self):
-        catalog=None;guide=None;state=None;guide_key=None;event='';event_plan=None
+        catalog=None;guide=None;state=None;guide_key=None;event='';event_plan=None;presets={}
         while not self.closed.is_set():
             try:
                 if catalog is None:catalog=self.get('/api/import/catalog')['entities']
@@ -90,8 +109,17 @@ class Feed:
                             from .guide_events import compile_event_plan
                             guide=self.get('/api/guide'+suffix);guide_key=key
                             event_plan=compile_event_plan(guide,catalog)
-                        runtime=self.get('/api/guide/runtime'+suffix)
+                            # File inventory is a navigation hint, not runtime evidence.
+                            try:presets=self.get('/api/reference-library').get('game_presets',{})
+                            except (OSError,ValueError,AttributeError):presets={}
+                        previous_guide=guide
+                        guide,runtime,state=self.projection(guide,suffix,state)
+                        if guide is not previous_guide:
+                            from .guide_events import compile_event_plan
+                            event_plan=compile_event_plan(guide,catalog)
                         proposed=targets(guide,runtime,catalog,state,prepare_events=True,event_plan=event_plan)
+                        from .reference_presets import annotate
+                        annotate(proposed,guide,presets)
                         with self.lock:
                             if version!=self.version:continue
                             context=runtime.get('action_context',{})

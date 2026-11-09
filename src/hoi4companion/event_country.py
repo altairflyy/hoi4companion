@@ -69,3 +69,18 @@ def event_condition(kind, event):
         show = combine('all', [country_condition(block) for block in event.blocks('show_major')])
         condition = combine('any', [condition, show])
     return condition
+
+
+def recipient_identity_tags(event):
+    """Positive THIS/original-tag identity hints, never live eligibility.
+
+    Only unconditional tag tests in the trigger's top-level conjunction count.
+    Other scopes, alternatives, negations and contradictory tags give no hint.
+    """
+    tags=set()
+    def visit(block):
+        for key,value in block.entries:
+            if key in ('tag','original_tag') and isinstance(value,str) and re.fullmatch('[A-Z0-9]{3}',value):tags.add(value)
+            elif key.upper()=='AND' and isinstance(value,Node):visit(value)
+    for block in event.blocks('trigger'):visit(block)
+    return sorted(tags) if len(tags)==1 else []

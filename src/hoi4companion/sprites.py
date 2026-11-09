@@ -49,107 +49,56 @@ def _definitions(node: Node):
 
 
 class SpriteLibrary:
-    def __init__(self, game: Path, extra_roots: list[Path], cache: Path):
-        self.roots = [game.resolve(), *(p.resolve() for p in extra_roots)]
-        self.cache = cache
-        self.sprites: dict[str, Sprite] = {}
-        self.assets: dict[str, tuple[Path, int, int]] = {}
-        self.warnings: list[str] = []
-        self.lock = RLock()
-        self.failed: set[str] = set()
-        self.replacements: dict[Path, list[str]] = {}
-        for root in self.roots[1:]:
-            descriptor = root / 'descriptor.mod'
-            if descriptor.is_file():
-                try:
-                    self.replacements[root] = [str(PurePosixPath(x.replace('\\', '/'))).casefold()
-                                               for x in parse_file(descriptor).all('replace_path')
-                                               if isinstance(x, str)]
-                except (OSError, ValueError, RecursionError):
-                    self.warnings.append(f'Replace path delle texture non leggibile: {descriptor.name}')
-        files, warnings = collect_files(game, extra_roots, 'interface', '.gfx')
-        self.warnings += warnings
-        for file in files:
-            try:
-                definitions = _definitions(parse_file(file))
-                self.sprites.update((sprite.name, sprite) for sprite in definitions)
-            except (OSError, ValueError, RecursionError) as exc:
-                self.warnings.append(f'Sprite non letti ({file.name}): {exc}')
-        self.resolved: dict[tuple[str, int], dict | None] = {}
+    @classmethod
+    def from_catalog(cls,owner,cache):
+        result=cls.__new__(cls);result._catalog_owner=owner
+        info=owner.query('assets_info');result.roots=list(map(Path,info['roots']));result.cache=cache
+        result.sprites={key:Sprite(**value) for key,value in info['sprites'].items()}
+        result.warnings=info['warnings'];result.failed=set();result.assets={};result.resolved={};result.replacements={};result.lock=RLock()
+        return result
 
-    def _texture(self, relative: str) -> Path | None:
-        relative = relative.replace('\\', '/')
-        path = PurePosixPath(relative)
-        if path.is_absolute() or '..' in path.parts or ':' in relative:
-            return None
-        if path.suffix.casefold() not in ('.dds', '.png', '.tga', '.bmp'):
-            return None
-        # I file correnti includono .gfx con estensione .png ma texture .dds.
-        alternatives = [path]
-        if path.suffix.casefold() != '.dds':
-            alternatives.append(path.with_suffix('.dds'))
-        for root in reversed(self.roots):
-            for candidate in alternatives:
-                file = (root / str(candidate)).resolve()
-                if file.is_relative_to(root) and file.is_file():
-                    return file
-            if any(str(path).casefold() == prefix or str(path).casefold().startswith(prefix + '/')
-                   for prefix in self.replacements.get(root, [])):
-                return None
-        return None
+    def _native_request(self,operation,**args):
+        owner=getattr(self,'_catalog_owner',None)
+        if owner is not None:return owner.query('assets_'+operation,**args)
+        from .backend_core import _request
+        return _request(0,'assets_'+operation,handle=self._handle,**args)
 
-    def resolve(self, name: str, frame: int = 1) -> dict | None:
+    def __init__(self,game:Path,extra_roots:list[Path],cache:Path):
+        from .backend_core import _request
+        import weakref
+        self._handle=_request(0,'assets_open',game=str(game),roots=list(map(str,extra_roots)),cache=str(cache))
+        self._finalizer=weakref.finalize(self,_request,0,'assets_release',handle=self._handle)
+        info=_request(0,'assets_info',handle=self._handle)
+        self.roots=list(map(Path,info['roots']));self.cache=cache
+        self.sprites={key:Sprite(**value) for key,value in info['sprites'].items()}
+        self.warnings=info['warnings'];self.failed=set();self.assets={};self.resolved={};self.replacements={};self.lock=RLock()
+
+    def _texture(self,relative:str)->Path|None:
+        from .backend_core import _request
+        value=self._native_request('texture',texture=relative)
+        return Path(value) if value is not None else None
+
+    def resolve(self,name:str,frame:int=1)->dict|None:
+        from .backend_core import _request
         with self.lock:
-            key = (name, frame)
-            if key in self.resolved:
-                return self.resolved[key]
-            sprite = self.sprites.get(name)
-            if not sprite or Image is None or not 1 <= frame <= sprite.frames:
-                self.resolved[key] = None
-                return None
-            file = self._texture(sprite.texture)
-            if not file:
-                self.resolved[key] = None
-                return None
-            stat = file.stat()
-            identity = f'{file}|{stat.st_size}|{stat.st_mtime_ns}|{sprite.frames}|{frame}|png-v1'
-            token = hashlib.sha256(identity.encode('utf-8')).hexdigest()
-            self.assets[token] = (file, sprite.frames, frame)
-            value = {'name': name, 'url': f'/api/sprite/{token}.png', 'frame': frame,
-                     'frames': sprite.frames, 'source': sprite.texture,
-                     'override': any(file.is_relative_to(root) for root in self.roots[1:])}
-            self.resolved[key] = value
-            return value
+            key=(name,frame)
+            if key in self.resolved:return self.resolved[key]
+            if type(frame) is not int or frame<0:return None
+            value=self._native_request('resolve',name=name,frame=frame)
+            self.resolved[key]=value['sprite']
+            if value['sprite']:
+                asset=value['asset'];token=value['sprite']['url'].rsplit('/',1)[-1][:-4]
+                self.assets[token]=(Path(asset['path']),asset['frames'],asset['frame'])
+            return value['sprite']
 
-    def png(self, token: str) -> bytes | None:
-        # Nessun percorso HTTP viene trasformato in un percorso del filesystem.
+    def png(self,token:str)->bytes|None:
+        from .backend_core import _request
         with self.lock:
-            if token not in self.assets or token in self.failed or Image is None:
+            value=self._native_request('png',token=token)
+            if value is None:
+                if token in self.assets:self.failed.add(token)
                 return None
-            file, frames, frame = self.assets[token]
-            cached = self.cache / (token + '.png')
-            if cached.is_file():
-                return cached.read_bytes()
-            try:
-                if file.stat().st_size > 32_000_000:
-                    raise ValueError('Texture troppo grande')
-                raw = file.read_bytes()
-                image = self._decode(raw)
-                with image:
-                    width, height = image.size
-                    if width * height > 8_000_000 or width % frames:
-                        raise ValueError('Dimensioni o atlas non supportati')
-                    width //= frames
-                    with image.crop(((frame - 1) * width, 0, frame * width, height)) as crop:
-                        output = BytesIO()
-                        crop.save(output, format='PNG')
-                        data = output.getvalue()
-                self.cache.mkdir(parents=True, exist_ok=True)
-                cached.write_bytes(data)
-                return data
-            except (OSError, ValueError, NotImplementedError, struct.error, Image.DecompressionBombError):
-                self.failed.add(token)
-                return None
+            return Path(value).read_bytes()
 
     @staticmethod
     def _decode(raw: bytes):

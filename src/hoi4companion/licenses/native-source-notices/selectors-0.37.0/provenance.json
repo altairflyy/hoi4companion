@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "crate": "selectors",
+  "version": "0.37.0",
+  "repository_commit": "6cfce6f3293b5e13c2246838380e514b8b206a27",
+  "files": {
+    "LICENSE-MPL-2.0": {
+      "url": "https://www.mozilla.org/media/MPL/2.0/index.txt",
+      "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
+    },
+    "NOTICE-SOURCE": {
+      "url": "https://github.com/servo/stylo/tree/6cfce6f3293b5e13c2246838380e514b8b206a27/selectors",
+      "sha256": "26e6b5c207d261d71dff04f5979512dbd5104bce8cbb5808ae35f8b661e8bf2c"
+    }
+  }
+}

@@ -11,6 +11,24 @@ from hoi4companion.guide_media import VideoJobs
 
 
 class VideoPipelineTests(unittest.TestCase):
+    def test_native_failure_reason_is_enforced_even_with_zero_exit_code(self):
+        from unittest.mock import Mock
+        with TemporaryDirectory() as d:
+            root=Path(d);jobs=VideoJobs(root/'jobs');key='a'*32
+            for operation in ('download','encode'):
+                for reason in ('timeout','output_limit'):
+                    with self.subTest(operation=operation,reason=reason):
+                        process=Mock(returncode=0)
+                        process.wait.return_value=0;process.poll.return_value=0
+                        process.status.return_value={'reason':reason}
+                        with patch('hoi4companion.guide_media.ManagedTool',return_value=process):
+                            with self.assertRaisesRegex(ValueError,'limite'):
+                                if operation=='download':
+                                    with (root/'download.log').open('w') as log:jobs._download(key,['tool'],log)
+                                else:jobs._encode(key,'ffmpeg',root/'source.mp4',root/'target.mp4',[])
+                        process.close.assert_called_once()
+                        self.assertNotIn(key,jobs.processes)
+
     def test_audio_export_copies_aac_and_is_served_only_by_its_declared_name(self):
         with TemporaryDirectory() as d:
             root=Path(d);jobs=VideoJobs(root);key='a'*32;(root/key).mkdir();source=root/'source.mp4';source.write_bytes(b'source')
@@ -54,7 +72,9 @@ class VideoPipelineTests(unittest.TestCase):
                 returncode=0
                 def __init__(self):self.states=iter([None,0])
                 def poll(self):return next(self.states,0)
-            with patch('hoi4companion.guide_media.subprocess.Popen',return_value=Process()),patch('hoi4companion.guide_media.time.sleep'),patch.object(jobs,'update',side_effect=lambda key,**kw:reported.append(kw)):
+                def status(self):return {'reason':None}
+                def close(self):pass
+            with patch('hoi4companion.guide_media.ManagedTool',return_value=Process()),patch('hoi4companion.guide_media.time.sleep'),patch.object(jobs,'update',side_effect=lambda key,**kw:reported.append(kw)):
                 jobs._encode(key,'ffmpeg',root/'source.mp4',root/'master.mp4',[])
             self.assertFalse(any(row.get('encoded_seconds',0)>1 for row in reported))
 

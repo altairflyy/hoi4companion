@@ -26,7 +26,22 @@ class TechnologiesTest(unittest.TestCase):
         self.assertEqual(set(catalog['folders']), {'new', 'shared'})
         self.assertEqual(catalog['folders']['new']['technologies'], ['A'])
         self.assertNotIn('hidden', catalog['technologies'])
+        self.assertIn('hidden', catalog['excluded_technologies'])
         self.assertEqual(catalog['technologies']['A']['name'], 'Localized A')
+
+    def test_known_filtered_branches_do_not_break_the_remaining_upgrade_family(self):
+        from hoi4companion.guide_importer import catalog_entities
+        from hoi4companion.research_upgrades import relative_chain
+        data=self.load('''technologies={computing={path={leads_to_tech=advanced}}
+            advanced={path={leads_to_tech=hidden}}
+            hidden={allow_branch={has_dlc=Missing}}}''','technology_folders={}')
+        labels={'computing':'Computing Machine','advanced':'Advanced Computing Machine'}
+        rows=catalog_entities({},data['technologies'],labels,labels,data['excluded_technologies'])
+        self.assertEqual(relative_chain('Computing',{r['id']:r for r in rows}),['computing','advanced'])
+        # An actually absent definition remains an unresolved link.
+        data['technologies']['advanced']['paths']=[{'target':'unknown_missing'}]
+        rows=catalog_entities({},data['technologies'],labels,labels,data['excluded_technologies'])
+        self.assertIsNone(relative_chain('Computing',{r['id']:r for r in rows}))
 
     def test_unknown_dlc_is_not_asserted_available(self):
         c = self.load('technologies={A={folder={name=test}}}',

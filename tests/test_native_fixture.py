@@ -95,6 +95,57 @@ class Fixture:
 
 
 class NativeFixtureTest(unittest.TestCase):
+    def test_joint_focus_requires_qualified_vtable_null_owner_and_tree_membership(self):
+        mem=Fixture();joint=mem.object('CJointNationalFocus')
+        mem.string(joint+0x18,'shared_focus')
+        mem.profile.joint_focus_vtable=struct.unpack('<Q',mem.read(joint,8))[0]-mem.base
+        mem.array(mem.tree+0x30,[mem.focus,joint])
+        mem.put(mem.focus_state+0x10,'<Q',joint)
+        self.assertEqual(read_native_state(mem)['current_focus'],'shared_focus')
+        mem.put(joint+0x160,'<Q',mem.tree+0x2000)
+        with self.assertRaises(LiveReadError):read_native_state(mem)
+        mem.put(joint+0x160,'<Q',0)
+        mem.array(mem.tree+0x30,[mem.focus])
+        with self.assertRaisesRegex(LiveReadError,'Stato focus incoerente'):read_native_state(mem)
+        mem.array(mem.tree+0x30,[mem.focus,joint]);del mem.profile.joint_focus_vtable
+        with self.assertRaisesRegex(LiveReadError,'Tipo nativo inatteso'):read_native_state(mem)
+        mem.profile.joint_focus_vtable=0x1234
+        with self.assertRaises(LiveReadError):read_native_state(mem)
+
+    def test_standard_focus_without_matching_owner_remains_rejected(self):
+        mem=Fixture();mem.put(mem.focus+0x160,'<Q',0)
+        with self.assertRaisesRegex(LiveReadError,'Focus non appartenente'):read_native_state(mem)
+
+    def test_current_qualified_profile_reaches_campaign_and_country_adapters(self):
+        from unittest.mock import patch
+        from hoi4companion.live import MILITARY_HASH
+        mem=Fixture();mem.profile.sha256=MILITARY_HASH
+        with patch('hoi4companion.campaign.read_campaign',return_value={'status':'fixture'}) as campaign, \
+             patch('hoi4companion.country.collect_country',return_value={'country':'ROM','experience':{'status':'observed','army':20}}) as overview:
+            value=read_native_state(mem)
+        campaign.assert_called_once();overview.assert_called_once()
+        self.assertEqual(value['country_overview']['experience']['army'],20)
+
+    def test_reader_uses_the_selected_executable_profile_addresses(self):
+        mem = Fixture()
+        mem.profile.world_rva = 0x123450
+        mem.profile.technology_definition_vtable = 0x234560
+        mem.put(mem.base + mem.profile.world_rva, '<Q', mem.world)
+        mem.put(mem.definition, '<Q', mem.base + mem.profile.technology_definition_vtable)
+        sample = read_native_state(mem)
+        self.assertEqual(sample['country'], 'ROM')
+        self.assertEqual(sample['research_slots'][0]['technology_id'], 'construction4')
+        mem.put(mem.definition, '<Q', mem.base + 0x293C2E0)
+        with self.assertRaisesRegex(LiveReadError, 'Definizione tecnologia'):
+            read_native_state(mem)
+
+    def test_updated_profile_does_not_use_unverified_gui_layout(self):
+        from hoi4companion.live import UPDATED_HASH,MILITARY_HASH
+        from hoi4companion.focus_ui_native import UiReader
+        for sha256 in (UPDATED_HASH,MILITARY_HASH):
+            mem = Fixture(); mem.profile.sha256 = sha256
+            with self.assertRaisesRegex(LiveReadError, 'Geometria GUI non verificata'):
+                UiReader(process=mem)
     def test_nonpositive_primary_selector_never_uses_alternate_country(self):
         # A populated world and a valid alternate selector do not identify the
         # played country. In particular, menu/observer data must not pass.

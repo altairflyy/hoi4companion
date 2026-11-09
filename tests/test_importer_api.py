@@ -14,6 +14,40 @@ from test_guide_importer import ENTITIES, definition
 
 
 class ImporterApiTests(unittest.TestCase):
+    def test_word_collection_upload_lists_and_prepares_a_draft(self):
+        from test_word_guides import word
+        import io, zipfile
+        data = io.BytesIO()
+        with zipfile.ZipFile(data, 'w') as z:
+            z.writestr('guides/example.docx', word([['Build here'], ['Basic Machine Tools'], ['The Four Year Plan']]))
+        store = Store.__new__(Store); store.lock=RLock();store.demo=True
+        with ThreadingHTTPServer(('127.0.0.1', 0), make_handler(store)) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+            base = f'http://127.0.0.1:{server.server_port}/api/import/word'
+            def upload(query='', origin=None):
+                headers = {'Content-Type':'application/octet-stream'}
+                if origin: headers['Origin'] = origin
+                with urlopen(Request(base+query, data=data.getvalue(), headers=headers), timeout=5) as response:
+                    return json.load(response)
+            try:
+                self.assertEqual(upload()['documents'], ['guides/example.docx'])
+                with urlopen(base.rsplit('/api/import/word',1)[0]+'/guide-availability.js',timeout=5) as response:
+                    self.assertIn(b'HoiGuideAvailability',response.read())
+                from types import SimpleNamespace
+                store._analysis_generation=1
+                check=SimpleNamespace(assess=lambda guide:{'blocked':True,'status':'dlc_incompatible',
+                    'requirements':[{'enable':['Pack'],'disable':[]}]})
+                with patch.object(store,'guide_compatibility',return_value=check):
+                    checked=upload()
+                self.assertTrue(checked['compatibility']['guides/example.docx']['blocked'])
+                self.assertEqual(checked['compatibility']['guides/example.docx']['requirements'][0]['enable'],['Pack'])
+                prepared = upload('?entry=guides%2Fexample.docx')
+                self.assertEqual(prepared['document']['guide']['steps'][0]['type'], 'reminder')
+                with self.assertRaises(HTTPError) as error: upload(origin='https://evil.test')
+                self.assertEqual(error.exception.code, 403)
+            finally:
+                server.shutdown(); thread.join(timeout=3)
+
     def test_acquire_preview_install_existing_api_and_http_guards(self):
         with TemporaryDirectory() as directory, patch('hoi4companion.guide.LOCAL_GUIDES', Path(directory)):
             store = Store.__new__(Store); store.lock = RLock()

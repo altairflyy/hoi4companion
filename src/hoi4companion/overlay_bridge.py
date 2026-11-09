@@ -106,15 +106,23 @@ class Bridge:
         if kind=='close':
             self.close()
             return {**base,'usable':False,'matches':[]}
-        if kind=='geometry':
+        if kind in ('geometry','observe'):
             view=request.get('view')
             if (not isinstance(view,list) or len(view)!=6 or any(type(n) is not int for n in view)
                     or not _integer(view[0],1) or not _integer(view[1],1)
                     or not _integer(view[4],1,8192) or not _integer(view[5],1,8192)
                     or view[4]*view[5]*4>MAX_FRAME_BYTES):
                 raise ValueError('Identità finestra overlay non valida')
+            # One native request returns the current guide and its freshly
+            # qualified GUI observation. Legacy snapshot/geometry remain valid.
+            if kind=='observe':
+                try:base['guides']=self._guides(bool(request.get('refresh_guides',False)))
+                except (OSError,ValueError) as exc:
+                    return {**base,**self.snapshot(),'view':view,'usable':False,
+                            'native_available':False,'matches':[],
+                            'guides':list(self.guides or []),'error':'Server non disponibile: '+str(exc)}
             snapshot=self.snapshot()
-            if not snapshot['usable'] or request.get('version')!=snapshot['version']:
+            if not snapshot['usable'] or kind=='geometry' and request.get('version')!=snapshot['version']:
                 return {**base,**snapshot,'view':view,'usable':False,'native_available':False,'matches':[]}
             if self.geometry is None:
                 return {**base,**snapshot,'view':view,'native_available':False,'matches':[]}
@@ -133,7 +141,7 @@ class Bridge:
                 elif match.get('panel')=='research_tab':
                     folder=match.get('identity');keys=match.get('step_keys')
                     expected=[p['key'] for p in snapshot['proposed']
-                              if p['panel']=='research' and p.get('folder')==folder]
+                              if p['panel']=='research' and p.get('status')!='active' and p.get('folder')==folder]
                     if (isinstance(folder,str) and folder and match.get('folder')==folder
                             and match.get('key')=='research-tab:'+folder
                             and isinstance(keys,list) and keys and keys==expected

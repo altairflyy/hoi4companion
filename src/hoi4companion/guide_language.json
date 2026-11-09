@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "named_research_progressions": {
+    "naval_light_shells": {
+      "aliases": [
+        "small caliber",
+        "small-caliber"
+      ],
+      "members": [
+        "basic_light_shell",
+        "improved_light_shell"
+      ]
+    },
+    "naval_heavy_shells": {
+      "aliases": [
+        "armor piercing",
+        "armor-piercing"
+      ],
+      "requires_naval_qualifier_or_ellipsis": true,
+      "members": [
+        "basic_heavy_shell",
+        "improved_heavy_shell"
+      ]
+    }
+  },
+  "government_names": {
+    "communist": "communism",
+    "communism": "communism",
+    "fascist": "fascism",
+    "fascism": "fascism",
+    "non-aligned": "neutrality",
+    "non aligned": "neutrality",
+    "democratic": "democratic"
+  },
+  "research_families": {
+    "aa": "anti air",
+    "armor": "armor protection",
+    "guns": "infantry equipment",
+    "infantry equip": "infantry equipment",
+    "inf equip": "infantry equipment",
+    "eng company": "engineer company",
+    "engineer comp": "engineer company",
+    "engineer": "engineer company",
+    "logistics": "logistics company",
+    "logistics comp": "logistics company",
+    "recon": "recon company",
+    "recon comp": "recon company",
+    "mechanized": "mechanized equipment",
+    "excavations": "excavation",
+    "constructions": "construction",
+    "rocket art": "rocket artillery",
+    "transport planes": "transport plane",
+    "mech": "mechanized equipment",
+    "tools": "machine tools",
+    "concentrated": "concentrated industry",
+    "eng": "engines",
+    "engine": "engines",
+    "dispersed": "dispersed industry"
+  },
+  "abbreviations": {
+    "construction": {
+      "INFRA": "infrastructure",
+      "MIL": "military factory",
+      "CIV": "civilian factory"
+    },
+    "production": {
+      "MIL": "military factories",
+      "NAV": "naval dockyards",
+      "Sup": "support equipment",
+      "Sup Equip": "support equipment",
+      "Inf": "infantry equipment",
+      "Inf Equip": "infantry equipment",
+      "AA": "anti-air",
+      "AT": "anti-tank",
+      "Art": "artillery"
+    },
+    "diplomacy": {
+      "REL": "improve relations",
+      "NA": "non-aggression pact",
+      "PRE": "diplomatic pressure",
+      "Puppet+": "puppet with resource rights and war reparations",
+      "Balkanize+": "create as many smaller puppets as possible and take resource rights and war reparations"
+    },
+    "divisions": {
+      "INF": "infantry",
+      "OFF": "offensive infantry",
+      "DEF": "defensive infantry",
+      "ARM": "armored",
+      "MOT": "motorized",
+      "CAV": "cavalry",
+      "ALP": "mountaineers",
+      "MAR": "marines",
+      "MIX": "mixed special forces",
+      "PAR": "paratroopers",
+      "RAN": "rangers",
+      "VOL": "volunteers",
+      "PUP": "puppet divisions",
+      "GAR": "garrison"
+    },
+    "support_companies": {
+      "Art": "artillery",
+      "AA": "anti-air",
+      "Hos": "field hospital",
+      "Rec": "recon",
+      "CRec": "cavalry recon",
+      "MRec": "motorized recon",
+      "ARec": "armored recon",
+      "AIRec": "airborne recon",
+      "A-Eng": "assault engineers"
+    },
+    "designs": {
+      "F": "fighter",
+      "C": "close air support",
+      "NB": "naval bomber",
+      "MF": "medium fighter",
+      "SB": "strategic bomber",
+      "CNB": "carrier naval bomber",
+      "HNB": "heavy naval bomber",
+      "T/S": "tank or self-propelled gun",
+      "FL": "flame tank",
+      "TD": "tank destroyer",
+      "AR": "armored recon",
+      "B-SPAA": "battalion self-propelled anti-air"
+    },
+    "naval": {
+      "BB": "battleship",
+      "BCe": "empty battlecruiser",
+      "CL": "light cruiser",
+      "CA": "heavy cruiser",
+      "CV": "carrier",
+      "DD": "destroyer",
+      "SHBB": "super-heavy battleship",
+      "SS": "submarine"
+    },
+    "land_doctrines": {
+      "GBP": "Grand Battleplan",
+      "MW": "Mobile Warfare",
+      "SF": "Superior Firepower",
+      "MA": "Mass Assault",
+      "GA": "Grand Assault",
+      "AI": "Assault Infantry",
+      "SD": "Streamlined Deployment",
+      "FE": "Field Engineering",
+      "SA": "Siege Artillery",
+      "LUT": "Large Unit Tactics",
+      "AS": "Armored Spearhead",
+      "SPS": "Self-Propelled Support",
+      "FC": "Fire Concentration"
+    },
+    "naval_doctrines": {
+      "FIB": "Fleet in Being",
+      "TI": "Trade Interdiction",
+      "BS": "Base Strike"
+    },
+    "air_doctrines": {
+      "SD": "Strategic Destruction",
+      "BS": "Battlefield Support",
+      "OI": "Operational Integrity"
+    }
+  },
+  "conventions": {
+    "up": "The next useful level of the technology branch, even on its first mention.",
+    "on_focus": "On a focus names its completion; on picking a focus names its selection.",
+    "production_order": "Listed production lines indicate priority; from indicates reassignment.",
+    "arrow": "The meaning of an arrow depends on its domain; do not infer a universal condition."
+  },
+  "entity_names": {
+    "idea": {
+      "PL Spirit": "political_loyalty_spirit",
+      "LF Spirit": "logistical_focus_spirit"
+    },
+    "focus": {
+      "Proclaim A Greater Italy": "Towards a Greater Italy"
+    },
+    "technology": {
+      "Inter-war Tanks": "Inter-War Tank Development",
+      "Pulverized Coal Firing 1": "Pulverized Coal-Firing Boilers",
+      "Improved Small Aircraft": "Improved Small Airframe"
+    }
+  },
+  "research_branch_choices": {
+    "industry_layout": {
+      "aliases": [
+        "Concentrated/dispersed",
+        "Dispersed/concentrated",
+        "Concentrated/dispersed Industry",
+        "Dispersed/concentrated Industry"
+      ],
+      "families": {
+        "concentrated": "concentrated industry",
+        "dispersed": "dispersed industry"
+      }
+    }
+  },
+  "vocabulary_sources": {
+    "doctrines": "English doctrine names in ABBREVIATIONS & TOOLS, Part III; IDs resolved from installed common/doctrines. Short forms require a Land/Air/Naval Doc qualifier.",
+    "political_traits": "English trait names and character instances from installed common/characters; no nation-specific aliases."
+  },
+  "vocabulary_revision": 2
+}

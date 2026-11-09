@@ -7,11 +7,18 @@ from threading import RLock
 from http.server import ThreadingHTTPServer
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from hoi4companion.guide import load_guide, enrich_guide
 
 
 class GuideTest(unittest.TestCase):
+    def setUp(self):
+        local = self.enterContext(TemporaryDirectory())
+        self.enterContext(patch('hoi4companion.guide.GUIDES', Path(__file__).parent / 'fixtures' / 'legacy-guides'))
+        self.enterContext(patch('hoi4companion.guide.LOCAL_GUIDES', Path(local)))
+
     def test_check_api_is_shared_and_preserves_same_origin_validation(self):
         from hoi4companion.api import Store,make_handler
         store=Store.__new__(Store)

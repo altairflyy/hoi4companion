@@ -11,6 +11,18 @@ const definition=steps=>({schema_version:1,id:'summary',applies_to:{country:'TST
 const operation=(key,params,extra={})=>({key,title:'Istruzione '+key,depends_on:[],action:{kind:'manual',params},...extra});
 function project(guide,live,progress=null,options){return summary.project(guide,runtime.evaluate(guide,live,progress),live,options);}
 
+test('production milestone blockers name the prerequisite instead of a manual completion request',()=>{
+ const condition={op:'fact',key:'politics.advisors',test:'contains',value:'lawyer'},token=JSON.stringify(['lawyer','politics.advisors','lawyer']);
+ const guide=definition([operation('lawyer',{category:'characters'},{title:'Moderate Lawyer',completion:condition}),
+   operation('allocation',{category:'production',production_milestones:[{step:'lawyer',condition,token}],
+     equipment_id:'rifle',requested_factories:10,production_selector:{equipment_ids:['rifle'],variant_names:[],category:'military'}},
+     {completion:{op:'fact',key:'guide.production.allocation.requested',test:'eq',value:10}})]);
+ const live=state({'politics.advisors':fact([])});
+ const item=project(guide,live).items.find(r=>r.step_key==='allocation');
+ assert.equal(item.reason,'milestone_not_completed');assert.match(item.message,/Moderate Lawyer/);
+ assert.deepEqual(item.blocked_by,['lawyer']);assert.equal(item.links[0].href,'#operation-lawyer');
+});
+
 test('requested factories reached with fewer assigned creates attention without undoing runtime completion',()=>{
  const guide=definition([operation('production',{category:'production',equipment_id:'rifle',requested_factories:10,
   production_selector:{equipment_ids:['rifle'],variant_names:[],category:'military'}},

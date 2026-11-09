@@ -1,12 +1,17 @@
 """Curated operational data and old checklist compatibility, no game access."""
 import unittest
+from pathlib import Path
 from hoi4companion.guide import load_guide, manual_keys
 from hoi4companion.guide_runtime import evaluate
 
 
+def legacy_guide():
+    return load_guide(directory=Path(__file__).parent / 'fixtures' / 'legacy-guides')
+
+
 class OperationsTests(unittest.TestCase):
     def test_operations_are_declarative_and_native_tracks_are_preserved(self):
-        guide = load_guide()
+        guide = legacy_guide()
         self.assertEqual(len(guide['tracks']['focus']), 34)
         self.assertEqual(len(guide['tracks']['research']), 48)
         operations = guide['tracks']['operations']
@@ -19,7 +24,7 @@ class OperationsTests(unittest.TestCase):
         self.assertTrue({'construction', 'politics', 'production', 'army', 'characters', 'templates'} <= categories)
 
     def test_new_construction_check_does_not_confirm_agency_or_training(self):
-        guide = load_guide()
+        guide = legacy_guide()
         result = evaluate(guide, None, {'schema_version': 1, 'guide_id': guide['id'], 'run_id': 'r',
                                         'checks': {'setup_construction': True}})
         rows = {row['key']: row for row in result['steps']}
@@ -29,7 +34,7 @@ class OperationsTests(unittest.TestCase):
         self.assertIn('setup_construction', manual_keys(guide))
 
     def test_old_combined_setup_confirmation_is_accepted_but_cannot_override_agency_observation(self):
-        guide = load_guide()
+        guide = legacy_guide()
         result = evaluate(guide, None, {'schema_version': 1, 'guide_id': guide['id'], 'run_id': 'old',
                                         'checks': {'m_setup': True}})
         rows = {row['key']: row for row in result['steps']}
@@ -39,7 +44,7 @@ class OperationsTests(unittest.TestCase):
         self.assertTrue({'m_setup', 'setup_agency'} <= manual_keys(guide))
 
     def test_agency_creation_uses_qualified_live_flags_not_manual_overrides(self):
-        guide = load_guide()
+        guide = legacy_guide()
         progress = {'schema_version': 1, 'guide_id': guide['id'], 'run_id': 'r',
                     'checks': {'m_setup': True, 'setup_agency': True}, 'started': {'setup_agency': True}}
         for created, creating, expected in ((None, None, 'unverifiable'), (False, False, 'ready'),
@@ -57,7 +62,7 @@ class OperationsTests(unittest.TestCase):
                     self.assertEqual(row['selection']['source'], 'declared_start')
 
     def test_agency_unknown_stale_and_other_country_cannot_complete(self):
-        guide = load_guide()
+        guide = legacy_guide()
         for status, usable, country in (('unavailable', True, 'POL'), ('partial', True, 'POL'),
                                         ('observed', False, 'POL'), ('observed', True, 'ROM')):
             with self.subTest(status=status, usable=usable, country=country):
@@ -74,7 +79,7 @@ class OperationsTests(unittest.TestCase):
                 self.assertIsNone(row['completion']['value'])
 
     def test_construction_starts_from_declared_queue_without_manual_check(self):
-        guide = load_guide()
+        guide = legacy_guide()
         state = {'schema_version': 1, 'usable': True, 'session_id': 's', 'facts': {
             key: {'status': 'observed', 'value': value, 'source': 'fixture'}
             for key, value in {'country': 'POL', 'focus.tree': 'polish_focus',

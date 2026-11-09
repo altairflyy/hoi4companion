@@ -1,0 +1,361 @@
+{
+  "schema_version": 1,
+  "types": {
+    "focus": {
+      "runtime_kind": "select_focus",
+      "category": null,
+      "fields": [
+        "target"
+      ],
+      "required": [
+        "target"
+      ]
+    },
+    "research": {
+      "runtime_kind": "research",
+      "category": null,
+      "fields": [
+        "target",
+        "upgrade_from"
+      ],
+      "required": [
+        "target"
+      ]
+    },
+    "special_project": {
+      "runtime_kind": "special_project",
+      "category": "projects",
+      "fields": [
+        "target"
+      ],
+      "required": [
+        "target"
+      ]
+    },
+    "build": {
+      "runtime_kind": "manual",
+      "category": "construction",
+      "fields": [
+        "building",
+        "state",
+        "quantity",
+        "baseline",
+        "province",
+        "provinces",
+        "border",
+        "queue_priority"
+      ],
+      "required": [
+        "building",
+        "state",
+        "quantity"
+      ]
+    },
+    "production": {
+      "runtime_kind": "manual",
+      "category": "production",
+      "fields": [
+        "equipment",
+        "factories",
+        "variant",
+        "production_category",
+        "production_priority",
+        "lines"
+      ],
+      "required": []
+    },
+    "law": {
+      "runtime_kind": "manual",
+      "category": "politics",
+      "fields": [
+        "target",
+        "group"
+      ],
+      "required": [
+        "target"
+      ]
+    },
+    "idea": {
+      "runtime_kind": "manual",
+      "category": "politics",
+      "fields": [
+        "target"
+      ],
+      "required": [
+        "target"
+      ]
+    },
+    "appoint": {
+      "runtime_kind": "manual",
+      "category": "characters",
+      "fields": [
+        "person",
+        "advisor",
+        "trait",
+        "role"
+      ],
+      "required": []
+    },
+    "event": {
+      "runtime_kind": "manual",
+      "category": "politics",
+      "fields": [
+        "event",
+        "option"
+      ],
+      "required": [
+        "event",
+        "option"
+      ]
+    },
+    "decision": {
+      "runtime_kind": "manual",
+      "category": "politics",
+      "fields": [
+        "target",
+        "country"
+      ],
+      "required": [
+        "target"
+      ]
+    },
+    "create_agency": {
+      "runtime_kind": "manual",
+      "category": "projects",
+      "fields": [],
+      "required": []
+    },
+    "agency_upgrade": {
+      "runtime_kind": "manual",
+      "category": "projects",
+      "fields": [
+        "target"
+      ],
+      "required": [
+        "target"
+      ]
+    },
+    "intelligence_operation": {
+      "runtime_kind": "manual",
+      "category": "projects",
+      "fields": [
+        "operation",
+        "country"
+      ],
+      "required": [
+        "operation"
+      ]
+    },
+    "mio": {
+      "runtime_kind": "manual",
+      "category": "production",
+      "fields": [
+        "organization",
+        "equipment"
+      ],
+      "required": [
+        "organization"
+      ]
+    },
+    "template": {
+      "runtime_kind": "manual",
+      "category": "templates",
+      "fields": [
+        "template"
+      ],
+      "required": [
+        "template"
+      ]
+    },
+    "design": {
+      "runtime_kind": "manual",
+      "category": "templates",
+      "fields": [
+        "name"
+      ],
+      "required": [
+        "name"
+      ]
+    },
+    "army": {
+      "runtime_kind": "manual",
+      "category": "army",
+      "fields": [
+        "task"
+      ],
+      "required": [
+        "task"
+      ]
+    },
+    "diplomacy": {
+      "runtime_kind": "manual",
+      "category": "politics",
+      "fields": [
+        "task",
+        "country"
+      ],
+      "required": [
+        "task"
+      ]
+    },
+    "instruction": {
+      "runtime_kind": "manual",
+      "category": null,
+      "fields": [
+        "category"
+      ],
+      "required": [
+        "instructions"
+      ]
+    },
+    "reminder": {
+      "runtime_kind": "manual",
+      "category": null,
+      "fields": [
+        "category"
+      ],
+      "required": [
+        "instructions"
+      ]
+    },
+    "free": {
+      "runtime_kind": "free",
+      "category": null,
+      "fields": [
+        "lane"
+      ],
+      "required": []
+    },
+    "advanced_v1": {
+      "runtime_kind": null,
+      "category": null,
+      "fields": [
+        "step"
+      ],
+      "required": [
+        "step"
+      ]
+    }
+  },
+  "policies": [
+    "completion",
+    "confirmation",
+    "depends_on",
+    "depends_on_started",
+    "note",
+    "phase",
+    "political_power_cost",
+    "priority",
+    "priority_when",
+    "requirements",
+    "resource_costs",
+    "skip_when",
+    "started_when",
+    "title",
+    "when"
+  ],
+  "common": [
+    "category",
+    "completion",
+    "confirmation",
+    "depends_on",
+    "depends_on_started",
+    "details",
+    "evidence",
+    "game_date",
+    "instructions",
+    "key",
+    "note",
+    "phase",
+    "political_power_cost",
+    "priority",
+    "priority_when",
+    "requirements",
+    "resource_costs",
+    "skip_when",
+    "source_seconds",
+    "started_when",
+    "timing",
+    "title",
+    "type",
+    "when"
+  ],
+  "generated": [
+    "completion",
+    "entity",
+    "kind",
+    "political_binding",
+    "production_selector",
+    "started_when",
+    "target",
+    "verification"
+  ],
+  "identities": [
+    "advisor_id",
+    "assigned_factories",
+    "baseline_level",
+    "building_id",
+    "building_name",
+    "decision_id",
+    "decision_name",
+    "design_name",
+    "equipment_id",
+    "equipment_name",
+    "event_id",
+    "event_name",
+    "event_option",
+    "event_option_id",
+    "idea_id",
+    "idea_name",
+    "law_group",
+    "law_id",
+    "law_name",
+    "mio_name",
+    "operation_id",
+    "operation_name",
+    "person_id",
+    "person_name",
+    "production_targets",
+    "project_id",
+    "project_name",
+    "province_id",
+    "province_ids",
+    "province_selector",
+    "quantity",
+    "quantity_mode",
+    "queue_priority",
+    "requested_factories",
+    "role",
+    "state_id",
+    "state_name",
+    "target_country",
+    "target_level",
+    "target_quantity",
+    "task",
+    "template_name",
+    "trait_name",
+    "upgrade_from",
+    "upgrade_name",
+    "variant_name"
+  ],
+  "category_aliases": {
+    "mio": "production",
+    "resources": "production",
+    "naval": "army",
+    "intelligence": "projects",
+    "gameplay": "checkpoints",
+    "focus": "checkpoints",
+    "doctrine": "army",
+    "diplomacy": "politics",
+    "editorial": "checkpoints",
+    "military_industrial_organizations": "production"
+  },
+  "detail_aliases": {
+    "army": {
+      "quantity": "division_count"
+    },
+    "design": {
+      "role": "design_role"
+    }
+  }
+}

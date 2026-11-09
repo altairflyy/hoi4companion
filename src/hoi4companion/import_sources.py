@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 from html.parser import HTMLParser
 import http.client
 import ipaddress
@@ -13,9 +14,9 @@ import shutil
 import socket
 import ssl
 import subprocess
-import tempfile
 import sys
-from .paths import module_command,bundled_node
+from .paths import module_command,javascript_runtime
+from .native_tools import run as run_tool
 from urllib.parse import urlsplit, urljoin, parse_qs
 
 MAX_TEXT = 180_000
@@ -120,27 +121,32 @@ def ytdlp_path():
     return executable
 
 
+def ytdlp_command():
+    configured=os.environ.get('HOI4_YTDLP')
+    if configured:return [configured]
+    if getattr(sys,'frozen',False) or importlib.util.find_spec('yt_dlp') is not None:return module_command('yt_dlp')
+    executable=ytdlp_path()
+    return [executable] if executable else []
+
+
 def youtube_source(url):
     canonical = youtube_url(url)
-    executable = ytdlp_path()
-    launcher=module_command('yt_dlp') if getattr(sys,'frozen',False) and not os.environ.get('HOI4_YTDLP') else [executable] if executable else []
+    launcher=ytdlp_command()
     if not launcher:
         raise ValueError('yt-dlp non trovato: configura HOI4_YTDLP oppure incolla descrizione e trascrizione')
     # No user arguments, configs, plugins, cookies, playlist or media download.
-    with tempfile.TemporaryFile() as output:
-        try:
-            result = subprocess.run([*launcher, '--ignore-config', '--no-plugin-dirs', '--no-playlist',
-                *(['--js-runtimes','node:'+str(bundled_node())] if bundled_node() else []),
-                '--skip-download', '--dump-single-json', '--socket-timeout', '12', '--retries', '1', '--', canonical],
-                stdout=output, stderr=subprocess.DEVNULL, timeout=55,
-                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ValueError('Acquisizione YouTube non riuscita; incolla descrizione e trascrizione') from exc
-        if result.returncode:
-            raise ValueError('YouTube non accessibile con yt-dlp; nessun tentativo di login. Puoi incollare il testo')
-        if output.tell() > 12_000_000:
-            raise ValueError('Metadati YouTube troppo grandi')
-        output.seek(0); metadata = json.load(output)
+    try:
+        result = run_tool([*launcher, '--ignore-config', '--no-plugin-dirs', '--no-playlist',
+            *(['--js-runtimes','node:'+str(javascript_runtime())] if javascript_runtime() else []),
+            '--skip-download', '--dump-single-json', '--socket-timeout', '12', '--retries', '1', '--', canonical],
+            timeout=55,max_output_bytes=12_000_000)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ValueError('Acquisizione YouTube non riuscita; incolla descrizione e trascrizione') from exc
+    if result.returncode:
+        raise ValueError('YouTube non accessibile con yt-dlp; nessun tentativo di login. Puoi incollare il testo')
+    if len(result.stdout.encode('utf8')) > 12_000_000:
+        raise ValueError('Metadati YouTube troppo grandi')
+    metadata = json.loads(result.stdout)
     warnings, segments = ['Il video non è analizzato visivamente; i contenuti mostrati solo nei fotogrammi possono mancare.'], []
     for collection in (metadata.get('subtitles', {}), metadata.get('automatic_captions', {})):
         languages = sorted(collection, key=lambda key: (not key.startswith('it'), not key.startswith('en'), key))

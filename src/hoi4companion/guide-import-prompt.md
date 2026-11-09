@@ -6,6 +6,23 @@ compiles this authoring format into its internal Guide Schema v1.
 Do not develop software, connect APIs, invent strategies, or prefill player progress.
 Do not generate memory offsets or guessed live fact names.
 
+## Focus source order
+
+Keep one step for every national focus instruction, in the exact source order,
+including illegible names. Use an explicit placeholder such as `Unreadable focus
+at source position 12` and quote the real source evidence; never invent a quote,
+delete an unreadable entry, or fill it with a guessed prerequisite. Step keys stay
+stable. The importer preserves source positions and performs local reconstruction.
+
+`guide.focus_sequence` is optional. Its default is partial coverage. Only when the
+source demonstrably lists every focus instruction from the stated starting point,
+you may supply `{"schema_version":1,"coverage":"complete","initial_focuses":[]}`.
+An empty initial list asserts no focuses were completed before the sequence; use
+known native IDs for an explicit initial list. Otherwise omit this field or use
+`{"schema_version":1,"coverage":"partial"}`. A heading such as FOCUS PRIORITY,
+matching names, campaign dates, or a long list do not establish completeness.
+Do not generate `focus_resolution`: the application owns resolution provenance.
+
 ## Extraction and coverage review
 
 First collect instructions actually present in accessible sources; then turn them
@@ -101,6 +118,16 @@ source, timestamp, and uncertainties. Look for visible actions not mentioned in
 speech. Distinguish quotations, visual observations, and interpretations. Do not
 stop at focus and research lists in the description.
 
+For structured Word guides, preserve the separate action, research and focus
+priority columns and their row groupings. A row grouping is not proof that its
+individual entries happened simultaneously or that adjacent entries depend on
+completion. Read any provided abbreviations or design references before expanding
+shorthand; do not guess their meaning or claim to have seen an unavailable image.
+Keep explicit alternatives and conditions, and include the source's other sections
+such as war plans, event branches and peace terms where relevant. An automatically
+prepared draft may cover only priority columns: use the complete source text to
+check for omitted sections and mark unresolved details for review.
+
 Look for focuses, research and upgrades, construction, production and MIOs, laws
 and appointments, events/answers and decisions, special projects, intelligence,
 divisions and training, templates, vehicle designs, resources/logistics, diplomacy,
@@ -120,14 +147,39 @@ an ID is unresolved and explain ambiguity without deleting the action. For
 focuses, check the guide's route and prerequisites, not just the name: identically
 named focuses may belong to different branches. Do not invent relationships.
 
+Use `type:"diplomacy"`, `task:"improve relations"`, `"stop improving relations"`
+or `"non-aggression pact"`, and `country` for explicit diplomatic orders.
+Use `type:"intelligence_operation"`, `operation:"build intel network"`,
+`"quiet network"`, `"diplomatic pressure"`, `"control trade"`, `"propaganda"`,
+`"boost ideology"`, `"counter intelligence"` or `"root out resistance"`, and
+`country` for explicit operative assignments. The program resolves known terms
+and observes current assignments. An assigned mission does not prove a network
+strength target, a covert operation's success, or that another country accepted
+a diplomatic proposal. Preserve those distinct goals and any documented threshold.
+
 For research, “UP” means the next improvement in the same branch, even when it
 does not unlock equipment. Every intentional repetition is a separate step.
-You may use `target:"Artillery UP"`; the application resolves the sequence when
-a certain baseline exists. `upgrade_from` is optional and requires a documented
-starting level. Do not choose arbitrary levels. Omit `research_baseline` when
-unknown rather than emitting `research_baseline:[]`. A partial global baseline
-may prevent inference for other branches; prefer per-step `upgrade_from` anchors
-when knowledge is partial.
+Use `target:"Artillery UP"` for each relative upgrade, including a first mention.
+The application identifies the branch and selects the next level from qualified
+campaign research, retaining that choice for the step. A branching or ambiguous
+family needs review; do not invent an ID or a starting level. `upgrade_from`
+may identify a documented branch or preceding step, but does not determine the
+level researched by the current campaign. Do not supply it merely to make an
+UP importable.
+
+When the author leaves the industry branch to the player, retain the combined
+target name, for example `Concentrated/dispersed Industry 1` and subsequent
+`Concentrated/dispersed UP`. Do not create two mandatory research steps or pick
+a branch for the player. The program highlights both alternatives and retains
+the branch selected in qualified campaign research. No extra runtime fields
+are needed in the AI output.
+
+Retain other explicit research alternatives as one combined target as well,
+for example `High Efficiency Turbines/Concentrated UP`. Each side keeps its own
+meaning: a named technology is exact, while UP is the next useful level. This
+one-off choice does not choose a permanent branch for later steps. A continuous
+focus offered against `Nothing` or `None` remains a combined focus target, e.g.
+`Suppress Subjects/Nothing`; it is optional, never a required completed focus.
 
 Deduplicate overlaps and summaries while retaining evidence. Do not remove later
 UP steps, quantity changes, or actions intentionally repeated at different times.
@@ -163,6 +215,7 @@ Return one complete JSON object, without ellipses, comments, or placeholders:
   "guide": {
     "id": "unique-guide-name",
     "title": "Title",
+    "dependency_policy": "explicit",
     "subtitle": "Source and actual coverage",
     "applies_to": {},
     "assumptions": [],
@@ -180,9 +233,16 @@ remain compatible; use the simplified authoring format for new guides.
 `applies_to`: `country` and/or `tree_id` only when certain, otherwise `{}`.
 `country` is a three-character game tag, not the country name; `tree_id` is the
 catalog tree identifier, not its title. Optional `phases` is a list of
-`{id,title,when?}`; steps may reference `phase`. Optional `start_date` is a
+`{id,title,timing?,when?}`; steps may reference `phase`. `timing` is descriptive
+text (including video ranges). `when`, if present, must be a declarative condition
+object, never a sentence or video timestamp. Omit it when the activation criterion
+is unknown; describe that uncertainty in `timing` instead of inventing a condition.
+Optional `start_date` is a
 documented campaign start date, not video time. Do not include `default`, live
 state, checklists, sessions, campaigns, or saved progress.
+For new guides set `dependency_policy` to `"explicit"`: only declared
+dependencies gate steps. Omission preserves historical implicit barriers for
+legacy compatibility and can make a step wait for previous manual actions.
 
 ### Self-contained sources
 
@@ -205,10 +265,12 @@ subtitles alone. Limits: 180,000 characters/source, 2 MB total, 4096 steps.
 Each step has `key`, `title`, `type`, `evidence`, and type-specific fields. Keys
 should remain stable and unique. The application generates omitted keys, but
 this is discouraged for guides that will be revised. `instructions` is a list
-of clear operational sentences; `timing` describes when to act. Use `note` for
+of clear operational sentences; a single sentence is accepted too. `timing` describes when to act. Use `note` for
 doubts, not to hide necessary details.
 
-Evidence: `{source_id:"source-1",basis:"explicit",quote:"exact quotation"}`.
+Evidence is a list of objects, for example:
+`"evidence":[{"source_id":"source-1","basis":"explicit","quote":"exact quotation"}]`.
+The importer also accepts one evidence object and wraps it in a list.
 For an image, use `basis:"visual"` and an observation note included in the source.
 Add `timestamp_seconds` only when supported by `segments`. Optional `end_seconds`
 must be at least the start time. For each operation, find `source_seconds`, the
@@ -217,6 +279,16 @@ the limit; do not use 0:00 as filler. Visual references are especially valuable
 for fronts, templates, production, and complex orders. Never write only “as shown
 in the video”. Optional `game_date` is the date visible in the campaign
 (`1936.1.1`): a chronological reference, not automatic completion or a deadline.
+
+Preserve distinct useful visual moments for one step as separate `basis:"visual"`
+evidence entries or separately linked inventory items. Describe exactly what each
+frame shows and omit unreadable details; never label a moment as visual solely
+because speech is timestamped there. For a demonstrated multi-step action, add a
+supported end time to the evidence where the actual visual interval is known.
+Use `source_seconds` only for an intentional preferred frame: it overrides other
+visual references, so omit it when the best frame is not established. The
+application can show a short contextual clip around a timestamp; it is not proof
+that the action appears there and does not imply that the entire video was reviewed.
 
 For video parts, use the manifest: original time = `start_seconds` + local time.
 The preset produces five-minute parts with ten-second overlap, shortened if
@@ -244,9 +316,14 @@ unknown: the application captures an additional-quantity baseline from the
 campaign before the order. `province` and `queue_priority` are optional. If the
 source names a city rather than a state, keep the city in `state`; local game
 files resolve city → province → state. Do not invent a state or ID. A provincial
-building needs an unambiguous city or documented `province`; a state name alone
+  building needs an unambiguous city or documented `province`; a state name alone
 does not identify a province. A queue entry indicates start; completion requires
-the built count.
+  the built count. For a fort in EVERY land province bordering a country, use
+  `border:"TAG"` instead of `state`/`province`, with a total target level in
+  `quantity`. For an explicitly documented set use `provinces:[...]`. Do not
+  invent province IDs or interpret a state-wide fort total as a level per tile.
+  The program resolves the current border from the installed map and qualified
+  live controllers; unavailable geography/levels remain unverified.
 
 `production`: one line with `equipment` and `factories`, or `lines:[...]`.
 Each line has `equipment`, `factories:{value:integer,basis:"requested"|"assigned"}`,
@@ -255,6 +332,21 @@ Default basis is requested: count all requested factories, including unavailable
 ones. Use assigned only if the source requires actually assigned factories.
 A single line permits `factories.mode:"add"`; lists use totals. Do not confuse
 a technology with the equipment being produced.
+When the source explicitly assigns **ALL remaining military factories** to the
+last product (for example `Sup:1, Inf:ALL`), use `factories:{mode:"remaining"}`
+for that named final line, without a numeric `value`. Keep the other stated
+quantities. This military-only mode subtracts the other live lines' requested
+counts from current military capacity and is recalculated as capacity changes.
+Do not invent an ALL target, apply it to multiple products, or treat a currently
+satisfied allocation as proof that an automatic future-allocation setting is on.
+
+For an explicitly highest/lowest-priority military production line, add optional
+`production_priority:"first"` or `production_priority:"last"` to that line. Multiple `first` lines form
+the leading group without inventing their internal order. Do not distribute a
+trailing number over several products or infer quantities for unnamed counts.
+Keep model names from the source: users can import their template/design archive
+into Companion for local resolution and illustrations. A matching illustration
+does not prove the live vehicle or division has the illustrated configuration.
 
 `law` and `idea`: `target`; `law` permits `group`. `appoint`: `person` or
 `advisor`, or `trait` with `role`. One appointment per step. Saving PP for a law
@@ -277,12 +369,20 @@ promise automatic completion when it is unobservable.
 `diplomacy`: `task`, optional `country`, conditions and territories in `details`.
 These types structure data; they do not add live acquisition capabilities.
 
-`instruction`: `category` and `instructions`, for concrete actions outside those
+`instruction`: `instructions` and optional descriptive `category`, for concrete actions outside those
 types or missing essential verifiable details. Retain certain details in
 `details` and state what is missing. Do not invent a reference merely to satisfy
 required fields for a more specific type. `reminder`: `instructions`, optional
 `category`, only for continuing advice about a method with no finite outcome.
 Missing data does not turn a concrete order into a reminder.
+`category` is an optional descriptive label, not a capability declaration.
+Suggested labels include construction, production, politics, characters, army,
+templates, projects, intelligence, diplomacy, MIO and doctrine. The application
+maps recognized labels to its UI groups and keeps other labels under general
+instructions without discarding their original text. You do not need to memorize
+internal UI categories. A typed action determines its own group, even when you
+provide a more descriptive category. Prefer a specific action type
+when its required identity is known; never guess an organization from an unreadable frame.
 `free` represents an explicitly free choice in the source; optional `lane` is
 research (default) or focus. Do not add autonomous research recommendations.
 
@@ -290,6 +390,15 @@ research (default) or focus. Do not add autonomous research recommendations.
 type-specific fields or put runtime-generated fields there. When indispensable
 for a documented v1 rule, use explicit `advanced_v1` with a complete v1 `step`;
 do not use it to bypass invalid data.
+For descriptive counts on `army`, use `details.division_count`; for a vehicle's
+role on `design`, use `details.design_role`. The application also accepts
+`details.quantity` for army counts and `details.role` for vehicle roles. These
+do not establish live completion.
+In `source_inventory`, a single quotation may support multiple distinct steps;
+prefer one item listing all their `step_keys`. Repeated untimed priority labels
+must actually recur in the supplied text. Do not duplicate an observation for the
+same step. Optional inventory `basis` uses the same evidence labels and does not
+certify that the source was viewed.
 
 ### Structural monitoring examples
 

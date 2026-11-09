@@ -1,0 +1,457 @@
+[
+  {
+    "name": "legacy without sequence metadata",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "partial default baseline",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      },
+      "focus_sequence": {
+        "schema_version": 1,
+        "coverage": "partial"
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "explicit complete and empty baseline",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      },
+      "focus_sequence": {
+        "schema_version": 1,
+        "coverage": "complete",
+        "initial_focuses": []
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "source provenance",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            },
+            "focus_resolution": {
+              "schema_version": 1,
+              "position": 1,
+              "query": "Original source label",
+              "classification": "reconstructed",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      },
+      "focus_sequence": {
+        "schema_version": 1,
+        "coverage": "complete",
+        "initial_focuses": []
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "missing baseline",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            },
+            "focus_resolution": {
+              "schema_version": 1,
+              "position": 1,
+              "query": "Original source label",
+              "classification": "reconstructed",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      },
+      "focus_sequence": {
+        "schema_version": 1,
+        "coverage": "complete"
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "boolean policy version",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            },
+            "focus_resolution": {
+              "schema_version": 1,
+              "position": 1,
+              "query": "Original source label",
+              "classification": "reconstructed",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      },
+      "focus_sequence": {
+        "schema_version": true,
+        "coverage": "complete",
+        "initial_focuses": []
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid coverage",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            },
+            "focus_resolution": {
+              "schema_version": 1,
+              "position": 1,
+              "query": "Original source label",
+              "classification": "reconstructed",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      },
+      "focus_sequence": {
+        "schema_version": 1,
+        "coverage": "probably",
+        "initial_focuses": []
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "duplicate baseline",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            },
+            "focus_resolution": {
+              "schema_version": 1,
+              "position": 1,
+              "query": "Original source label",
+              "classification": "reconstructed",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      },
+      "focus_sequence": {
+        "schema_version": 1,
+        "coverage": "complete",
+        "initial_focuses": [
+          "A",
+          "A"
+        ]
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "boolean position",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            },
+            "focus_resolution": {
+              "schema_version": 1,
+              "position": true,
+              "query": "Original source label",
+              "classification": "reconstructed",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      },
+      "focus_sequence": {
+        "schema_version": 1,
+        "coverage": "complete",
+        "initial_focuses": []
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid confidence",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            },
+            "focus_resolution": {
+              "schema_version": 1,
+              "position": 1,
+              "query": "Original source label",
+              "classification": "certainly_completed",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      },
+      "focus_sequence": {
+        "schema_version": 1,
+        "coverage": "complete",
+        "initial_focuses": []
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "wrong entity kind",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            },
+            "focus_resolution": {
+              "schema_version": 1,
+              "position": 1,
+              "query": "Original source label",
+              "classification": "reconstructed",
+              "entity": {
+                "kind": "technology",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      },
+      "focus_sequence": {
+        "schema_version": 1,
+        "coverage": "complete",
+        "initial_focuses": []
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid lock",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            },
+            "focus_resolution": {
+              "schema_version": 1,
+              "position": 1,
+              "query": "Original source label",
+              "classification": "reconstructed",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              },
+              "locked": "yes"
+            }
+          }
+        ]
+      },
+      "focus_sequence": {
+        "schema_version": 1,
+        "coverage": "complete",
+        "initial_focuses": []
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "duplicate source position",
+    "guide": {
+      "id": "contract",
+      "tracks": {
+        "focus": [
+          {
+            "key": "one",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            },
+            "focus_resolution": {
+              "schema_version": 1,
+              "position": 1,
+              "query": "Original source label",
+              "classification": "reconstructed",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          },
+          {
+            "key": "two",
+            "action": {
+              "kind": "select_focus",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            },
+            "focus_resolution": {
+              "schema_version": 1,
+              "position": 1,
+              "query": "Original source label",
+              "classification": "reconstructed",
+              "entity": {
+                "kind": "focus",
+                "id": "A"
+              }
+            }
+          }
+        ]
+      },
+      "focus_sequence": {
+        "schema_version": 1,
+        "coverage": "complete",
+        "initial_focuses": []
+      }
+    },
+    "valid": false
+  }
+]

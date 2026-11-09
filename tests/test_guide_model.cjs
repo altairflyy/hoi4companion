@@ -10,6 +10,22 @@ const guide={country:'POL',tree_id:'polish_focus',tracks:{focus:[
  {key:'project',kind:'project',target:'project1'},{key:'r3',kind:'technology',target:'t3'},
  {key:'r4',kind:'technology',target:'t4'}]}};
 function live(extra={}){return {usable:true,sample:{country:'POL',focus_tree_id:'polish_focus',completed_focuses:[],current_focus:null,focus_ids:['A','B','C','U'],technology_ids:['t1','t2','t3','t4'],researched_technologies:[],research_slots:[{slot:1,technology_id:null},{slot:2,technology_id:null}],...extra}};}
+
+test('Rust-owned guides never compute local recommendations while the shared evaluation is missing',()=>{
+ const owned={...guide,id:'native',runtime_engine:'rust-guide-core'};
+ const value=model.evaluate(owned,live());
+ assert.equal(value.focus.next,null);assert.equal(value.research.next,null);assert.deepEqual(value.research.suggestions,[]);
+ assert.ok(value.runtime.steps.every(row=>row.status==='unverifiable'));
+});
+
+test('presentation consumes an admitted Rust result and rejects another guide or run',()=>{
+ const owned={...guide,id:'native',runtime_engine:'rust-guide-core'};
+ const evaluation=require('../src/hoi4companion/web/guide-runtime.js').evaluate(owned,live({completed_focuses:['A']}));
+ const presented=model.evaluate(owned,live(),{evaluation});
+ assert.equal(presented.focus.rows[0].runtime_status,'completed');
+ assert.throws(()=>model.evaluate(owned,live(),{evaluation:{...evaluation,guide_id:'other'}}),/evaluation/i);
+ assert.throws(()=>model.evaluate(owned,live(),{run_id:'new',evaluation:{...evaluation,run_id:'old'}}),/evaluation/i);
+});
 test('offline plan and wrong country never consume stale completions',()=>{
  const offline=model.evaluate(guide,{usable:false,sample:live({completed_focuses:['A']}).sample},{});
  assert.equal(offline.mode,'preview');assert.equal(offline.focus.next.key,'f1');assert.equal(offline.focus.rows[0].status,'planned');
@@ -53,4 +69,12 @@ test('explicit project dependencies preserve negative manual checks and separate
  assert.equal(result.research.projects[0].runtime_status,'ready');
  assert.equal(result.research.projects[0].completion.value,false);
  assert.equal(result.research.next,null);
+});
+test('explicit policy keeps independent projects visible and respects start dependencies',()=>{
+ const tech={key:'tech',kind:'technology',target:'t1'}, project={key:'p',kind:'project',target:'p'};
+ const definition={id:'explicit',dependency_policy:'explicit',tracks:{research:[tech,project]}};
+ assert.equal(model.evaluate(definition,live(),{}).research.projects[0].key,'p');
+ const waiting={...definition,tracks:{research:[tech,{...project,depends_on_started:['tech']}]}};
+ assert.equal(model.evaluate(waiting,live(),{}).research.projects.length,0);
+ assert.equal(model.evaluate(waiting,live({research_slots:[{slot:1,technology_id:'t1'}]}),{}).research.projects[0].key,'p');
 });

@@ -43,6 +43,18 @@
 
 ---
 
+## 🚀 Novità nella versione v0.2.0 (Native Backend & Engine Cutover)
+
+La versione 0.2.0 segna il passaggio definitivo a un'**architettura nativa al 100% in Rust** per il backend e tutti i servizi runtime del Companion.
+
+### Perché sono state introdotte queste modifiche:
+- **Eliminazione del runtime Python residente:** La distribuzione standalone Windows non include né avvia più alcun interprete Python o server Flask in background. L'eseguibile unico `HOI4 Companion.exe` serve le API HTTP/SSE, valuta le guide in modo deterministico (`native/guide-core`), risolve i cataloghi (`native/catalog-core`) e si coordina con l'HUD nativo Direct2D a zero latenza.
+- **Isolamento dei processi e zero leak di memoria:** Gli strumenti esterni (FFmpeg, yt-dlp, Node.js e host CWTools) vengono ora eseguiti esclusivamente all'interno di Windows Job Objects (`native/tools`), con chiusura automatica garantita alla terminazione del processo padre (`kill-on-close`) e quote massime di output.
+- **Fortificazioni provinciali e tracciamento confini:** Le guide possono ora richiedere bunker terrestri e costieri (`bunker`, `coastal_bunker`) su singoli tile, insiemi di province o intere frontiere (es. *1 fort in each tile at YUG border*), combinando la mappa con i controllori in tempo reale.
+- **Parità differenziale certificata:** Oltre 1.380 test Python fungono da oracoli indipendenti per verificare che il nuovo motore Rust sia equivalente al 100% all'implementazione originale, affiancati da 451 test JavaScript.
+
+---
+
 ## ⚡ Caratteristiche Principali
 
 ```

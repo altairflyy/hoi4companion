@@ -42,6 +42,18 @@ class CampaignNativeTests(unittest.TestCase):
         game.string(game.world+0x728,'22222222-2222-4222-8222-222222222222')
         self.assertTrue(watch_changed(game,reads))
 
+    def test_updated_serializer_and_token_are_checked_for_the_selected_build(self):
+        from hoi4companion.live import UPDATED_HASH
+        game=self.fixture();game.profile.sha256=UPDATED_HASH
+        game.profile.campaign_signature_rva=0x209022
+        game.profile.campaign_signature=bytes.fromhex('4d8d87280700004533c9ba803b0000488bcb')
+        game.profile.campaign_token_rva=0x34d0ad0
+        game.profile.bytes=lambda address,size:game.profile.campaign_signature if address==game.profile.campaign_signature_rva else b''
+        game.put(game.base+game.profile.campaign_token_rva,'<I',0x3b80)
+        self.assertEqual(read_campaign(NativeSample(game),game.world)['status'],'observed')
+        game.put(game.base+game.profile.campaign_token_rva,'<I',0)
+        self.assertEqual(read_campaign(NativeSample(game),game.world)['status'],'unknown')
+
     def test_shared_campaign_runtime_fixtures(self):
         data=json.loads((Path(__file__).parent/'fixtures/campaign-progress.json').read_text())
         for case in data['cases']:

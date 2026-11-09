@@ -2,6 +2,28 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const runtime=require('../src/hoi4companion/web/guide-runtime.js');
 const cases=require('./fixtures/guide-runtime.json');
+test('continuous focuses use qualified continuous selection and never native completion',()=>{
+ const guide={id:'continuous',dependency_policy:'explicit',tracks:{focus:[
+  {key:'suppress',action:{kind:'select_focus',entity:{kind:'focus',id:'continuous_restrict_freedom'},params:{focus_mode:'continuous'}}},
+  {key:'after_start',action:{kind:'select_focus',entity:{kind:'focus',id:'next'}},depends_on_started:['suppress']},
+  {key:'after_end',action:{kind:'select_focus',entity:{kind:'focus',id:'last'}},depends_on:['suppress']} ]}};
+ const observed=value=>({status:'observed',source:'fixture',value});
+ const state={schema_version:1,usable:true,facts:{'focus.active':observed([]),'focus.completed':observed([]),'focus.continuous':observed(['continuous_restrict_freedom'])}};
+ let result=runtime.evaluate(guide,state);
+ assert.deepEqual(result.steps.map(r=>r.status),['active','ready','waiting']);
+ assert.equal(result.steps[0].completion.value,false);
+ delete state.facts['focus.continuous'];state.facts['focus.active']=observed(['continuous_restrict_freedom']);
+ assert.equal(runtime.evaluate(guide,state).steps[0].selection.value,null);
+ guide.tracks.focus[0].action.params.focus_mode='invalid';assert.throws(()=>runtime.evaluate(guide,state),/focus mode/);
+});
+test('explicit policy removes only implicit barriers, leaving unknowns and declared dependencies',()=>{
+ const state=structuredClone(cases[0].state),focus=(key,extra={})=>({key,action:{kind:'select_focus',entity:{kind:'focus',id:key}},...extra});
+ const guide={id:'generic',tracks:{focus:[{key:'gate',action:{kind:'manual'}},focus('independent'),focus('dependent',{depends_on:['gate']}),focus('conditional',{when:{op:'check',key:'unknown'}})]}};
+ const before=JSON.stringify(guide),legacy=runtime.evaluate(guide,state),explicit=runtime.evaluate({...guide,dependency_policy:'explicit'},state);
+ assert.equal(legacy.steps[1].reason,'dependency_unknown');assert.equal(explicit.steps[1].status,'ready');
+ assert.equal(explicit.steps[2].reason,'dependency_unknown');assert.equal(explicit.steps[3].reason,'condition_unknown');assert.equal(JSON.stringify(guide),before);
+ for(const bad of [null,[],{},1,'bad'])assert.throws(()=>runtime.evaluate({...guide,dependency_policy:bad},state));
+});
 for(const example of cases)test('runtime: '+example.name,()=>{
  const before=JSON.stringify(example),value=runtime.evaluate(example.guide,example.state,example.progress);
  assert.deepEqual(value.steps.map(x=>x.status),example.expected.statuses);

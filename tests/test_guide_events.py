@@ -36,5 +36,19 @@ class GuideEventPlanTests(unittest.TestCase):
         plan=compile_event_plan(self.guide({'event_name':None,'event_option':None}),self.catalog)
         self.assertFalse(plan['bindings']);self.assertEqual(plan['unresolved'][0]['key'],'step')
 
+    def test_plan_uses_the_same_country_constraints_as_import(self):
+        catalog=copy.deepcopy(self.catalog)
+        catalog[0]['country_condition']={'op':'tag','value':'AUS'}
+        g=self.guide({'event_id':'e.1','event_option_id':'e.1.a'})
+        g['applies_to']={'country':'HUN'}
+        self.assertFalse(compile_event_plan(g,catalog)['bindings'])
+        g['applies_to']['country']='AUS'
+        self.assertEqual(compile_event_plan(g,catalog)['bindings']['step']['event_id'],'e.1')
+
+    def test_a_guide_without_events_does_not_rebuild_a_catalog_index(self):
+        from unittest.mock import patch
+        with patch('hoi4companion.guide_events.catalog_index',side_effect=AssertionError('unnecessary catalog rebuild')):
+            self.assertEqual(compile_event_plan(self.guide({'instructions':['Build a factory']}),self.catalog)['bindings'],{})
+
 
 if __name__=='__main__':unittest.main()

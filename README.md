@@ -8,8 +8,8 @@
 [![Downloads](https://img.shields.io/github/downloads/altairflyy/hoi4companion/total?color=blue&label=Downloads&logo=github&style=flat-square)](https://github.com/altairflyy/hoi4companion/releases)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/altairflyy/hoi4companion/windows-release.yml?branch=main&label=CI%20Build&logo=githubactions&logoColor=white&style=flat-square)](https://github.com/altairflyy/hoi4companion/actions)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20x64-0078D6?logo=windows&logoColor=white&style=flat-square)](https://github.com/altairflyy/hoi4companion/releases/latest)
-[![HOI4 Compatibility](https://img.shields.io/badge/HOI4%20Build-v1.19.3.0%20(42c3)-critical?logo=paradoxinteractive&logoColor=white&style=flat-square)](#what-it-does)
-[![Python](https://img.shields.io/badge/Python-3.13%20%7C%203.11+-3776AB?logo=python&logoColor=white&style=flat-square)](https://www.python.org/)
+[![HOI4 Compatibility](https://img.shields.io/badge/HOI4%20Live-verified%20build%20profiles-critical?logo=paradoxinteractive&logoColor=white&style=flat-square)](#what-it-does)
+[![Runtime](https://img.shields.io/badge/Runtime-Rust%20backend%20%26%20HUD-orange?logo=rust&style=flat-square)](docs/rust-backend-migration.md)
 [![Tech Stack](https://img.shields.io/badge/Stack-Rust%20%7C%20Direct2D%20%7C%20.NET%209-orange?style=flat-square)](#what-it-does)
 [![License](https://img.shields.io/badge/License-MIT-2ea44f?style=flat-square)](LICENSE)
 
@@ -72,11 +72,22 @@ Paradox Interactive product and does not redistribute HOI4 assets. Live reading
 and visual recognition have validation limits; neither zero latency nor zero
 performance overhead is guaranteed.
 
+## What's new in v0.2.0 (Native Backend & Engine Cutover)
+
+Version 0.2.0 marks the transition to a **100% standalone native Rust architecture** for the Companion backend and runtime services.
+
+### Why these changes were made
+- **Eliminate resident Python runtime overhead:** The desktop Windows distribution no longer requires a background Python interpreter, Flask server, or resident worker processes. The native binary `HOI4 Companion.exe` serves HTTP/SSE, runs the deterministic guide decision engine (`native/guide-core`), resolves catalog queries (`native/catalog-core`), and coordinates with the Direct2D HUD directly.
+- **Strict process containment & leak prevention:** External tools (FFmpeg, yt-dlp, Node.js, and CWTools) now run inside Windows Job Objects (`native/tools`) with automatic kill-on-close, output growth bounds, and zero orphaned background processes.
+- **Provincial fortifications & frontier tracking:** Walkthroughs now support land (`bunker`) and coastal (`coastal_bunker`) forts per province, province sets, or entire national borders (e.g., `1 fort in each tile at YUG border`), combining static map topology with live controllers.
+- **Differential parity assurance:** Over 1,380 Python tests serve as independent behavioral oracles alongside 451 JavaScript tests, ensuring complete determinism between the new Rust engine and reference specifications.
+
 ## Start on Windows
 
 1. Download the Windows x64 ZIP from **Releases**, rather than the source archive.
 2. Extract the entire archive into a writable folder.
-3. Launch **`HOI4 Companion.exe`**. The portable build includes its runtimes.
+3. Launch **`HOI4 Companion.exe`**. The native build runs a Rust backend and HUD;
+   it does not require an installed Python interpreter.
 4. Check the detected game installation and HOI4 documents directory in the app.
 5. Open **Import guide**, prepare the AI attachments, and import the returned JSON.
 6. Review unresolved associations and source issues, then install/select the guide.
@@ -89,14 +100,23 @@ from **Game content language**, which controls installed game/mod names and
 descriptions. Existing imported guides and quoted evidence retain their language.
 Restart the HUD after changing the interface language to update its controls.
 
-For the source checkout, use **`START COMPANION AND HUD.bat`** after installing
-development dependencies. This is the single launcher in the project root.
+For the source checkout, build the native components and use
+**`START COMPANION AND HUD.bat`**. This is the single launcher in the project root.
 See [START HERE.txt](START%20HERE.txt). Closing the browser does not stop the server;
 close the HUD through its control window. Web-only portable startup:
 
 ```powershell
 & '.\HOI4 Companion.exe' --no-hud
 ```
+
+Stop the native server and its HUD with `HOI4 Companion.exe --stop`; HOI4 remains
+open. Source checkouts use `powershell -NoProfile -File scripts/avvia-tutto.ps1 -Stop`.
+Python compatibility modules remain available for development and independent
+regression tests; the native launcher does not start them.
+
+The native package is built separately from older mixed-runtime releases. A
+source commit does not replace an existing GitHub download; see the distribution
+manifest and the [migration verification record](docs/rust-backend-migration.md).
 
 The default local address is `http://127.0.0.1:8766/walkthrough`. Importing another
 guide remains available through `/importer`. No personal guide, mod list, campaign,
@@ -136,10 +156,14 @@ that data directory. Back it up to retain installed guides and campaign progress
 
 ## Development
 
-The application server and readers use Python; script parsing uses native
-Rust/Jomini, script analysis uses a self-contained CWTools host, the web UI uses
-JavaScript, and the external HUD uses Rust/Direct2D. Jomini replaces the script
-parser, not the entire Python application.
+The standalone Rust backend owns guide decisions, catalog resolution, import
+orchestration, state normalization, qualified game-memory decoding, HTTP/SSE and
+SQLite progress. It supervises external tools only while jobs run. Rust/Jomini
+parses scripts; the self-contained CWTools host handles requested analysis.
+The separate Rust/Direct2D HUD uses the same active guide and native projection.
+Browser JavaScript presents the interface. Python remains for development/build
+tools and independent regression comparisons, outside the default application.
+See the [migration and verification report](docs/rust-backend-migration.md).
 
 Prerequisites: Python 3.11+, Node.js for JavaScript tests, Rust/MSVC for native
 builds, and the project's pinned .NET SDK for CWTools. Windows release builds use
@@ -148,14 +172,25 @@ the locked packaging environment documented in [distribution](docs/windows-distr
 ```powershell
 py -3 -m pip install -e ".[overlay]"
 powershell -NoProfile -File scripts/build-parser.ps1
+powershell -NoProfile -File scripts/build-observer.ps1
+powershell -NoProfile -File scripts/build-guide-core.ps1
+powershell -NoProfile -File scripts/build-catalog-core.ps1
+powershell -NoProfile -File scripts/build-tools.ps1
+powershell -NoProfile -File scripts/build-storage.ps1
+powershell -NoProfile -File scripts/build-backend.ps1
 powershell -NoProfile -File scripts/build-overlay.ps1
-$env:PYTHONPATH = 'src'
-py -3 -m hoi4companion --ui-language english --no-browser
+py -3 scripts/build-cwtools.py
+powershell -NoProfile -File scripts/avvia-tutto.ps1
 ```
 
-Use `--language english` or `--language italian` to change **game content** language.
-`--ui-language` changes only the Companion interface. Do not run a second instance
-on an occupied port; use a separate port/profile for isolated development.
+Source YouTube jobs need standalone yt-dlp and Node executables. `HOI4_YTDLP`
+selects the downloader explicitly. Native portable builds include those tools;
+they are started on demand, independently of the application runtime.
+
+Select game-content and interface languages separately in the application's
+settings. The developer `hoi4-backend.exe` also accepts `--language` and
+`--ui-language` overrides. Do not run a second instance on an occupied port;
+use a separate port/profile for isolated development.
 
 ```powershell
 $env:PYTHONPATH = 'src'

@@ -19,6 +19,7 @@ are preserved in [it/](it/README.md); archived test counts apply to their record
 - [Video and audio preparation](guide-video-workflow.md)
 - [Intelligence monitoring](intelligence-live.md)
 - [Rust/Jomini parser integration](jomini-migration.md)
+- [Rust backend migration and verification gates](rust-backend-migration.md)
 - [Qualified LiveState](live-state.md)
 - [Native Windows HUD](native-overlay.md)
 - [Contextual operational summary](operational-summary.md)

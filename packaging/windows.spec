@@ -10,6 +10,10 @@ datas=[];binaries=[];hidden=[]
 for folder in ('web','guides','examples','licenses','rules'):
     datas.append((str(package/folder),'hoi4companion/'+folder))
 datas.append((str(package/'guide-import-prompt.md'),'hoi4companion'))
+datas.append((str(package/'guide_language.json'),'hoi4companion'))
+datas.append((str(package/'live-profiles-v1.json'),'hoi4companion'))
+datas.append((str(package/'design-profile-v1.json'),'hoi4companion'))
+datas.append((str(package/'country-functions-v1.json'),'hoi4companion'))
 datas.append((str(package/'translations.json'),'hoi4companion'))
 for folder in ('cwtools','overlay'):
     # Keep provenance manifests and their bytes unchanged.
@@ -17,6 +21,24 @@ for folder in ('cwtools','overlay'):
 parser=native/'hoi4companion_parser.dll'
 if not parser.is_file():parser=next(native.glob('hoi4companion_parser*.pyd'))
 binaries.append((str(parser),'hoi4companion/_native'))
+observer=native/'hoi4companion_observer.dll'
+if not observer.is_file():observer=next(native.glob('hoi4companion_observer*.pyd'))
+binaries.append((str(observer),'hoi4companion/_native'))
+guide_core=native/'hoi4companion_guide_core.dll'
+if not guide_core.is_file():guide_core=next(native.glob('hoi4companion_guide_core*.pyd'))
+binaries.append((str(guide_core),'hoi4companion/_native'))
+catalog_core=native/'hoi4companion_catalog_core.dll'
+if not catalog_core.is_file():catalog_core=next(native.glob('hoi4companion_catalog_core*.pyd'))
+binaries.append((str(catalog_core),'hoi4companion/_native'))
+tools=native/'hoi4companion_tools.dll'
+if not tools.is_file():tools=next(native.glob('hoi4companion_tools*.pyd'))
+binaries.append((str(tools),'hoi4companion/_native'))
+storage=native/'hoi4companion_storage.dll'
+if not storage.is_file():storage=next(native.glob('hoi4companion_storage*.pyd'))
+binaries.append((str(storage),'hoi4companion/_native'))
+backend=native/'hoi4companion_backend.dll'
+if not backend.is_file():backend=next(native.glob('hoi4companion_backend*.pyd'))
+binaries.append((str(backend),'hoi4companion/_native'))
 datas.append((os.environ['HOI4_BUILD_NODE'],'hoi4companion/_native/node'))
 for name in ('yt_dlp','yt_dlp_ejs','imageio_ffmpeg'):
     data,bins,imports=collect_all(name)

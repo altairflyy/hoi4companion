@@ -75,7 +75,7 @@ class ScreenOverlayTests(unittest.TestCase):
         self.guide['tracks']={'operations':[
             {'key':'law','action':{'kind':'manual','params':{'category':'politics','law_id':'law','law_group':'economy'}}},
             {'key':'advisor','action':{'kind':'manual','params':{'category':'characters','advisor_id':'advisor','person_id':'person','role':'chief'}}},
-            {'key':'production','action':{'kind':'manual','params':{'category':'production','variant_name':'Custom Model','production_selector':{'equipment_ids':['equipment']},'assigned_factories':5}}},
+            {'key':'production','action':{'kind':'manual','params':{'category':'production','variant_name':'Custom Model','production_selector':{'equipment_ids':['equipment'],'variant_names':['Custom Model'],'category':'military'},'assigned_factories':5}}},
             {'key':'future','action':{'kind':'manual','params':{'category':'politics','law_id':'later','law_group':'economy'}}}]}
         self.runtime['steps']=[{'key':key,'status':'unverifiable','reason':'manual_confirmation_required','action_readiness':{'resources_available':True,'blocked':[],'unknown':[]}} for key in ('law','advisor','production','future')]
         self.catalog=[{'kind':'law','id':'law','name':'War Economy','group':'economy'},{'kind':'law','id':'later','name':'Other Law','group':'economy'},{'kind':'advisor','id':'advisor','name':'Example Person','slot':'chief'}]
@@ -88,14 +88,14 @@ class ScreenOverlayTests(unittest.TestCase):
         self.runtime['steps'][0]['reason']='condition_unknown'
         self.assertNotIn('law',[r['key'] for r in targets(self.guide,self.runtime,self.catalog,self.state)])
 
-    def test_production_reuses_runtime_qualified_models_and_aggregate_target(self):
+    def test_production_reuses_runtime_qualified_counts_but_not_cosmetic_model_names(self):
         self.guide['tracks']={'operations':[{'key':'p','action':{'kind':'manual','params':{
             'category':'production','equipment_id':'family','assigned_factories':2,
-            'quantity_mode':'additional','production_selector':{'equipment_ids':['model']}}}}]}
+            'quantity_mode':'additional','production_selector':{'equipment_ids':['model'],'variant_names':[],'category':'military'}}}}]}
         self.runtime['steps']=[{'key':'p','status':'active','production':{
             'target':7,'lines':[{'name':'Actual Local Model','equipment':'model'}]}}]
         result=targets(self.guide,self.runtime,[],self.state)
-        self.assertEqual(result[0]['labels'],['Actual Local Model'])
+        self.assertEqual(result[0]['labels'],['family'])
         self.assertEqual(result[0]['quantity'],7)
         self.runtime['steps'][0]['status']='blocked'
         self.assertEqual(targets(self.guide,self.runtime,[],self.state),[])
@@ -123,9 +123,13 @@ class ScreenOverlayTests(unittest.TestCase):
         self.runtime['parallel']={'research':{'capacity':1,'steps':['0']}}
         result=targets(self.guide,self.runtime,self.catalog,self.state)
         self.assertEqual([r['key'] for r in result],['0','1'])
-        self.assertEqual(result[1]['status'],'active')
         self.runtime['parallel']={'research':{'capacity':0,'steps':[]}}
         self.assertEqual([r['key'] for r in targets(self.guide,self.runtime,self.catalog,self.state)],['1'])
+
+    def test_active_focus_retains_blue_tracking_without_consuming_new_choices(self):
+        self.runtime['steps'][0]['status']='active'
+        self.runtime['parallel']={}
+        self.assertEqual(targets(self.guide,self.runtime,self.catalog,self.state)[0]['status'],'active')
 
 
 if __name__=='__main__':unittest.main()

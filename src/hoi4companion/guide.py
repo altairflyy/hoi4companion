@@ -19,80 +19,9 @@ LOCAL_GUIDES = data_directory() / 'guides'
 
 
 def normalise_guide(guide):
-    """Migrate legacy row conventions into country-neutral declarative policies."""
-    if not isinstance(guide, dict):
-        raise ValueError('Guida non valida')
-    result = deepcopy(guide)
-    if any(not is_json_number(result.get(field, default)) or result.get(field, default) != default
-           for field, default in (('schema_version', VERSION), ('schema', 1))):
-        raise ValueError('Versione contratto guida non supportata')
-    result['schema_version'] = VERSION
-    result.setdefault('applies_to', {k: result[k] for k in ('country', 'tree_id') if result.get(k)})
-    if not isinstance(result['applies_to'], dict) or any(k not in ('country', 'tree_id') or not isinstance(v, str) or not v for k, v in result['applies_to'].items()):
-        raise ValueError('Ambito guida non valido')
-    for field in ('country', 'tree_id'):
-        if result['applies_to'].get(field):
-            if result.get(field) and result[field] != result['applies_to'][field]:
-                raise ValueError('Ambito guida in conflitto con i campi legacy')
-            result.setdefault(field, result['applies_to'][field])
-    if not isinstance(result.get('tracks'), dict) or len(result['tracks']) > 32:
-        raise ValueError('Tracce guida non valide')
-    keys = set()
-    actions = {'focus': 'select_focus', 'technology': 'research', 'project': 'special_project', 'gate': 'manual', 'free': 'free'}
-    kinds = {v: k for k, v in actions.items()}
-    for track, steps in result['tracks'].items():
-        if not isinstance(track, str) or not isinstance(steps, list) or len(steps) > 4096:
-            raise ValueError('Traccia guida non valida')
-        for index, step in enumerate(steps):
-            if not isinstance(step, dict):
-                raise ValueError('Passaggio guida non valido')
-            step.setdefault('key', f'{track}-{index + 1}')
-            key = step['key']
-            if not isinstance(key, str) or not key or key in keys:
-                raise ValueError('Chiave passaggio assente o duplicata')
-            keys.add(key)
-            if 'action' not in step:
-                kind = step.get('kind')
-                if kind not in actions:
-                    raise ValueError('Tipo passaggio non supportato')
-                step['action'] = {'kind': actions[kind]}
-                if kind in ('focus', 'technology', 'project'):
-                    step['action']['entity'] = {'kind': kind, 'id': step.get('target', '')}
-            validate_action(step['action'])
-            ref = step['action'].get('entity')
-            if ref and ref['kind'] == 'focus' and result['applies_to'].get('tree_id'):
-                if ref.get('scope', result['applies_to']['tree_id']) != result['applies_to']['tree_id']:
-                    raise ValueError('Ambito focus in conflitto con la guida')
-                ref.setdefault('scope', result['applies_to']['tree_id'])
-            step['kind'] = kinds[step['action']['kind']]
-            if step['action'].get('entity'):
-                step['target'] = step['action']['entity']['id']
-            if step.get('gate'):
-                step.setdefault('when', {'op': 'check', 'key': step['gate']})
-            if step.get('available_gate') and step.get('priority_after'):
-                step.setdefault('priority', 100)
-                step.setdefault('priority_when', {'op': 'all', 'args': [
-                    {'op': 'fact', 'key': 'focus.completed', 'test': 'contains', 'value': step['priority_after']},
-                    {'op': 'check', 'key': step['available_gate']}]})
-    steps = [s for rows in result['tracks'].values() for s in rows]
-    for step in steps:
-        if step.get('optional_before') and 'skip_when' not in step:
-            policies = [s['priority_when'] for s in steps if s.get('target') == step['optional_before'] and s.get('priority_when')]
-            conditions = [{'op': 'fact', 'key': 'focus.completed', 'test': 'contains', 'value': step['optional_before']}, *policies]
-            step['skip_when'] = {'op': 'any', 'args': conditions}
-        for field in ('when', 'priority_when', 'skip_when'):
-            if field in step:
-                validate_condition(step[field])
-        if 'priority' in step:
-            if not is_json_number(step['priority']) or step['priority'] != int(step['priority']) or not -100000 <= step['priority'] <= 100000:
-                raise ValueError('Priorità guida non valida')
-            step['priority'] = int(step['priority'])
-    result.setdefault('milestones', [])
-    result.setdefault('assumptions', [])
-    result.setdefault('title', result.get('id', 'Guida'))
-    result.setdefault('subtitle', '')
-    validate_guide_extensions(result)
-    return result
+    """Normalize and validate Guide Schema v1 in the universal Rust backend."""
+    from .backend_core import _request
+    return _request(0,'guide_normalize',guide=guide)
 
 
 @lru_cache(maxsize=64)
@@ -187,49 +116,13 @@ def update_checks(guide, current, update):
     return result
 
 
-def enrich_guide(guide, trees, technologies, labels, folders):
-    result = normalise_guide(guide)
-    warnings = list(result.get('association_warnings',[]))
-    for track in result['tracks'].values():
-        for step in track:
-            kind, target = step['kind'], step.get('target')
-            if kind == 'focus':
-                tree_id = step['action']['entity'].get('scope') or result.get('tree_id')
-                tree = trees.get(tree_id)
-                if not tree_id:
-                    matches = [(key, tree) for key, tree in trees.items() if target in tree.focuses]
-                    if len(matches) == 1:
-                        tree_id, tree = matches[0]
-                focus = tree.focuses.get(target) if tree else None
-                step['catalog_match'] = focus is not None
-                if focus:
-                    step['action']['entity'].setdefault('scope', tree_id)
-                    step.update(name=focus.name, estimated_days=round(focus.cost * 7), prerequisites=focus.prerequisites,
-                                href='/?' + urlencode({'tree':tree_id,'focus':target}))
-                else:
-                    warnings.append(f'Focus non trovato nel catalogo compatibile: {target}')
-            elif kind == 'technology':
-                tech = technologies.get(target)
-                step['catalog_match'] = tech is not None
-                if tech:
-                    equipment = next((u['id'] for u in tech.get('unlocks',[]) if u['kind']=='Equipaggiamento'), '')
-                    country = result.get('country', '')
-                    keys = [country+'_'+target, country+'_'+equipment, target, equipment]
-                    name = next((labels[k] for k in keys if k in labels),tech['name'])
-                    folder = next((f['id'] for f in tech.get('folders',[]) if f['id'] in folders and f.get('layout')),None)
-                    step.update(name=localise(name,labels), year=tech.get('start_year'), folder=folder,
-                                folder_name=folders.get(folder,{}).get('name'), has_conditions=tech.get('has_conditions',False),
-                                special_project_tech=tech.get('special_project',False))
-                    if folder:
-                        step['href']='/technologies?' + urlencode({'folder':folder,'tech':target})
-                else:
-                    warnings.append(f'Tecnologia non trovata nel catalogo compatibile: {target}')
-            elif kind in ('gate','project'):
-                step['verification']='automatic' if step.get('completion') else 'start_only' if step.get('started_when') else 'manual'
-                if target in labels:
-                    step['name']=localise(labels[target],labels)
-            step.setdefault('name',step.get('title',target or kind))
-            if step['action'].get('entity'):
-                step['entity'] = entity(step['action']['entity'], step['name'], {'catalog_match': step.get('catalog_match')})
-    result['catalog_warnings']=warnings
-    return result
+def enrich_guide(guide, trees, technologies, labels, folders, *,continuous_focuses=None):
+    from .backend_core import _request
+    from .research_upgrades import guide_language
+    def focus(value):
+        fields={'name':'','cost':10,'prerequisites':[],'mutually_exclusive':[],'criteria':None,'has_conditions':False}
+        return {key:getattr(value,key,default) for key,default in fields.items()}
+    return _request(0,'source_enrich',guide=guide,vocabulary=guide_language(),
+                    trees={key:{'focuses':{identifier:focus(value) for identifier,value in tree.focuses.items()}} for key,tree in trees.items()},
+                    technologies=technologies,labels=labels,folders=folders,
+                    continuous={key:focus(value) for key,value in (continuous_focuses or {}).items()})

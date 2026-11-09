@@ -45,6 +45,7 @@ src/hoi4companion/_native/*.pyd
 src/hoi4companion/_native/*.so
 src/hoi4companion/_native/*.dll
 src/hoi4companion/_native/*.dylib
+src/hoi4companion/_native/*.exe
 
 # Logs & debug traces
 *.log

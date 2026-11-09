@@ -38,7 +38,12 @@ class ActionResourceTests(unittest.TestCase):
         f.put(head+8,'<Q',node);f.put(head+0x19,'<B',1)
         f.put(node,'<QQQ',head,head,head);f.put(node+0x19,'<B',0)
         f.put(node+0x1C,'<ii',123,units)
-        r.token_name=lambda token:'specialization_land'
+        # Exercise the actual token cache read across the native boundary.
+        table=f.allocate()
+        f.put(f.base+0x35E1AB0,'<B',1)
+        f.put(f.base+0x35E1AB4,'<i',123)
+        f.put(f.base+0x35E1AE0,'<Q',table)
+        f.string(table+123*32,'specialization_land')
         return f,r,node
 
     def test_fractional_breakthrough_progress_never_rounds_up_to_spendable_points(self):

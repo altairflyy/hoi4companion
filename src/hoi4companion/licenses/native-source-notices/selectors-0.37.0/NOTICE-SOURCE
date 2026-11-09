@@ -1,0 +1,5 @@
+Selectors 0.37.0 is included without changes under the Mozilla Public License 2.0.
+The original source code can be obtained free of charge from:
+https://crates.io/api/v1/crates/selectors/0.37.0/download
+https://github.com/servo/stylo/tree/6cfce6f3293b5e13c2246838380e514b8b206a27/selectors
+The source retains its original MPL notices; the license text is included above.

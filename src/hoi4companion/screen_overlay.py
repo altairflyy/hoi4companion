@@ -35,7 +35,8 @@ def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
         if session is not None and normalized.get('session_id')!=session:return []
         if campaign is not None and (observed.get('status')!='observed' or not observed.get('source') or observed.get('value')!=campaign):return []
     rows={r['key']:r for lane in guide['tracks'].values() for r in lane}
-    native=set(k for lane in runtime.get('parallel',{}).values() for k in lane.get('steps',[]))
+    native=set(k for lane in runtime.get('parallel',{}).values() for k in [*lane.get('steps',[]),*lane.get('optional_steps',[]),*lane.get('alternative_steps',[])])
+    alternatives=set(runtime.get('parallel',{}).get('focus',{}).get('alternative_steps',[]))
     overview=state.get('sample',{}).get('country_overview',{})
     events=overview.get('events',{}) if overview.get('country')==country else {}
     # Both the native watch list and the visual path use the same scoped
@@ -45,14 +46,50 @@ def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
         from .guide_events import compile_event_plan
         event_plan=compile_event_plan(guide,catalog)
     bindings=event_plan.get('bindings',{})
+    # One local index per projection. Do not retain a previous installation's
+    # catalog; duplicate ID/scope candidates must still remain ambiguous.
+    needed=set()
+    for row in rows.values():
+        action=row['action'];ref=action.get('entity',{});params=action.get('params',{})
+        if ref.get('kind') and ref.get('id'):needed.add((ref['kind'],ref['id']))
+        for identity in (params.get('advisor_id'),params.get('law_id'),params.get('idea_id')):
+            if identity:needed.update((kind,identity) for kind in ('law','idea','advisor'))
+    for item in runtime.get('steps',[]):
+        if item.get('research_target'):needed.add(('technology',item['research_target']))
+        needed.update(('technology',identity) for identity in item.get('research_options',[]))
+    references={};equipment=[]
+    for entry in catalog:
+        if (entry['kind'],entry['id']) in needed:references.setdefault((entry['kind'],entry['id']),[]).append(entry)
+        if entry['kind']=='equipment':equipment.append(entry)
     result=[];seen=set()
     # Preserve the runtime's priority order, including across research folders.
     order={key:index for index,key in enumerate(runtime.get('parallel',{}).get('research',{}).get('steps',[]))}
     for item in sorted(runtime.get('steps',[]),key=lambda item:order.get(item['key'],len(order))):
         row=rows.get(item['key']);status=item.get('status');reason=item.get('reason')
+        if row and row.get('tracking')!='reminder' and row['action'].get('params',{}).get('category')=='production':
+            if (status in ('ready','active','completed') or status=='not_applicable' and reason=='production_superseded'
+                    or status=='unverifiable' and reason=='manual_confirmation_required') and item.get('production_admitted') is not False:
+                from .production_hud import proposals
+                result.extend(proposals(row,item,catalog,country,state,equipment=equipment))
+            continue
         if not row or (row.get('tracking')=='reminder' and not (prepare_events and item['key'] in bindings)) or status not in ('ready','active','unverifiable'):continue
         if status=='unverifiable' and reason!='manual_confirmation_required':continue
+        if item.get('research_options') and item['key'] in native and status=='ready':
+            for identity in item['research_options']:
+                entries=references.get(('technology',identity),[])
+                if len(entries)!=1 or ('research',identity) in seen:continue
+                entry=entries[0];info=row.get('choice_entities',{}).get(identity,{})
+                labels=list(dict.fromkeys(x for x in [entry.get('localized_name'),entry['name'],*entry.get('aliases',[])]
+                                          if isinstance(x,str) and len(text_key(x))>=4))
+                result.append({'key':item['key']+'::choice:'+identity,'guide_step':item['key'],
+                    'panel':'research','identity':identity,'labels':labels,'title':entry['name'],
+                    'status':status,'tone':'choice' if len(item['research_options'])>1 or row.get('research_choice',{}).get('mode')=='once' else 'next',
+                    'country':country,'folder':info.get('folder'),'folder_name':info.get('folder_name')})
+                seen.add(('research',identity))
+            continue
         action=row['action'];params=action.get('params',{});ref=action.get('entity',{});panel=None;entries=[];labels=[];identity=None
+        if action['kind']=='research' and item.get('research_target'):
+            ref={**ref,'id':item['research_target']}
         if any(k in params for k in ('event_id','event_name','event_option_id','event_option')):
             binding=bindings.get(item['key'])
             if not binding:continue
@@ -68,33 +105,22 @@ def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
             continue
         kind=action['kind']
         if kind in ('select_focus','research'):
-            # Active native steps are still highlighted by the tree views.
-            # Only NEW choices consume the runtime's free parallel capacity.
+            # Keep current work in blue on its own sheet. Only the runtime's
+            # admitted new choices consume free slots; tab navigation filters
+            # active work separately, without removing its tracking rectangle.
             if item['key'] not in native and status!='active':continue
             panel='focus' if kind=='select_focus' else 'research';identity=ref.get('id')
-            entries=[e for e in catalog if e['kind']==ref.get('kind') and e['id']==identity and (not ref.get('scope') or e.get('scope')==ref['scope'])]
+            entries=[e for e in references.get((ref.get('kind'),identity),[]) if not ref.get('scope') or e.get('scope')==ref['scope']]
         elif kind=='special_project':
             if status=='active':continue
             panel='projects';identity=ref.get('id')
-            entries=[e for e in catalog if e['kind']=='project' and e['id']==identity]
-        elif params.get('category')=='production':
-            panel='production';identity=params.get('variant_name') or params.get('equipment_id') or params.get('equipment_name')
-            selector=params.get('production_selector')
-            if not selector:continue
-            # The runtime has already matched and qualified these native rows.
-            # Reuse that evidence instead of resolving a family name a second time.
-            production=item.get('production') or {}
-            labels=[line['name'] for line in production.get('lines',[]) if isinstance(line.get('name'),str)]
-            if not labels:labels=[params['variant_name']] if params.get('variant_name') else []
-            if not labels:
-                from .research_upgrades import exact_matches
-                entries=exact_matches(params.get('equipment_id') or params.get('equipment_name',''),[e for e in catalog if e['kind']=='equipment'])
+            entries=references.get(('project',identity),[])
         elif params.get('category') in ('politics','characters'):
             if item['key']!=political:continue
             panel='politics';identity=params.get('advisor_id') or params.get('law_id') or params.get('idea_id')
             identifiers={params.get('law_id'),params.get('idea_id'),params.get('advisor_id')}-{None}
-            entries=[e for e in catalog if e['kind'] in ('law','idea','advisor') and e['id'] in identifiers
-                     and (not params.get('role') or e.get('slot',e.get('group'))==params['role'])
+            entries=[e for entity_kind in ('law','idea','advisor') for identifier in identifiers for e in references.get((entity_kind,identifier),[])
+                     if (not params.get('role') or e.get('slot',e.get('group'))==params['role'])
                      and (not params.get('law_group') or e.get('group')==params['law_group'])]
             labels=[params.get('person_name')] if params.get('person_name') else []
         if not panel or not identity or (panel,identity) in seen:continue
@@ -107,9 +133,10 @@ def targets(guide,runtime,catalog,state,*,prepare_events=False,event_plan=None):
         labels=list(dict.fromkeys(x for x in labels if isinstance(x,str) and len(text_key(x))>=4))
         if not labels:continue
         seen.add((panel,identity));result.append({'key':item['key'],'panel':panel,'identity':identity,'labels':labels,
-            'title':row.get('title') or row.get('name') or item['key'],'status':status,
+            **({'tone':'choice','recommendation':'alternative'} if item['key'] in alternatives else {'tone':'choice'} if params.get('focus_optional') else {}),
+            'title':('Alternative · ' if item['key'] in alternatives else 'Verify requirements · ' if status=='ready' and 'focus_readiness' in item and item['focus_readiness']['value'] is None else '')+(row.get('title') or row.get('name') or item['key']),'status':status,
             'folder':row.get('folder'),'folder_name':row.get('folder_name'),
-            'event_title':params.get('event_name'),'event_titles':[label for e in catalog if panel=='event' and e['kind']=='event' and e['id']==params.get('event_id') for label in (e.get('name'),e.get('localized_name')) if label],
+            'event_title':params.get('event_name'),'event_titles':[label for e in references.get(('event',params.get('event_id')),[]) for label in (e.get('name'),e.get('localized_name')) if label] if panel=='event' else [],
             'country':country,'scope':ref.get('scope') or (guide.get('applies_to',{}).get('tree_id') if panel=='focus' else None),
             **({'action_readiness':item.get('action_readiness'),'entity_kind':entries[0]['kind'],'category_id':params.get('law_group') or params.get('role') or entries[0].get('group'), 'specialization':entries[0].get('specialization')} if panel in ('politics','projects') else {}),
             'quantity':(item.get('production') or {}).get('target',params.get('requested_factories',params.get('assigned_factories')))})

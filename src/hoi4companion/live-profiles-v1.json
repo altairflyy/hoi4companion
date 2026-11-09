@@ -1,0 +1,288 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "7dc947be34970da1e1c787bcddbe7f62b610ff258aebf8f06aa8b348f3a031d5": {
+      "world_rva": 53670496,
+      "technology_definition_vtable": 43238112
+    },
+    "b6650c85002374218e60598bd04aaa26cbad996fedce77126fcf92fc6bd6d888": {
+      "world_rva": 54384304,
+      "technology_definition_vtable": 43753184,
+      "campaign_signature_rva": 2134050,
+      "campaign_signature": {
+        "$bytes": "4d8d87280700004533c9ba803b0000488bcb"
+      },
+      "campaign_token_rva": 55380688,
+      "building_database_rva": 54383208,
+      "production_owner_offset": 680,
+      "production_totals": {
+        "$tuple": [
+          720,
+          816,
+          912
+        ]
+      },
+      "country_sections": {
+        "$tuple": [
+          "divisions",
+          "manpower",
+          "states",
+          "production",
+          "politics"
+        ]
+      }
+    },
+    "cf781ed178cd801643b233b7e3fcd1c0efd19bd01aecd24bf07a35f69f10476f": {
+      "world_rva": 54384304,
+      "technology_definition_vtable": 43753184,
+      "joint_focus_vtable": 41646824,
+      "gui_layout": {
+        "root_rva": 55578840,
+        "registry": {
+          "$tuple": [
+            232,
+            256
+          ]
+        },
+        "view_container": 1528,
+        "container_children": 4720,
+        "icon_sprite": 240,
+        "icon_anchor": 248,
+        "drag_anchor": 280,
+        "drag_sprite": 288,
+        "button_sprite": 248,
+        "button_anchor": 440,
+        "container_drags": 4696,
+        "container_buttons": 4768,
+        "container_icons": 4824,
+        "container_clip": 6036,
+        "container_outer": 6128,
+        "container_inner": 6136,
+        "focus_tree_fields": {
+          "$tuple": [
+            14920,
+            14928
+          ]
+        },
+        "focus_country_optional": 14936,
+        "focus_country_fields": {
+          "$tuple": [
+            14944,
+            14952
+          ]
+        }
+      },
+      "campaign_signature_rva": 2134050,
+      "campaign_signature": {
+        "$bytes": "4d8d87280700004533c9ba803b0000488bcb"
+      },
+      "campaign_token_rva": 55380688,
+      "production_owner_offset": 680,
+      "production_totals": {
+        "$tuple": [
+          720,
+          816,
+          912
+        ]
+      },
+      "military_layout": {
+        "experience_offset": 5512,
+        "diplomacy_offset": 3976,
+        "signatures": {
+          "$tuple": [
+            {
+              "$tuple": [
+                7434608,
+                {
+                  "$bytes": "488b8188150000c3"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                20156524,
+                {
+                  "$bytes": "4c8d4610493900740dba92330000"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                20156567,
+                {
+                  "$bytes": "4c8d4628493900740dba93330000"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                20156610,
+                {
+                  "$bytes": "4c8d4640493900740dba94330000"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                4159698,
+                {
+                  "$bytes": "33d2488b88880f0000e890cb9a00"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                14304383,
+                {
+                  "$bytes": "83b9a4000000008bfa740485d27457"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                14246229,
+                {
+                  "$bytes": "4889aed0020000"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "country_metrics_layout": {
+        "version": 1,
+        "path": "effective-war-support"
+      },
+      "foreign_interactions_layout": {
+        "version": 1,
+        "signatures": {
+          "$tuple": [
+            {
+              "$tuple": [
+                14158282,
+                {
+                  "$bytes": "babc2f0000488bc8e8b9"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                14158346,
+                {
+                  "$bytes": "bad72c0000488bc8e879"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                14218432,
+                {
+                  "$bytes": "4883c110e8378ce7ff"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                14218488,
+                {
+                  "$bytes": "807b4800"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                17190919,
+                {
+                  "$bytes": "488b9df0000000486385fc000000488d34c3"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                17190750,
+                {
+                  "$bytes": "440fb685c0000000"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                13102064,
+                {
+                  "$bytes": "488d8f88100000e8c49d3c00"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                13102159,
+                {
+                  "$bytes": "48638780100000"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                17083379,
+                {
+                  "$bytes": "48634318488b7b1083f808775b48"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                28071488,
+                {
+                  "$bytes": "488bc24c8d4110488bc8ba6b000000e9fc3514ff"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                28067293,
+                {
+                  "$bytes": "4c8d4110488bd9ba6b000000488bcfe85f4614ff"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                17083056,
+                {
+                  "$bytes": "48895108c3"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                13102340,
+                {
+                  "$bytes": "6eecc70075ecc7007cecc700e8ecc70083ecc7008aecc700"
+                }
+              ]
+            },
+            {
+              "$tuple": [
+                17083604,
+                {
+                  "$bytes": "3fac04011dac04014dac040131ac040154ac040113ac040127ac040138ac040146ac0401"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "country_sections": {
+        "$tuple": [
+          "production",
+          "experience",
+          "diplomacy",
+          "metrics",
+          "politics",
+          "doctrines",
+          "intelligence"
+        ]
+      }
+    }
+  }
+}

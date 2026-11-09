@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "crate": "jomini",
+  "version": "0.37.2",
+  "repository_commit": "f100a1d5ad49eab3d1b389d763eed5a6c7e9003b",
+  "files": {
+    "LICENSE-MIT": {
+      "url": "https://raw.githubusercontent.com/rakaly/jomini/f100a1d5ad49eab3d1b389d763eed5a6c7e9003b/LICENSE.txt",
+      "sha256": "91276db973f25602d1aa43491f59cbc84cb88e6f151e1d0cc82a755563ce0195"
+    }
+  }
+}

@@ -8,6 +8,12 @@ from hoi4companion.live import NativeProvider, LiveReadError, compile_watch_read
 
 
 class LiveChangesTest(unittest.TestCase):
+    def test_native_provider_keeps_topology_generation_identity_for_store_refresh(self):
+        topology={1:[2],2:[1]}
+        provider=NativeProvider(self.executable,province_neighbors=topology)
+        self.addCleanup(provider.close)
+        self.assertIs(provider.province_neighbors,topology)
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.executable = Path(self.tmp.name) / 'hoi4.exe'
@@ -104,6 +110,7 @@ class LiveChangesTest(unittest.TestCase):
         self.provider.collect()
         self.provider.close()
         self.assertFalse(self.provider.watch_plan)
+        self.assertIsNone(self.provider.watch_packet)
         self.provider.collect()
         self.assertEqual(self.provider.metrics['full_reads'], 2)
 
@@ -113,6 +120,49 @@ class LiveChangesTest(unittest.TestCase):
         self.assertFalse(watch_changed(mem, reads))
         mem.read = lambda address, size: b'x' + b'changed padding' + b'b'
         self.assertTrue(watch_changed(mem, reads))
+
+    def test_prepared_native_probe_is_rebuilt_after_change_and_released_on_close(self):
+        prepared = []
+        def prepare(reads):
+            packet = tuple((address, size, tuple(parts)) for address, size, parts in reads)
+            prepared.append(packet)
+            return packet
+        self.mem.prepare_watch = prepare
+        self.mem.probe_watch = lambda packet: watch_changed(self.mem, packet)
+        self.provider.collect()
+        self.provider.collect()
+        self.assertEqual(len(prepared), 1)
+        self.mem.put(self.mem.focus_state + 0x10, '<Q', 0)
+        self.mem.put(self.mem.focus_state + 0x18, '<Q', self.mem.continuous)
+        value = self.provider.collect()
+        self.assertEqual(value['continuous_focus'], 'continuous_test')
+        self.assertEqual(len(prepared), 2)
+        self.assertNotEqual(prepared[0], prepared[1])
+        self.provider.close()
+        self.assertIsNone(self.provider.watch_packet)
+        self.provider.collect()
+        self.assertEqual(len(prepared), 3)
+
+    def test_native_probe_error_discards_cached_evidence_without_fallback(self):
+        self.mem.prepare_watch = lambda reads: b'fixture-packet'
+        def fail(packet):
+            raise LiveReadError('Native observer: read failed or partial')
+        self.mem.probe_watch = fail
+        self.provider.collect()
+        with self.assertRaisesRegex(LiveReadError, 'read failed'):
+            self.provider.collect()
+        self.assertIsNone(self.provider.cached)
+        self.assertIsNone(self.provider.process)
+        self.assertIsNone(self.provider.watch_packet)
+
+    def test_changed_process_identity_never_reuses_prepared_packet(self):
+        self.mem.prepare_watch = lambda reads: b'fixture-packet'
+        self.mem.probe_watch = lambda packet: self.fail('must validate identity first')
+        self.provider.collect()
+        self.mem.identity = lambda: self.mem.created + 1
+        with self.assertRaisesRegex(LiveReadError, 'Sessione'):
+            self.provider.collect()
+        self.assertIsNone(self.provider.watch_packet)
 
     def test_batched_watch_never_crosses_a_page_boundary(self):
         reads = compile_watch_reads({(0x200000FFE, 4): b'abcd'})
