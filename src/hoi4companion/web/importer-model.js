@@ -114,7 +114,7 @@
   if(typeof patch.instruction!=='string'||!patch.instruction.trim())throw Error(uiText("Enter the corrected instruction"));
   const started=step.started_when,completed=step.completion;
     for(const [field,suffix]of [['started_when','started'],['completion','completed']]){const condition=step[field];if(condition&&Object.keys(condition).length===4&&condition.op==='fact'&&condition.key===`guide.fortifications.${key}.${suffix}`&&condition.test==='eq'&&condition.value===true)delete step[field];}
-  const counter={infrastructure:'infrastructure',arms_factory:'military_factories',industrial_complex:'civilian_factories',dockyard:'dockyards'}[before.building_id];
+  const counter={infrastructure:'infrastructure',arms_factory:'military_factories',industrial_complex:'civilian_factories',dockyard:'dockyards'}[before.building_id]||(before.building_scope==='state'&&/^[A-Za-z0-9_]+$/.test(before.building_id)?'buildings.'+before.building_id:null);
   const target=before.target_level??before.target_quantity??(before.quantity_mode==='target_total'?before.quantity:before.quantity_mode==='additional'&&Number.isSafeInteger(before.baseline_level)?before.baseline_level+before.quantity:undefined);
   // Rebuild only recognisable construction bindings. Preserve custom conditions.
   if(started?.op==='fact'&&started.key==='construction.queued'&&started.test==='contains'&&

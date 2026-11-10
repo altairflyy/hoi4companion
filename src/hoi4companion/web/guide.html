@@ -3,11 +3,11 @@
 <title>HOI4 Companion — Operational plan</title>
 <link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/guide.css"><link rel="stylesheet" href="/live-state.css">
 <script defer src="/focus-criteria.js"></script><script defer src="/design-matching.js"></script><script defer src="/contracts.js"></script><script defer src="/production-progress.js"></script><script defer src="/guide-runtime.js"></script><script defer src="/guide-model.js"></script><script defer src="/guide-presentation.js"></script><script defer src="/action-plan.js"></script><script defer src="/operational-summary.js"></script><script defer src="/live-state.js"></script><script defer src="/guide-availability.js"></script><script defer src="/guide-session.js"></script><script defer src="/guide-references.js"></script><script defer src="/guide.js"></script>
-</head><body>
+</head><body class="guide-page">
 <header class="topbar"><nav aria-label="Views"><a href="/">National focuses</a><a href="/technologies">Technologies</a><a href="/country">Country</a><a href="/walkthrough" aria-current="page">Walkthrough</a><a href="/importer">Import guide</a> <a href="/analysis">Script analysis</a></nav><span>HOI4 COMPANION</span></header>
 <main>
 <div id="hudControls"><strong>HOI4 · Operational plan</strong><a id="hudLink" href="/walkthrough" target="_blank" rel="noopener">Full guide ↗</a></div>
-<section class="hero"><div><p class="eyebrow">YOUR CAMPAIGN'S OPERATIONAL PLAN</p><label>Guide <select id="guideSelect" aria-label="Guide"></select></label><h1 id="guideTitle">Walkthrough</h1><p id="subtitle">Loading instructions…</p></div><a id="sourceLink" target="_blank" rel="noopener noreferrer" hidden>Original source ↗</a></section>
+<section class="hero"><div><p class="eyebrow">YOUR CAMPAIGN'S OPERATIONAL PLAN</p><label>Guide <select id="guideSelect" aria-label="Guide"></select></label><h1 id="guideTitle">Walkthrough</h1><p id="guideMetadata" class="guide-metadata" hidden></p><p id="subtitle">Loading instructions…</p></div><a id="sourceLink" target="_blank" rel="noopener noreferrer" hidden>Original source ↗</a></section>
 <p class="guide-tools"><a href="/importer">Import a guide from YouTube, the web or a JSON file →</a> <a id="editAssociations" href="/associations">Correct bindings</a></p>
 <p id="error" role="alert" hidden></p>
 <section class="run-bar" aria-label="Guide mode"><div><strong id="mode">Guide preview</strong><p id="modeNote">Connect a valid game to update the path.</p></div><button id="reset" type="button">New checklist</button></section>
@@ -19,11 +19,11 @@
 <a id="researchTreeLink" class="tree-shortcut" href="/technologies"><span class="shortcut-icon" aria-hidden="true">⚙</span><span><strong>Technology research</strong><small>Next research highlighted in its tab</small></span><span aria-hidden="true">↗</span></a>
 </nav>
 <section id="operationalSummary" class="operational-summary" aria-labelledby="operationalSummaryTitle">
-<h2 id="operationalSummaryTitle">Current game situation</h2>
+<details class="game-overview"><summary><h2 id="operationalSummaryTitle">Current game situation</h2></summary>
 <p class="section-note">Guide objectives compared with available data. This summary explains the plan; it does not change priorities or completion.</p>
 <p id="summaryNotice" role="status"></p><div id="summaryCards" class="summary-cards"></div><p id="summaryRemaining" class="section-note" hidden></p>
 <details id="hudDiagnostics"><summary>In-game highlight status</summary><p id="hudDiagnosticMessage"></p><ul id="hudDiagnosticItems"></ul></details>
-</section>
+</details></section>
 <section id="nextOperation" class="next-operation" aria-label="Next operational instruction"></section>
 <section id="ongoingOperations" class="compact-activity" hidden><h2>In progress</h2><ul id="ongoingOperationsList"></ul></section>
 <details id="waitingOperations" class="compact-activity" hidden><summary>Waiting for conditions</summary><ul id="waitingOperationsList"></ul></details>

@@ -61,12 +61,22 @@ impl<M: Memory> Reader<'_, M> {
         }
     }
     pub(super) fn design(&mut self, variant: u64) -> Result<Value> {
-        if self.attributes["sha256"] != profile()["sha256"]
+        if (self.attributes["sha256"] != profile()["sha256"]
+            && self.attributes["layout_id"] != "hoi4-x64-abi-v1")
             || self.attributes["executable_bytes"] != true
         {
             return Err("Equipment design layout is not qualified for this executable.".into());
         }
-        for signature in profile()["signatures"].as_array().unwrap() {
+        let signatures = if self.attributes["layout_id"] == "hoi4-x64-abi-v1" {
+            &self.attributes["abi_design_signatures"]
+        } else {
+            &profile()["signatures"]
+        };
+        let signatures = signatures
+            .as_array()
+            .filter(|v| !v.is_empty())
+            .ok_or("Equipment design signatures unavailable")?;
+        for signature in signatures {
             let rva = signature[0].as_u64().unwrap();
             let text = signature[1].as_str().unwrap();
             let expected = (0..text.len())

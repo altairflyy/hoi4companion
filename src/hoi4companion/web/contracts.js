@@ -3,18 +3,20 @@
  const uiText=typeof module!=='undefined'&&module.exports?require('./i18n.js').t:root.HoiI18n.t;
  const designMatching=typeof module!=='undefined'&&module.exports?require('./design-matching.js'):root.HoiDesignMatching;
  const VERSION=1;
+ const relationKinds=['war','licence_production_access','embargo','military_access','offer_military_access','improve_relations','attache','boost_party_popularity','guarantee','non_aggression_pact','lend_lease','subject','air_base_access','offer_air_base_access','docking_rights','offer_docking_rights','naval_blockade','market_access_rights'];
  const experienceCurrencies=Object.freeze({army_experience:'country.experience.army',navy_experience:'country.experience.navy',air_experience:'country.experience.air'});
  const spiritCurrencies=Object.freeze(Object.fromEntries([['army_experience',['academy_spirit','army_spirit','division_command_spirit']],['navy_experience',['naval_academy_spirit','navy_spirit','naval_command_spirit']],['air_experience',['air_force_spirit','air_force_command_spirit','air_force_academy_spirit']]].flatMap(([currency,groups])=>groups.map(group=>[group,currency]))));
  const unknown=(reason="Campo non osservato")=>({status:'unknown',value:null,source:'',reason});
  const known=(value,source='process_memory',calculated=false)=>value===null||value===undefined?unknown():({status:calculated?'calculated':'observed',value,source});
  function validType(key,value){
+  if(['diplomacy.outgoing','diplomacy.incoming'].includes(key))return Array.isArray(value)&&value.length<=8192&&new Set(value).size===value.length&&value.every(v=>typeof v==='string'&&v.split(':').length===2&&relationKinds.includes(v.split(':')[0])&&/^[A-Z0-9]{3}$/.test(v.split(':')[1]));
   if(['diplomacy.countries','diplomacy.improving_relations','diplomacy.non_aggression_pacts','intelligence.countries'].includes(key))return validForeignTags(value);
   if(key==='intelligence.active_missions')return Array.isArray(value)&&value.length<=4096&&value.every(x=>typeof x==='string'&&foreignMissions.slice(1).includes(x.split(':')[0])&&/^[A-Z0-9]{3}$/.test(x.split(':').slice(1).join(':')))&&new Set(value).size===value.length;
   if(['country.metrics.war_support','country.metrics.stability'].includes(key))return typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=1;
   if(key==='country.diplomacy.at_war')return typeof value==='boolean';
   if(Object.values(experienceCurrencies).includes(key))return typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=10000000;
   if(['country.production.effective_factories.military','country.production.effective_factories.dockyards'].includes(key))return Number.isSafeInteger(value)&&value>=0&&value<=10000000;
-  if(['doctrines.selected','politics.ideas','politics.advisors','events.visible','events.visible_options','decisions.listed','decisions.executed'].includes(key))return Array.isArray(value)&&value.length<=4096&&value.every(x=>typeof x==='string'&&x.length>0&&x.length<=512)&&new Set(value).size===value.length;
+  if(['doctrines.selected','politics.ideas','politics.advisors','politics.characters','politics.unit_leaders','politics.scientists','events.visible','events.visible_options','decisions.listed','decisions.executed','decisions.active','decisions.completed'].includes(key))return Array.isArray(value)&&value.length<=4096&&value.every(x=>typeof x==='string'&&x.length>0&&x.length<=512)&&new Set(value).size===value.length;
   if(key==='production.lines')return validProductionLines(value);
   if(['country.intelligence.is_created','country.intelligence.in_creation'].includes(key))return typeof value==='boolean';
   if(['country','focus.tree'].includes(key))return typeof value==='string'&&value.length>0;
@@ -91,11 +93,15 @@
    else if(data&&typeof data==='object'){present=present&&(!Object.hasOwn(data,'status')||['observed','partial'].includes(data.status));for(const [key,child]of Object.entries(data))if(!['status','reason'].includes(key))flatten(path+'.'+key,child,present,calculated||derived.has(key));}
    else put(path,data,present,calculated||(path.startsWith('country.equipment.items.')&&path.endsWith('.stockpile'))||(path.startsWith('country.production.lines.')&&path.endsWith('.id'))||(path.startsWith('country.construction.lines.')&&['position','location_status','state_name'].includes(path.split('.').at(-1))));
   }
+  const buildingLevels=value=>value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length<=512&&Object.entries(value).every(([key,level])=>/^[A-Za-z0-9_]+$/.test(key)&&Number.isSafeInteger(level)&&level>=0&&level<=1000);
   if(overview.country===s.country)for(const [section,data]of Object.entries(overview))if(data&&typeof data==='object'&&!Array.isArray(data)){
    const present=['experience','diplomacy','production'].includes(section)?data.status==='observed':['observed','partial'].includes(data.status);
    if(section==='manpower'){for(const [key,child]of Object.entries(data))if(!['status','reason'].includes(key))put('country.manpower.'+key,child,present,key==='available');}
+     else if(section==='states'){
+      const rows=data.items,qualified=data.status==='observed'&&Array.isArray(rows)&&rows.length<=4096&&rows.every(r=>r&&typeof r==='object'&&!Array.isArray(r)&&Number.isSafeInteger(r.id)&&r.id>0&&r.id<=100000&&['civilian_factories','military_factories','dockyards','infrastructure'].every(k=>!Object.hasOwn(r,k)||Number.isSafeInteger(r[k])&&r[k]>=0&&r[k]<=1000)&&(!Object.hasOwn(r,'buildings')||buildingLevels(r.buildings)))&&new Set(rows.map(r=>r.id)).size===rows.length;flatten('country.states',data,qualified);
+     }
      else if(section==='fortifications'){
-      const rows=data.items,knownSection=data.status==='observed'&&Array.isArray(rows)&&rows.length<=20000&&rows.every(row=>row&&typeof row==='object'&&!Array.isArray(row)&&Number.isSafeInteger(row.id)&&row.id>0&&row.id<=100000&&['bunker','coastal_bunker'].every(k=>!Object.hasOwn(row,k)||Number.isSafeInteger(row[k])&&row[k]>=0&&row[k]<=1000))&&new Set(rows.map(row=>row.id)).size===rows.length;flatten('country.fortifications.items',rows||[],knownSection);
+      const rows=data.items,knownSection=data.status==='observed'&&Array.isArray(rows)&&rows.length<=20000&&rows.every(row=>row&&typeof row==='object'&&!Array.isArray(row)&&Number.isSafeInteger(row.id)&&row.id>0&&row.id<=100000&&(!Object.hasOwn(row,'buildings')||buildingLevels(row.buildings))&&['bunker','coastal_bunker'].every(k=>!Object.hasOwn(row,k)||Number.isSafeInteger(row[k])&&row[k]>=0&&row[k]<=1000))&&new Set(rows.map(row=>row.id)).size===rows.length;flatten('country.fortifications.items',rows||[],knownSection);
       if(knownSection&&data.borders_status==='observed'&&data.borders&&typeof data.borders==='object'&&!Array.isArray(data.borders))for(const [tag,ids]of Object.entries(data.borders)){
        if(/^[A-Z0-9]{3}$/.test(tag)&&Array.isArray(ids)&&ids.length<=512&&ids.every(n=>Number.isSafeInteger(n)&&n>0&&n<=100000)&&new Set(ids).size===ids.length)f['fortifications.borders.'+tag]=known(ids,'native_controllers_and_map_topology',true);
       }
@@ -111,9 +117,11 @@
  const foreignStates=['captured','cooldown','disbanding','active','operation','killed'];
  function validForeignTags(value){return Array.isArray(value)&&value.length<=8192&&value.every(x=>typeof x==='string'&&/^[A-Z0-9]{3}$/.test(x))&&new Set(value).size===value.length;}
  function foreignFacts(overview){
-  const keys=['diplomacy.countries','diplomacy.improving_relations','diplomacy.non_aggression_pacts','intelligence.countries','intelligence.active_missions'],out=Object.fromEntries(keys.map(k=>[k,unknown('Foreign interaction not qualified')]));
+  const keys=['diplomacy.countries','diplomacy.improving_relations','diplomacy.non_aggression_pacts','diplomacy.outgoing','diplomacy.incoming','intelligence.countries','intelligence.active_missions'],out=Object.fromEntries(keys.map(k=>[k,unknown('Foreign interaction not qualified')]));
   const dip=overview.diplomacy,d=dip?.interactions,tags=d?.countries;
   if(dip?.status==='observed'&&d?.status==='observed'&&validForeignTags(tags)&&['improving_relations','non_aggression_pacts'].every(k=>validForeignTags(d[k])&&d[k].every(t=>tags.includes(t))))for(const k of ['countries','improving_relations','non_aggression_pacts'])out['diplomacy.'+k]=known([...d[k]].sort(),'foreign_interaction_adapter',true);
+  const relations=d?.relations,items=relations?.items;
+  if(dip?.status==='observed'&&d?.status==='observed'&&validForeignTags(tags)&&relations?.status==='observed'&&relations.source==='native_relation_base_serializer'&&Array.isArray(items)&&items.length<=4096&&new Set(items.map(r=>r?.id)).size===items.length&&items.every(r=>r&&typeof r.id==='string'&&/^[A-Za-z0-9_.-]{1,160}$/.test(r.id)&&relationKinds.includes(r.kind)&&['from_country','to_country'].every(k=>typeof r[k]==='string'&&/^[A-Z0-9]{3}$/.test(r[k])&&tags.includes(r[k]))&&r.from_country!==r.to_country&&(r.direction==='outgoing'?r.from_country===overview.country:r.direction==='incoming'&&r.to_country===overview.country)&&validForeignTags(r.other_countries)&&r.other_countries.length>0&&r.other_countries.includes(r.direction==='outgoing'?r.to_country:r.from_country)&&!r.other_countries.includes(overview.country)&&r.other_countries.every(v=>tags.includes(v))))for(const direction of ['outgoing','incoming'])out['diplomacy.'+direction]=known([...new Set(items.filter(r=>r.direction===direction).flatMap(r=>r.other_countries.map(t=>r.kind+':'+t)))].sort(),'native_relation_adapter',true);
   const intel=overview.intelligence,m=intel?.missions,ids=m?.countries,rows=m?.items;
   if(intel?.status==='observed'&&m?.status==='observed'&&validForeignTags(ids)&&Array.isArray(rows)&&rows.length<=4096&&rows.every(r=>r&&typeof r==='object'&&!Array.isArray(r)&&typeof r.id==='string'&&r.id.length>0&&r.id.length<=160&&foreignMissions.includes(r.mission_id)&&foreignStates.includes(r.state)&&(r.mission_id==='no_mission'?r.target_country===null:ids.includes(r.target_country)))&&new Set(rows.map(r=>r.id)).size===rows.length){
    out['intelligence.countries']=known([...ids].sort(),'foreign_interaction_adapter',true);
@@ -122,15 +130,18 @@
   return out;
  }
  function politicalFacts(overview){
-  const result=Object.fromEntries(['doctrines.selected','politics.ideas','politics.advisors','events.visible','events.visible_options','decisions.listed','decisions.executed'].map(key=>[key,unknown("Sezione politica non qualificata")]));
+  const result=Object.fromEntries(['doctrines.selected','politics.ideas','politics.advisors','politics.characters','politics.unit_leaders','politics.scientists','events.visible','events.visible_options','decisions.listed','decisions.executed','decisions.active','decisions.completed'].map(key=>[key,unknown("Sezione politica non qualificata")]));
   const id=value=>typeof value==='string'&&value.length>0&&value.length<=160&&/^[A-Za-z0-9_.-]+$/.test(value);
+  const character=row=>id(row.character_id)||(row.character_id===null&&row.character_identity_status==='unavailable'&&typeof row.character_name==='string'&&[...row.character_name].length>0&&[...row.character_name].length<=512&&!/[\x00-\x1f\x7f-\x9f]/.test(row.character_name));
   const publish=(key,values)=>result[key]=known([...new Set(values)].sort(),'politics_adapter',true),p=overview.politics;
   const selected=overview.doctrines?.status==='observed'?overview.doctrines.items:null;
+  const chars=p?.characters,characters=chars?.items;
+  if(p&&['observed','partial'].includes(p.status)&&chars?.status==='observed'&&chars.source==='native_character_status_roles'&&Array.isArray(characters)&&characters.length<=4096&&characters.every(r=>r&&id(r.id)&&['country_leader','advisor','unit_leader','scientist'].every(k=>typeof r[k]==='boolean'))&&new Set(characters.map(r=>r.id)).size===characters.length)for(const [key,role]of [['politics.characters',null],['politics.unit_leaders','unit_leader'],['politics.scientists','scientist']])result[key]=known(characters.filter(r=>!role||r[role]).map(r=>r.id).sort(),'native_character_role_adapter',true);
   if(Array.isArray(selected)&&selected.length<=4096&&selected.every(row=>row&&id(row.id))&&new Set(selected.map(row=>row.id)).size===selected.length)publish('doctrines.selected',selected.map(row=>row.id));
   if(p&&['observed','partial'].includes(p.status))for(const part of ['ideas','advisors']){
    const section=p[part],rows=section?.status==='observed'?section.items:null;
    if(!Array.isArray(rows)||rows.length>4096)continue;
-   if(!rows.every(row=>row&&id(row.id)&&(part==='ideas'?id(row.group)&&id(row.category)&&typeof row.is_law==='boolean':id(row.character_id)&&Number.isSafeInteger(row.slot)&&row.slot>=0&&row.slot<=2000000000)))continue;
+   if(!rows.every(row=>row&&id(row.id)&&(part==='ideas'?id(row.group)&&id(row.category)&&typeof row.is_law==='boolean':character(row)&&Number.isSafeInteger(row.slot)&&row.slot>=0&&row.slot<=2000000000)))continue;
    const ids=rows.map(row=>row.id);if(new Set(ids).size===ids.length)publish('politics.'+part,ids);
   }
   const events=overview.events,rows=events?.status==='observed'?events.visible:null;
@@ -143,6 +154,10 @@
   }
   const listed=overview.decisions?.status==='observed'?overview.decisions.listed_ids:null;
   if(Array.isArray(listed)&&listed.length<=4096&&listed.every(id)&&new Set(listed).size===listed.length)publish('decisions.listed',listed);
+  const history=overview.decisions?.execution_history;
+  if(overview.decisions?.status==='observed'&&history?.status==='observed'&&history.source==='native_decisions_taken_and_timed_state'&&history.history_scope==='current_native_records')for(const [field,key]of [['executed_ids','decisions.executed'],['active_ids','decisions.active'],['completed_ids','decisions.completed']]){
+   const values=history[field];if(Array.isArray(values)&&values.length<=4096&&values.every(id)&&new Set(values).size===values.length)result[key]=known([...values].sort(),'native_decision_membership_adapter',true);
+  }
   return result;
  }
  function fact(state,key){const f=state?.schema_version===VERSION&&state?.usable===true?state.facts?.[key]:null;return f&&['observed','calculated'].includes(f.status)&&typeof f.source==='string'&&f.source&&f.value!==null&&f.value!==undefined&&validType(key,f.value)&&!(typeof f.value==='number'&&!Number.isFinite(f.value))?f:unknown(f?.status==='unknown'&&f.value===null&&f.source===''&&typeof f.reason==='string'?f.reason:undefined);}

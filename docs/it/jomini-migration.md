@@ -1,3 +1,5 @@
+> Documento storico: gli entrypoint Python e il pacchetto PyInstaller sono stati rimossi. Consultare la [documentazione attuale](../jomini-migration.md).
+
 # Parser Jomini: integrazione e sostituzione del parser Python
 
 ## Esito al 23 ottobre 2026

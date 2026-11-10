@@ -248,12 +248,10 @@ Detached numbered levels may form a progression without adding prerequisites.
 Known DLC-filtered technology branches do not count as broken references; a truly
 missing target still prevents automatic progression.
 
-For a complete review of an archive, run `scripts/audit-guide-archive.py` with
-`--output .local/archive-associations.json --review-output .local/association-review.md`.
-The second report includes every unresolved occurrence, candidate IDs, source
-files, and content outside the active catalog. Text-similarity candidates are
-review-only. Running the audit does not install or modify guides and does not
-enable unavailable DLC content.
+For a complete review of an archive, use the native Guide ZIP import and its
+collection review. Unresolved occurrences retain their evidence and candidate IDs.
+Text-similarity candidates are review-only. Preparation does not install or modify
+guides until batch confirmation and does not enable unavailable DLC content.
 
 Focus identity resolution also excludes individual branches whose `allow_branch`
 DLC condition is provably false, not just entire trees. A dependent identity is

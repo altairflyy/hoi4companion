@@ -6,6 +6,13 @@ A fact distinguishes observed, calculated, and unknown values and carries source
 
 Application-language translation applies to UI messages. Entity IDs, semantic status codes, guide definitions, source quotations, and game localization are separate contracts.
 
+An observed political appointment is identified by its native role `id`. A
+character display name must never become an inferred character identifier.
+When only that label is available, the appointment carries `character_id: null`,
+`character_name`, and `character_identity_status: unavailable`. Qualified role
+membership remains usable; character-specific identity remains unknown. Missing
+or malformed identity metadata does not qualify membership.
+
 Detailed historical implementation notes and recorded evidence are preserved in the
 [Italian reference](it/framework-contracts.md). Those records retain their original dates and
 verification limits; they are not a claim that every check was rerun for this translation.

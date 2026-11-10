@@ -4,10 +4,10 @@ const contracts=require('../src/hoi4companion/web/contracts.js');
 const model=require('../src/hoi4companion/web/guide-model.js');
 const cases=require('./fixtures/guide-schema.json');
 for(const example of cases)test('guide schema: '+example.name,()=>{
- const before=JSON.stringify(example.guide);
- if(example.valid){const result=contracts.guide(example.guide);assert.deepEqual(result,example.normalized);assert.deepEqual(contracts.guide(result),result);}
- else assert.throws(()=>contracts.guide(example.guide));
- assert.equal(JSON.stringify(example.guide),before,'normalization must not mutate source definitions');
+ const guide=example.raw_json?JSON.parse(example.raw_json):example.guide,before=JSON.stringify(guide);
+ if(example.valid){const result=contracts.guide(guide);assert.deepEqual(result,example.normalized);assert.deepEqual(contracts.guide(result),result);}
+ else assert.throws(()=>contracts.guide(guide));
+ assert.equal(JSON.stringify(guide),before,'normalization must not mutate source definitions');
 });
 test('large dependency chains and cycles are handled without recursion',()=>{
  const rows=Array.from({length:2000},(_,i)=>({key:String(i),kind:'gate',depends_on:i?[String(i-1)]:[]}));

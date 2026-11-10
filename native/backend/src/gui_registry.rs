@@ -44,15 +44,19 @@ impl<M: Memory> Candidates<'_, M> {
         Ok(bytes)
     }
     fn u(&mut self, a: u64) -> Result<u64> {
-        let page = a & !4095;
-        if a.checked_add(8).is_none_or(|end| end > page + 4096) {
+        // Large registries contain scattered widgets. A 4 KiB fill per candidate
+        // exhausts the cold-discovery budget despite valid pointers. Small
+        // aligned blocks retain caching without sampling unrelated page data.
+        const BLOCK: u64 = 128;
+        let page = a & !(BLOCK - 1);
+        if a.checked_add(8).is_none_or(|end| end > page + BLOCK) {
             return number(&self.read(a, 8)?);
         }
         if self.failed.contains(&page) {
             return Err("Pagina candidato GUI non leggibile".into());
         }
         if !self.pages.contains_key(&page) {
-            match self.read(page, 4096) {
+            match self.read(page, BLOCK as usize) {
                 Ok(bytes) => {
                     self.pages.insert(page, bytes);
                 }
@@ -95,6 +99,38 @@ struct Header {
     capacity: i32,
     count: i32,
 }
+
+#[cfg(test)]
+mod discovery_budget_tests {
+    use super::*;
+    struct Scattered;
+    impl Memory for Scattered {
+        fn read(&mut self, _address: u64, size: usize) -> Result<Vec<u8>> {
+            Ok(vec![0; size])
+        }
+        fn class_name(&mut self, _rva: u64) -> Result<String> {
+            Err("not a type fixture".into())
+        }
+    }
+    #[test]
+    fn scattered_candidates_do_not_consume_whole_pages() {
+        let mut memory = Scattered;
+        let profile = json!({});
+        let mut candidates = Candidates {
+            memory: &mut memory,
+            base: 0x140000000,
+            profile: &profile,
+            pages: HashMap::new(),
+            failed: HashSet::new(),
+            types: HashMap::new(),
+            used: 0,
+        };
+        for i in 0..18000 {
+            assert_eq!(candidates.u(0x10000 + i * 4096).unwrap(), 0)
+        }
+        assert!(candidates.used < 3 * 1024 * 1024);
+    }
+}
 fn headers(memory: &mut impl Memory, root: u64, profile: &Value) -> Result<Vec<Header>> {
     let offsets = profile["gui_layout"]["registry"]
         .as_array()
@@ -125,6 +161,20 @@ fn headers(memory: &mut impl Memory, root: u64, profile: &Value) -> Result<Vec<H
 fn allocation(h: &[Header]) -> Vec<(u64, i32)> {
     h.iter().map(|h| (h.data, h.capacity)).collect()
 }
+// Widget pointers remain candidates only: snapshot rechecks type, owner, ID,
+// visibility and every witness. A panel mid-transition invalidates the sample,
+// not the registry discovery. Structural errors still invalidate both.
+fn transient_sample(error: &str) -> bool {
+    matches!(error, "Stato cambiato durante la lettura"
+        | "Cartella ricerca visibile mancante o ambigua"
+        | "Viste sovrapposte: geometria non esclusiva")
+}
+fn witnessed_snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value) -> Result<Value> {
+    let observed = std::time::Instant::now();
+    let mut result = snapshot(memory, args, bindings)?;
+    result["sample_age_ms"] = json!(observed.elapsed().as_secs_f64()*1000.);
+    Ok(result)
+}
 #[derive(Default)]
 pub(crate) struct Registry {
     root: u64,
@@ -132,12 +182,10 @@ pub(crate) struct Registry {
     bindings: Option<Value>,
     seen: HashSet<u64>,
     missing: VecDeque<String>,
+    unsettled_folder: Option<std::time::Instant>,
     pub(crate) diagnostics: Value,
 }
 impl Registry {
-    pub(crate) fn reset(&mut self) {
-        *self = Self::default();
-    }
     fn discover(
         &mut self,
         memory: &mut impl Memory,
@@ -389,7 +437,7 @@ impl Registry {
         bindings["root"] = json!(root);
         let mut sample = Sample::new(s.memory, base, profile);
         bindings["action_roots"] = crate::gui_actions::action_roots(&mut sample, root, &seen);
-        self.diagnostics = json!({"pages":s.pages.len(),"failed_pages":s.failed.len(),"types":s.types.len(),"cache_bytes":s.pages.len()*4096,"registry_objects":seen.len(),"non_null_widgets":candidates.len()});
+        self.diagnostics = json!({"blocks":s.pages.len(),"block_bytes":128,"pages":s.pages.len(),"failed_pages":s.failed.len(),"types":s.types.len(),"cache_bytes":s.pages.values().map(Vec::len).sum::<usize>(),"registry_objects":seen.len(),"non_null_widgets":candidates.len()});
         self.root = root;
         self.headers = h;
         self.bindings = Some(bindings);
@@ -401,20 +449,36 @@ impl Registry {
         for attempt in 0..2 {
             match self.inner(memory, args) {
                 Ok(mut v) => {
+                    self.unsettled_folder = None;
                     v["diagnostics"]["snapshot_ms"] =
                         json!(started.elapsed().as_secs_f64() * 1000.);
                     v["diagnostics"]["retry_count"] = json!(attempt);
                     v["diagnostics"]["discovery"] = self.diagnostics.clone();
                     return Ok(v);
                 }
-                Err(e) if e == "Stato cambiato durante la lettura" && attempt == 0 => continue,
+                Err(e) if transient_sample(&e) && attempt == 0 => continue,
                 Err(e) => {
-                    self.bindings = None;
+                    self.reject_sample(&e);
                     return Err(e);
                 }
             }
         }
         Err("Campione incoerente: riprovare".into())
+    }
+    fn reject_sample(&mut self, error: &str) {
+        self.reject_sample_at(error, std::time::Instant::now());
+    }
+    fn reject_sample_at(&mut self, error: &str, now:std::time::Instant) {
+        let persistent_folder = if error == "Cartella ricerca visibile mancante o ambigua" {
+            let since = self.unsettled_folder.get_or_insert(now);
+            now.duration_since(*since) >= std::time::Duration::from_millis(750)
+        } else { false };
+        // A genuinely rebuilt folder must eventually be discovered. Ordinary
+        // overlap/animation witnesses never justify a registry-wide rescan.
+        if !transient_sample(error) || persistent_folder {
+            self.bindings = None;
+            self.unsettled_folder = None;
+        }
     }
     fn refresh_extensions(
         &mut self,
@@ -542,7 +606,7 @@ impl Registry {
         if !profile["gui_layout"].is_object() {
             self.refresh_extensions(memory, base, profile, root, &args["event_instances"])?;
         }
-        let mut result = snapshot(memory, args, self.bindings.as_ref().unwrap())?;
+        let mut result = witnessed_snapshot(memory, args, self.bindings.as_ref().unwrap())?;
         for (panel, field) in [("focus", "focus_ids"), ("research", "technology_ids")] {
             if result["panels"][panel]["visible"] != true {
                 continue;
@@ -569,7 +633,7 @@ impl Registry {
                     }
                     self.bindings = None;
                     self.discover(memory, base, profile, root)?;
-                    result = snapshot(memory, args, self.bindings.as_ref().unwrap())?;
+                    result = witnessed_snapshot(memory, args, self.bindings.as_ref().unwrap())?;
                 }
             }
         }
@@ -588,9 +652,39 @@ impl Registry {
                 }
                 self.bindings = None;
                 self.discover(memory, base, profile, root)?;
-                result = snapshot(memory, args, self.bindings.as_ref().unwrap())?;
+                result = witnessed_snapshot(memory, args, self.bindings.as_ref().unwrap())?;
             }
         }
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod transition_tests {
+    use super::*;
+    #[test]
+    fn changing_panels_discard_samples_without_restarting_registry_discovery() {
+        let bindings=json!({"root":123,"views":{"focus":456,"research":789}});
+        let mut registry=Registry {bindings:Some(bindings.clone()),..Default::default()};
+        for error in ["Stato cambiato durante la lettura","Cartella ricerca visibile mancante o ambigua","Viste sovrapposte: geometria non esclusiva"] {
+            registry.reject_sample(error);
+            assert_eq!(registry.bindings.as_ref(),Some(&bindings));
+        }
+        for error in ["Contesto GUI cambiato durante la ricerca","ID ricerca GUI cambiato","Vista focus di un’altra nazione","Tipo GUI inatteso: CCountryTechTreeView"] {
+            registry.bindings=Some(bindings.clone());
+            registry.reject_sample(error);
+            assert!(registry.bindings.is_none(),"{error}");
+        }
+    }
+    #[test]
+    fn persistently_recreated_folders_can_rebuild_candidates_without_accepting_a_sample() {
+        let now=std::time::Instant::now();
+        let mut registry=Registry {bindings:Some(json!({"root":123})),..Default::default()};
+        let error="Cartella ricerca visibile mancante o ambigua";
+        registry.reject_sample_at(error,now);
+        registry.reject_sample_at(error,now+std::time::Duration::from_millis(700));
+        assert!(registry.bindings.is_some());
+        registry.reject_sample_at(error,now+std::time::Duration::from_millis(750));
+        assert!(registry.bindings.is_none());
     }
 }

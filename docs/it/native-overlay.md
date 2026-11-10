@@ -1,5 +1,9 @@
 # Overlay Windows nativo (sperimentale)
 
+> Riferimento storico. I vecchi entrypoint Python sono stati rimossi: per l'avvio
+> e i comandi attuali usare [Native Windows HUD](../native-overlay.md) e il file
+> `START COMPANION AND HUD.bat` nella cartella principale.
+
 `avvia-overlay.vbs` avvia un processo Rust esterno che evidenzia le indicazioni
 ammesse dal Guide Runtime. Focus, tecnologie, capitoli ed eventi usano un unico lettore
 GUI nativo e il renderer Direct2D/DirectWrite, senza cattura o OCR nel loro

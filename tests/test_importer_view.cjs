@@ -4,7 +4,7 @@ const model=require('../src/hoi4companion/web/importer-model.js');
 const tick=()=>new Promise(setImmediate);
 const descendants=n=>[n,...(n.children||[]).flatMap(descendants)];
 const definition={schema_version:1,id:'opening',title:'Opening',sources:[{id:'src',type:'manual'}],tracks:{research:[{key:'tools',title:'Tools',action:{kind:'research',entity:{kind:'technology',id:'tools'}},evidence:[{source_id:'src',basis:'explicit',quote:'Research tools.'}]}]}};
-function harness(){
+function harness(collectionFlow=false){
  class Node{
   constructor(tag=''){this.tag=tag;this.children=[];this.value='';this.hidden=false;this.checked=false;this.text='';this.style={};}
   set textContent(value){this.text=String(value);this.children=[];}get textContent(){return this.text+this.children.map(n=>n.textContent||'').join('');}
@@ -31,10 +31,19 @@ function harness(){
   return {ok:true,json:async()=>value};
  };
  const document={getElementById:get,createElement:tag=>new Node(tag),body:new Node('body')};
+ if(collectionFlow)document.body.dataset={collectionFlow:'true'};
  runLocalized(fs.readFileSync('src/hoi4companion/web/importer.js','utf8'),{HoiImporter:model,document,fetch,
   navigator:{clipboard:{async writeText(text){clipboard.push(text);}}},structuredClone,Blob,URL:{createObjectURL(blob){downloads.push(blob);return 'blob:fixture';},revokeObjectURL(){}},setTimeout:fn=>fn()});
  return {get,requests,downloads,clipboard,source,report,catalog,document,setReferences:value=>references=value,setRelease:fn=>release=fn,setDocumentError:value=>documentError=value,setWordNetworkFailure:value=>wordNetworkFailure=value,setWordDocuments:value=>wordDocuments=value};
 }
+
+test('ZIP-first page defers the complete catalog and can open saved references independently',async()=>{
+ const h=harness(true);await tick();
+ assert.equal(h.requests.length,0);
+ await h.get('showReferences').onclick();
+ assert.equal(h.requests.length,1);assert.equal(h.requests[0].path,'/api/reference-library');
+ assert.equal(h.get('referenceGallery').open,true);
+});
 
 test('reference gallery shows one category in a grid, supports search and opens original images',async()=>{
  const h=harness();await tick();h.setReferences({designs:[],images:[

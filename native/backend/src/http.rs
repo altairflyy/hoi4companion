@@ -17,6 +17,11 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 type Result<T> = std::result::Result<T, String>;
+fn recent_delivery(age: Option<Duration>) -> bool {
+    age.is_some_and(|age| age < Duration::from_secs(2))
+}
+#[path = "http_collections.rs"]
+mod collections;
 const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'";
 const MAX_BODY: usize = 32 * 1024 * 1024;
 static UPLOADS: AtomicUsize = AtomicUsize::new(0);
@@ -89,13 +94,19 @@ impl Drop for ProviderOwner {
     }
 }
 pub struct Service {
+    owner: std::sync::Weak<Service>,
+    collection_jobs: Mutex<std::collections::HashSet<String>>,
     application: Mutex<Application>,
     catalog: Mutex<Option<Catalog>>,
     catalog_args: Mutex<Option<Value>>,
     reading: Mutex<Reading>,
+    last_delivery: Mutex<Option<Instant>>,
+    #[cfg(windows)]
+    gui_lane: Mutex<Option<(u64, crate::provider::GuiLane)>>,
     provider: Mutex<Option<ProviderOwner>>,
     hud: Mutex<crate::hud_service::Hud>,
     hud_cache: Mutex<Option<(Value, Value)>>,
+    guide_catalog_cache: Mutex<Option<(Value, Value)>>,
     hud_status_path: PathBuf,
     web: PathBuf,
     references: PathBuf,
@@ -280,6 +291,10 @@ impl Service {
             .unwrap_or("english")
             .to_owned();
         let provider = if let Some(mut spec) = config.get("provider").cloned() {
+            if let Some(c) = &catalog {
+                spec["shared_focuses"] = crate::focus_catalog::shared_members(&c.sources["all_trees"]);
+                spec["building_scopes"] = crate::operational_catalog::building_scopes(&c.sources["operation_entities"]);
+            }
             if let Some(c) = &catalog
                 && c.sources["demo"] != true
                 && spec.get("province_neighbors").is_none()
@@ -300,7 +315,10 @@ impl Service {
         } else {
             None
         };
-        let result = Arc::new(Self {
+        let hub = Hub::new(0.25, 8)?;
+        let result = Arc::new_cyclic(|owner| Self {
+            owner: owner.clone(),
+            collection_jobs: Mutex::new(Default::default()),
             application: Mutex::new(app),
             catalog: Mutex::new(catalog),
             catalog_args: Mutex::new(catalog_args),
@@ -308,9 +326,13 @@ impl Service {
                 monitor: Monitor::default(),
                 cached: None,
             }),
+            last_delivery: Mutex::new(None),
+            #[cfg(windows)]
+            gui_lane: Mutex::new(None),
             provider: Mutex::new(provider),
             hud: Mutex::new(crate::hud_service::Hud::default()),
             hud_cache: Mutex::new(None),
+            guide_catalog_cache: Mutex::new(None),
             hud_status_path: association_directory.parent().unwrap_or(&association_directory).join("overlay-status.json"),
             web,
             references,
@@ -330,7 +352,7 @@ impl Service {
             rule_book: Mutex::new(None),
             association_revision: AtomicU64::new(0),
             ui_language: Mutex::new(ui_language),
-            hub: Hub::new(0.25, 8)?,
+            hub,
             clients: Mutex::new(0),
             wake: Condvar::new(),
             stopped: AtomicBool::new(false),
@@ -340,6 +362,7 @@ impl Service {
                 .map(str::to_owned),
             began: Instant::now(),
         });
+        result.resume_collections();
         let weak = Arc::downgrade(&result);
         thread::Builder::new()
             .name("hoi4-native-events".into())
@@ -417,6 +440,9 @@ impl Service {
             value["metrics"] =
                 crate::request(0, "provider_inspect", json!({"handle":handle}))?["metrics"].clone();
         }
+        // Guide evaluation/persistence never needs the process-owner lock.
+        // Native GUI observations must not queue behind that CPU/SQLite work.
+        drop(provider);
         value["transport"] =
             json!({"kind":"change_events","memory_probe_seconds":0.25,"integrity_audit_seconds":5});
         let mut app = self
@@ -429,6 +455,7 @@ impl Service {
             &self.hud_status_path, &packet["active_guide_id"], &packet["guide_server_id"],
         );
         reading.cached = Some((Instant::now(), packet.clone()));
+        *self.last_delivery.lock().map_err(|_|"Live delivery unavailable")? = Some(Instant::now());
         Ok(packet)
     }
     fn app(&self, op: &str, args: &Value) -> Result<Value> {
@@ -534,6 +561,12 @@ impl Service {
                 let snapshot = self.catalog(|c| c.import_snapshot(&value["guide"]))?;
                 Ok(snapshot.preview(&value["guide"], &value["sources"], &library))
             }
+            ("GET", "/api/import/collections") => self.collections(),
+            ("POST", "/api/import/collections") => self.collection_upload(request),
+            ("GET", "/api/import/collection") => self.collection_get(request),
+            ("GET", "/api/import/collection/item") => self.collection_item(request),
+            ("POST", "/api/import/collection/commit") => self.collection_commit(request),
+            ("POST", "/api/import/collection/retry") => self.collection_retry(request),
             ("POST", "/api/import/install") => {
                 let value = request.json_fields(&["guide", "sources", "reviewed"])?;
                 if value["reviewed"] != true {
@@ -676,17 +709,7 @@ impl Service {
             ("GET", "/api/state") => self.poll(),
             ("GET", "/api/framework/state") => Ok(crate::state::normalize(&self.poll()?)),
             ("GET", "/api/guides") => {
-                let mut guides = self.app("app_guides", &json!({}))?;
-                for row in guides.as_array_mut().ok_or("Invalid guide registry")? {
-                    let definition = self.app("app_definition", &json!({"guide_id":row["id"]}))?;
-                    let mut catalog = self.catalog.lock().map_err(|_| "Catalog unavailable")?;
-                    row["compatibility"] = if let Some(catalog) = catalog.as_mut() {
-                        catalog.guide_compatibility(&definition)?
-                    } else {
-                        json!({"blocked":false,"status":"unknown","requirements":[],"unknown":true})
-                    };
-                }
-                Ok(json!({"schema_version":1,"guides":guides}))
+                Ok(json!({"schema_version":1,"guides":self.guide_catalog()?}))
             }
             ("GET", "/api/guide/active") => self.app("app_active", &json!({})),
             ("POST", "/api/guide/active") => {
@@ -755,17 +778,37 @@ impl Service {
             _ => Err("Route not implemented in the native host".into()),
         }
     }
-    fn overlay_snapshot(&self) -> Result<Value> {
-        let due = self
-            .reading
-            .lock()
-            .map_err(|_| "Reader service unavailable")?
-            .cached
-            .as_ref()
-            .is_none_or(|(when, _)| when.elapsed() >= Duration::from_millis(250));
-        if due {
-            self.poll()?;
+    fn guide_catalog(&self) -> Result<Value> {
+        let stamp = self.app("app_overlay_stamp", &json!({}))?;
+        let key = json!([self.analysis_generation.load(Ordering::Acquire),stamp["server"],stamp["definition"]]);
+        let mut cache = self.guide_catalog_cache.lock().map_err(|_| "Guide catalog cache unavailable")?;
+        if let Some((previous, value)) = cache.as_ref() && *previous == key {
+            return Ok(value.clone());
         }
+        let mut guides = self.app("app_guides", &json!({}))?;
+        for row in guides.as_array_mut().ok_or("Invalid guide registry")? {
+            let definition = self.app("app_definition", &json!({"guide_id":row["id"]}))?;
+            let mut catalog = self.catalog.lock().map_err(|_| "Catalog unavailable")?;
+            row["compatibility"] = if let Some(catalog) = catalog.as_mut() {
+                catalog.guide_compatibility(&definition)?
+            } else {
+                json!({"blocked":false,"status":"unknown","requirements":[],"unknown":true})
+            };
+        }
+        *cache = Some((key, guides.clone()));
+        Ok(guides)
+    }
+    fn overlay_guides(&self) -> Result<Value> {
+        // The caller has already refreshed the qualified state. Listing guides
+        // must not trigger another full acquisition after preparing the HUD.
+        let packet = self.app("app_live_packet", &json!({}))?;
+        // No need to prepare static DLC checks until an actual nation exists.
+        if crate::hud_guides::select(&packet, &json!([]))["guide_filter"]["status"] != "observed" {
+            return Ok(crate::hud_guides::select(&packet, &json!([])));
+        }
+        Ok(crate::hud_guides::select(&packet, &self.guide_catalog()?))
+    }
+    fn overlay_project(&self) -> Result<Value> {
         let projected = self.catalog(|c| {
             let stamp = json!([
                 self.analysis_generation.load(Ordering::Acquire),
@@ -800,7 +843,55 @@ impl Service {
                 .unavailable(&error)),
         }
     }
+    fn overlay_latest(&self) -> Result<Value> {
+        // The existing SSE reader owns process acquisition. HUD geometry uses
+        // the latest qualified delivery without queuing behind an integrity
+        // audit. Coarse guide facts have a bounded 2s delivery budget (normal
+        // cadence250ms + measured full reads~850ms); GUI evidence stays750ms.
+        let age=self.last_delivery.lock().map_err(|_|"Live delivery unavailable")?
+            .map(|when|when.elapsed());
+        if recent_delivery(age) {
+            let mut value=self.overlay_project()?;
+            value["state_age_ms"]=json!(age.unwrap().as_secs_f64()*1000.);
+            return Ok(value);
+        }
+        self.wake.notify_all();
+        let mut value=self.hud_cache.lock().map_err(|_|"HUD cache unavailable")?
+            .as_ref().map(|(_,value)|value.clone()).unwrap_or_else(||json!({"version":0,"guide_id":null}));
+        let active=self.app("app_active",&json!({}))?;
+        value["guide_id"]=active["guide_id"].clone();
+        value["guide_server_id"]=active["server_id"].clone();
+        value["title"]=active["title"].clone();
+        value["usable"]=json!(false);value["proposed"]=json!([]);
+        value["live_delivery_fresh"]=json!(false);
+        value["error"]=json!("Waiting for a current qualified game observation");
+        Ok(value)
+    }
+    fn native_geometry(&self, view:&Value, proposals:&Value) -> Result<Value> {
+        #[cfg(windows)] {
+            let generation=self.analysis_generation.load(Ordering::Acquire);
+            let lane={
+                let mut cached=self.gui_lane.lock().map_err(|_|"GUI lane unavailable")?;
+                if cached.as_ref().is_none_or(|(g,lane)|*g!=generation||!lane.matches_pid(view[1].as_u64())) {
+                    let provider=self.provider.lock().map_err(|_|"Provider service unavailable")?;
+                    let owner=provider.as_ref().ok_or("Game installation not configured")?;
+                    *cached=Some((generation,crate::provider::gui_lane(owner.handle)?));
+                }
+                cached.as_ref().unwrap().1.clone()
+            };
+            let packet=self.app("app_live_packet",&json!({}))?;
+            if packet["usable"]!=true || packet["status"]!="observed" {
+                return Err("No current qualified live session".into());
+            }
+            lane.geometry(&json!({"view":view,"proposals":proposals,"session_id":packet["sample"]["session_id"]}))
+        }
+        #[cfg(not(windows))] {
+            let _=(view,proposals);
+            Err("Native GUI observation requires Windows".into())
+        }
+    }
     fn overlay(&self, request: &Request) -> Result<Value> {
+        let request_started = Instant::now();
         let input = request.json_fields(&[
             "schema_version",
             "kind",
@@ -824,24 +915,31 @@ impl Service {
         }
         if kind == "select" {
             let guide = input["guide_id"].as_str().ok_or("Guida non installata")?;
+            self.poll()?;
+            let eligible = self.overlay_guides()?;
+            if !crate::hud_geometry::rows(&eligible["guides"]).iter().any(|g| g["id"] == guide) {
+                return Err("Guide unavailable for the currently observed nation".into());
+            }
             self.app("app_active", &json!({"update":{"guide_id":guide}}))?;
             self.invalidate()?;
         } else if !["snapshot", "observe", "geometry"].contains(&kind) {
             return Err("Richiesta overlay non supportata".into());
         }
-        let snapshot = self.overlay_snapshot()?;
+        let snapshot = self.overlay_latest()?;
         result
             .as_object_mut()
             .unwrap()
             .extend(snapshot.as_object().unwrap().clone());
         if ["snapshot", "observe", "select"].contains(&kind) {
-            let guides = self.app("app_guides", &json!({}))?;
-            result["guides"] = json!(
-                crate::hud_geometry::rows(&guides)
-                    .iter()
-                    .map(|g| json!({"id":g["id"],"title":g["title"]}))
-                    .collect::<Vec<_>>()
-            );
+            let eligible = if snapshot["live_delivery_fresh"]==false {
+                json!({"guides":[],"guide_filter":{"status":"unavailable","country":null}})
+            } else { self.overlay_guides()? };
+            result["guides"] = eligible["guides"].clone();
+            result["guide_filter"] = eligible["guide_filter"].clone();
+            if !crate::hud_geometry::rows(&eligible["guides"]).iter().any(|g|g["id"] == result["guide_id"]) {
+                result["usable"] = json!(false);
+                result["proposed"] = json!([]);
+            }
         }
         if kind != "geometry" && kind != "observe" {
             return Ok(result);
@@ -867,40 +965,35 @@ impl Service {
         result["view"] = view.clone();
         result["native_available"] = json!(false);
         result["matches"] = json!([]);
-        if snapshot["usable"] != true
+        if result["usable"] != true
             || kind == "geometry" && input["version"] != snapshot["version"]
         {
             result["usable"] = json!(false);
             return Ok(result);
         }
         let began = Instant::now();
-        let geometry = {
-            let provider = self
-                .provider
-                .lock()
-                .map_err(|_| "Provider service unavailable")?;
-            provider
-                .as_ref()
-                .ok_or("Game installation not configured".into())
-                .and_then(|p| {
-                    crate::request(
-                        0,
-                        "provider_geometry",
-                        json!({"handle":p.handle,"view":view,"proposals":snapshot["proposed"]}),
-                    )
-                })
-        };
-        let current = self.overlay_snapshot()?;
+        let geometry = self.native_geometry(view,&snapshot["proposed"]);
+        let geometry_returned = Instant::now();
+        // Recheck guide/session/progress revisions without a second blocking
+        // process acquisition between the GUI witness and its publication.
+        let current = self.overlay_latest()?;
         let usable = current["usable"] == true && current["version"] == snapshot["version"];
         result
             .as_object_mut()
             .unwrap()
             .extend(current.as_object().unwrap().clone());
         result["usable"] = json!(usable);
+        if current["live_delivery_fresh"]==false {
+            result["guides"]=json!([]);
+            result["guide_filter"]=json!({"status":"unavailable","country":null});
+        }
         result["geometry_ms"] = json!(began.elapsed().as_secs_f64() * 1000.);
         result["memory_access"] = json!(true);
         match geometry {
             Ok(value) => {
+                let age = value["sample_age_ms"].as_f64().ok_or("Missing native GUI sample age")?;
+                result["geometry_observed_after_ms"] = json!((geometry_returned.duration_since(request_started).as_secs_f64()*1000. - age).max(0.));
+                result["geometry_age_ms"] = json!(age + geometry_returned.elapsed().as_secs_f64()*1000.);
                 result["native_available"] = value["available"].clone();
                 result["matches"] = if usable {
                     value["matches"].clone()
@@ -1253,6 +1346,8 @@ impl Service {
                         .to_string_lossy()
                 );
                 let source = &replacement.as_ref().unwrap().sources;
+                spec["shared_focuses"] = crate::focus_catalog::shared_members(&source["all_trees"]);
+                spec["building_scopes"] = crate::operational_catalog::building_scopes(&source["operation_entities"]);
                 let mods: Vec<_> = source["mod_roots"]
                     .as_array()
                     .into_iter()
@@ -1329,6 +1424,7 @@ impl Service {
             *provider = next_provider;
             reading.monitor = Monitor::default();
             reading.cached = None;
+            *self.last_delivery.lock().map_err(|_|"Live delivery unavailable")?=None;
             if let (Some(app), Some(prepared)) = (&mut application, prepared_context) {
                 app.apply_context(prepared);
                 app.invalidate_observation();
@@ -1562,7 +1658,7 @@ fn parse(socket: &mut TcpStream, port: u16) -> std::result::Result<Request, (u16
         None => 0,
     };
     let binary = fields[0] == "POST"
-        && ["/api/import/word", "/api/import/templates"].contains(&path.as_str());
+        && ["/api/import/word", "/api/import/templates", "/api/import/collections"].contains(&path.as_str());
     if length > MAX_BODY && !binary {
         return Err((413, "Request body exceeds limit".into()));
     }
@@ -1818,13 +1914,21 @@ fn connection(service: &Service, mut socket: TcpStream, port: u16) {
             &crate::i18n::payload(&json!({"error":error}), &service.language()),
         ),
     }
+    if service.stopped.load(Ordering::Acquire) {
+        let _ = wake_accept(port);
+    }
+}
+fn wake_accept(port: u16) -> std::io::Result<TcpStream> {
+    TcpStream::connect_timeout(
+        &std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, port)),
+        Duration::from_secs(1),
+    )
 }
 pub fn serve(config: Value, port: u16, ready: Option<PathBuf>) -> Result<()> {
     let service = Service::open(&config)?;
     let listener =
         TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).map_err(|e| e.to_string())?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-    listener.set_nonblocking(true).map_err(|e| e.to_string())?;
     let info =
         json!({"engine":"rust-backend","host":"127.0.0.1","port":port,"pid":std::process::id()});
     if let Some(path) = ready {
@@ -1835,14 +1939,14 @@ pub fn serve(config: Value, port: u16, ready: Option<PathBuf>) -> Result<()> {
     while !service.stopped.load(Ordering::Acquire) {
         let mut socket = match listener.accept() {
             Ok((socket, _)) => socket,
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                thread::sleep(Duration::from_millis(20));
-                continue;
-            }
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(e) => return Err(e.to_string()),
         };
-        // Windows can inherit FIONBIO from the listening socket. Only accept
-        // is nonblocking; bounded per-request reads must wait for body bytes.
+        if service.stopped.load(Ordering::Acquire) {
+            break;
+        }
+        // Accept sleeps until a connection arrives. An authenticated shutdown
+        // wakes it using its own loopback port; there is no periodic accept poll.
         socket.set_nonblocking(false).map_err(|e| e.to_string())?;
         if active
             .try_update(Ordering::AcqRel, Ordering::Relaxed, |n| {
@@ -1878,4 +1982,27 @@ pub fn serve(config: Value, port: u16, ready: Option<PathBuf>) -> Result<()> {
     }
     service.close();
     Ok(())
+}
+
+#[cfg(test)]
+mod accept_tests {
+    use super::*;
+    #[test]
+    fn hud_delivery_budget_never_treats_missing_or_expired_state_as_current() {
+        assert!(!recent_delivery(None));
+        assert!(recent_delivery(Some(Duration::ZERO)));
+        assert!(recent_delivery(Some(Duration::from_millis(1999))));
+        assert!(!recent_delivery(Some(Duration::from_secs(2))));
+        assert!(!recent_delivery(Some(Duration::from_secs(5))));
+    }
+    #[test]
+    fn shutdown_signal_wakes_a_blocking_local_accept() {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (sent, received) = std::sync::mpsc::channel();
+        let worker = thread::spawn(move || { sent.send(listener.accept().is_ok()).unwrap(); });
+        let _connection = wake_accept(port).unwrap();
+        assert!(received.recv_timeout(Duration::from_secs(2)).unwrap());
+        worker.join().unwrap();
+    }
 }

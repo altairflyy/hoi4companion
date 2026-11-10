@@ -8,6 +8,18 @@ struct Countries {
     names: BTreeMap<usize, String>,
     aliases: BTreeMap<i64, BTreeSet<String>>,
 }
+const RELATIONS: [(&str, &str); 18] = [
+    ("CWarRelation", "war"), ("CLicenceProductionAccessRelation", "licence_production_access"),
+    ("CEmbargoRelation", "embargo"), ("CMilitaryAccessRelation", "military_access"),
+    ("COfferMilitaryAccessRelation", "offer_military_access"), ("CImproveRelationsRelation", "improve_relations"),
+    ("CAttacheRelation", "attache"), ("CBoostPartyPopularityRelation", "boost_party_popularity"),
+    ("CGuaranteeRelation", "guarantee"), ("CNonAggressionPactRelation", "non_aggression_pact"),
+    ("CLendLeaseRelation", "lend_lease"), ("CSubjectRelation", "subject"),
+    ("CAirBaseAccessRelation", "air_base_access"), ("COfferAirBaseAccessRelation", "offer_air_base_access"),
+    ("CDockingRightsRelation", "docking_rights"), ("COfferDockingRightsRelation", "offer_docking_rights"),
+    ("CNavalBlockadeRelation", "naval_blockade"),
+    ("CMarketAccessRightsRelation@NInternationalMarket", "market_access_rights"),
+];
 const CLASSES: [&str; 9] = [
     "CNoMission",
     "CBuildIntelNetwork",
@@ -207,9 +219,78 @@ impl<M: Memory> Reader<'_, M> {
                 pacts.extend(values.iter().cloned())
             }
         }
-        Ok(
-            json!({"status":"observed","countries":countries.names.values().collect::<BTreeSet<_>>(),"improving_relations":improved,"non_aggression_pacts":pacts}),
-        )
+        let relations = match self.relation_records(status, &countries) {
+            Ok(value) => value,
+            Err(reason) => json!({"status":"unavailable","reason":reason}),
+        };
+        Ok(json!({"status":"observed","countries":countries.names.values().collect::<BTreeSet<_>>(),"improving_relations":improved,"non_aggression_pacts":pacts,"relations":relations}))
+    }
+    fn relation_records(&mut self, status: u64, countries: &Countries) -> Result<Value> {
+        self.function_signatures("foreign_records", "Common diplomatic relation layout is not qualified")?;
+        if !self.attributes["abi_functions"]["foreign_records"].as_array().is_some_and(|s| s.len()==1) {
+            return Err("Missing common diplomatic serializer".into());
+        }
+        let own = countries.mapping[self.tag as usize];
+        let mut rows = vec![];
+        let mut bases = HashSet::new();
+        for relation in self.array(status + 0x20, 4096)? {
+            let (vtable, class) = self.d.kind(relation)?;
+            let Some((_, kind)) = RELATIONS.iter().find(|(name, _)| class == format!(".?AV{name}@@")) else {
+                return Err("Unknown diplomatic relation type: coverage is incomplete".into());
+            };
+            // War/subject relations override serialization. Their immutable RTTI
+            // must still prove a nonvirtual CRelation base at displacement zero.
+            if bases.insert(vtable) { self.relation_base(vtable)?; }
+            let left = self.integer(relation + 0x10, 1, 8191)? as usize;
+            let right = self.integer(relation + 0x14, 1, 8191)? as usize;
+            let from = countries.names.get(&left).ok_or("Unknown relation origin")?;
+            let to = countries.names.get(&right).ok_or("Unknown relation destination")?;
+            if countries.mapping[left] == countries.mapping[right]
+                || ![countries.mapping[left], countries.mapping[right]].contains(&own) {
+                return Err("Foreign relation does not belong to this country".into());
+            }
+            let cancelled = self.track(relation + 0x48, 1)?[0];
+            if cancelled > 1 { return Err("Invalid diplomatic cancellation flag".into()); }
+            if cancelled == 1 { continue; }
+            let outgoing = countries.mapping[left] == own;
+            let other = if outgoing { right } else { left };
+            rows.push(json!({"id":format!("{relation:x}"),"kind":kind,"from_country":from,"to_country":to,
+                "direction":if outgoing {"outgoing"} else {"incoming"},"other_countries":countries.aliases[&countries.mapping[other]]}));
+        }
+        Ok(json!({"status":"observed","source":"native_relation_base_serializer","items":rows,
+            "scope":"existing_relations_not_pending_offers_or_acceptance_requirements"}))
+    }
+    fn relation_base(&mut self, vtable: u64) -> Result<()> {
+        let image = self.attributes["image_base"].as_u64().ok_or("Missing executable image base")?;
+        let bytes = self.d.memory.executable_bytes(vtable.checked_sub(8).ok_or("Invalid relation vtable")?,8)?;
+        let locator = u64::from_le_bytes(bytes.try_into().map_err(|_| "Partial relation RTTI")?)
+            .checked_sub(image).ok_or("Invalid relation locator")?;
+        let header = self.d.memory.executable_bytes(locator,24)?;
+        if header.len()!=24 { return Err("Partial relation locator".into()); }
+        let word=|n|u32::from_le_bytes(header[n..n+4].try_into().unwrap());
+        if word(0)!=1 || word(4)!=0 || word(20) as u64 != locator {return Err("Invalid relation primary RTTI".into());}
+        let hierarchy=self.d.memory.executable_bytes(word(16) as u64,16)?;
+        if hierarchy.len()!=16 {return Err("Partial relation hierarchy".into());}
+        let count=u32::from_le_bytes(hierarchy[8..12].try_into().unwrap()) as usize;
+        let array=u32::from_le_bytes(hierarchy[12..16].try_into().unwrap()) as u64;
+        if !(1..=128).contains(&count) {return Err("Invalid relation base count".into());}
+        let entries=self.d.memory.executable_bytes(array,count*4)?;
+        if entries.len()!=count*4 {return Err("Partial relation base array".into());}
+        for entry in entries.as_chunks::<4>().0 {
+            let descriptor=u32::from_le_bytes(*entry) as u64;
+            let row=self.d.memory.executable_bytes(descriptor,24)?;
+            if row.len()!=24 {return Err("Partial relation base descriptor".into());}
+            let type_rva=u32::from_le_bytes(row[..4].try_into().unwrap()) as u64;
+            let name=self.d.memory.executable_bytes(type_rva+16,128)?;
+            let end=name.iter().position(|v|*v==0).ok_or("Unterminated base RTTI name")?;
+            if &name[..end]==b".?AVCRelation@@" {
+                if row[8..12] != 0i32.to_le_bytes() || row[12..16] != (-1i32).to_le_bytes() {
+                    return Err("Diplomatic relation base displacement mismatch".into());
+                }
+                return Ok(());
+            }
+        }
+        Err("Diplomatic relation has no qualified CRelation base".into())
     }
     fn operative_missions(&mut self, agency: u64) -> Result<Value> {
         let countries = self.foreign_countries()?;

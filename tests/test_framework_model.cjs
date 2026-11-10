@@ -32,7 +32,7 @@ test('country-neutral guides support empty and additional tracks without crashin
  const r=planning.evaluate({schema_version:1,id:'any',applies_to:{},tracks:{construction:[{key:'build',kind:'free',action:{kind:'free'}}]}},null);
  assert.equal(r.focus.next,null);assert.equal(r.tracks.construction.rows[0].status,'free');
 });
-test('Python and JavaScript consume the same versioned wire examples',()=>{
+test('Rust and JavaScript consume the same versioned wire examples',()=>{
  for(const example of wireExamples){const result=contracts.state(example.input);for(const [key,expected]of Object.entries(example.expected))assert.deepEqual(Object.fromEntries(Object.keys(expected).map(field=>[field,result.facts[key][field]])),expected,example.name||key);for(const key of example.absent||[])assert.equal(Object.hasOwn(result.facts,key),false,example.name||key);}
 });
 test('research uses the same priorities and unknown membership stays unknown',()=>{

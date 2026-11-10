@@ -335,6 +335,9 @@ pub fn bind(step: &Value, index: &Index, country: &Value, record: bool) -> Resul
                         "completion",
                         fact("politics.ideas", &found[0]["id"]),
                     );
+                } else if found[0]["targeted"] == false && params.get("target_country").is_none() && params.get("target_state").is_none() {
+                    attach(&mut step, &mut params, "started_when", fact("decisions.active", &found[0]["id"]));
+                    attach(&mut step, &mut params, "completion", fact("decisions.executed", &found[0]["id"]));
                 }
                 return Ok(Some(result));
             }
@@ -444,7 +447,7 @@ pub fn foreign(step: &Value, index: &Index) -> Result<Value, String> {
         "non_aggression_pact",
         "assign_operative_mission",
     ]
-    .contains(&key.as_str())
+    .contains(&key.as_str()) && !data["relation_actions"][&key].is_object()
     {
         params["operation_id"] = json!("assign_operative_mission");
         params["mission_id"] = json!(key);

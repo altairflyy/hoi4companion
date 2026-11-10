@@ -1,0 +1,2333 @@
+[
+  {
+    "name": "qualified relations, role inventory and decision state",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "diplomacy.outgoing": {
+        "status": "calculated",
+        "value": [
+          "guarantee:OTH"
+        ]
+      },
+      "diplomacy.incoming": {
+        "status": "calculated",
+        "value": []
+      },
+      "politics.characters": {
+        "status": "calculated",
+        "value": [
+          "TST_commander",
+          "TST_scientist"
+        ]
+      },
+      "politics.advisors": {
+        "status": "calculated",
+        "value": []
+      },
+      "politics.unit_leaders": {
+        "status": "calculated",
+        "value": [
+          "TST_commander"
+        ]
+      },
+      "politics.scientists": {
+        "status": "calculated",
+        "value": [
+          "TST_scientist"
+        ]
+      },
+      "decisions.executed": {
+        "status": "calculated",
+        "value": [
+          "taken"
+        ]
+      },
+      "decisions.active": {
+        "status": "calculated",
+        "value": [
+          "running"
+        ]
+      },
+      "country.states.items.77.buildings.radar_station": {
+        "status": "observed",
+        "value": 2
+      },
+      "decisions.completed": {
+        "status": "calculated",
+        "value": []
+      }
+    }
+  },
+  {
+    "name": "incoming relation never masquerades as outgoing",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "OTH",
+                    "to_country": "TST",
+                    "direction": "incoming",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "diplomacy.outgoing": {
+        "status": "calculated",
+        "value": []
+      },
+      "diplomacy.incoming": {
+        "status": "calculated",
+        "value": [
+          "guarantee:OTH"
+        ]
+      }
+    }
+  },
+  {
+    "name": "mismatched diplomatic direction is unknown",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "incoming",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "diplomacy.outgoing": {
+        "status": "unknown",
+        "value": null
+      },
+      "diplomacy.incoming": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "unknown foreign endpoints withhold relation facts",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "BAD",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "diplomacy.outgoing": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "unrecognized diplomatic class is unknown",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "future",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "diplomacy.outgoing": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "missing base evidence is not an empty relation",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "unavailable",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "diplomacy.outgoing": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "random counters cannot complete a decision",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "unavailable"
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.executed": {
+        "status": "unknown",
+        "value": null
+      },
+      "decisions.active": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "unqualified decision provenance stays unknown",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "click",
+              "history_scope": "current_native_records",
+              "completed_ids": [
+                "taken"
+              ],
+              "active_ids": [
+                "running"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.executed": {
+        "status": "unknown",
+        "value": null
+      },
+      "decisions.active": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "duplicate decision identities stay unknown",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken",
+                "taken"
+              ],
+              "taken_ids": [
+                "taken",
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.executed": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "targeted outcomes without generic taken record stay unknown",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_targeted_decision",
+              "completed_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.executed": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "partial role state is not a roster",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "partial",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "politics.characters": {
+        "status": "unknown",
+        "value": null
+      },
+      "politics.unit_leaders": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "malformed role flags stay unknown",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": "false",
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "politics.characters": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "stale sample withholds every new fact",
+    "input": {
+      "usable": false,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "diplomacy.outgoing": {
+        "status": "unknown",
+        "value": null
+      },
+      "politics.characters": {
+        "status": "unknown",
+        "value": null
+      },
+      "decisions.executed": {
+        "status": "unknown",
+        "value": null
+      },
+      "country.states.items.77.buildings.radar_station": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "foreign country cannot complete the local guide",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "OTH",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "diplomacy.outgoing": {
+        "status": "unknown",
+        "value": null
+      },
+      "politics.characters": {
+        "status": "unknown",
+        "value": null
+      },
+      "decisions.executed": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "timed completion stays separate from activation",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "running"
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "taken_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "running"
+              ],
+              "active_ids": [
+                "running"
+              ],
+              "completed_ids": []
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.executed": {
+        "status": "calculated",
+        "value": [
+          "running"
+        ]
+      },
+      "decisions.active": {
+        "status": "calculated",
+        "value": [
+          "running"
+        ]
+      },
+      "decisions.completed": {
+        "status": "calculated",
+        "value": []
+      }
+    }
+  },
+  {
+    "name": "invalid regional building map radar_station",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": -1
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "country.states.items.77.buildings.radar_station": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "invalid regional building map bad.key",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "bad.key": 1
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "country.states.items.77.buildings.bad.key": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "province-only buildings use provincial facts",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          },
+          "fortifications": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 1,
+                "state_id": 77,
+                "bunker": 0,
+                "coastal_bunker": 0,
+                "buildings": {
+                  "naval_base": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "country.fortifications.items.1.buildings.naval_base": {
+        "status": "observed",
+        "value": 2
+      }
+    }
+  },
+  {
+    "name": "peer aliases cannot point back to the observing country",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "guarantee",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "TST"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "diplomacy.outgoing": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "market access is a qualified relation alongside other diplomatic actions",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "diplomacy": {
+            "status": "observed",
+            "at_war": false,
+            "interactions": {
+              "status": "observed",
+              "countries": [
+                "TST",
+                "OTH"
+              ],
+              "improving_relations": [],
+              "non_aggression_pacts": [],
+              "relations": {
+                "status": "observed",
+                "source": "native_relation_base_serializer",
+                "items": [
+                  {
+                    "id": "record",
+                    "kind": "market_access_rights",
+                    "from_country": "TST",
+                    "to_country": "OTH",
+                    "direction": "outgoing",
+                    "other_countries": [
+                      "OTH"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "politics": {
+            "status": "observed",
+            "advisors": {
+              "status": "observed",
+              "items": []
+            },
+            "characters": {
+              "status": "observed",
+              "source": "native_character_status_roles",
+              "items": [
+                {
+                  "id": "TST_commander",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": true,
+                  "scientist": false
+                },
+                {
+                  "id": "TST_scientist",
+                  "country_leader": false,
+                  "advisor": false,
+                  "unit_leader": false,
+                  "scientist": true
+                }
+              ]
+            }
+          },
+          "decisions": {
+            "status": "observed",
+            "listed_ids": [
+              "taken"
+            ],
+            "random_counters": [
+              {
+                "id": "random",
+                "native_random_counter": 99
+              }
+            ],
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "completed_ids": [],
+              "active_ids": [
+                "running"
+              ],
+              "executed_ids": [
+                "taken"
+              ],
+              "taken_ids": [
+                "taken"
+              ]
+            }
+          },
+          "states": {
+            "status": "observed",
+            "items": [
+              {
+                "id": 77,
+                "buildings": {
+                  "radar_station": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "diplomacy.outgoing": {
+        "status": "calculated",
+        "value": [
+          "market_access_rights:OTH"
+        ]
+      },
+      "diplomacy.incoming": {
+        "status": "calculated",
+        "value": []
+      },
+      "politics.characters": {
+        "status": "calculated",
+        "value": [
+          "TST_commander",
+          "TST_scientist"
+        ]
+      },
+      "politics.advisors": {
+        "status": "calculated",
+        "value": []
+      },
+      "politics.unit_leaders": {
+        "status": "calculated",
+        "value": [
+          "TST_commander"
+        ]
+      },
+      "politics.scientists": {
+        "status": "calculated",
+        "value": [
+          "TST_scientist"
+        ]
+      },
+      "decisions.executed": {
+        "status": "calculated",
+        "value": [
+          "taken"
+        ]
+      },
+      "decisions.active": {
+        "status": "calculated",
+        "value": [
+          "running"
+        ]
+      },
+      "country.states.items.77.buildings.radar_station": {
+        "status": "observed",
+        "value": 2
+      },
+      "decisions.completed": {
+        "status": "calculated",
+        "value": []
+      }
+    }
+  }
+]

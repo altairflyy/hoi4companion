@@ -53,6 +53,11 @@ fn canonical(path: &Path) -> Result<PathBuf> {
     std::fs::canonicalize(path).map_err(|_| "Identità processo non verificata".into())
 }
 impl Game {
+    #[cfg(test)]
+    pub(crate) fn owned_fixture() -> Arc<Self> {
+        let profile=profile::Profile::for_test(&std::env::current_exe().unwrap());
+        Arc::new(Self::open_pid(Arc::new(profile),unsafe { GetCurrentProcessId() }).unwrap())
+    }
     pub(crate) fn open(profile: Arc<profile::Profile>) -> Result<Self> {
         let snapshot = Owned(
             unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }

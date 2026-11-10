@@ -207,6 +207,18 @@ pub(crate) fn foreign_predicate(params: &Value) -> Option<Value> {
     let op = text(&params["operation_id"]);
     let fact =
         |key: &str, value: String| json!({"op":"fact","key":key,"test":"contains","value":value});
+    let relation = &crate::political_binding::foreign_tasks()["relation_actions"][op];
+    if relation.is_object() && ["outgoing", "incoming"].contains(&text(&relation["direction"]))
+        && relation["present"].is_boolean()
+    {
+        let key=format!("diplomacy.{}",text(&relation["direction"]));
+        let selected=format!("{}:{target}",text(&relation["kind"]));
+        if state::valid_fact(&key,&json!([selected])) {
+            let node=fact(&key,selected);
+            let node=if relation["present"] == true {node} else {json!({"op":"not","arg":node})};
+            return Some(json!({"op":"all","args":[fact("diplomacy.countries",target.into()),node]}));
+        }
+    }
     if op == "assign_operative_mission"
         && [
             "build_intel_network",
@@ -259,6 +271,23 @@ pub(crate) fn canonical(v: &Value) -> Value {
         ),
         Value::Array(a) => Value::Array(a.iter().map(canonical).collect()),
         v => v.clone(),
+    }
+}
+#[cfg(test)]
+mod foreign_coverage_tests {
+    use super::*;
+    #[test]
+    fn every_declared_relation_action_has_a_typed_directional_predicate() {
+        let actions=crate::political_binding::foreign_tasks()["relation_actions"].as_object().unwrap();
+        for (id, action) in actions {
+            let predicate=foreign_predicate(&json!({"operation_id":id,"target_country":"OTH"})).unwrap();
+            assert_eq!(predicate["args"][0],json!({"op":"fact","key":"diplomacy.countries","test":"contains","value":"OTH"}));
+            let node=if action["present"] == true {&predicate["args"][1]} else {&predicate["args"][1]["arg"]};
+            assert_eq!(node["key"],format!("diplomacy.{}",action["direction"].as_str().unwrap()));
+            assert_eq!(node["value"],format!("{}:OTH",action["kind"].as_str().unwrap()));
+        }
+        assert!(foreign_predicate(&json!({"operation_id":"embargo","target_country":"missing"})).is_none());
+        assert!(foreign_predicate(&json!({"operation_id":"unrecognized","target_country":"OTH"})).is_none());
     }
 }
 pub(crate) fn foreign_token(key: &Value, node: &Value) -> String {

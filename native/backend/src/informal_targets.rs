@@ -140,7 +140,9 @@ pub fn named(text: &str, index: &Index, country: &Value) -> Result<Option<Value>
             params["decision_id"] = entry["id"].clone();
             params["decision_name"] = entry["name"].clone();
             params["decision_group"] = entry["group"].clone();
-            policies["completion"] = json!({"op":"fact","key":"decisions.executed","test":"contains","value":entry["id"]});
+            if entry["targeted"] == false {
+                policies["completion"] = json!({"op":"fact","key":"decisions.executed","test":"contains","value":entry["id"]});
+            }
         }
     }
     if currency == "PP" {

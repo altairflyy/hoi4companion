@@ -18,6 +18,9 @@ mod forts;
 mod military;
 #[path = "country_events.rs"]
 mod windows;
+#[path = "country_tests.rs"]
+#[cfg(test)]
+mod tests;
 #[derive(Deserialize)]
 pub struct Request {
     pub schema_version: u32,
@@ -170,8 +173,11 @@ impl<M: Memory> Reader<'_, M> {
             .as_u64()
             .unwrap_or(0x332ee28);
         let registry = self.d.u(self.d.base + rva)?;
+        self.typed(registry, "CBuildingDatabase")?;
         let mut definitions = BTreeMap::new();
-        for definition in self.array(registry + 0x40, 512)? {
+        let scopes = self.attributes["building_scopes"].clone();
+        for (ordinal, definition) in self.array(registry + 0x40, 512)?.into_iter().enumerate() {
+            if definition == 0 { continue; }
             if self.d.kind(definition)?.1 != ".?AVCBuildingTemplate@@" {
                 continue;
             }
@@ -182,15 +188,17 @@ impl<M: Memory> Reader<'_, M> {
                 "arms_factory",
                 "dockyard",
             ]
-            .contains(&key.as_str())
+            .contains(&key.as_str()) || scopes[&key] == "state"
             {
                 if definitions.contains_key(&key) {
                     return Err("Definizione edificio duplicata".into());
                 }
-                definitions.insert(key, self.integer(definition + 0x2e0, 0, 511)? as usize);
+                let slot = self.integer(definition + 0x2e0, 0, 511)? as usize;
+                if slot != ordinal { return Err("Building definition registry mismatch".into()); }
+                definitions.insert(key, (definition, slot));
             }
         }
-        if definitions.len() != 4 {
+        if ["infrastructure", "industrial_complex", "arms_factory", "dockyard"].iter().any(|k| !definitions.contains_key(*k)) {
             return Err("Definizioni edifici mancanti".into());
         }
         let mut items = vec![];
@@ -217,7 +225,8 @@ impl<M: Memory> Reader<'_, M> {
             }
             let buildings = self.array(state + 0x158, 512)?;
             let mut levels = BTreeMap::new();
-            for (key, slot) in &definitions {
+            let mut indices = HashSet::new();
+            for (key, (definition, slot)) in &definitions {
                 let index = *mapping.get(*slot).ok_or("Mappa edifici incompleta")? as i64;
                 if index == -1 {
                     levels.insert(key, 0);
@@ -227,13 +236,16 @@ impl<M: Memory> Reader<'_, M> {
                     .get(usize::try_from(index).map_err(|_| "Indice edificio non valido")?)
                     .ok_or("Indice edificio non valido")?;
                 self.typed(building, "CBuilding")?;
+                if !indices.insert(index) || self.pointer(building + 0x1e0)? != *definition {
+                    return Err("State building template/index mismatch".into());
+                }
                 let level = i16::from_le_bytes(self.track(building + 0x40, 2)?.try_into().unwrap());
                 if !(0..=1000).contains(&level) {
                     return Err("Livello edificio non valido".into());
                 }
                 levels.insert(key, level);
             }
-            items.push(json!({"id":id,"name":format!("STATE_{id}"),"owned":owner==self.tag as i64,"controlled":controller==self.tag as i64,"civilian_factories":levels[&"industrial_complex".to_string()],"military_factories":levels[&"arms_factory".to_string()],"dockyards":levels[&"dockyard".to_string()],"infrastructure":levels[&"infrastructure".to_string()]}));
+            items.push(json!({"id":id,"name":format!("STATE_{id}"),"owned":owner==self.tag as i64,"controlled":controller==self.tag as i64,"civilian_factories":levels[&"industrial_complex".to_string()],"military_factories":levels[&"arms_factory".to_string()],"dockyards":levels[&"dockyard".to_string()],"infrastructure":levels[&"infrastructure".to_string()],"buildings":levels}));
         }
         items.sort_by_key(|r| r["id"].as_i64());
         Ok(
@@ -242,7 +254,13 @@ impl<M: Memory> Reader<'_, M> {
     }
     fn equipment(&mut self) -> Result<Value> {
         let status = self.object_pointer(self.country + 0xf68, "CProductionStatus")?;
-        if self.pointer(status + 0x290)? != self.country {
+        if self.pointer(
+            status
+                + self.attributes["production_owner_offset"]
+                    .as_u64()
+                    .unwrap_or(0x290),
+        )? != self.country
+        {
             return Err("Scorte di un’altra nazione".into());
         }
         let pool = self.typed(status + 0x200, "CEquipmentVariantPool")?;
@@ -282,14 +300,17 @@ impl<M: Memory> Reader<'_, M> {
         )
     }
     fn token_name(&mut self, token: i64) -> Result<String> {
-        if self.d.read(self.d.base + 0x35e1ab0, 1)? != [1] {
+        let table = self.attributes["token_table_rva"]
+            .as_u64()
+            .unwrap_or(0x35e1ab0);
+        if self.d.read(self.d.base + table, 1)? != [1] {
             return Err("Cache nomi nativi non inizializzata".into());
         }
-        let maximum = self.integer(self.d.base + 0x35e1ab4, 0, 1_000_000)?;
+        let maximum = self.integer(self.d.base + table + 4, 0, 1_000_000)?;
         if !(0..=maximum).contains(&token) {
             return Err("Indice nome nativo non valido".into());
         }
-        let names = self.d.u(self.d.base + 0x35e1ae0)?;
+        let names = self.d.u(self.d.base + table + 0x30)?;
         self.d.string(
             names
                 .checked_add(token as u64 * 32)
@@ -311,7 +332,10 @@ impl<M: Memory> Reader<'_, M> {
                 return Err("Identità campi risorse non confermata".into());
             }
         }
-        let registry = self.d.u(self.d.base + 0x332f088)?;
+        let registry = self.d.u(self.d.base
+            + self.attributes["resources_database_rva"]
+                .as_u64()
+                .unwrap_or(0x332f088))?;
         let mut resources = vec![];
         let mut names = HashSet::new();
         for (index, definition) in self
@@ -387,7 +411,13 @@ impl<M: Memory> Reader<'_, M> {
     }
     fn construction(&mut self) -> Result<Value> {
         let production = self.object_pointer(self.country + 0xf68, "CProductionStatus")?;
-        if self.pointer(production + 0x290)? != self.country {
+        if self.pointer(
+            production
+                + self.attributes["production_owner_offset"]
+                    .as_u64()
+                    .unwrap_or(0x290),
+        )? != self.country
+        {
             return Err("Costruzioni di un’altra nazione".into());
         }
         let entries = self.array(production + 0x70, 2048)?;
@@ -396,12 +426,16 @@ impl<M: Memory> Reader<'_, M> {
                 json!({"status":"observed","lines":[],"reason":"Coda di costruzione vuota osservata."}),
             );
         }
-        let registry = self.d.u(self.d.base + 0x332ee28)?;
+        let registry = self.d.u(self.d.base
+            + self.attributes["building_database_rva"]
+                .as_u64()
+                .unwrap_or(0x332ee28))?;
         self.typed(registry, "CBuildingDatabase")?;
         let definitions = self.array(registry + 0x40, 512)?;
         let mut lines = vec![];
         let mut handles = HashSet::new();
         let mut incomplete = false;
+        let layout = self.attributes["construction_layout"].clone();
         for (position, line) in entries.into_iter().enumerate() {
             if self.d.kind(line)?.1 != ".?AVCBuildingProductionLine@@" {
                 incomplete = true;
@@ -417,7 +451,10 @@ impl<M: Memory> Reader<'_, M> {
             {
                 return Err("Identità ordine di costruzione assente o duplicata".into());
             }
-            let building = self.object_pointer(line + 0x70, "CBuilding")?;
+            let building = self.object_pointer(
+                line + layout["building"].as_u64().unwrap_or(0x70),
+                "CBuilding",
+            )?;
             let status = self.object_pointer(building + 0x1d8, "CBuildingStatus")?;
             let template = self.object_pointer(building + 0x1e0, "CBuildingTemplate")?;
             let ordinal = self.d.i(template + 0x2e0)?;
@@ -430,12 +467,14 @@ impl<M: Memory> Reader<'_, M> {
                 return Err("Livello costruito non valido".into());
             }
             let amount = self.integer(line + 0x48, 0, 1000)?;
-            let repairs = self.integer(line + 0x78, 0, 1000)?;
-            let conversion = self.track(line + 0x8c, 1)?[0];
-            if conversion > 1 {
+            let repairs =
+                self.integer(line + layout["repairs"].as_u64().unwrap_or(0x78), 0, 1000)?;
+            let conversion =
+                self.track(line + layout["conversion"].as_u64().unwrap_or(0x8c), 1)?[0];
+            if conversion > 1 && layout["boolean_semantics"] != "nonzero" {
                 return Err("Indicatore conversione non valido".into());
             }
-            let mut row = json!({"id":hex(&handle),"position":position+1,"building_id":key,"amount":amount,"built_level":level,"active_factories":self.integer(line+0x18,0,10000)?,"repair_levels":repairs,"conversion":conversion==1,"state_id":null,"province_id":null,"location_status":"unavailable"});
+            let mut row = json!({"id":hex(&handle),"position":position+1,"building_id":key,"amount":amount,"built_level":level,"active_factories":self.integer(line+0x18,0,10000)?,"repair_levels":repairs,"conversion":conversion!=0,"state_id":null,"province_id":null,"location_status":"unavailable"});
             let flags = self.integer(status + 0x68, 0, 0x7fff_ffff)?;
             let id = self.integer(status + 0x6c, 1, 100000)?;
             let national = self.integer(status + 0x70, 0, 8191)?;

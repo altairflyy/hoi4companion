@@ -1,0 +1,658 @@
+[
+  {
+    "name": "radar station initial five",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "radar_station",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2,
+                "building_scope": "state"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:radar_station"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.buildings.radar_station": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.buildings.radar_station",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "ready",
+    "completed": false
+  },
+  {
+    "name": "radar station queued two",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "radar_station",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2,
+                "building_scope": "state"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:radar_station"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [
+            "state:77:radar_station"
+          ],
+          "source": "fixture"
+        },
+        "country.states.items.77.buildings.radar_station": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.buildings.radar_station",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "active",
+    "completed": false
+  },
+  {
+    "name": "radar station cancelled order",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "radar_station",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2,
+                "building_scope": "state"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:radar_station"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.buildings.radar_station": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.buildings.radar_station",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "ready",
+    "completed": false
+  },
+  {
+    "name": "radar station seven built",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "radar_station",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2,
+                "building_scope": "state"
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "state:77:radar_station"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.states.items.77.buildings.radar_station": {
+          "status": "observed",
+          "value": 7,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.states.items.77.buildings.radar_station",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "completed",
+    "completed": true
+  },
+  {
+    "name": "naval base initial five",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "naval_base",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2,
+                "building_scope": "province",
+                "province_id": 1
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "province:1:naval_base"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.fortifications.items.1.buildings.naval_base": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.fortifications.items.1.buildings.naval_base",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "ready",
+    "completed": false
+  },
+  {
+    "name": "naval base queued two",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "naval_base",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2,
+                "building_scope": "province",
+                "province_id": 1
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "province:1:naval_base"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [
+            "province:1:naval_base"
+          ],
+          "source": "fixture"
+        },
+        "country.fortifications.items.1.buildings.naval_base": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.fortifications.items.1.buildings.naval_base",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "active",
+    "completed": false
+  },
+  {
+    "name": "naval base cancelled order",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "naval_base",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2,
+                "building_scope": "province",
+                "province_id": 1
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "province:1:naval_base"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.fortifications.items.1.buildings.naval_base": {
+          "status": "observed",
+          "value": 5,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.fortifications.items.1.buildings.naval_base",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "ready",
+    "completed": false
+  },
+  {
+    "name": "naval base seven built",
+    "guide": {
+      "schema_version": 1,
+      "id": "build",
+      "applies_to": {
+        "country": "TST"
+      },
+      "tracks": {
+        "operations": [
+          {
+            "key": "factory",
+            "depends_on": [],
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "construction",
+                "building_id": "naval_base",
+                "state_id": 77,
+                "quantity_mode": "additional",
+                "quantity": 2,
+                "building_scope": "province",
+                "province_id": 1
+              }
+            },
+            "started_when": {
+              "op": "fact",
+              "key": "construction.queued",
+              "test": "contains",
+              "value": "province:1:naval_base"
+            },
+            "completion": {
+              "op": "fact",
+              "key": "guide.construction.factory.added",
+              "test": "gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "value": "TST",
+          "source": "fixture"
+        },
+        "construction.queued": {
+          "status": "observed",
+          "value": [],
+          "source": "fixture"
+        },
+        "country.fortifications.items.1.buildings.naval_base": {
+          "status": "observed",
+          "value": 7,
+          "source": "fixture"
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "build",
+      "run_id": "r",
+      "session_id": "session",
+      "checks": {},
+      "baselines": {
+        "factory": {
+          "fact_key": "country.fortifications.items.1.buildings.naval_base",
+          "value": 5,
+          "country": "TST",
+          "quantity": 2,
+          "source": "fixture"
+        }
+      }
+    },
+    "expected": "completed",
+    "completed": true
+  }
+]

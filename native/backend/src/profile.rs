@@ -1,5 +1,5 @@
-//! Immutable executable generations. Exact SHA-256 admission and PE/RTTI
-//! interpretation live here; unsupported binaries never borrow other offsets.
+//! Immutable executable generations. Known hashes retain their qualified
+//! layouts; other builds must independently satisfy structural ABI evidence.
 use crate::pe::{Pe, number};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -72,9 +72,11 @@ impl Profile {
         }
         let sha = digest(&data);
         let manifest: Value = serde_json::from_str(MANIFEST).map_err(|e| e.to_string())?;
-        let selected = manifest["profiles"]
-            .get(&sha)
-            .ok_or("Versione HOI4 non supportata dal reader live")?;
+        let selected = match manifest["profiles"].get(&sha) {
+            Some(profile) => profile.clone(),
+            None => crate::abi::qualify(&data,&manifest)
+                .map_err(|reason|format!("Versione HOI4: struttura nativa non compatibile ({reason})"))?,
+        };
         let pe = Pe::new(&data)?;
         let header = number(&data, 0x3c, 4)? as usize;
         let metadata = json!({"path":display(&path),"sha256":sha,"image_base":pe.base,"image_size":number(&data,header+80,4)?,"timestamp":number(&data,header+8,4)?,"sections":pe.sections,"selected":selected,"manifest_sha256":digest(MANIFEST.as_bytes())});

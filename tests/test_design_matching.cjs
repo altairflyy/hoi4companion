@@ -66,7 +66,7 @@ test('production contracts reject malformed optional live designs without accept
  const old=line();delete old.design;assert.equal(contracts.fact(state([old]),'production.lines').status,'observed');
 });
 
-test('relative baseline identity normalizes recipes and recursively sorts map keys like Python',()=>{
+test('relative baseline identity normalizes recipes and recursively sorts map keys consistently',()=>{
  const s=step(),p=s.action.params;p.quantity_mode='additional';p.requested_factories=3;s.completion={op:'fact',key:'guide.production.tank.added',test:'gte',value:3};
  p.design_reference={modules:{'2':'two','10':'ten',gun:'small_cannon'},upgrades:{z:'0',engine:'2'}};
  const spec=production.relativeSpec(s);assert.equal(spec.fact_key,'production_requested:{"category":"military","design":{"modules":{"10":"ten","2":"two","gun":"small_cannon"},"upgrades":{"engine":2}},"equipment_ids":["light_tank_chassis_1"],"variant_names":["Guide name"]}');

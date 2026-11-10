@@ -13,6 +13,17 @@ use std::{
 };
 type Result<T> = std::result::Result<T, String>;
 
+fn same_observation(left: &Value, right: &Value) -> bool {
+    let (Some(left), Some(right)) = (left.as_object(), right.as_object()) else {
+        return left == right;
+    };
+    let significant = |key: &str| !matches!(key,
+        "observed_at" | "age_seconds" | "metrics" | "transport" | "overlay");
+    left.iter().filter(|(key, _)| significant(key))
+        .all(|(key, value)| right.get(key) == Some(value))
+        && right.keys().filter(|key| significant(key)).all(|key| left.contains_key(key))
+}
+
 fn text(v: &Value) -> &str {
     v.as_str().unwrap_or("")
 }
@@ -108,6 +119,7 @@ pub struct Application {
     active_revision: u64,
     revision: u64,
     observation_revision: u64,
+    bound_context: Option<(u64, u64, u64)>,
     persistent: bool,
 }
 pub(crate) struct PreparedContext {
@@ -133,6 +145,7 @@ impl Application {
             active_revision: 0,
             revision: 0,
             observation_revision: 0,
+            bound_context: None,
             persistent: path.is_some(),
         };
         for guide in args["guides"].as_array().into_iter().flatten() {
@@ -331,9 +344,19 @@ impl Application {
         Ok(())
     }
     pub fn accept(&mut self, value: Value) -> Result<Value> {
-        self.observation_revision = self.observation_revision.wrapping_add(1);
+        // A successful fresh read need not rerun every guide or invalidate HUD
+        // targets when only delivery timestamps and diagnostic counters changed.
+        // All game data, identity, validity and unknown fields remain significant.
+        let changed = !same_observation(&self.live, &value);
+        let context = (self.active_revision, self.definition_generation, self.revision);
         self.live = value;
-        self.bind()?;
+        if changed || self.bound_context != Some(context) {
+            if changed {
+                self.observation_revision = self.observation_revision.wrapping_add(1);
+            }
+            self.bind()?;
+            self.bound_context = Some((self.active_revision, self.definition_generation, self.revision));
+        }
         Ok(self.live.clone())
     }
     pub fn invalidate_observation(&mut self) {
@@ -666,4 +689,18 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
         .lock()
         .map_err(|_| "Application unavailable")?
         .request(op, args)
+}
+
+#[cfg(test)]
+mod observation_tests {
+    use super::*;
+    #[test]
+    fn only_delivery_metadata_can_skip_revaluation() {
+        let original=json!({"usable":true,"sample":{"country":"HUN","native_tick":1},"error":""});
+        let mut delivery=original.clone();delivery["metrics"]=json!({"probes":2});delivery["observed_at"]=json!("later");
+        assert!(same_observation(&original,&delivery));
+        for (key,value) in [("usable",json!(false)),("sample",json!({"country":"LUX","native_tick":1})),("sample",json!({"country":"HUN","native_tick":2})),("error",json!("stale")),("validation",json!("rejected"))] {
+            let mut changed=delivery.clone();changed[key]=value;assert!(!same_observation(&original,&changed));
+        }
+    }
 }

@@ -102,12 +102,6 @@ pub fn bind(guide: &Value, index: &Index, library: &Value) -> Result<Value, Stri
         if reason == "doctrine_selection_unobserved" {
             completed = false;
         }
-        if reason == "decision_identity_resolved"
-            && step["completion"]
-                == json!({"op":"fact","key":"decisions.executed","test":"contains","value":step["action"]["params"]["decision_id"]})
-        {
-            completed = false;
-        }
         let reason = if started && !completed && step.get("completion").is_some() {
             json!("declared_manual_completion")
         } else {
