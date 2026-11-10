@@ -6,7 +6,7 @@
   label.append(toggle,document.createTextNode(HoiI18n.t(" Read current state · experimental")));
   const status=document.createElement('strong');status.textContent=HoiI18n.t("Connecting to the game…");heading.append(label,status);
   const detail=document.createElement('p'),list=document.createElement('ul'),follow=document.createElement('button');follow.type='button';follow.textContent=HoiI18n.t("Open the observed country's focus tree");follow.className='line-button';follow.hidden=true;
-  root.append(heading,detail,list,follow);document.querySelector('.hero').after(root);
+  if(document.body.classList.contains?.('guide-page')){const disclosure=document.createElement('details'),summary=document.createElement('summary');disclosure.className='live-details';summary.textContent=HoiI18n.t('Game state details');disclosure.append(summary,detail,list,follow);root.append(heading,disclosure);}else{root.append(heading,detail,list,follow);}document.querySelector('.hero').after(root);
   let value=null,connection=null,signature='',lastArrival=0;const listeners=[];
   const api=window.hoiLive={enabled:toggle.checked,value:null,subscribe(callback){listeners.push(callback);if(value)callback(value);},
     sample(){return this.enabled&&this.value?.usable?this.value.sample:null;}};

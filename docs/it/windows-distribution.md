@@ -1,3 +1,5 @@
+> Documento storico: gli entrypoint Python e il pacchetto PyInstaller sono stati rimossi. Consultare la [documentazione attuale](../windows-distribution.md).
+
 # Distribuzione Windows x64
 
 Il formato è una cartella autonoma compressa in ZIP. `HOI4 Companion.exe` è il

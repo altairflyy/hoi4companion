@@ -156,15 +156,19 @@ pub fn construction_spec(step: &Value) -> Option<Value> {
     let p = &step["action"]["params"];
     let building = text(&p["building_id"]);
     let provincial =
-        ["bunker", "coastal_bunker"].contains(&building) && integer(&p["province_id"], 1, MAX);
+        (["bunker", "coastal_bunker"].contains(&building) || p["building_scope"] == "province") && integer(&p["province_id"], 1, MAX);
     let field = if provincial {
-        building
+        if ["bunker", "coastal_bunker"].contains(&building) { building.to_owned() }
+        else if !building.is_empty() && building.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_') {format!("buildings.{building}")}
+        else { return None; }
     } else {
         match building {
-            "infrastructure" => "infrastructure",
-            "arms_factory" => "military_factories",
-            "industrial_complex" => "civilian_factories",
-            "dockyard" => "dockyards",
+            "infrastructure" => "infrastructure".into(),
+            "arms_factory" => "military_factories".into(),
+            "industrial_complex" => "civilian_factories".into(),
+            "dockyard" => "dockyards".into(),
+            id if p["building_scope"] == "state" && !id.is_empty()
+                && id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_') => format!("buildings.{id}"),
             _ => return None,
         }
     };

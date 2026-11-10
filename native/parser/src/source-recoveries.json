@@ -3,6 +3,23 @@
   "policy": "reviewed-content-only-v1",
   "entries": [
     {
+      "file": "history/countries/NOR - Norway.txt",
+      "decoded_sha256": "779bfbf5d8818b83697e0cf25da55c5cdfd15f561f1303b547f1a96ded05bda8",
+      "source_sha256": "eacaf4750bbbe1d48845f754a179aac59b6a92a2a734de926ad1d055ba009ed1",
+      "edits": [
+        {
+          "start": 12589,
+          "end": 12589,
+          "original": "",
+          "replacement": "\n}",
+          "kind": "close_reviewed_eof_block"
+        }
+      ],
+      "expected_ast_sha256": "7e32adf21a19b4fa1a39e804c13a42338c03443d2b6cdf4d1d5afd1ebb12851c",
+      "original_error": "Blocco aperto non chiuso",
+      "validation": "Audited unmatched 1939.1.1 block opened at line 422; EOF closure only, all original tokens and dated research boundaries preserved; strict Jomini AST fingerprint pinned."
+    },
+    {
       "file": "common/doctrines/subdoctrines/sea/navy_submarine_doctrines.txt",
       "decoded_sha256": "b0fe32ce5ca0d8e0efba38f747cb1aa0851f29664d6594197d00869fc43fad38",
       "source_sha256": "b0fe32ce5ca0d8e0efba38f747cb1aa0851f29664d6594197d00869fc43fad38",

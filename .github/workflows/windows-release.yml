@@ -16,9 +16,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -31,66 +28,40 @@ jobs:
           rustup toolchain install stable --profile minimal
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           rustup default stable
-          python -m venv .venv-build
-          & .venv-build/Scripts/python.exe -m pip install -r packaging/requirements-windows.lock
           exit $LASTEXITCODE
       - name: Prepare native components and on-demand tools
         shell: pwsh
         run: |
-          foreach ($component in @('parser', 'observer', 'guide-core', 'catalog-core', 'tools', 'storage')) {
-            & "scripts/build-$component.ps1"
-            if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          }
-          & .venv-build/Scripts/python.exe scripts/build-cwtools.py --output src/hoi4companion/_native/cwtools
+          & scripts/build-parser.ps1
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          & .venv-build/Scripts/python.exe -c "import runpy; runpy.run_path('scripts/build-windows.py')['download_node']()"
+          & scripts/build-cwtools.ps1 -Output src/hoi4companion/_native/cwtools
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $tools = Join-Path $PWD 'src/hoi4companion/_native/tools'
-          New-Item -ItemType Directory -Path $tools -Force | Out-Null
-          $version = & .venv-build/Scripts/python.exe -c "import importlib.metadata; print(importlib.metadata.version('yt-dlp'))"
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $base = "https://github.com/yt-dlp/yt-dlp/releases/download/$version"
-          $sums = (Invoke-WebRequest "$base/SHA2-256SUMS").Content
-          if ($sums -is [byte[]]) { $sums = [Text.Encoding]::UTF8.GetString($sums) }
-          $line = ($sums -split "`n" | Where-Object { $_ -match '\s+\*?yt-dlp\.exe\s*$' } | Select-Object -First 1)
-          if (-not $line) { throw 'Missing standalone yt-dlp checksum' }
-          $expected = ($line.Trim() -split '\s+')[0]
-          Invoke-WebRequest "$base/yt-dlp.exe" -OutFile (Join-Path $tools 'yt-dlp.exe')
-          if ((Get-FileHash -LiteralPath (Join-Path $tools 'yt-dlp.exe') -Algorithm SHA256).Hash -ne $expected) { throw 'Standalone yt-dlp checksum mismatch' }
-          & .venv-build/Scripts/python.exe -c "import imageio_ffmpeg,shutil; shutil.copyfile(imageio_ffmpeg.get_ffmpeg_exe(),'src/hoi4companion/_native/tools/ffmpeg.exe')"
+          node scripts/prepare-windows-tools.cjs
           exit $LASTEXITCODE
       - name: Build native application
         shell: pwsh
         run: |
           if ($env:GITHUB_REF_TYPE -eq 'tag') {
-            & .venv-build/Scripts/python.exe -c "import os,tomllib; v=tomllib.load(open('pyproject.toml','rb'))['project']['version']; assert os.environ['GITHUB_REF_NAME']=='v'+v, 'Tag e versione non corrispondenti'"
+            node -e "if(process.env.GITHUB_REF_NAME!=='v'+require('./package.json').version)throw Error('Tag/version mismatch')"
             if ($LASTEXITCODE) { exit $LASTEXITCODE }
           }
-          & .venv-build/Scripts/python.exe scripts/build-native-windows.py
+          node scripts/build-native-windows.cjs
           exit $LASTEXITCODE
-      - name: Test source modules with the compiled components
+      - name: Test JavaScript and native HTTP contracts
         shell: pwsh
         run: |
-          $env:PYTHONPATH = "$PWD/src"
-          $env:HOI4_GUIDE_CORE_VERIFY = '1'
-          $env:HOI4_CATALOG_CORE_VERIFY = '1'
-          & .venv-build/Scripts/python.exe -m unittest discover -s tests -p 'test_*.py'
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          node --test tests/*.cjs
+          node scripts/test-web.cjs
           exit $LASTEXITCODE
       - name: Test native guide and service cores
         shell: pwsh
         run: |
-          foreach ($crate in @('guide-core', 'catalog-core', 'tools', 'storage', 'backend', 'overlay')) {
-            $env:CARGO_TARGET_DIR = Join-Path $PWD ".local/rust-$crate-target"
-            cargo test --locked --manifest-path "native/$crate/Cargo.toml"
-            if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          }
+          node scripts/test-native.cjs
+          exit $LASTEXITCODE
       - name: Test packaged application
         shell: pwsh
         run: |
           $archive = (Get-ChildItem dist/HOI4Companion-*-native-windows-x64.zip | Select-Object -First 1).FullName
-          & .venv-build/Scripts/python.exe scripts/smoke-native-windows.py $archive --output dist/windows-smoke-results.json
+          node scripts/smoke-native-windows.cjs $archive --output dist/windows-smoke-results.json
           exit $LASTEXITCODE
       - uses: actions/upload-artifact@v4
         with:

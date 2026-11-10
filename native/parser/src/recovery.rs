@@ -135,6 +135,16 @@ mod tests {
         assert!(adapt(source,&entry).is_ok());
     }
     #[test]
+    fn eof_closure_keeps_future_research_inside_its_dated_block() {
+        let source="set_technology={basic=1} 1939.1.1={set_technology={future=1}";
+        let candidate=adapt(source,&fixture(source,"\n}")).unwrap();
+        let node=serde_json::to_value(crate::parse(candidate.as_bytes()).unwrap()).unwrap();
+        assert_eq!(node["entries"].as_array().unwrap().len(),2);
+        assert_eq!(node["entries"][0][0],"set_technology");
+        assert_eq!(node["entries"][1][0],"1939.1.1");
+        assert_eq!(node["entries"][1][1]["entries"][0][1]["entries"][0][0],"future");
+    }
+    #[test]
     fn incorrect_spans_changed_ast_and_invented_values_fail_closed() {
         let source="x={a=1";
         let mut entry=fixture(source,"\n}");

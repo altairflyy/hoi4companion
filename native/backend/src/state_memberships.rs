@@ -1,11 +1,14 @@
 use super::*;
-const FOREIGN: [&str; 5] = [
+const FOREIGN: [&str; 7] = [
     "diplomacy.countries",
     "diplomacy.improving_relations",
     "diplomacy.non_aggression_pacts",
+    "diplomacy.outgoing",
+    "diplomacy.incoming",
     "intelligence.countries",
     "intelligence.active_missions",
 ];
+const RELATION_KINDS: [&str; 18] = ["war","licence_production_access","embargo","military_access","offer_military_access","improve_relations","attache","boost_party_popularity","guarantee","non_aggression_pact","lend_lease","subject","air_base_access","offer_air_base_access","docking_rights","offer_docking_rights","naval_blockade","market_access_rights"];
 const MISSIONS: [&str; 9] = [
     "no_mission",
     "build_intel_network",
@@ -33,6 +36,11 @@ fn tags(value: &Value) -> bool {
 pub(super) fn valid(key: &str, value: &Value) -> bool {
     if !FOREIGN.contains(&key) {
         return true;
+    }
+    if ["diplomacy.outgoing", "diplomacy.incoming"].contains(&key) {
+        return value.as_array().is_some_and(|rows| rows.len() <= 8192 && unique(rows) && rows.iter().all(|v| {
+            v.as_str().and_then(|s| s.split_once(':')).is_some_and(|(kind, target)| RELATION_KINDS.contains(&kind) && tag(&json!(target)))
+        }));
     }
     if key != "intelligence.active_missions" {
         return tags(value);
@@ -72,6 +80,30 @@ pub(super) fn foreign(overview: &Value) -> Map<String, Value> {
     let dip = &overview["diplomacy"];
     let d = &dip["interactions"];
     let countries = &d["countries"];
+    let relations = &d["relations"];
+    if dip["status"] == "observed" && d["status"] == "observed" && tags(countries)
+        && relations["status"] == "observed" && relations["source"] == "native_relation_base_serializer"
+        && relations["items"].as_array().is_some_and(|rows| rows.len() <= 4096
+            && rows.iter().map(|r| text(&r["id"])).collect::<BTreeSet<_>>().len() == rows.len()
+            && rows.iter().all(|r| id(&r["id"]) && RELATION_KINDS.contains(&text(&r["kind"]))
+                && ["from_country","to_country"].iter().all(|k| tag(&r[k]) && list(countries).contains(&r[k]))
+                && r["from_country"] != r["to_country"]
+                && match text(&r["direction"]) {
+                    "outgoing" => r["from_country"] == overview["country"],
+                    "incoming" => r["to_country"] == overview["country"],
+                    _ => false,
+                }
+                && tags(&r["other_countries"]) && !list(&r["other_countries"]).is_empty()
+                && list(&r["other_countries"]).contains(if r["direction"] == "outgoing" {&r["to_country"]} else {&r["from_country"]})
+                && !list(&r["other_countries"]).contains(&overview["country"])
+                && list(&r["other_countries"]).iter().all(|v| list(countries).contains(v))))
+    {
+        for direction in ["outgoing", "incoming"] {
+            publish(&mut facts, &format!("diplomacy.{direction}"), list(&relations["items"]).iter()
+                .filter(|r| r["direction"] == direction)
+                .flat_map(|r| list(&r["other_countries"]).iter().map(|t| format!("{}:{}", text(&r["kind"]), text(t)))), "native_relation_adapter");
+        }
+    }
     if dip["status"] == "observed"
         && d["status"] == "observed"
         && tags(countries)
@@ -140,10 +172,15 @@ pub(super) fn political(overview: &Value) -> Map<String, Value> {
         "doctrines.selected",
         "politics.ideas",
         "politics.advisors",
+        "politics.characters",
+        "politics.unit_leaders",
+        "politics.scientists",
         "events.visible",
         "events.visible_options",
         "decisions.listed",
         "decisions.executed",
+        "decisions.active",
+        "decisions.completed",
     ]
     .into_iter()
     .map(|k| (k.into(), unknown("Sezione politica non qualificata")))
@@ -170,6 +207,17 @@ pub(super) fn political(overview: &Value) -> Map<String, Value> {
         );
     }
     let politics = &overview["politics"];
+    let characters = &politics["characters"];
+    if ["observed", "partial"].contains(&text(&politics["status"]))
+        && characters["status"] == "observed" && characters["source"] == "native_character_status_roles"
+        && characters["items"].as_array().is_some_and(|rows| rows.len() <= 4096
+            && rows.iter().all(|r| id(&r["id"]) && ["country_leader", "advisor", "unit_leader", "scientist"].iter().all(|k| r[k].is_boolean()))
+            && rows.iter().map(|r| text(&r["id"])).collect::<BTreeSet<_>>().len() == rows.len())
+    {
+        for (key, role) in [("politics.characters", None), ("politics.unit_leaders", Some("unit_leader")), ("politics.scientists", Some("scientist"))] {
+            publish(&mut result, key, list(&characters["items"]).iter().filter(|r| role.is_none_or(|k| r[k] == true)).map(|r| text(&r["id"]).to_owned()), "native_character_role_adapter");
+        }
+    }
     if ["observed", "partial"].contains(&text(&politics["status"])) {
         for part in ["ideas", "advisors"] {
             let section = &politics[part];
@@ -185,7 +233,13 @@ pub(super) fn political(overview: &Value) -> Map<String, Value> {
                                         || !id(&r["category"])
                                         || !r["is_law"].is_boolean()
                                 } else {
-                                    !id(&r["character_id"])
+                                    !(id(&r["character_id"])
+                                        || (r.get("character_id") == Some(&Value::Null)
+                                            && r["character_identity_status"] == "unavailable"
+                                            && r["character_name"].as_str().is_some_and(|name| {
+                                                !name.is_empty() && name.chars().count() <= 512
+                                                    && !name.chars().any(char::is_control)
+                                            })))
                                         || !integer_range(&r["slot"], 0, 2_000_000_000)
                                 }
                         })
@@ -244,6 +298,17 @@ pub(super) fn political(overview: &Value) -> Map<String, Value> {
         }
     }
     let decisions = &overview["decisions"];
+    let history = &decisions["execution_history"];
+    if decisions["status"] == "observed" && history["status"] == "observed"
+        && history["source"] == "native_decisions_taken_and_timed_state"
+        && history["history_scope"] == "current_native_records"
+    {
+        for (field, key) in [("executed_ids", "decisions.executed"), ("active_ids", "decisions.active"), ("completed_ids", "decisions.completed")] {
+            if history[field].as_array().is_some_and(|a| a.len() <= 4096 && a.iter().all(id) && unique(a)) {
+                publish(&mut result, key, list(&history[field]).iter().map(|v| text(v).to_owned()), "native_decision_membership_adapter");
+            }
+        }
+    }
     if decisions["status"] == "observed"
         && decisions["listed_ids"]
             .as_array()

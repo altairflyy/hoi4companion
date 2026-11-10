@@ -46,3 +46,35 @@ main{max-width:1240px;margin:auto;padding:28px 32px 60px}.hero{display:flex;just
 .guide-reference-text{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.65 'Segoe UI',sans-serif;margin:10px 0}.guide-reference-origin{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.guide-reference-choice{border-top:1px solid var(--line);padding:10px 0}.guide-reference-choice summary{cursor:pointer;color:var(--blue)}.guide-reference-body img{display:block;max-width:100%;height:auto;margin-top:10px}
 .operation-hud-waiting,.operation-hud-unresolved{border-left:3px solid #c7a45a;padding-left:10px}.operation-original{font-size:12px}.operation-original blockquote{white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0;padding-left:12px;border-left:2px solid var(--line)}
 @media(max-width:700px){.summary-cards{grid-template-columns:1fr}.summary-card{padding:14px}}
+
+/* UI refinement informed by unslop, Damir Sokolovsky (@heydamir), CC BY 4.0.
+   Operational hierarchy: the guide title and next instruction lead; telemetry
+   stays available in a compact disclosure. Existing game/status colors remain. */
+.guide-page main{max-width:1240px;padding:24px 32px 48px}
+.guide-page .hero{margin-bottom:16px}
+.guide-page .eyebrow{letter-spacing:.06em;font-weight:600;margin-bottom:8px}
+.guide-page h1{font-size:28px;line-height:1.25;letter-spacing:0;max-width:960px;margin:8px 0}
+.guide-page #guideSelect{max-width:min(720px,100%);text-overflow:ellipsis}
+.guide-metadata{color:var(--muted);font-size:12px;margin:4px 0 0}
+.guide-page .live-panel{padding:12px 16px!important;margin-bottom:12px!important}
+.guide-page .live-heading{align-items:center;gap:12px;font-variant-numeric:tabular-nums}
+.live-details{margin-top:8px}.live-details summary{cursor:pointer;color:var(--muted);font-size:12px}
+.live-details[open] summary{color:var(--text)}
+.guide-page .run-bar{padding:12px 16px;gap:16px}
+.guide-page .run-bar p{max-width:880px;line-height:1.5}
+.guide-page .tree-shortcuts{gap:12px;margin:16px 0}
+.guide-page .tree-shortcut{padding:12px 16px;border-color:var(--line)}
+.guide-page .tree-shortcut:hover{border-color:var(--gold)}
+.guide-page .operational-summary{margin:20px 0}
+.guide-page .summary-card{padding:12px 16px;border-left-width:3px}
+.guide-page .summary-card .badge{font-size:12px;letter-spacing:0;text-transform:none}
+.guide-page .summary-card h3{font-size:16px;margin:8px 0;line-height:1.4}
+.guide-page .operation-card{padding:16px 20px;line-height:1.6}
+.guide-page button:focus-visible,.guide-page a:focus-visible,.live-details summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+@media(max-width:800px){.guide-page main{padding:20px 16px 32px}.guide-page h1{font-size:24px}.guide-page .live-heading{align-items:start}.guide-page .live-heading strong{font-size:12px}}
+
+.guide-page .game-overview{border-top:1px solid var(--line);padding-top:12px}
+.guide-page .game-overview>summary{cursor:pointer;color:var(--text);padding:4px 0}
+.guide-page .game-overview>summary h2{display:inline;font:600 16px/1.5 'Segoe UI',sans-serif;margin:0}
+.guide-page .game-overview[open]>summary{margin-bottom:12px}
+.guide-page .next-operation>.eyebrow{font-size:12px;letter-spacing:.04em}

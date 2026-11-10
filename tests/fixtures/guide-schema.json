@@ -924,57 +924,7 @@
   {
     "name": "huge time",
     "valid": false,
-    "guide": {
-      "id": "universal",
-      "schema_version": 1,
-      "applies_to": {},
-      "sources": [
-        {
-          "id": "video",
-          "type": "youtube",
-          "url": "https://example.com/watch"
-        }
-      ],
-      "phases": [
-        {
-          "id": "start",
-          "title": "Start",
-          "when": {
-            "op": "check",
-            "key": "ready"
-          }
-        }
-      ],
-      "tracks": {
-        "focus": [
-          {
-            "key": "first",
-            "kind": "gate",
-            "phase": "start",
-            "evidence": [
-              {
-                "source_id": "video",
-                "basis": "explicit",
-                "timestamp_seconds": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-              }
-            ]
-          }
-        ],
-        "research": [
-          {
-            "key": "second",
-            "kind": "gate",
-            "depends_on": [
-              "first"
-            ],
-            "completion": {
-              "op": "check",
-              "key": "done"
-            }
-          }
-        ]
-      }
-    }
+    "raw_json": "{\"id\":\"universal\",\"schema_version\":1,\"applies_to\":{},\"sources\":[{\"id\":\"video\",\"type\":\"youtube\",\"url\":\"https://example.com/watch\"}],\"phases\":[{\"id\":\"start\",\"title\":\"Start\",\"when\":{\"op\":\"check\",\"key\":\"ready\"}}],\"tracks\":{\"focus\":[{\"key\":\"first\",\"kind\":\"gate\",\"phase\":\"start\",\"evidence\":[{\"source_id\":\"video\",\"basis\":\"explicit\",\"timestamp_seconds\":1e400}]}],\"research\":[{\"key\":\"second\",\"kind\":\"gate\",\"depends_on\":[\"first\"],\"completion\":{\"op\":\"check\",\"key\":\"done\"}}]}}"
   },
   {
     "name": "reversed range",
@@ -2151,20 +2101,20 @@
     "name": "JSON integer representations",
     "valid": true,
     "guide": {
-      "schema_version": 1.0,
-      "schema": 1.0,
+      "schema_version": 1,
+      "schema": 1,
       "tracks": {
         "focus": [
           {
             "kind": "gate",
-            "priority": 1.0
+            "priority": 1
           }
         ]
       }
     },
     "normalized": {
       "schema_version": 1,
-      "schema": 1.0,
+      "schema": 1,
       "tracks": {
         "focus": [
           {

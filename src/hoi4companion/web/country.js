@@ -33,7 +33,7 @@
  function renderStates(){
   const s=view.sections.states,all=list(s.items),query=$('stateSearch').value.trim().toLocaleLowerCase('it');
   const items=query?all.filter(item=>(text(item.name,'')+' '+String(item.id??'')).toLocaleLowerCase('it').includes(query)):all;
-  const n=rows('stateRows',items,(r,x)=>{nameCell(r,x);cell(r,typeof x.owned==='boolean'&&typeof x.controlled==='boolean'?(x.owned&&x.controlled?HoiI18n.t("Owned and controlled"):x.owned?HoiI18n.t("Owned"):x.controlled?HoiI18n.t("Controlled"):null):null);cell(r,x.civilian_factories,{numeric:true,integer:true});cell(r,x.military_factories,{numeric:true,integer:true});cell(r,x.dockyards,{numeric:true,integer:true});cell(r,x.infrastructure,{numeric:true,integer:true});});empty('states',n,all.length);
+  const n=rows('stateRows',items,(r,x)=>{nameCell(r,x);cell(r,typeof x.owned==='boolean'&&typeof x.controlled==='boolean'?(x.owned&&x.controlled?HoiI18n.t("Owned and controlled"):x.owned?HoiI18n.t("Owned"):x.controlled?HoiI18n.t("Controlled"):null):null);cell(r,x.civilian_factories,{numeric:true,integer:true});cell(r,x.military_factories,{numeric:true,integer:true});cell(r,x.dockyards,{numeric:true,integer:true});cell(r,x.infrastructure,{numeric:true,integer:true});cell(r,x.buildings&&typeof x.buildings==='object'?Object.entries(x.buildings).filter(([key])=>!['infrastructure','arms_factory','industrial_complex','dockyard'].includes(key)).map(([key,level])=>key.replaceAll('_',' ')+': '+number(level,{integer:true})).join(' · '):null);});empty('states',n,all.length);
  }
  function render(value){
   view=model.evaluate(value,window.hoiLive?.enabled!==false);
@@ -50,19 +50,26 @@
   const manpower=header('manpower');for(const field of ['available','fielded','training'])$('manpower'+field[0].toUpperCase()+field.slice(1)).textContent=number(manpower[field],{integer:true});
   const experience=header('experience');for(const branch of ['army','navy','air'])$('experience'+branch[0].toUpperCase()+branch.slice(1)).textContent=number(experience[branch]);
   const diplomacy=header('diplomacy');$('diplomacyWar').textContent=typeof diplomacy.at_war==='boolean'?HoiI18n.t(diplomacy.at_war?'At war':'At peace'):'—';
+  const relations=diplomacy.interactions?.relations;
+  $('foreignCoverage').textContent=relations?.status==='observed'?'':HoiI18n.t('Relation details unavailable.');
+  rows('foreignRows',relations?.status==='observed'?relations.items:[],(r,x)=>{cell(r,x.kind.replaceAll('_',' '));cell(r,HoiI18n.t(x.direction==='outgoing'?'Outgoing':'Incoming'));cell(r,x.direction==='outgoing'?x.to_country:x.from_country);});
   header('states');renderStates();
   const production=header('production');
   for(const key of ['civilian','military','dockyards'])$('effective'+key[0].toUpperCase()+key.slice(1)).textContent=number(production.effective_factories?.[key],{integer:true});
   empty('production',rows('productionRows',production.lines,(r,x)=>{nameCell(r,x);cell(r,({military:HoiI18n.t("Military"),naval:HoiI18n.t("Naval")})[x.category]||x.category);nameCell(r,{id:x.equipment,name:x.equipment_name});cell(r,x.requested_factories,{numeric:true,integer:true});cell(r,x.assigned_factories,{numeric:true,integer:true});cell(r,x.active_factories,{numeric:true,integer:true});cell(r,x.damaged_factories,{numeric:true,integer:true});const output=model.productionOutput(x.output_per_day,x.category);cell(r,output?productionFormats[output.digits].format(output.value):null);}));
   const equipment=header('equipment');empty('equipment',rows('equipmentRows',equipment.items,(r,x)=>{nameCell(r,x);cell(r,x.stockpile,{numeric:true});cell(r,x.needed,{numeric:true});cell(r,x.balance_per_day,{numeric:true,signed:true});}));
   const politics=header('politics'),ideas=politics.ideas,advisors=politics.advisors;
+  const characters=politics.characters;
+  $('characterCoverage').textContent=characters?.status==='observed'?HoiI18n.t('Current native role status; appointments are listed separately.'):HoiI18n.t('Character roles unavailable.');
+  rows('characterRows',characters?.status==='observed'?characters.items:[],(r,x)=>{nameCell(r,x);cell(r,[['country_leader','Country leader'],['advisor','Advisor'],['unit_leader','Unit leader'],['scientist','Scientist']].filter(([k])=>x[k]===true).map(([,name])=>HoiI18n.t(name)).join(', '));});
   $('politicsIdeasCoverage').textContent=ideas?.status==='observed'?HoiI18n.t("Complete membership in the current sample."):HoiI18n.t("Ideas and laws unavailable.");
   $('politicsAdvisorsCoverage').textContent=advisors?.status==='observed'?(advisors.items.length?HoiI18n.t("Currently active appointments."):HoiI18n.t("No active appointments observed.")):HoiI18n.t("Appointments unavailable.");
   rows('politicsIdeaRows',ideas?.status==='observed'?ideas.items:[],(r,x)=>{nameCell(r,x);cell(r,x.group_name||x.group);cell(r,x.is_law?HoiI18n.t("Law"):'Idea');});
-  rows('politicsAdvisorRows',advisors?.status==='observed'?advisors.items:[],(r,x)=>{nameCell(r,x);cell(r,x.character_id);});
+  rows('politicsAdvisorRows',advisors?.status==='observed'?advisors.items:[],(r,x)=>{nameCell(r,x);cell(r,x.character_name??x.character_id);});
   const events=header('events');$('visibleEvents').replaceChildren();
   for(const event of list(events.visible)){const article=document.createElement('article'),title=document.createElement('h3');title.textContent=event.name||event.event_id;article.append(title);const id=document.createElement('p');id.textContent=event.event_id;article.append(id);for(const option of list(event.options)){const p=document.createElement('p');p.textContent=(option.name||option.id)+' · '+option.id;article.append(p);}$('visibleEvents').append(article);}empty('events',list(events.visible).length);
-  const decisions=header('decisions');$('decisionMembership').textContent=Array.isArray(decisions.listed_ids)?decisions.listed_ids.length+HoiI18n.t(" entries in the native manager."):HoiI18n.t("List unavailable.");
+  const decisions=header('decisions'),history=decisions.execution_history;
+  $('decisionMembership').textContent=history?.status==='observed'?HoiI18n.t('Native completed/taken records: {0}. Active timed decisions: {1}.',history.taken_ids.length,history.active_ids.length):Array.isArray(decisions.listed_ids)?decisions.listed_ids.length+HoiI18n.t(" entries in the native manager."):HoiI18n.t("List unavailable.");
   const resources=header('resources');empty('resources',rows('resourceRows',resources.items,(r,x)=>{nameCell(r,x);cell(r,x.produced,{numeric:true});cell(r,x.imported,{numeric:true});cell(r,x.exported,{numeric:true});cell(r,x.available,{numeric:true,signed:true});cell(r,x.used,{numeric:true});cell(r,x.balance,{numeric:true,signed:true});}));
  }
  $('stateSearch').addEventListener('input',renderStates);

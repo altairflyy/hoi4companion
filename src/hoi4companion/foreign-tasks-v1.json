@@ -61,6 +61,81 @@
     "propaganda": [
       "propaganda",
       "spread propaganda"
+    ],
+    "guarantee_independence": [
+      "guarantee independence",
+      "guarantee"
+    ],
+    "cancel_guarantee": [
+      "cancel guarantee",
+      "revoke guarantee"
+    ],
+    "embargo": [
+      "embargo",
+      "impose embargo"
+    ],
+    "cancel_embargo": [
+      "cancel embargo",
+      "lift embargo"
+    ],
+    "send_attache": [
+      "send attache",
+      "send attaché"
+    ],
+    "recall_attache": [
+      "recall attache",
+      "recall attaché"
+    ],
+    "lend_lease": [
+      "lend lease",
+      "lend-lease",
+      "start lend lease"
+    ],
+    "stop_lend_lease": [
+      "stop lend lease",
+      "cancel lend lease"
     ]
+  },
+  "relation_actions": {
+    "guarantee_independence": {
+      "kind": "guarantee",
+      "direction": "outgoing",
+      "present": true
+    },
+    "cancel_guarantee": {
+      "kind": "guarantee",
+      "direction": "outgoing",
+      "present": false
+    },
+    "embargo": {
+      "kind": "embargo",
+      "direction": "outgoing",
+      "present": true
+    },
+    "cancel_embargo": {
+      "kind": "embargo",
+      "direction": "outgoing",
+      "present": false
+    },
+    "send_attache": {
+      "kind": "attache",
+      "direction": "outgoing",
+      "present": true
+    },
+    "recall_attache": {
+      "kind": "attache",
+      "direction": "outgoing",
+      "present": false
+    },
+    "lend_lease": {
+      "kind": "lend_lease",
+      "direction": "outgoing",
+      "present": true
+    },
+    "stop_lend_lease": {
+      "kind": "lend_lease",
+      "direction": "outgoing",
+      "present": false
+    }
   }
 }

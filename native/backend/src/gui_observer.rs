@@ -331,7 +331,7 @@ impl<'a, M: Memory> Sample<'a, M> {
             clip,
         )
     }
-    fn country(&mut self) -> Result<(String, u64, String, u64, u64)> {
+    fn country(&mut self) -> Result<(String, u64, String, u64, u64, u64)> {
         let world = self.ptr(
             self.base
                 + self.profile["world_rva"]
@@ -371,7 +371,7 @@ impl<'a, M: Memory> Sample<'a, M> {
         }
         let tree = self.ptr(country + 0x1370, "CNationalFocusTree")?;
         let technology = self.ptr(country + 0xF60, "CTechnologyStatus")?;
-        Ok((tag, tree, self.string(tree + 8)?, technology, country))
+        Ok((tag, tree, self.string(tree + 8)?, technology, country, world))
     }
     fn focus_bounds(&mut self, c: u64, root: u64, observer: u64, clip: [f64; 4]) -> Result<Value> {
         let parent = self.ptr(
@@ -591,7 +591,7 @@ pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value)
     {
         return Err("Contesto GUI cambiato durante la ricerca".into());
     }
-    let (country, tree, scope, technology, country_pointer) = s.country()?;
+    let (country, tree, scope, technology, country_pointer, world) = s.country()?;
     let mut panels = json!({});
     let mut nodes = vec![];
     let mut tabs = vec![];
@@ -693,6 +693,10 @@ pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value)
                 )?;
                 let c = s.u(item + 0x10)?;
                 let mut shown = s.container(c, root, item + 24)?;
+                // The global registry also retains hidden items from previous
+                // panels/countries. They cannot produce a highlight and must
+                // not invalidate the entire current view while being recycled.
+                if !shown { continue; }
                 let mut item_folder = None;
                 let mut item_clip = clip;
                 if panel == "focus" {
@@ -810,8 +814,12 @@ pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value)
         active = vec!["production"];
     }
     s.verify()?;
+    let session = match (args["pid"].as_u64(),args["created"].as_u64()) {
+        (Some(pid),Some(created))=>json!(format!("{pid}:{created}:{world:x}:{country_pointer:x}")),
+        _=>Value::Null,
+    };
     Ok(
-        json!({"available":true,"source":"native_gui","pid":args["pid"],"process_created":args["created"],"country":country,"scope":scope,"resolution":resolution,"active_panel":active.first(),"panels":panels,"nodes":nodes,"tabs":tabs,"events":{"status":panels["event"]["status"],"visible_ids":event_data["visible_ids"]},"event_windows":event_data["event_windows"],"action_ui":action_data,"production_ui":production_data,"diagnostics":{"bytes":s.used}}),
+        json!({"available":true,"source":"native_gui","session_id":session,"pid":args["pid"],"process_created":args["created"],"country":country,"scope":scope,"resolution":resolution,"active_panel":active.first(),"panels":panels,"nodes":nodes,"tabs":tabs,"events":{"status":panels["event"]["status"],"visible_ids":event_data["visible_ids"]},"event_windows":event_data["event_windows"],"action_ui":action_data,"production_ui":production_data,"diagnostics":{"bytes":s.used}}),
     )
 }
 

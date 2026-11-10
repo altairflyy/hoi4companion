@@ -272,6 +272,25 @@ pub fn image(root: &Path, id: &str) -> Result<(Vec<u8>, String)> {
             .into(),
     ))
 }
+/// Add a reviewed collection without replacing pre-existing user references.
+pub(crate) fn merge(root: &Path, staged: &Path) -> Result<Value> {
+    let mut result = manifest(root);
+    let incoming = manifest(staged);
+    std::fs::create_dir_all(root).map_err(|e|e.to_string())?;
+    for row in incoming["images"].as_array().into_iter().flatten() {
+        let id = row["id"].as_str().ok_or("Invalid image identity")?;
+        let (bytes, _) = image(staged,id)?;
+        if !root.join(id).exists() { atomic_write(&root.join(id), &bytes)?; }
+    }
+    for kind in ["designs","images"] {
+        let rows = result[kind].as_array_mut().ok_or("Invalid reference library")?;
+        for row in incoming[kind].as_array().into_iter().flatten() {
+            if !rows.iter().any(|old| old == row) { rows.push(row.clone()); }
+        }
+    }
+    atomic_write(&root.join("manifest.json"), &serde_json::to_vec(&result).map_err(|e|e.to_string())?)?;
+    Ok(result)
+}
 pub fn execute(op: &str, args: &Value) -> Result<Value> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     let _lock = LOCK

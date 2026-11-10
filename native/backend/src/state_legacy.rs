@@ -164,6 +164,10 @@ fn campaign_id(sample: &Value) -> Option<&str> {
     }
     Some(id)
 }
+fn building_levels(value: &Value) -> bool {
+    value.as_object().is_some_and(|rows| rows.len() <= 512 && rows.iter().all(|(key,v)|
+        !key.is_empty() && key.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_') && integer_range(v,0,1000)))
+}
 fn project_rows(projects: &Value, matched: bool) -> bool {
     matched
         && projects["status"] == "observed"
@@ -358,6 +362,13 @@ pub(super) fn normalize(value: &Value) -> Value {
                         );
                     }
                 }
+            } else if section == "states" {
+                let valid = data["status"] == "observed" && data["items"].as_array().is_some_and(|rows|
+                    rows.len() <= 4096 && rows.iter().all(|r| r.is_object() && integer_range(&r["id"],1,100000)
+                        && ["civilian_factories", "military_factories", "dockyards", "infrastructure"].iter().all(|k| r.get(k).is_none_or(|v| integer_range(v,0,1000)))
+                        && r.get("buildings").is_none_or(building_levels))
+                    && rows.iter().map(|r| r["id"].to_string()).collect::<BTreeSet<_>>().len() == rows.len());
+                adapter.flatten("country.states",data,valid,false);
             } else if section == "fortifications" {
                 let rows = &data["items"];
                 let valid = data["status"] == "observed"
@@ -366,6 +377,7 @@ pub(super) fn normalize(value: &Value) -> Value {
                             && a.iter().all(|r| {
                                 r.is_object()
                                     && integer_range(&r["id"], 1, 100000)
+                                    && r.get("buildings").is_none_or(building_levels)
                                     && ["bunker", "coastal_bunker"]
                                         .iter()
                                         .all(|k| r.get(k).is_none_or(|v| integer_range(v, 0, 1000)))

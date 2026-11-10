@@ -249,6 +249,9 @@ pub fn bind(step: &Value, index: &Index, geography: &Geography) -> Result<Value,
             if provincial {
                 params["province_id"] = location["province_id"].clone();
             }
+            if ["state", "province"].contains(&s(&building["location_scope"])) {
+                params["building_scope"] = building["location_scope"].clone();
+            }
             let queue = if provincial {
                 format!("province:{}:{}", params["province_id"], s(&building["id"]))
             } else {
@@ -280,13 +283,18 @@ pub fn bind(step: &Value, index: &Index, geography: &Geography) -> Result<Value,
                 }
             }
             let field = if provincial {
-                None
+                (!matches!(s(&building["id"]), "bunker" | "coastal_bunker"))
+                    .then(|| format!("buildings.{}",s(&building["id"])))
             } else {
                 match s(&building["id"]) {
-                    "infrastructure" => Some("infrastructure"),
-                    "arms_factory" => Some("military_factories"),
-                    "industrial_complex" => Some("civilian_factories"),
-                    "dockyard" => Some("dockyards"),
+                    "infrastructure" => Some("infrastructure".to_owned()),
+                    "arms_factory" => Some("military_factories".to_owned()),
+                    "industrial_complex" => Some("civilian_factories".to_owned()),
+                    "dockyard" => Some("dockyards".to_owned()),
+                    id if building["location_scope"] == "state" => {
+                        params["building_scope"] = json!("state");
+                        Some(format!("buildings.{id}"))
+                    },
                     _ => None,
                 }
             };
@@ -302,7 +310,7 @@ pub fn bind(step: &Value, index: &Index, geography: &Geography) -> Result<Value,
                         &mut step,
                         "completion",
                         fact(
-                            &format!("country.states.items.{region}.{field}"),
+                            &if provincial {format!("country.fortifications.items.{}.{field}",params["province_id"])} else {format!("country.states.items.{region}.{field}")},
                             "gte",
                             target.clone(),
                         ),

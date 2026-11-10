@@ -7,11 +7,11 @@ are read from the installed game/mod definitions as aliases for the same entity;
 this does not assert that any particular name or trigger is active in the campaign.
 Word editorial headings and explicit free-choice markers do not become native IDs.
 
-For a repeatable collection audit, run `scripts/audit-guide-archive.py ARCHIVE.zip
---output REPORT.json` with the project `src` on `PYTHONPATH`. It checks every
-country-guide document against the current installation, retains errors and
-monitoring coverage per guide, and does not install guides or launch HOI4.
-Catalog validation is separate from live verification.
+For a collection audit, use the Guide ZIP slot in Import guide. The native
+background worker checks every country-guide document against the installation
+and preserves errors per guide. Review does not install content until you confirm
+the batch. The template ZIP has a separate slot and shares the same persistent
+library. Catalog validation is separate from live verification.
 
 Use Import guide to export the creation prompt and relevant thematic catalogs. Supply them with accessible video/web material to an external AI, then upload its complete JSON. The optional integrated adapter remains available but is not required.
 

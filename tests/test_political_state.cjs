@@ -1,6 +1,14 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),c=require('../src/hoi4companion/web/contracts.js');
 const sample=()=>({usable:true,sample:{country:'TST',country_overview:{country:'TST',politics:{status:'observed',ideas:{status:'observed',items:[{id:'war_economy',group:'economy',category:'law',is_law:true}]},advisors:{status:'observed',items:[{id:'TST_advisor',character_id:'TST_person',slot:1}]}},events:{status:'observed',visible:[{instance_id:'1',event_id:'example.1',option_ids:['example.1.a']}]}}}});
+test('qualified role is retained while display name is explicitly not a character ID',()=>{
+ const v=sample();Object.assign(v.sample.country_overview.politics.advisors.items[0],{character_id:null,character_name:'Alex Federspiel',character_identity_status:'unavailable'});
+ assert.deepEqual(c.state(v).facts['politics.advisors'].value,['TST_advisor']);
+ for(const mutation of [{character_identity_status:null},{character_name:''},{character_name:'bad\nname'},{character_id:'Alex Federspiel'}]){
+  const invalid=structuredClone(v);Object.assign(invalid.sample.country_overview.politics.advisors.items[0],mutation);
+  assert.equal(c.state(invalid).facts['politics.advisors'].status,'unknown');
+ }
+});
 test('qualified politics and visible event options retain known empty vs missing',()=>{
  const v=sample(),f=c.state(v).facts;assert.deepEqual(f['politics.ideas'].value,['war_economy']);assert.deepEqual(f['politics.advisors'].value,['TST_advisor']);assert.deepEqual(f['events.visible_options'].value,['example.1:example.1.a']);
  delete v.sample.country_overview.events.visible[0].option_ids;assert.deepEqual(c.state(v).facts['events.visible'].value,['example.1']);assert.equal(c.state(v).facts['events.visible_options'].status,'unknown');

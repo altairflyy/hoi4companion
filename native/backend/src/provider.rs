@@ -6,7 +6,7 @@ use std::{
     collections::HashMap,
     path::PathBuf,
     sync::{
-        Arc, Mutex, OnceLock,
+        Arc, Mutex, OnceLock, Weak,
         atomic::{AtomicU64, Ordering},
     },
     time::{Instant, SystemTime},
@@ -22,12 +22,14 @@ struct Provider {
     manifest: String,
     audit: f64,
     neighbors: Value,
+    shared_focuses: Value,
+    building_scopes: Value,
     stat: Option<(u64, SystemTime)>,
     profile: Option<Arc<Profile>>,
-    game: Option<Game>,
+    game: Option<Arc<Game>>,
     cached: Option<Cached>,
     metrics: Value,
-    gui: crate::gui_registry::Registry,
+    gui: Arc<Mutex<crate::gui_registry::Registry>>,
 }
 impl Provider {
     fn new(args: &Value) -> Result<Self> {
@@ -43,16 +45,18 @@ impl Provider {
                 .into(),
             audit,
             neighbors: args["province_neighbors"].clone(),
+            shared_focuses: args["shared_focuses"].clone(),
+            building_scopes: args["building_scopes"].clone(),
             stat: None,
             profile: None,
             game: None,
             cached: None,
             metrics: json!({"probes":0,"full_reads":0,"changes":0,"last_read_ms":null,"watch_ranges":0,"watch_bytes":0,"probe_read_calls":0,"probe_read_bytes":0}),
-            gui: crate::gui_registry::Registry::default(),
+            gui: Arc::new(Mutex::new(crate::gui_registry::Registry::default())),
         })
     }
     fn close(&mut self) {
-        self.gui.reset();
+        self.gui = Arc::new(Mutex::new(crate::gui_registry::Registry::default()));
         self.game = None;
         self.cached = None;
     }
@@ -73,7 +77,7 @@ impl Provider {
             self.stat = Some(key);
         }
         if self.game.is_none() {
-            self.game = Some(Game::open(self.profile.as_ref().unwrap().clone())?)
+            self.game = Some(Arc::new(Game::open(self.profile.as_ref().unwrap().clone())?))
         }
         let game = self.game.as_ref().unwrap();
         if game.identity()? != game.created {
@@ -99,7 +103,7 @@ impl Provider {
                 .as_ref()
                 .map(|v| v.sample.event_cache.clone())
                 .unwrap_or(Value::Null);
-            let sample = acquisition::collect(game, &self.neighbors, &cache)?;
+            let sample = acquisition::collect(game, &self.neighbors, &cache, &self.shared_focuses, &self.building_scopes)?;
             let packet = watch::compile(&sample.watch)?;
             self.metrics["watch_ranges"] = json!(sample.watch.len());
             self.metrics["watch_bytes"] =
@@ -142,7 +146,29 @@ impl Provider {
         }
     }
     fn geometry(&mut self, args: &Value) -> Result<Value> {
-        let game = self.game.as_ref().ok_or("No qualified live game session")?;
+        self.gui_lane()?.geometry(args)
+    }
+    fn gui_lane(&self) -> Result<GuiLane> {
+        Ok(GuiLane {
+            game: Arc::downgrade(self.game.as_ref().ok_or("No qualified live game session")?),
+            gui: self.gui.clone(),
+        })
+    }
+}
+/// A separate observation lane over the SAME qualified handle/profile. It
+/// neither owns a second process handle nor waits for full-state acquisition.
+/// Closing/replacing the provider invalidates the weak session immediately.
+#[derive(Clone)]
+pub(crate) struct GuiLane {
+    game: Weak<Game>,
+    gui: Arc<Mutex<crate::gui_registry::Registry>>,
+}
+impl GuiLane {
+    pub(crate) fn matches_pid(&self, pid: Option<u64>) -> bool {
+        self.game.upgrade().is_some_and(|g| Some(g.pid as u64) == pid)
+    }
+    pub(crate) fn geometry(&self, args: &Value) -> Result<Value> {
+        let game = self.game.upgrade().ok_or("No qualified live game session")?;
         if game.identity()? != game.created {
             return Err("Sessione di processo cambiata".into());
         }
@@ -153,11 +179,11 @@ impl Provider {
         profile["image_base"] = game.profile.metadata()["image_base"].clone();
         profile["image_size"] = game.profile.metadata()["image_size"].clone();
         profile["sha256"] = game.profile.metadata()["sha256"].clone();
-        if [
+        if ([
             "b6650c85002374218e60598bd04aaa26cbad996fedce77126fcf92fc6bd6d888",
             "cf781ed178cd801643b233b7e3fcd1c0efd19bd01aecd24bf07a35f69f10476f",
         ]
-        .contains(&profile["sha256"].as_str().unwrap_or(""))
+        .contains(&profile["sha256"].as_str().unwrap_or("")) || profile["layout_id"] == "hoi4-x64-abi-v1")
             && !profile["gui_layout"].is_object()
         {
             return Err("Geometria GUI non verificata per questa versione di HOI4".into());
@@ -182,18 +208,34 @@ impl Provider {
                 .cloned()
                 .collect::<Vec<_>>()
         );
-        let mut memory = crate::live_process::Memory::new(game, 4 * 1024 * 1024)?;
-        let raw = self.gui.observe(&mut memory, &request)?;
+        let mut memory = crate::live_process::Memory::new(&game, 4 * 1024 * 1024)?;
+        let raw = self.gui.lock().map_err(|_|"GUI observation lane unavailable")?.observe(&mut memory, &request)?;
+        let returned = Instant::now();
+        if !same_session(args.get("session_id"),&raw["session_id"]) {
+            return Err("Sessione GUI diversa dallo stato della guida".into());
+        }
         if game.identity()? != game.created {
             return Err("Sessione di processo cambiata".into());
         }
-        crate::hud_geometry::admit(&raw, proposals, &args["view"])
+        let mut result = crate::hud_geometry::admit(&raw, proposals, &args["view"])?;
+        result["sample_age_ms"] = json!(raw["sample_age_ms"].as_f64().ok_or("Missing native GUI witness age")?
+            + returned.elapsed().as_secs_f64()*1000.);
+        Ok(result)
     }
+}
+fn same_session(expected:Option<&Value>,observed:&Value)->bool {
+    expected.is_none_or(|expected|expected.as_str().is_some_and(|s|!s.is_empty()) && expected==observed)
 }
 static REGISTRY: OnceLock<Mutex<HashMap<u64, Arc<Mutex<Provider>>>>> = OnceLock::new();
 static NEXT: AtomicU64 = AtomicU64::new(1);
 fn registry() -> &'static Mutex<HashMap<u64, Arc<Mutex<Provider>>>> {
     REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
+}
+pub(crate) fn gui_lane(handle: u64) -> Result<GuiLane> {
+    let provider=registry().lock().map_err(|_|"Provider registry unavailable")?
+        .get(&handle).cloned().ok_or("Unknown provider handle")?;
+    let lane=provider.lock().map_err(|_|"Provider unavailable")?.gui_lane()?;
+    Ok(lane)
 }
 pub fn execute(op: &str, args: &Value) -> Result<Value> {
     if op == "provider_open" {
@@ -243,6 +285,37 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn concurrent_gui_rejects_an_old_world_or_country_even_in_the_same_process() {
+        let current=json!("123:456:aaa:bbb");
+        assert!(same_session(Some(&current),&current));
+        for old in [json!("124:456:aaa:bbb"),json!("123:457:aaa:bbb"),json!("123:456:ccc:bbb"),json!("123:456:aaa:ddd"),Value::Null,json!("")] {
+            assert!(!same_session(Some(&old),&current));
+        }
+        assert!(same_session(None,&current),"Legacy direct geometry interface has no coarse-state context");
+    }
+    #[test]
+    fn warm_gui_lane_uses_the_same_handle_without_waiting_for_collector_lock() {
+        let mut provider=Provider::new(&json!({"path":"unused","manifest_sha256":"unused"})).unwrap();
+        let game=Game::owned_fixture();let pid=game.pid;
+        provider.game=Some(game.clone());
+        let lane=provider.gui_lane().unwrap();
+        assert!(Arc::ptr_eq(&game,&lane.game.upgrade().unwrap()));
+        drop(game);
+        let collector=Mutex::new(provider);
+        let guard=collector.lock().unwrap();
+        let (send,receive)=std::sync::mpsc::channel();let worker_lane=lane.clone();
+        let worker=std::thread::spawn(move || {
+            send.send(worker_lane.geometry(&json!({"view":[1,0,0,0,1280,720]}))).unwrap();
+        });
+        let result=receive.recv_timeout(std::time::Duration::from_secs(1));
+        drop(guard);worker.join().unwrap();
+        assert_eq!(result.unwrap().unwrap_err(),"Processo GUI non corrispondente");
+        assert!(lane.matches_pid(Some(pid as u64)));
+        collector.lock().unwrap().close();
+        assert!(!lane.matches_pid(Some(pid as u64)));
+        assert!(lane.geometry(&json!({})).is_err());
+    }
     #[test]
     fn missing_executable_never_keeps_a_cached_or_usable_session() {
         let mut provider=Provider::new(&json!({"path":"Z:\\missing-native-provider-test\\hoi4.exe","manifest_sha256":"invalid"})).unwrap();

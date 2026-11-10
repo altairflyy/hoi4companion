@@ -24,6 +24,8 @@ pub struct Profile {
     pub world_rva: u64,
     pub definition_vtable: u64,
     pub joint_focus_vtable: Option<u64>,
+    #[serde(default)]
+    pub shared_focuses: Value,
     pub watch: bool,
 }
 pub(crate) struct Decoder<'a, M> {
@@ -198,10 +200,12 @@ pub fn collect(memory: &mut impl Memory, p: Profile) -> Result<Value> {
         if kind != ".?AVCNationalFocus@@" && !joint {
             return Err("Tipo nativo inatteso: CNationalFocus".into());
         }
-        if d.u(pointer + 0x160)? != if joint { 0 } else { tree } {
+        let id = d.string(pointer + 0x18)?;
+        let owner = d.u(pointer + 0x160)?;
+        if !focus_owner_matches(owner, tree, joint, &tree_id, &id, &p.shared_focuses) {
             return Err("Focus non appartenente all’albero".into());
         }
-        focus_ids.insert(pointer, d.string(pointer + 0x18)?);
+        focus_ids.insert(pointer, id);
     }
     if focus_ids.values().collect::<HashSet<_>>().len() != focus_ids.len() {
         return Err("Identificatori focus duplicati".into());
@@ -348,4 +352,25 @@ pub fn collect(memory: &mut impl Memory, p: Profile) -> Result<Value> {
         "focus_ids":focuses,"completed_focuses":completed_ids,"native_focus_tree_id":tree_id,"continuous_focus":continuous_id,"current_focus":focus_ids.get(&current),"focus_progress":null,
         "researched_technologies":researched,"technology_ids":technologies,"research_slots":active.iter().enumerate().map(|(index,pointer)|json!({"slot":index+1,"technology_id":model_ids.get(pointer),"progress":null})).collect::<Vec<_>>()}}),
     )
+}
+
+fn focus_owner_matches(owner:u64, tree:u64, joint:bool, tree_id:&str, id:&str, shared:&Value) -> bool {
+    if joint { return owner == 0; }
+    owner == tree || (owner == 0 && shared[tree_id][id] == true)
+}
+
+#[cfg(test)]
+mod owner_tests {
+    use super::*;
+    #[test]
+    fn parentless_shared_focus_requires_exact_effective_tree_membership() {
+        let shared=json!({"tree":{"shared":true}});
+        assert!(focus_owner_matches(123,123,false,"tree","local",&shared));
+        assert!(focus_owner_matches(0,123,false,"tree","shared",&shared));
+        assert!(focus_owner_matches(0,123,true,"tree","joint",&shared));
+        assert!(!focus_owner_matches(0,123,false,"other-tree","shared",&shared));
+        assert!(!focus_owner_matches(0,123,false,"tree","local",&shared));
+        assert!(!focus_owner_matches(999,123,false,"tree","shared",&shared));
+        assert!(!focus_owner_matches(123,123,true,"tree","joint",&shared));
+    }
 }

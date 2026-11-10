@@ -89,7 +89,7 @@
  function constructionContext(guide,state,baselines){
   const facts={...state.facts},details=new Map(),country=c.fact(state,'country').value;
   for(const rows of Object.values(guide.tracks))for(const step of rows){
-   const p=step.action.params||{},provincial=['bunker','coastal_bunker'].includes(p.building_id)&&integer(p.province_id,1),field=provincial?p.building_id:Object.hasOwn(buildingFacts,p.building_id)?buildingFacts[p.building_id]:null;
+   const p=step.action.params||{},provincial=(['bunker','coastal_bunker'].includes(p.building_id)||p.building_scope==='province')&&integer(p.province_id,1),field=provincial?(['bunker','coastal_bunker'].includes(p.building_id)?p.building_id:typeof p.building_id==='string'&&/^[A-Za-z0-9_]+$/.test(p.building_id)?'buildings.'+p.building_id:null):Object.hasOwn(buildingFacts,p.building_id)?buildingFacts[p.building_id]:p.building_scope==='state'&&typeof p.building_id==='string'&&/^[A-Za-z0-9_]+$/.test(p.building_id)?'buildings.'+p.building_id:null;
    if(!['manual','special_project'].includes(step.action.kind)||!field||p.category!=='construction'||p.quantity_mode!=='additional'||!provincial&&!integer(p.state_id,1)||!integer(p.quantity,1))continue;
    const key='guide.construction.'+step.key+'.added',condition=step.completion;
    if(!condition||condition.op!=='fact'||condition.key!==key||condition.test!=='gte'||condition.value!==p.quantity||Object.keys(condition).length!==4)continue;
@@ -251,7 +251,7 @@
     else set('ready',kind==='free'?'free_choice':'prerequisites_satisfied');
    }
    if(step.action.params?.category==='production'&&step.tracking!=='reminder'){row.production_admitted=mode==='live';if(mode==='live'){const denied=production.admission(step,phases,context,results,checks);if(denied)production.deny(row,denied);}}
-   if(mode==='live'&&['improve_relations','stop_improving_relations','non_aggression_pact','assign_operative_mission'].includes(step.action.params?.operation_id)){
+   if(mode==='live'&&['improve_relations','stop_improving_relations','non_aggression_pact','assign_operative_mission','guarantee_independence','cancel_guarantee','embargo','cancel_embargo','send_attache','recall_attache','lend_lease','stop_lend_lease'].includes(step.action.params?.operation_id)){
     const history=step.completion?.op==='any'?step.completion.args.find(n=>n.op==='fact'&&n.key==='guide.campaign.milestones'&&typeof n.value==='string'&&n.value.startsWith('foreign:')):null;
     if(!history||condition(history)!==true){const denied=production.admission(step,phases,context,results,checks);if(denied)Object.assign(row,denied,{completion:unknown('interaction_not_admitted'),selection:unknown('interaction_not_admitted')});}
    }

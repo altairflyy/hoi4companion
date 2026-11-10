@@ -9,6 +9,7 @@ mod native_protocol;
 mod subscription;
 mod evidence;
 mod wake;
+mod visual_worker;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
@@ -25,7 +26,7 @@ use capture::{Capture,Frame};
 use render::{Renderer,TargetWindow,Highlight,OverlayFrame,ControlAction};
 
 struct Options {
-    ui_language:String, port:u16, guide:String, python:String, start:bool, proof:Option<PathBuf>,
+    ui_language:String, port:u16, guide:String, start:bool, proof:Option<PathBuf>,
     ocr_image:Option<PathBuf>, ocr_scale:u32, ocr_repeat:usize, ocr_prepared:bool,
     prepare_dir:Option<PathBuf>,
     capture_access_check:bool,
@@ -33,7 +34,7 @@ struct Options {
     status:PathBuf,
 }
 fn options()->Result<Options,String> {
-    let mut result=Options {ui_language:"english".into(),port:8766,guide:String::new(),python:"python.exe".into(),start:false,
+    let mut result=Options {ui_language:"english".into(),port:8766,guide:String::new(),start:false,
         proof:None,ocr_image:None,ocr_scale:2,ocr_repeat:3,ocr_prepared:false,prepare_dir:None,capture_access_check:false,native_protocol_check:false,
         status:PathBuf::from(".local/overlay-status.json")};
     let mut args=std::env::args().skip(1);
@@ -43,7 +44,6 @@ fn options()->Result<Options,String> {
             "--ui-language"=>result.ui_language=args.next().ok_or("Missing interface language")?,
             "--port"=>result.port=args.next().ok_or("Missing port")?.parse().map_err(|_|"Invalid port")?,
             "--guide"=>result.guide=args.next().ok_or("Missing guide")?,
-            "--bridge-python"=>result.python=args.next().ok_or("Missing Python path")?,
             "--start"=>result.start=true,
             "--proof"=>result.proof=Some(args.next().ok_or("Missing proof path")?.into()),
             "--status-file"=>result.status=args.next().ok_or("Missing status path")?.into(),
@@ -90,6 +90,19 @@ fn aligned(frame:&Frame,view:&TargetWindow)->bool {
     frame.width==view.width&&frame.height==view.height&&frame.client_x==view.x&&frame.client_y==view.y
 }
 fn view_json(view:&TargetWindow)->Value {json!([view.hwnd,view.pid,view.x,view.y,view.width,view.height])}
+fn native_observation_time(started:Instant,received:Instant,geometry:&Value)->Option<Instant> {
+    // The server offset starts after it receives this request. Adding it to
+    // the client start is a conservative lower bound on the actual witness;
+    // network/queue/return delays can only make that bound older, never newer.
+    let offset=match geometry.get("geometry_observed_after_ms") {
+        None=>0.,
+        Some(v)=>v.as_f64().filter(|n|n.is_finite()&&*n>=0.)?,
+    };
+    let elapsed=received.checked_duration_since(started)?;
+    if offset>elapsed.as_secs_f64()*1000. {return None;}
+    let observed=started.checked_add(Duration::from_secs_f64(offset/1000.))?;
+    (received.duration_since(observed)<Duration::from_millis(750)).then_some(observed)
+}
 fn native_route(snapshot:&Value,geometry:&Value)->bool {
     if geometry["suspend_visual"]==true{return true;}
     if geometry["native_available"]!=true{return false;}
@@ -226,8 +239,8 @@ fn run(options:Options)->Result<(),String> {
     let Some(_instance)=singleton()? else {return Ok(());};
     unsafe {let _=SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);}
     let mut renderer=Renderer::new()?;renderer.set_paused(!options.start);
-    let mut bridge=protocol::Bridge::new(&options.python,options.port,&options.guide)?;
-    let mut engine:Option<ocr::Ocr>=None;
+    let mut bridge=protocol::Bridge::new(options.port)?;
+    let mut visual:Option<visual_worker::VisualWorker>=None;
     let mut capture:Option<Capture>=None;let mut target:Option<TargetWindow>=None;
     let mut last_scene=None;let mut last_version=None;let mut cached_ocr=None;
     let mut last_matches:Vec<Value>=Vec::new();
@@ -254,10 +267,12 @@ fn run(options:Options)->Result<(),String> {
         }else{bridge.snapshot(refresh)?};
         renderer.set_guides(guides(&snapshot),snapshot["guide_id"].as_str().unwrap_or(""));
         if renderer.is_paused()||current.is_none()||snapshot["usable"]!=true {
+            if let Some(worker)=visual.as_mut(){worker.invalidate();}
             renderer.hide();capture=None;target=None;last_scene=None;last_matches.clear();cached_ocr=None;
-            let message=if renderer.is_paused(){"Overlay paused"}else if current.is_none(){"Switch to HOI4 to show highlights"}
+            let nation_unknown=snapshot["guide_filter"]["status"]=="unavailable";
+            let message=if renderer.is_paused(){"Overlay paused"}else if nation_unknown{"Waiting for a validated game nation to list compatible guides"}else if current.is_none(){"Switch to HOI4 to show highlights"}
                 else{snapshot["idle_explanation"]["message"].as_str().or_else(||snapshot["error"].as_str().filter(|s|!s.is_empty())).unwrap_or("No current guide recommendation")};
-            let code=if renderer.is_paused(){"paused"}else if current.is_none(){"game_background"}else{snapshot["idle_explanation"]["code"].as_str().unwrap_or("live_unavailable")};
+            let code=if renderer.is_paused(){"paused"}else if nation_unknown{"nation_unavailable"}else if current.is_none(){"game_background"}else{snapshot["idle_explanation"]["code"].as_str().unwrap_or("live_unavailable")};
             if last_status.elapsed()>Duration::from_millis(500) {
                 renderer.set_status(message);save_status(&options.status,&idle_status(&snapshot,message,code,[renderer.overlay_window(),renderer.control_window()],renderer.foreground_events()));last_status=Instant::now();
             }
@@ -265,6 +280,7 @@ fn run(options:Options)->Result<(),String> {
         }
         let view=current.unwrap();
         if target.as_ref()!=Some(&view) {
+            if let Some(worker)=visual.as_mut(){worker.invalidate();}
             renderer.hide();capture=None;
             target=Some(view.clone());last_scene=None;cached_ocr=None;last_matches.clear();
         }
@@ -275,19 +291,21 @@ fn run(options:Options)->Result<(),String> {
         // the tree transform; panning/zooming changes these native rectangles.
         let geometry=&snapshot;
         if native_route(&snapshot,geometry) {
+            if let Some(worker)=visual.as_mut(){worker.invalidate();}
             // Native identities/geometry do not depend on a captured image or
             // OCR availability. No WGC readback or image bytes on this path.
             capture=None;
             last_scene=None;cached_ocr=None;last_version=None;
             let previous_matches=last_matches.clone();
+            let native_observed=native_observation_time(geometry_observed,Instant::now(),geometry);
             last_matches=if geometry["usable"]==true&&geometry["suspend_visual"]!=true&&geometry["version"]==version&&geometry["view"]==view_json(&view)
-                &&geometry_observed.elapsed()<Duration::from_millis(750)&&game_view().as_ref()==Some(&view) {
+                &&native_observed.is_some()&&game_view().as_ref()==Some(&view) {
                 geometry["matches"].as_array().cloned().unwrap_or_default()
             }else{Vec::new()};
             if previous_matches!=last_matches {native_unchanged_since=Instant::now();}
             let highlights=marks(&last_matches,view.width,view.height);
             if highlights.is_empty(){renderer.hide();}
-            else{renderer.show(OverlayFrame {target:view.clone(),marks:highlights,observed_at:geometry_observed,valid_for:Duration::from_millis(750)})?;}
+            else{renderer.show(OverlayFrame {target:view.clone(),marks:highlights,observed_at:native_observed.unwrap(),valid_for:Duration::from_millis(750)})?;}
             native_frames+=1;
             if last_status.elapsed()>Duration::from_millis(500){
                 let ms=geometry["geometry_ms"].as_f64().unwrap_or(0.);
@@ -302,7 +320,7 @@ fn run(options:Options)->Result<(),String> {
                     "ocr_calls":total_ocr,"diagnostics":geometry["diagnostics"],"active_panel":geometry["active_panel"],"foreground_events":renderer.foreground_events(),
                     "error":geometry["native_error"],"capture_active":false,
                     "iteration_ms":started.elapsed().as_secs_f64()*1000.,
-                    "evidence_age_ms":geometry_observed.elapsed().as_secs_f64()*1000.,"memory_access":true,"memory_access_mode":"query_vm_read",
+                    "evidence_age_ms":native_observed.map(|time|time.elapsed().as_secs_f64()*1000.),"state_age_ms":geometry["state_age_ms"],"request_ms":geometry_observed.elapsed().as_secs_f64()*1000.,"memory_access":true,"memory_access_mode":"query_vm_read",
                     "proof_saved":proof_saved}));
                 last_status=Instant::now();
             }
@@ -327,6 +345,7 @@ fn run(options:Options)->Result<(),String> {
         let Some(frame)=source.wait_latest(Duration::from_millis(100)).map_err(|e|e.to_string())? else{continue;};
         if !aligned(&frame,&view)||game_view().as_ref()!=Some(&view){renderer.hide();continue;}
         total_frames+=1;
+        let frame_generation=frame.generation;
         let stable=last_version==Some(version)&&cached_ocr.as_ref().is_some_and(|page| {
             serde_json::to_value(page).ok().is_some_and(|page|
                 evidence::stable(&reference_pixels,&frame.bgra,view.width,view.height,&last_matches,&page))
@@ -334,29 +353,32 @@ fn run(options:Options)->Result<(),String> {
         let digest=if stable{last_scene.unwrap_or(0)}else{scene_hash(&frame)};
         if stable {evidence_cache_hits+=1;}
         let changed=!stable&&(last_scene!=Some(digest)||last_version!=Some(version));
-        let mut verified_at=frame.captured_at;
-        if changed {
-            renderer.hide();
-            if last_scene!=Some(digest)||cached_ocr.is_none() {
-                if engine.is_none(){engine=Some(ocr::Ocr::new().map_err(|e|e.to_string())?);}
-                let began=Instant::now();cached_ocr=Some(engine.as_ref().unwrap().recognize(&frame,2).map_err(|e|e.to_string())?);
-                ocr_ms=began.elapsed().as_secs_f64()*1000.;total_ocr+=1;
+        let verified_at=frame.captured_at;
+        let context=visual_worker::context(&snapshot,view_json(&view));
+        let mut admitted=false;
+        if let Some(result)=visual.as_mut().and_then(|worker|worker.take()) {
+            match result {
+                Ok(done) if done.job.context==context=>{
+                    let response=done.response;
+                    ocr_ms=done.ocr_ms;if done.did_ocr{total_ocr+=1;}
+                    matching_ms=response["recognition_ms"].as_f64().unwrap_or(0.);
+                    last_matches=if response["usable"]==true&&response["version"]==version&&response["view"]==view_json(&view)
+                        &&response["guide_id"]==snapshot["guide_id"]&&response["guide_server_id"]==snapshot["guide_server_id"] {
+                        response["matches"].as_array().cloned().unwrap_or_default()
+                    }else{Vec::new()};
+                    last_matches.retain(|row|evidence::unchanged(&done.job.frame.bgra,&frame.bgra,view.width,view.height,row));
+                    reference_pixels=done.job.frame.bgra;cached_ocr=Some(done.page);
+                    last_scene=Some(done.job.digest);last_version=Some(version);admitted=true;
+                },
+                Err(error)=>{last_matches.clear();renderer.set_status(&error);},
+                _=>{},
             }
-            let response=bridge.request(json!({"kind":"frame","version":version,"view":view_json(&view),
-                "width":frame.width,"height":frame.height,"raw_len":frame.bgra.len(),"ocr":cached_ocr,
-                "frame_hash":format!("{digest:x}")}),&frame.bgra)?;
-            matching_ms=response["recognition_ms"].as_f64().unwrap_or(0.);
-            last_matches=if response["usable"]==true && response["version"]==version && response["view"]==view_json(&view) {
-                response["matches"].as_array().cloned().unwrap_or_default()
-            }else{Vec::new()};
-            let Some(fresh)=source.wait_latest(Duration::from_millis(250)).map_err(|e|e.to_string())? else{
-                last_matches.clear();last_scene=None;continue;
-            };
-            if !aligned(&fresh,&view)||game_view().as_ref()!=Some(&view){last_matches.clear();last_scene=None;continue;}
-            last_matches.retain(|row|evidence::unchanged(&frame.bgra,&fresh.bgra,view.width,view.height,row));
-            reference_pixels=frame.bgra.clone();
-            verified_at=fresh.captured_at;
-            last_scene=Some(digest);last_version=Some(version);
+        }
+        if changed&&!admitted {renderer.hide();last_matches.clear();}
+        if changed&&visual.as_ref().is_none_or(|worker|!worker.busy()) {
+            if visual.is_none(){visual=Some(visual_worker::VisualWorker::new(options.port)?);}
+            let page=if last_scene==Some(digest){cached_ocr.clone()}else{None};
+            visual.as_mut().unwrap().submit(visual_worker::Job{frame,digest,context,page})?;
         }
         if game_view().as_ref()!=Some(&view){renderer.hide();continue;}
         let highlights=marks(&last_matches,view.width,view.height);
@@ -373,9 +395,9 @@ fn run(options:Options)->Result<(),String> {
                 "guide_server_id":snapshot["guide_server_id"],"status_message":message,"status_code":code,"explanations":[],
                 "overlay_window":renderer.overlay_window(),"control_window":renderer.control_window(),"game_window":view.hwnd,"target_count":snapshot["proposed"].as_array().map_or(0,Vec::len),
                 "matches":last_matches,"ocr_ms":ocr_ms,"matching_ms":matching_ms,"iteration_ms":started.elapsed().as_secs_f64()*1000.,
-                "frames_observed":total_frames,"ocr_calls":total_ocr,"frame_generation":frame.generation,
+                "frames_observed":total_frames,"ocr_calls":total_ocr,"frame_generation":frame_generation,
                 "evidence_cache_hits":evidence_cache_hits,
-                "frame_age_ms":verified_at.elapsed().as_secs_f64()*1000.,"memory_access":false,"proof_saved":proof_saved}));
+                "frame_age_ms":verified_at.elapsed().as_secs_f64()*1000.,"visual_pending":visual.as_ref().is_some_and(|worker|worker.busy()),"memory_access":false,"proof_saved":proof_saved}));
             last_status=Instant::now();
         }
         if let Some(path)=options.proof.as_ref().filter(|_|!proof_saved&&!last_matches.is_empty()) {
@@ -398,6 +420,22 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_witness_age_excludes_pre_sample_work_but_keeps_transport_and_expiry() {
+        let started=Instant::now();
+        let received=started+Duration::from_millis(2000);
+        let geometry=json!({"geometry_observed_after_ms":1900});
+        let observed=native_observation_time(started,received,&geometry).unwrap();
+        assert_eq!(received.duration_since(observed),Duration::from_millis(100));
+        // Delay after the native witness remains part of its actual age.
+        assert!(native_observation_time(started,received,&json!({"geometry_observed_after_ms":1200})).is_none());
+        // Older backend protocol has only a conservative request-start bound.
+        assert!(native_observation_time(started,started+Duration::from_millis(100),&json!({})).is_some());
+        assert!(native_observation_time(started,received,&json!({})).is_none());
+        for value in [json!(-1),json!(2001),json!("1900"),Value::Null] {
+            assert!(native_observation_time(started,received,&json!({"geometry_observed_after_ms":value})).is_none());
+        }
+    }
     #[test]
     fn inactive_hud_preserves_owned_control_identity_for_native_stop() {
         let snapshot=json!({"guide_id":"g","guide_server_id":"s"});

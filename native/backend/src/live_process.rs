@@ -249,6 +249,15 @@ pub unsafe extern "C" fn hoi4_backend_country_profile_process(
                 "campaign_signature",
                 "campaign_signature_rva",
                 "campaign_token_rva",
+                "layout_id",
+                "abi_functions",
+                "abi_action_signatures",
+                "abi_design_signatures",
+                "resources_database_rva",
+                "token_table_rva",
+                "gui_layout",
+                "political_power_offset",
+                "construction_layout",
             ] {
                 request.attributes.as_object_mut().unwrap().remove(key);
                 if let Some(value) = profile.metadata()["selected"].get(key) {
@@ -256,6 +265,7 @@ pub unsafe extern "C" fn hoi4_backend_country_profile_process(
                 }
             }
             request.attributes["sha256"] = profile.metadata()["sha256"].clone();
+            request.attributes["image_base"] = profile.metadata()["image_base"].clone();
             request.attributes["executable_bytes"] = json!(true);
             let mut result = crate::country::collect(&mut memory, request)?;
             result["bytes_used"] = json!(memory.used);

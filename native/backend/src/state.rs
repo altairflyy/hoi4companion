@@ -150,10 +150,11 @@ pub fn valid_fact(key: &str, value: &Value) -> bool {
         "doctrines.selected"
         | "politics.ideas"
         | "politics.advisors"
+        | "politics.characters" | "politics.unit_leaders" | "politics.scientists"
         | "events.visible"
         | "events.visible_options"
         | "decisions.listed"
-        | "decisions.executed" => strings(value, 4096, 512, true),
+        | "decisions.executed" | "decisions.active" | "decisions.completed" => strings(value, 4096, 512, true),
         "production.lines" => valid_lines(value),
         "country" | "focus.tree" => nonempty(value),
         "focus.completed"

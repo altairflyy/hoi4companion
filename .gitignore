@@ -30,6 +30,7 @@ htmlcov/
 
 # App local runtime, caches & profiles (HOI4 Companion)
 .local/
+scarto/
 .cache/
 native/**/target/
 native/cwtools/**/bin/

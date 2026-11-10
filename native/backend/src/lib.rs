@@ -2,6 +2,7 @@
 //! the same owned services will be hosted by the Rust HTTP/SSE executable.
 #[cfg(windows)]
 mod acquisition;
+mod abi;
 mod action_blocks;
 pub mod application;
 mod assets;
@@ -41,6 +42,7 @@ pub mod http;
 mod hud_diagnostics;
 mod hud_events;
 mod hud_geometry;
+mod hud_guides;
 mod hud_ocr;
 mod hud_production;
 mod hud_service;

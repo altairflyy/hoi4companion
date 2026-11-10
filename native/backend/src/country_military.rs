@@ -73,13 +73,17 @@ impl<M: Memory> Reader<'_, M> {
         if self.pointer(status + 0x2d0)? != self.country {
             return Err("Diplomacy belongs to another country.".into());
         }
-        let mut at_war = !self.array(status + 0x98, 4096)?.is_empty();
-        if !at_war {
-            for relation in self.array(status + 0x20, 4096)? {
-                if self.integer(relation + 8, 0, 65535)? == 0x380a {
-                    self.typed(relation, "CWarRelation")?;
-                    at_war = true
+        // +98 is not a pointer set. Use the qualified relation registry, as
+        // elsewhere in diplomacy, and retain cancellation as separate evidence.
+        let mut at_war = false;
+        for relation in self.array(status + 0x20, 4096)? {
+            if self.integer(relation + 8, 0, 65535)? == 0x380a {
+                self.typed(relation, "CWarRelation")?;
+                let cancelled = self.track(relation + 0x48, 1)?[0];
+                if cancelled > 1 {
+                    return Err("Invalid war relation cancellation state.".into());
                 }
+                at_war |= cancelled == 0;
             }
         }
         let mut result = json!({"status":"observed","at_war":at_war});
@@ -91,13 +95,15 @@ impl<M: Memory> Reader<'_, M> {
         }
         Ok(result)
     }
-    fn function_signatures(&mut self, section: &str, error: &str) -> Result<()> {
+    pub(super) fn function_signatures(&mut self, section: &str, error: &str) -> Result<()> {
         // Fixture overrides are admitted only on the explicit callback test
         // transport. A real process always uses the compiled immutable profile.
         let signatures = if self.d.memory.fixture_transport()
             && self.attributes["function_signatures"].is_array()
         {
             self.attributes["function_signatures"].clone()
+        } else if self.attributes["layout_id"] == "hoi4-x64-abi-v1" {
+            self.attributes["abi_functions"][section].clone()
         } else {
             functions()[section].clone()
         };
@@ -153,7 +159,7 @@ impl<M: Memory> Reader<'_, M> {
         }
         Ok((mapping, countries))
     }
-    fn inline(&mut self, address: u64, stride: u64, maximum: i32) -> Result<Vec<u64>> {
+    pub(super) fn inline(&mut self, address: u64, stride: u64, maximum: i32) -> Result<Vec<u64>> {
         let raw = self.track(address, 16)?;
         let data = u64::from_le_bytes(raw[..8].try_into().unwrap());
         let capacity = i32::from_le_bytes(raw[8..12].try_into().unwrap());
@@ -190,7 +196,9 @@ impl<M: Memory> Reader<'_, M> {
         Ok(())
     }
     pub(super) fn doctrines(&mut self) -> Result<Value> {
-        if self.attributes["sha256"] != functions()["sha256"] {
+        if self.attributes["sha256"] != functions()["sha256"]
+            && self.attributes["layout_id"] != "hoi4-x64-abi-v1"
+        {
             return Err("Doctrine selections are not qualified for this executable.".into());
         }
         self.function_signatures(
@@ -400,7 +408,8 @@ impl<M: Memory> Reader<'_, M> {
         Ok(result)
     }
     pub(super) fn metrics(&mut self) -> Result<Value> {
-        if self.attributes["sha256"] != functions()["sha256"]
+        if (self.attributes["sha256"] != functions()["sha256"]
+            && self.attributes["layout_id"] != "hoi4-x64-abi-v1")
             || self.attributes["country_metrics_layout"]
                 != json!({"version":1,"path":"effective-war-support"})
         {

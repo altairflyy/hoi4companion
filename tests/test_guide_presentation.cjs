@@ -1,6 +1,12 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const view=require('../src/hoi4companion/web/guide-presentation.js');
+test('guide headings separate file metadata without changing the imported guide',()=>{
+ assert.deepEqual(view.heading('HUNGARY (Non-Aligned)_ BROKEN EU Path! — Difficulty_⭐⭐⭐⭐ (NEW & UPDATED FOR 1.19.4).docx'),{title:'HUNGARY (Non-Aligned) BROKEN EU Path!',details:'Difficulty ⭐⭐⭐⭐ (NEW & UPDATED FOR 1.19.4)'});
+ assert.deepEqual(view.heading('Industry / Army choices'),{title:'Industry / Army choices',details:''});
+ assert.deepEqual(view.heading('Guide.hoi4-guide.json'),{title:'Guide',details:''});
+ assert.deepEqual(view.heading(''),{title:'',details:''});
+});
 const guide={id:'neutral',applies_to:{country:'GER',tree_id:'g'},tracks:{focus:[
  {key:'f',kind:'focus',target:'F',name:'Focus',href:'/?tree=g&focus=F'}],research:[
  {key:'r',kind:'technology',target:'R',name:'Research',href:'/technologies?folder=industry&tech=R'},

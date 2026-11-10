@@ -178,7 +178,8 @@ pub fn load(files: &Value, labels: &Value, continuous: bool) -> Result<Value, St
         }
         for (key, value) in entries(&root) {
             if ["shared_focus", "joint_focus"].contains(&key) && value.is_object() {
-                if let Some(focus) = build(value, labels, &name, key == "joint_focus") {
+                if let Some(mut focus) = build(value, labels, &name, key == "joint_focus") {
+                    focus["shared_definition"] = json!(true);
                     let id = text(&focus["id"]).to_owned();
                     shared.insert(id.clone(), focus);
                     if blocks(value, "allow_branch").next().is_some() {
@@ -275,4 +276,27 @@ pub fn load(files: &Value, labels: &Value, continuous: bool) -> Result<Value, St
         position(tree);
     }
     Ok(json!({"trees":trees,"warnings":warnings}))
+}
+
+/// Effective, tree-scoped shared definitions for the native owner check. Local
+/// focuses and shared definitions not actually expanded into a tree are absent.
+pub(crate) fn shared_members(trees: &Value) -> Value {
+    Value::Object(trees.as_object().into_iter().flatten().map(|(tree, value)| {
+        let members = value["focuses"].as_object().into_iter().flatten()
+            .filter(|(_, focus)| focus["shared_definition"] == true)
+            .map(|(id, _)| (id.clone(), json!(true))).collect();
+        (tree.clone(), Value::Object(members))
+    }).collect())
+}
+
+#[cfg(test)]
+mod membership_tests {
+    use super::*;
+    #[test]
+    fn only_expanded_shared_definitions_are_admitted_per_tree() {
+        let trees=json!({"one":{"focuses":{"local":{},"shared":{"shared_definition":true}}},"two":{"focuses":{"local":{}}}});
+        let members=shared_members(&trees);
+        assert_eq!(members,json!({"one":{"shared":true},"two":{}}));
+        assert_eq!(shared_members(&Value::Null),json!({}));
+    }
 }

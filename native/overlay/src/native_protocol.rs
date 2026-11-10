@@ -200,9 +200,7 @@ impl Client {
             }
             Err(error) => {
                 self.release();
-                Ok(
-                    json!({"schema_version":1,"kind":input["kind"],"token":input["token"],"ok":true,"version":self.last["version"],"guide_id":self.last["guide_id"],"guide_server_id":self.last["guide_server_id"],"title":self.last["title"],"guides":self.last.get("guides").cloned().unwrap_or(json!([])),"usable":false,"proposed":[],"matches":[],"native_available":false,"suspend_visual":true,"error":error,"age_ms":null,"view":input["view"]}),
-                )
+                Ok(unavailable(&self.last, input, &error))
             }
         }
     }
@@ -261,9 +259,23 @@ impl Drop for Client {
         self.release();
     }
 }
+fn unavailable(last: &Value, input: &Value, error: &str) -> Value {
+    json!({"schema_version":1,"kind":input["kind"],"token":input["token"],"ok":true,"version":last["version"],"guide_id":last["guide_id"],"guide_server_id":last["guide_server_id"],"title":last["title"],"guides":[],"guide_filter":{"status":"unavailable","country":null},"usable":false,"proposed":[],"matches":[],"native_available":false,"suspend_visual":true,"error":error,"age_ms":null,"view":input["view"]})
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn lost_connection_clears_country_choices_without_switching_active_guide() {
+        let last=json!({"guide_id":"hungary","guides":[{"id":"hungary"}],"guide_filter":{"status":"observed","country":"HUN"}});
+        let response=unavailable(&last,&json!({"kind":"snapshot","token":7}),"Disconnected");
+        assert_eq!(response["guides"],json!([]));
+        assert_eq!(response["guide_filter"]["status"],"unavailable");
+        assert_eq!(response["guide_filter"]["country"],Value::Null);
+        assert_eq!(response["guide_id"],"hungary");
+        assert_eq!(response["usable"],false);
+        assert_eq!(response["matches"],json!([]));
+    }
     #[test]
     fn folder_ids_cannot_escape_local_query_parameters() {
         assert_eq!(escaped("industry_folder"), "industry_folder");

@@ -127,9 +127,14 @@ pub fn prepare(
             .any(|v| s(&v["text"]).contains("[Table row]"))
             || rows(&guide).any(|r| r["tracking"] == "reminder"));
     let production = rows(&guide).any(|r| r["action"]["params"]["category"] == "production");
-    if guide["dependency_policy"] == "explicit" && (word || known || production) {
+    let refresh_bindings = rows(&guide).any(|r| {
+        let p=&r["action"]["params"];
+        p["decision_id"].is_string() || p["category"] == "construction"
+            || crate::political_binding::foreign_tasks()["relation_actions"][s(&p["operation_id"])].is_object()
+    });
+    if guide["dependency_policy"] == "explicit" && (word || known || production || refresh_bindings) {
         let promoted = operation_language::promote(&guide, index, library)?;
-        if !a(&promoted["changes"]).is_empty() {
+        if !a(&promoted["changes"]).is_empty() || refresh_bindings {
             guide = guide_schema::normalize(
                 &operation_binding::bind(&promoted["guide"], index, library)?["guide"],
             )?;

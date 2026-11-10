@@ -77,6 +77,14 @@ pub fn unique(values: impl IntoIterator<Item = Value>) -> Vec<Value> {
     }
     out
 }
+/// Only catalog-qualified state buildings enter the regional live map. A
+/// province-only building must never acquire a fabricated regional zero.
+pub(crate) fn building_scopes(rows: &Value) -> Value {
+    json!(rows.as_array().into_iter().flatten()
+        .filter(|r| r["kind"] == "building" && matches!(r["location_scope"].as_str(), Some("state" | "province")))
+        .filter_map(|r| r["id"].as_str().map(|id| (id.to_owned(), r["location_scope"].clone())))
+        .collect::<std::collections::BTreeMap<_, _>>())
+}
 fn trait_names(source: &Source, ids: &[Value]) -> Vec<Value> {
     unique(ids.iter().flat_map(|id| {
         let names = source.names(id.as_str().unwrap_or(""));
@@ -263,7 +271,9 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
                     condition = recipient::combine("all", vec![parent.clone(), condition]);
                 }
                 let mut row = source.names(id);
-                row.as_object_mut().unwrap().extend(json!({"kind":"decision","id":id,"group":category,"country_condition":condition}).as_object().unwrap().clone());
+                let targeted = ["targets", "target_array", "target_trigger", "target_root_trigger"]
+                    .iter().any(|k| crate::script_document::first(node,k).is_some()) || scalar(node,"state_target") == "yes";
+                row.as_object_mut().unwrap().extend(json!({"kind":"decision","id":id,"group":category,"country_condition":condition,"targeted":targeted}).as_object().unwrap().clone());
                 rows.push(row);
             }
         }
@@ -280,6 +290,7 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
         let key = serde_json::to_string(&key).map_err(|e| e.to_string())?;
         if let Some(&i) = keys.get(&key) {
             let old: &mut Value = &mut out[i];
+            if row["targeted"] == true { old["targeted"] = json!(true); }
             if row.get("country_condition").is_some() {
                 old["country_condition"] = recipient::combine(
                     "any",

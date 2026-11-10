@@ -9,7 +9,7 @@ if(Test-Path -LiteralPath $localCargo){
 }else{
     $cargo=(Get-Command cargo -ErrorAction Stop).Source
 }
-$env:CARGO_TARGET_DIR=Join-Path $projectRoot '.local\rust-overlay-target'
+$env:CARGO_TARGET_DIR=Join-Path $projectRoot '.local\rust-backend-target'
 & $cargo build --release --locked --manifest-path (Join-Path $projectRoot 'native\overlay\Cargo.toml')
 if($LASTEXITCODE -ne 0){throw 'Rust overlay build failed'}
 $executable=Join-Path $env:CARGO_TARGET_DIR 'release\hoi4-overlay.exe'
@@ -18,4 +18,7 @@ if($NoInstall){Write-Output $executable;return}
 $destination=if($OutputDirectory){[IO.Path]::GetFullPath($OutputDirectory)}else{Join-Path $projectRoot 'src\hoi4companion\_native\overlay'}
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
 Copy-Item -LiteralPath $executable -Destination (Join-Path $destination 'hoi4-overlay.exe') -Force
+$overlayHash=(Get-FileHash -LiteralPath (Join-Path $destination 'hoi4-overlay.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+@{schema_version=1;engine='rust-native-hud';native_hud_protocol=1;files=@{'hoi4-overlay.exe'=$overlayHash}} |
+    ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $destination 'provenance.json') -Encoding utf8
 Write-Output (Join-Path $destination 'hoi4-overlay.exe')

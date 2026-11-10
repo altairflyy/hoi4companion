@@ -5,7 +5,8 @@ HTTP/SSE; a separate Rust/Direct2D HUD; a JavaScript presentation layer; and
 external tools supervised only while their jobs need them. The default source
 launcher and the native Windows ZIP use the standalone Rust backend and direct
 Rust HUD transport. Neither starts the Python server or HUD worker. Python
-sources remain as development tools and independent compatibility test oracles.
+implementations and test oracles were retired on 2026-11-10. Current build,
+packaging and tests use Rust, Node.js and PowerShell with shared JSON fixtures.
 
 The 2026-11-09 installation is operational for static guides/importing. The HOI4
 executable installed that morning has an unqualified SHA-256: live acquisition
@@ -37,8 +38,8 @@ embedded in the decision crate.
 ## Catalog, tool and persistence boundaries
 
 `native/catalog-core` owns ID/name/alias resolution, country/scope restriction,
-word candidates and review suggestions. `resolution.py` preserves its public
-interface and delegates queries through the backend C ABI. Import compilers borrow
+word candidates and review suggestions. The Rust backend exposes queries through
+its native API. Import compilers borrow
 that same immutable catalog through an owned native handle, without JSON round trips
 for the full catalog or a second resident catalog library. A compiled handle is
 an immutable catalog generation; bounded per-context caches never contain live
@@ -49,7 +50,7 @@ adapters remain for regression comparison and development scripts.
 
 The bundled Unicode profile preserves the previous English canonicalization,
 Roman levels, case folding and transliteration without a Python call for each
-native query. Regenerate it with `scripts/generate-catalog-text-profile.py` and
+native query. It is a frozen compatibility data file; validate changes with native fixtures and
 run the Unicode/parity tests after a profile update. The legacy resolver remains
 an opt-in test oracle: `HOI4_CATALOG_CORE_VERIFY=1` compares outputs and refuses a
 divergence. There is no automatic fallback or strategy inference.
@@ -85,8 +86,8 @@ input containing qualified facts and domain projections. It owns status,
 dependency admission, readiness, priorities, choices and proposed steps. It does
 not own acquisition, timestamps, disk access, click execution or persistence.
 
-`guide_core.py` delegates schema validation, state preparation, domain projections
-and decisions to Rust. The backend keeps 16 immutable compiled definitions
+The backend owns schema validation, state preparation, domain projections
+and decisions in Rust. It keeps 16 immutable compiled definitions
 separately from observations. No live facts or previous completions survive in
 a compiled handle.
 The default server owns these compiled handles directly; it does not run a
@@ -122,22 +123,16 @@ National focuses and research remain in their dedicated trees.
 
 ## Reproducible checks
 
-Build the library with `scripts/build-guide-core.ps1`, or with the corresponding
-locked Cargo build and copy it into `src/hoi4companion/_native`. A locally
+Build the application with `scripts/build-backend.ps1`; dependent cores are
+compiled automatically. Test them with `node scripts/test-native.cjs`. A locally
 installed Rust toolchain under `.local/toolchains` is supported. No system
 PowerShell execution policy needs changing.
 
 ```powershell
-$env:PYTHONPATH='src;tests'
-$env:HOI4_GUIDE_CORE_VERIFY='1'
-py -3 -m unittest discover -s tests -p 'test_*.py'
-Remove-Item Env:HOI4_GUIDE_CORE_VERIFY
-$files=@(Get-ChildItem tests -Filter '*.cjs' | ForEach-Object {$_.FullName})
-node --test @files
-cargo test --locked --manifest-path native/guide-core/Cargo.toml
-cargo clippy --locked --manifest-path native/guide-core/Cargo.toml --all-targets -- -D warnings
-py -3 scripts/audit-guide-archive.py 'collection.zip' --output '.local/archive.json' --runtime-parity
-py -3 scripts/benchmark-guide-core.py '.local/guides/example.json' --output '.local/guide-core-benchmark.json'
+node scripts/test-web.cjs
+node scripts/test-native.cjs
+node scripts/build-native-windows.cjs --skip-native
+node scripts/smoke-native-windows.cjs
 ```
 
 The benchmark compares identical outputs and excludes warm-up. Its native time
@@ -147,14 +142,14 @@ Archive parity adds synthetic preview/unknown/initial/completed/wrong-country
 states. These are not observations from real campaigns. Missing DLC content is
 reported separately from guide errors.
 
-The compatibility gates preserve every existing API, guide/checklist version,
+The compatibility gates protect existing API, guide/checklist version,
 campaign rewind guard, partial/unknown evidence state, importer recovery,
 template comparison, geography, source reference, media job lifecycle and
 supported native GUI control. A smaller Rust subset is not feature parity.
 
-`scripts/build-native-windows.py` creates the native package from an explicit
+`scripts/build-native-windows.cjs` creates the native package from an explicit
 allowlist, without personal guides/settings/campaigns or build caches.
-`scripts/smoke-native-windows.py` verifies manifest hashes, a clean installation,
+`scripts/smoke-native-windows.cjs` verifies manifest hashes, a clean installation,
 guide import/selection, restart persistence, native HUD binary-frame transport
 and owned shutdown with the package's actual executables. It does not substitute
 for a real browser/game alignment test. Build snapshots are disabled in

@@ -48,6 +48,10 @@
 
 - Reconstructs focus and research trees from your installed game and active mods,
   using the Rust/Jomini parser, game layouts, sprites, and localization.
+- Imports ZIP collections of Word country guides, equipment designs and visual
+  references once. Preparation resumes after restart, a single review adds ready
+  content to the local library, and matching guides are suggested for a qualified
+  live country/tree. Missing DLCs make guides unavailable rather than import errors.
 - Imports guides produced by an external AI from videos or web sources. The
   application exports the instructions and thematic ID catalogs, resolves names,
   validates dependencies and evidence, and offers an editable preview.
@@ -80,7 +84,7 @@ Version 0.2.0 marks the transition to a **100% standalone native Rust architectu
 - **Eliminate resident Python runtime overhead:** The desktop Windows distribution no longer requires a background Python interpreter, Flask server, or resident worker processes. The native binary `HOI4 Companion.exe` serves HTTP/SSE, runs the deterministic guide decision engine (`native/guide-core`), resolves catalog queries (`native/catalog-core`), and coordinates with the Direct2D HUD directly.
 - **Strict process containment & leak prevention:** External tools (FFmpeg, yt-dlp, Node.js, and CWTools) now run inside Windows Job Objects (`native/tools`) with automatic kill-on-close, output growth bounds, and zero orphaned background processes.
 - **Provincial fortifications & frontier tracking:** Walkthroughs now support land (`bunker`) and coastal (`coastal_bunker`) forts per province, province sets, or entire national borders (e.g., `1 fort in each tile at YUG border`), combining static map topology with live controllers.
-- **Differential parity assurance:** Over 1,380 Python tests serve as independent behavioral oracles alongside 451 JavaScript tests, ensuring complete determinism between the new Rust engine and reference specifications.
+- **Native contract validation:** Rust tests exercise the production engine with shared JSON fixtures; JavaScript tests cover presentation and real native HTTP workflows. The retired Python implementation is not maintained in parallel.
 
 ## Start on Windows
 
@@ -89,8 +93,12 @@ Version 0.2.0 marks the transition to a **100% standalone native Rust architectu
 3. Launch **`HOI4 Companion.exe`**. The native build runs a Rust backend and HUD;
    it does not require an installed Python interpreter.
 4. Check the detected game installation and HOI4 documents directory in the app.
-5. Open **Import guide**, prepare the AI attachments, and import the returned JSON.
-6. Review unresolved associations and source issues, then install/select the guide.
+5. Open **Import guide** and choose your guide/template ZIPs together. The app
+   prepares all country guides and reference assets in the background.
+6. Review the collection summary, then choose **Add all ready guides and templates**.
+   Correct unresolved guides when needed; missing-DLC guides remain gray. The saved
+   library is available after restart without uploading the ZIPs again. Single Word,
+   JSON and external AI tools remain under **Other import tools**.
 7. Load the matching campaign in HOI4. Bring the game to the foreground for HUD
    highlights. The guide still works as a reference when live data is unavailable.
 
@@ -111,8 +119,8 @@ close the HUD through its control window. Web-only portable startup:
 
 Stop the native server and its HUD with `HOI4 Companion.exe --stop`; HOI4 remains
 open. Source checkouts use `powershell -NoProfile -File scripts/avvia-tutto.ps1 -Stop`.
-Python compatibility modules remain available for development and independent
-regression tests; the native launcher does not start them.
+Development and validation use Rust, Node.js and PowerShell. No Python package
+or compatibility implementation is required.
 
 The native package is built separately from older mixed-runtime releases. A
 source commit does not replace an existing GitHub download; see the distribution
@@ -161,25 +169,20 @@ orchestration, state normalization, qualified game-memory decoding, HTTP/SSE and
 SQLite progress. It supervises external tools only while jobs run. Rust/Jomini
 parses scripts; the self-contained CWTools host handles requested analysis.
 The separate Rust/Direct2D HUD uses the same active guide and native projection.
-Browser JavaScript presents the interface. Python remains for development/build
-tools and independent regression comparisons, outside the default application.
+Browser JavaScript presents the interface. Retired Python implementations and
+comparison oracles have been removed. Shared JSON fixtures preserve behavioral
+contracts without maintaining a second runtime implementation.
 See the [migration and verification report](docs/rust-backend-migration.md).
 
-Prerequisites: Python 3.11+, Node.js for JavaScript tests, Rust/MSVC for native
+Prerequisites: Node.js 24+, Rust/MSVC for native
 builds, and the project's pinned .NET SDK for CWTools. Windows release builds use
-the locked packaging environment documented in [distribution](docs/windows-distribution.md).
+the pinned standalone tools documented in [distribution](docs/windows-distribution.md).
 
 ```powershell
-py -3 -m pip install -e ".[overlay]"
 powershell -NoProfile -File scripts/build-parser.ps1
-powershell -NoProfile -File scripts/build-observer.ps1
-powershell -NoProfile -File scripts/build-guide-core.ps1
-powershell -NoProfile -File scripts/build-catalog-core.ps1
-powershell -NoProfile -File scripts/build-tools.ps1
-powershell -NoProfile -File scripts/build-storage.ps1
 powershell -NoProfile -File scripts/build-backend.ps1
 powershell -NoProfile -File scripts/build-overlay.ps1
-py -3 scripts/build-cwtools.py
+powershell -NoProfile -File scripts/build-cwtools.ps1
 powershell -NoProfile -File scripts/avvia-tutto.ps1
 ```
 
@@ -193,9 +196,10 @@ settings. The developer `hoi4-backend.exe` also accepts `--language` and
 use a separate port/profile for isolated development.
 
 ```powershell
-$env:PYTHONPATH = 'src'
-py -3 -m unittest discover -s tests -p 'test_*.py'
-node --test tests/*.cjs
+node scripts/test-web.cjs
+node scripts/test-native.cjs
+node scripts/build-native-windows.cjs --skip-native
+node scripts/smoke-native-windows.cjs
 ```
 
 Native tests and Windows package smoke tests are described in the corresponding

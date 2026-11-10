@@ -71,7 +71,7 @@ pub fn foreign(text: &str, index: &Index) -> Result<Option<Value>> {
                 "stop_improving_relations",
                 "non_aggression_pact",
             ]
-            .contains(&key.as_str());
+            .contains(&key.as_str()) && !political_binding::foreign_tasks()["relation_actions"][key].is_object();
             let mut params = json!({"category":if mission{"projects"}else{"politics"},"operation_id":if mission{"assign_operative_mission"}else{key},"target_country":target});
             if mission {
                 params["mission_id"] = json!(key);

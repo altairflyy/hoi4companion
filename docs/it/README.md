@@ -1,3 +1,5 @@
+> Documento storico: gli entrypoint Python e il pacchetto PyInstaller sono stati rimossi. Consultare la [documentazione attuale](../../README.md).
+
 <div align="center">
 
 # 🎖️ HOI4 Companion

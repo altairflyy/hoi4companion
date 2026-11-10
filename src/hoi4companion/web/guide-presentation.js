@@ -5,6 +5,11 @@
  const model=typeof module!=='undefined'&&module.exports?require('./guide-model.js'):root.HoiGuideModel;
  const contracts=typeof module!=='undefined'&&module.exports?require('./contracts.js'):root.HoiContracts;
  const native=step=>['select_focus','research'].includes(step.action.kind);
+ function heading(value){
+  const text=String(value??'').replace(/(?:\.hoi4-guide)?\.json$|\.(?:docx?|pdf)$/i,'').replace(/_/g,' ').replace(/\s+/g,' ').trim();
+  const parts=text.match(/^(.+?)\s+[—–|]\s+(Difficulty\b.*)$/i);
+  return {title:parts?parts[1].trim():text,details:parts?parts[2].trim():''};
+ }
  function folder(step){try{return new URL(step?.href||'', 'http://local').searchParams.get('folder');}catch{return null;}}
  function frameResolver(guide){
   // Same selection policy as guide_frames.frame_reference. Media metadata only.
@@ -195,5 +200,5 @@
   return {mode:result.mode,country:result.country,progress_status:result.runtime.progress_status,lanes,
    operations:ordering.rows,operation_order:ordering.details,model:result};
  }
- const api={evaluate,folder,frameReference};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiGuidePresentation=api;
+ const api={evaluate,folder,frameReference,heading};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiGuidePresentation=api;
 })(typeof window!=='undefined'?window:globalThis);

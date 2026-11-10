@@ -16,7 +16,7 @@ impl<M: Memory> Reader<'_, M> {
                 continue;
             }
             let key = self.d.string(definition + 0x270)?;
-            if key == "bunker" || key == "coastal_bunker" {
+            if key == "bunker" || key == "coastal_bunker" || self.attributes["building_scopes"][&key] == "province" {
                 if definitions.contains_key(&key) {
                     return Err("Duplicate provincial fort definition".into());
                 }
@@ -128,7 +128,7 @@ impl<M: Memory> Reader<'_, M> {
                 {
                     return Err("Invalid provincial building container".into());
                 }
-                let mut row = json!({"id":identifier,"state_id":state_id});
+                let mut row = json!({"id":identifier,"state_id":state_id,"buildings":{}});
                 let mut indices = HashSet::new();
                 for (key, (definition, ordinal)) in &definitions {
                     if *ordinal >= map_count as usize {
@@ -140,7 +140,8 @@ impl<M: Memory> Reader<'_, M> {
                             .unwrap(),
                     );
                     if index == -1 {
-                        row[key] = json!(0);
+                        if ["bunker", "coastal_bunker"].contains(&key.as_str()) { row[key] = json!(0); }
+                        row["buildings"][key] = json!(0);
                         continue;
                     }
                     if index < 0 || index >= member_count || !indices.insert(index) {
@@ -158,7 +159,8 @@ impl<M: Memory> Reader<'_, M> {
                     if !(0..=1000).contains(&level) {
                         return Err("Invalid provincial fort level".into());
                     }
-                    row[key] = json!(level);
+                    if ["bunker", "coastal_bunker"].contains(&key.as_str()) { row[key] = json!(level); }
+                    row["buildings"][key] = json!(level);
                 }
                 items.push(row);
             }

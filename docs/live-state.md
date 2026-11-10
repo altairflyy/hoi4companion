@@ -1,5 +1,32 @@
 # Qualified LiveState
 
+## Patch-tolerant executable qualification
+
+The reader no longer requires a known executable hash for every small patch.
+Known hashes retain their original verified layouts. Other PE64 builds are
+qualified once when opened using the field-bearing code signatures in
+`live-abi-v1.json`, unique primary RTTI and relocated global references.
+Only instruction displacements explicitly marked in the signatures may vary;
+field offsets and writable-global constraints must still agree. Ambiguous or
+missing core evidence rejects acquisition. Optional domains are qualified
+independently and report unavailable rather than borrowing unverified offsets.
+
+The immutable profile records structural qualification separately from a
+successful live sample. Country identity, ownership, bounds, executable bytes,
+campaign identity and repeated-read coherence checks remain mandatory. No
+version string, release date or similarity heuristic admits a layout. This
+tolerates compatible patches; an actual ABI change still requires new evidence.
+
+Country domains are independently witnessed observations for the same verified
+process, world, country and campaign. Each observed domain carries
+`observed_native_tick` and `observation_scope: verified_domain`; the enclosing
+sample declares `country_observation_scope: independently_verified_domains`.
+The reader does not claim that all counters were frozen at one simulation tick.
+Changed domains are refreshed once and withheld if their own repeated-read
+verification fails. A ticking clock or a changing production counter does not
+invalidate otherwise qualified focus/research observations. Core identity and
+ownership checks remain mandatory across the complete acquisition.
+
 The 6 November 2026 addition observes foreign diplomatic relations and operative
 assignments on the separately pinned current profile. See
 [foreign interactions](foreign-interactions-live.md) for contracts and the
