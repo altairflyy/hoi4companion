@@ -1078,91 +1078,12 @@
         "country": "TST",
         "country_overview": {
           "country": "TST",
-          "diplomacy": {
-            "status": "observed",
-            "at_war": false,
-            "interactions": {
-              "status": "observed",
-              "countries": [
-                "TST",
-                "OTH"
-              ],
-              "improving_relations": [],
-              "non_aggression_pacts": [],
-              "relations": {
-                "status": "observed",
-                "source": "native_relation_base_serializer",
-                "items": [
-                  {
-                    "id": "record",
-                    "kind": "guarantee",
-                    "from_country": "TST",
-                    "to_country": "OTH",
-                    "direction": "outgoing",
-                    "other_countries": [
-                      "OTH"
-                    ]
-                  }
-                ]
-              }
-            }
-          },
-          "politics": {
-            "status": "observed",
-            "advisors": {
-              "status": "observed",
-              "items": []
-            },
-            "characters": {
-              "status": "observed",
-              "source": "native_character_status_roles",
-              "items": [
-                {
-                  "id": "TST_commander",
-                  "country_leader": false,
-                  "advisor": false,
-                  "unit_leader": true,
-                  "scientist": false
-                },
-                {
-                  "id": "TST_scientist",
-                  "country_leader": false,
-                  "advisor": false,
-                  "unit_leader": false,
-                  "scientist": true
-                }
-              ]
-            }
-          },
           "decisions": {
             "status": "observed",
-            "listed_ids": [
-              "taken"
-            ],
-            "random_counters": [
-              {
-                "id": "random",
-                "native_random_counter": 99
-              }
-            ],
             "execution_history": {
               "status": "observed",
-              "source": "native_targeted_decision",
-              "completed_ids": [
-                "taken"
-              ]
+              "source": "native_targeted_decision"
             }
-          },
-          "states": {
-            "status": "observed",
-            "items": [
-              {
-                "id": 77,
-                "buildings": {
-                  "radar_station": 2
-                }
-              }
-            ]
           }
         }
       }
@@ -2327,6 +2248,795 @@
       "decisions.completed": {
         "status": "calculated",
         "value": []
+      }
+    }
+  },
+  {
+    "name": "targeted state available",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "decisions": {
+            "status": "observed",
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "targeted": {
+                "schema_version": 1,
+                "status": "observed",
+                "source": "native_targeted_decision_records",
+                "scope": "current_native_records",
+                "records": [
+                  {
+                    "id": "test",
+                    "instance_id": "instance",
+                    "record_kind": "targeted",
+                    "target": {
+                      "kind": "state",
+                      "id": 143
+                    },
+                    "phase": "available",
+                    "ignored": false,
+                    "days": 0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.targeted.available": {
+        "status": "calculated",
+        "value": [
+          "test:state:143"
+        ]
+      },
+      "decisions.targeted.active": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.executed": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.completed": {
+        "status": "calculated",
+        "value": []
+      }
+    }
+  },
+  {
+    "name": "targeted state completed",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "decisions": {
+            "status": "observed",
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "targeted": {
+                "schema_version": 1,
+                "status": "observed",
+                "source": "native_targeted_decision_records",
+                "scope": "current_native_records",
+                "records": [
+                  {
+                    "id": "test",
+                    "instance_id": "instance",
+                    "record_kind": "targeted",
+                    "target": {
+                      "kind": "state",
+                      "id": 143
+                    },
+                    "phase": "completed",
+                    "ignored": false,
+                    "days": 0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.targeted.available": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.active": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.executed": {
+        "status": "calculated",
+        "value": [
+          "test:state:143"
+        ]
+      },
+      "decisions.targeted.completed": {
+        "status": "calculated",
+        "value": [
+          "test:state:143"
+        ]
+      }
+    }
+  },
+  {
+    "name": "targeted state cooldown",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "decisions": {
+            "status": "observed",
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "targeted": {
+                "schema_version": 1,
+                "status": "observed",
+                "source": "native_targeted_decision_records",
+                "scope": "current_native_records",
+                "records": [
+                  {
+                    "id": "test",
+                    "instance_id": "instance",
+                    "record_kind": "targeted",
+                    "target": {
+                      "kind": "state",
+                      "id": 143
+                    },
+                    "phase": "cooldown",
+                    "ignored": false,
+                    "days": 0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.targeted.available": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.active": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.executed": {
+        "status": "calculated",
+        "value": [
+          "test:state:143"
+        ]
+      },
+      "decisions.targeted.completed": {
+        "status": "calculated",
+        "value": []
+      }
+    }
+  },
+  {
+    "name": "targeted state failed",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "decisions": {
+            "status": "observed",
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "targeted": {
+                "schema_version": 1,
+                "status": "observed",
+                "source": "native_targeted_decision_records",
+                "scope": "current_native_records",
+                "records": [
+                  {
+                    "id": "test",
+                    "instance_id": "instance",
+                    "record_kind": "targeted",
+                    "target": {
+                      "kind": "state",
+                      "id": 143
+                    },
+                    "phase": "failed",
+                    "ignored": false,
+                    "days": 0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.targeted.available": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.active": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.executed": {
+        "status": "calculated",
+        "value": [
+          "test:state:143"
+        ]
+      },
+      "decisions.targeted.completed": {
+        "status": "calculated",
+        "value": []
+      }
+    }
+  },
+  {
+    "name": "targeted state aborted",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "decisions": {
+            "status": "observed",
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "targeted": {
+                "schema_version": 1,
+                "status": "observed",
+                "source": "native_targeted_decision_records",
+                "scope": "current_native_records",
+                "records": [
+                  {
+                    "id": "test",
+                    "instance_id": "instance",
+                    "record_kind": "targeted",
+                    "target": {
+                      "kind": "state",
+                      "id": 143
+                    },
+                    "phase": "aborted",
+                    "ignored": false,
+                    "days": 0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.targeted.available": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.active": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.executed": {
+        "status": "calculated",
+        "value": [
+          "test:state:143"
+        ]
+      },
+      "decisions.targeted.completed": {
+        "status": "calculated",
+        "value": []
+      }
+    }
+  },
+  {
+    "name": "targeted timed active",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "decisions": {
+            "status": "observed",
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "targeted": {
+                "schema_version": 1,
+                "status": "observed",
+                "source": "native_targeted_decision_records",
+                "scope": "current_native_records",
+                "records": [
+                  {
+                    "id": "test",
+                    "instance_id": "instance",
+                    "record_kind": "targeted_timed",
+                    "target": {
+                      "kind": "state",
+                      "id": 143
+                    },
+                    "phase": "active",
+                    "ignored": false,
+                    "days": 0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.targeted.available": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.active": {
+        "status": "calculated",
+        "value": [
+          "test:state:143"
+        ]
+      },
+      "decisions.targeted.executed": {
+        "status": "calculated",
+        "value": [
+          "test:state:143"
+        ]
+      },
+      "decisions.targeted.completed": {
+        "status": "calculated",
+        "value": []
+      }
+    }
+  },
+  {
+    "name": "ignored available target is not an execution",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "decisions": {
+            "status": "observed",
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "targeted": {
+                "schema_version": 1,
+                "status": "observed",
+                "source": "native_targeted_decision_records",
+                "scope": "current_native_records",
+                "records": [
+                  {
+                    "id": "test",
+                    "instance_id": "instance",
+                    "record_kind": "targeted",
+                    "target": {
+                      "kind": "state",
+                      "id": 143
+                    },
+                    "phase": "available",
+                    "ignored": true,
+                    "days": 0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.targeted.available": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.active": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.executed": {
+        "status": "calculated",
+        "value": []
+      },
+      "decisions.targeted.completed": {
+        "status": "calculated",
+        "value": []
+      }
+    }
+  },
+  {
+    "name": "unqualified target never becomes a verified empty list",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "decisions": {
+            "status": "observed",
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "targeted": {
+                "schema_version": 1,
+                "status": "observed",
+                "source": "native_targeted_decision_records",
+                "scope": "current_native_records",
+                "records": [
+                  {
+                    "id": "test",
+                    "instance_id": "instance",
+                    "record_kind": "targeted",
+                    "target": {
+                      "kind": "state",
+                      "id": 0
+                    },
+                    "phase": "completed",
+                    "ignored": false,
+                    "days": 0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.targeted.available": {
+        "status": "unknown",
+        "value": null
+      },
+      "decisions.targeted.active": {
+        "status": "unknown",
+        "value": null
+      },
+      "decisions.targeted.executed": {
+        "status": "unknown",
+        "value": null
+      },
+      "decisions.targeted.completed": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "only idle staffed facilities qualify project access",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "projects": {
+            "status": "observed",
+            "facilities": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "native_facility_scientist_assignments",
+              "items": [
+                {
+                  "instance_id": "f1",
+                  "building_id": "land_facility",
+                  "scientist_id": "scientist",
+                  "busy": false
+                },
+                {
+                  "instance_id": "f2",
+                  "building_id": "air_facility",
+                  "scientist_id": null,
+                  "busy": false
+                },
+                {
+                  "instance_id": "f3",
+                  "building_id": "naval_facility",
+                  "scientist_id": "naval_scientist",
+                  "busy": true
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "projects.facilities.idle": {
+        "status": "calculated",
+        "value": [
+          "land_facility"
+        ]
+      },
+      "politics.scientists.assigned": {
+        "status": "calculated",
+        "value": [
+          "naval_scientist",
+          "scientist"
+        ]
+      }
+    }
+  },
+  {
+    "name": "duplicate scientist assignment invalidates reciprocal evidence",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "projects": {
+            "status": "observed",
+            "facilities": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "native_facility_scientist_assignments",
+              "items": [
+                {
+                  "instance_id": "f1",
+                  "building_id": "land_facility",
+                  "scientist_id": "scientist",
+                  "busy": false
+                },
+                {
+                  "instance_id": "f3",
+                  "building_id": "naval_facility",
+                  "scientist_id": "scientist",
+                  "busy": true
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "projects.facilities.idle": {
+        "status": "unknown",
+        "value": null
+      },
+      "politics.scientists.assigned": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "qualified empty facility roster is observed empty",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "projects": {
+            "status": "observed",
+            "facilities": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "native_facility_scientist_assignments",
+              "items": []
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "projects.facilities.idle": {
+        "status": "calculated",
+        "value": []
+      }
+    }
+  },
+  {
+    "name": "unavailable land recruitment does not become an observed object",
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "manpower": {
+            "status": "partial",
+            "available": 10,
+            "training": null,
+            "training_queue": {
+              "status": "unavailable",
+              "reason": "Not qualified"
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "country.manpower.training_queue": {
+        "status": "unknown",
+        "value": null
+      },
+      "country.manpower.training": {
+        "status": "unknown",
+        "value": null
+      },
+      "country.manpower.available": {
+        "status": "calculated",
+        "value": 10
+      }
+    }
+  },
+  {
+    "name": "numeric country target never becomes a string membership",
+    "input": {
+      "usable": true,
+      "sample": {
+        "session_id": "session",
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "decisions": {
+            "status": "observed",
+            "execution_history": {
+              "status": "observed",
+              "source": "native_decisions_taken_and_timed_state",
+              "history_scope": "current_native_records",
+              "targeted": {
+                "schema_version": 1,
+                "status": "observed",
+                "source": "native_targeted_decision_records",
+                "scope": "current_native_records",
+                "records": [
+                  {
+                    "id": "test",
+                    "instance_id": "instance",
+                    "record_kind": "targeted",
+                    "target": {
+                      "kind": "country",
+                      "id": 123
+                    },
+                    "phase": "completed",
+                    "ignored": false,
+                    "days": 0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "decisions.targeted.available": {
+        "status": "unknown",
+        "value": null
+      },
+      "decisions.targeted.active": {
+        "status": "unknown",
+        "value": null
+      },
+      "decisions.targeted.executed": {
+        "status": "unknown",
+        "value": null
+      },
+      "decisions.targeted.completed": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "numeric commander commander_id stays unqualified",
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "politics": {
+            "status": "partial",
+            "commander_assignments": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "native_reciprocal_commander_assignments",
+              "items": [
+                {
+                  "commander_id": 123,
+                  "role": "navy_leader",
+                  "target_kind": "fleet",
+                  "instance_id": "3d00000003000000",
+                  "name": "Fleet"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "politics.commanders.assigned": {
+        "status": "unknown",
+        "value": null
+      },
+      "politics.commander_assignments": {
+        "status": "unknown",
+        "value": null
+      }
+    }
+  },
+  {
+    "name": "numeric commander instance_id stays unqualified",
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": "TST",
+        "country_overview": {
+          "country": "TST",
+          "politics": {
+            "status": "partial",
+            "commander_assignments": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "native_reciprocal_commander_assignments",
+              "items": [
+                {
+                  "commander_id": "admiral",
+                  "role": "navy_leader",
+                  "target_kind": "fleet",
+                  "instance_id": 1000000000000000,
+                  "name": "Fleet"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "politics.commanders.assigned": {
+        "status": "unknown",
+        "value": null
+      },
+      "politics.commander_assignments": {
+        "status": "unknown",
+        "value": null
       }
     }
   }

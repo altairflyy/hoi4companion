@@ -1,6 +1,7 @@
 'use strict';
 ((root)=>{
  const uiText=typeof module!=='undefined'&&module.exports?require('./i18n.js').t:root.HoiI18n.t;
+ const contracts=typeof module!=='undefined'&&module.exports?require('./contracts.js'):root.HoiContracts;
  const sections=['divisions','manpower','experience','diplomacy','states','production','equipment','resources','politics','events','decisions'];
  function evaluate(value,enabled=true){
   const sample=enabled&&value?.usable===true?value.sample:null;
@@ -15,6 +16,9 @@
    const status=qualified&&section&&['observed','partial'].includes(section.status)?section.status:'unavailable';
    result.sections[key]=status==='unavailable'?{status,reason:sample?(section?.reason||uiText("This data is not available from the reader yet.")):null}:{...section,status};
   }
+  const equipment=result.sections.equipment;
+  const logisticsCountry=typeof sample?.country==='string'&&/^[A-Z0-9]{3}$/.test(sample.country)&&overview?.country===sample.country;
+  if(overview?.equipment?.logistics&&(!logisticsCountry||!contracts.validLogistics(equipment.logistics)))equipment.logistics={status:'unavailable',items:[],reason:uiText('National logistics formula not qualified')};
   return result;
  }
  function number(value,{integer=false,signed=false}={}){

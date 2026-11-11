@@ -73,7 +73,7 @@
     const pp=item.evidence.find(e=>e.key.includes('political_power'));
     if(row.action_readiness?.domain==='political'&&!(row.status==='unverifiable'&&pp?.status==='unknown')){
      const p=row.action_readiness.political_power;item.title=p?.affordable===false?uiText("Insufficient political power"):uiText("Next appointment or law");item.tone=p?.affordable===false?'waiting':row.availability.value===null?'unknown':'ready';item.rank=30;
-     item.message=uiText("{0}. Political power: {1}; guide-declared cost: {2}.",title(step),p?.available??uiText("unverifiable"),p?.cost??uiText("not specified"));
+     item.message=uiText("{0}. Political power: {1}; effective cost: {2}; guide threshold: {3}.",title(step),p?.available??uiText("unverifiable"),p?.effective_cost??uiText("unverifiable"),p?.guide_threshold??uiText("not specified"));
      if(row.action_readiness.unknown.length)item.message+=uiText(" Some requirements remain unverifiable.");
      if(p?.affordable===false)item.message+=uiText(" Wait for the required resources; this action stays first in the sequence.");
     }else if(row.status==='unverifiable'&&pp?.status==='unknown'){

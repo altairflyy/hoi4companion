@@ -85,6 +85,68 @@ pub(crate) fn building_scopes(rows: &Value) -> Value {
         .filter_map(|r| r["id"].as_str().map(|id| (id.to_owned(), r["location_scope"].clone())))
         .collect::<std::collections::BTreeMap<_, _>>())
 }
+/// Request only purchases actually declared by installed guides. An empty
+/// catalog country list means unknown/global applicability, not a request to
+/// price every installed idea. Native qualification still supplies the price.
+pub(crate) fn political_cost_ids<'a>(rows:&Value,guides:impl IntoIterator<Item=&'a Value>)->Value {
+    let mut catalog=std::collections::BTreeMap::<(&str,&str),Vec<&Value>>::new();
+    for row in rows.as_array().into_iter().flatten() {
+        if let (Some(kind),Some(id))=(row["kind"].as_str(),row["id"].as_str()) {
+            catalog.entry((kind,id)).or_default().push(row);
+        }
+    }
+    let mut targets=std::collections::BTreeMap::new();
+    for guide in guides {
+        let country=guide["applies_to"]["country"].as_str();
+        for step in guide["tracks"].as_object().into_iter().flat_map(|m|m.values()).flat_map(|v|v.as_array().into_iter().flatten()) {
+            let p=&step["action"]["params"];
+            let selected=[("decision","decision_id",""),("law","law_id","law_group"),("idea","idea_id","idea_group"),("advisor","advisor_id","role")].into_iter().find_map(|(kind,key,group)|p[key].as_str().map(|id|(kind,id,group)));
+            let Some((kind,id,group_key))=selected else {continue};
+            let explicit=if kind=="decision" {Some("decision")}else{p[group_key].as_str().filter(|s|!s.is_empty())};
+            let group=explicit.map(str::to_owned).or_else(|| {
+                let groups=catalog.get(&(kind,id)).into_iter().flatten().filter(|r|country.is_none_or(|tag|r["countries"].as_array().is_none_or(|a|a.is_empty()||a.contains(&json!(tag)))))
+                    .filter_map(|r|r[if kind=="advisor"{"slot"}else{"group"}].as_str()).collect::<std::collections::BTreeSet<_>>();
+                (groups.len()==1).then(||groups.into_iter().next().unwrap().to_owned())
+            });
+            let Some(group)=group else {continue}; // Unresolved role remains unknown.
+            if [id,group.as_str()].iter().any(|s|s.is_empty()||s.len()>160||!s.bytes().all(|c|c.is_ascii_alphanumeric()||b"_.-".contains(&c))) {continue;}
+            let countries=country.map(|s|vec![s]).unwrap_or_default();
+            targets.insert((country.unwrap_or("").to_owned(),group.clone(),id.to_owned()),json!({"id":id,"group":group,"countries":countries}));
+        }
+    }
+    json!(targets.into_values().collect::<Vec<_>>())
+}
+#[cfg(test)]
+mod cost_target_tests {
+    use super::*;
+    #[test]
+    fn guide_purchases_do_not_expand_to_the_entire_unscoped_catalog() {
+        let mut rows=(0..5000).map(|n|json!({"kind":"idea","id":format!("unrelated_{n}"),"group":"political_advisor","countries":[]})).collect::<Vec<_>>();
+        rows.push(json!({"kind":"idea","id":"declared_idea","group":"industrial_concern","countries":[]}));
+        let guide=json!({"applies_to":{"country":"NOR"},"tracks":{"operations":[
+            {"action":{"params":{"law_id":"free_trade","law_group":"trade_laws"}}},
+            {"action":{"params":{"idea_id":"declared_idea"}}},
+            {"action":{"params":{"advisor_id":"NOR_advisor","role":"high_command"}}},
+            {"action":{"params":{"decision_id":"NOR_decision"}}},
+            {"action":{"params":{"law_id":"free_trade","law_group":"trade_laws"}}}
+        ]}});
+        let targets=political_cost_ids(&json!(rows),[&guide]);
+        assert_eq!(targets.as_array().unwrap().len(),4);
+        assert!(targets.as_array().unwrap().iter().all(|r|r["countries"]==json!(["NOR"])));
+        assert!(targets.as_array().unwrap().contains(&json!({"id":"declared_idea","group":"industrial_concern","countries":["NOR"]})));
+        assert!(!targets.to_string().contains("unrelated_"));
+    }
+    #[test]
+    fn ambiguous_roles_remain_unrequested_and_guide_countries_remain_separate() {
+        let rows=json!([{"kind":"advisor","id":"same","slot":"high_command","countries":[]},{"kind":"advisor","id":"same","slot":"political_advisor","countries":[]}]);
+        let nor=json!({"applies_to":{"country":"NOR"},"tracks":{"operations":[{"action":{"params":{"advisor_id":"same"}}},{"action":{"params":{"decision_id":"same_decision"}}}]}});
+        let ger=json!({"applies_to":{"country":"GER"},"tracks":{"operations":[{"action":{"params":{"decision_id":"same_decision"}}}]}});
+        let targets=political_cost_ids(&rows,[&nor,&ger]);
+        assert_eq!(targets.as_array().unwrap().len(),2);
+        assert!(targets.as_array().unwrap().iter().all(|r|r["group"]=="decision"));
+        assert_eq!(targets[0]["countries"],json!(["GER"]));assert_eq!(targets[1]["countries"],json!(["NOR"]));
+    }
+}
 fn trait_names(source: &Source, ids: &[Value]) -> Vec<Value> {
     unique(ids.iter().flat_map(|id| {
         let names = source.names(id.as_str().unwrap_or(""));
@@ -148,7 +210,7 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
                             .cloned()
                             .chain(trait_names(source, &ids)),
                     );
-                    row.as_object_mut().unwrap().extend(json!({"kind":if law{"law"}else{"idea"},"id":id,"group":group_id,"traits":ids,"countries":countries(id,&path,&condition),"country_condition":condition,"aliases":aliases}).as_object().unwrap().clone());
+                    row.as_object_mut().unwrap().extend(json!({"kind":if law{"law"}else{"idea"},"id":id,"group":group_id,"traits":ids,"countries":countries(id,&path,&condition),"country_condition":condition,"aliases":aliases,"operational_criteria":crate::focus_source_rules::operational(&[definitions,node])}).as_object().unwrap().clone());
                     rows.push(row);
                 }
             }
@@ -180,10 +242,10 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
                         } else {
                             vec![node, instance, advisor]
                         };
-                        row.as_object_mut().unwrap().extend(json!({"kind":"advisor","id":token,"character_id":id,"slot":slot,"traits":ids,"countries":countries(id,&path,&Value::Null),"country_condition":recipient::political(&nodes),"aliases":aliases}).as_object().unwrap().clone());
+                        row.as_object_mut().unwrap().extend(json!({"kind":"advisor","id":token,"character_id":id,"slot":slot,"traits":ids,"countries":countries(id,&path,&Value::Null),"country_condition":recipient::political(&nodes),"aliases":aliases,"operational_criteria":crate::focus_source_rules::operational(&nodes)}).as_object().unwrap().clone());
                         rows.push(row);
                     }
-                    for role in ["corps_commander", "navy_leader"] {
+                    for role in ["field_marshal", "corps_commander", "navy_leader"] {
                         for commander in blocks(instance, role) {
                             let ids = traits(commander);
                             let mut row = source.names(label_key(instance, node, id));
@@ -273,7 +335,7 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
                 let mut row = source.names(id);
                 let targeted = ["targets", "target_array", "target_trigger", "target_root_trigger"]
                     .iter().any(|k| crate::script_document::first(node,k).is_some()) || scalar(node,"state_target") == "yes";
-                row.as_object_mut().unwrap().extend(json!({"kind":"decision","id":id,"group":category,"country_condition":condition,"targeted":targeted}).as_object().unwrap().clone());
+                row.as_object_mut().unwrap().extend(json!({"kind":"decision","id":id,"group":category,"country_condition":condition,"targeted":targeted,"operational_criteria":crate::focus_source_rules::operational(&[group,node])}).as_object().unwrap().clone());
                 rows.push(row);
             }
         }
@@ -517,6 +579,8 @@ pub fn operations(source: &mut Source) -> Result<Vec<Value>> {
                         let mut row = labels.names(key);
                         row["kind"] = json!(kind);
                         row["id"] = json!(key);
+                        let specializations=blocks(node,"specialization").flat_map(entries).filter_map(|(_,v)|v.as_str().map(str::to_owned)).collect::<Vec<_>>();
+                        if !specializations.is_empty() {row["specializations"]=json!(specializations);}
                         let caps: Vec<_> = blocks(node, "level_cap").collect();
                         let scope = if caps
                             .iter()
@@ -711,7 +775,7 @@ pub fn operations(source: &mut Source) -> Result<Vec<Value>> {
     for (_, root) in documents {
         for (key, node) in entries(&root).filter(|(_, v)| v.get("entries").is_some()) {
             let mut row = labels.names(key);
-            row.as_object_mut().unwrap().extend(json!({"kind":"project","id":key,"specialization":scalar(node,"specialization"),"resource_costs":project_costs(node)}).as_object().unwrap().clone());
+            row.as_object_mut().unwrap().extend(json!({"kind":"project","id":key,"specialization":scalar(node,"specialization"),"resource_costs":project_costs(node),"operational_criteria":crate::focus_source_rules::operational(&[node])}).as_object().unwrap().clone());
             rows.push(row);
         }
     }

@@ -449,6 +449,9 @@ pub fn project_costs(mut guide: Value, catalog: &Value) -> Result<Value> {
         if row["action"]["kind"] != "special_project" || row["tracking"] == "reminder" {
             continue;
         }
+        if let Some(params)=row["action"]["params"].as_object_mut() {
+            if let Some(previous)=params.remove("project_source_binding") {for field in ["facility_buildings","operational_criteria"] {if previous.get(field).is_some() && params.get(field)==previous.get(field) {params.remove(field);}}}
+        }
         if let Some(entries) = row["action"]["entity"]["id"]
             .as_str()
             .and_then(|id| projects.get(id))
@@ -456,6 +459,11 @@ pub fn project_costs(mut guide: Value, catalog: &Value) -> Result<Value> {
             && entries[0]["resource_costs"].is_object()
         {
             row["resource_costs"] = entries[0]["resource_costs"].clone();
+            if row["action"].get("params").is_none() {row["action"]["params"]=json!({});}
+            let specialization=&entries[0]["specialization"];
+            let buildings=catalog.as_array().unwrap().iter().filter(|b|b["kind"]=="building" && b["specializations"].as_array().is_some_and(|a|a.contains(specialization))).map(|b|b["id"].clone()).collect::<Vec<_>>();
+            if !buildings.is_empty() && row["action"]["params"].get("facility_buildings").is_none() {row["action"]["params"]["facility_buildings"]=json!(buildings);row["action"]["params"]["project_source_binding"]=json!({"facility_buildings":buildings});}
+            if entries[0]["operational_criteria"].is_object() && row["action"]["params"].get("operational_criteria").is_none() {row["action"]["params"]["operational_criteria"]=entries[0]["operational_criteria"].clone();if !row["action"]["params"]["project_source_binding"].is_object() {row["action"]["params"]["project_source_binding"]=json!({});}row["action"]["params"]["project_source_binding"]["operational_criteria"]=entries[0]["operational_criteria"].clone();}
         }
     }
     Ok(guide)

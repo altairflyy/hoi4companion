@@ -165,6 +165,12 @@ pub fn rules(node: &Value) -> Value {
     let empty = json!({"entries":[]});
     json!({"schema_version":1,"available":compile(first(node,"available").unwrap_or(&empty),0,&mut 0,&Value::Null,&Value::Null,&mut vec![]),"branch":compile(first(node,"allow_branch").unwrap_or(&empty),0,&mut 0,&Value::Null,&Value::Null,&mut vec![])})
 }
+/// Reuse the focus predicate compiler for operational definitions. Missing
+/// source constraints are not a universal eligibility proof.
+pub fn operational(nodes: &[&Value]) -> Value {
+    let parts=nodes.iter().flat_map(|node| ["allowed","available"].into_iter().filter_map(move |key| first(node,key))).map(|n|compile(n,0,&mut 0,&Value::Null,&Value::Null,&mut vec![])).collect::<Vec<_>>();
+    if parts.is_empty() { Value::Null } else { json!({"schema_version":1,"available":{"op":"all","args":parts},"branch":{"op":"const","value":true}}) }
+}
 pub fn expand(rules: &Value, scripts: &Value, dlcs: &Value) -> Value {
     fn visit(
         node: &Value,

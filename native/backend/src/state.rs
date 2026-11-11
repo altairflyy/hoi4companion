@@ -6,6 +6,12 @@ use std::collections::BTreeSet;
 mod legacy;
 #[path = "state_memberships.rs"]
 mod memberships;
+#[path = "state_decisions.rs"]
+pub(crate) mod decisions;
+#[path = "state_costs.rs"]
+mod costs;
+#[path = "state_logistics.rs"]
+mod logistics;
 fn text(v: &Value) -> &str {
     v.as_str().unwrap_or("")
 }
@@ -129,7 +135,19 @@ pub(crate) fn valid_lines(value: &Value) -> bool {
     true
 }
 pub fn valid_fact(key: &str, value: &Value) -> bool {
-    if key.starts_with("diplomacy.") || key.starts_with("intelligence.") {
+    if logistics::key(key) {return logistics::valid_fact(key,value);}
+    if key=="politics.costs" {return costs::valid(value);}
+    if key=="campaign.tick" {return integer_range(value,0,2_147_483_647);}
+    if key.starts_with("decisions.history.") || key.starts_with("decisions.targeted.history.") {
+        if let Some(token)=key.strip_prefix("decisions.history.executions_lower_bound:").or_else(||key.strip_prefix("decisions.history.completions_lower_bound:")) {
+            return hoi4companion_storage::decision_history::identity(token).is_some() && integer_range(value,1,9_007_199_254_740_991);
+        }
+        let targeted=key.starts_with("decisions.targeted.history.");
+        return ["decisions.history.executed","decisions.history.completed","decisions.targeted.history.executed","decisions.targeted.history.completed"].contains(&key)
+            && value.as_array().is_some_and(|a|a.len()<=16384 && unique(a) && a.iter().all(|v|hoi4companion_storage::decision_history::identity(text(v)).is_some_and(|(_,t)| !t.is_null()==targeted)));
+    }
+    if key.starts_with("decisions.targeted.") { return decisions::valid_fact(key, value); }
+    if key.starts_with("diplomacy.") || key.starts_with("intelligence.") || ["politics.commanders.assigned","politics.commander_assignments"].contains(&key) {
         return memberships::valid(key, value);
     }
     match key {
@@ -155,6 +173,7 @@ pub fn valid_fact(key: &str, value: &Value) -> bool {
         | "events.visible_options"
         | "decisions.listed"
         | "decisions.executed" | "decisions.active" | "decisions.completed" => strings(value, 4096, 512, true),
+        "projects.facilities.idle" | "politics.scientists.assigned" => strings(value,4096,160,true),
         "production.lines" => valid_lines(value),
         "country" | "focus.tree" => nonempty(value),
         "focus.completed"
@@ -206,6 +225,8 @@ pub fn normalize(value: &Value) -> Value {
                     data.is_null() && source == ""
                 } else {
                     !data.is_null() && nonempty(source) && valid_fact(key, data)
+                        && (key != "politics.costs" || status == "calculated" && source == "native_political_purchase_formula")
+                        && (!logistics::key(key) || status == "calculated" && source == logistics::SOURCE)
                 };
             if valid {
                 let mut f = known(data.clone(), status, text(source));

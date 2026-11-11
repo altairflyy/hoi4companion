@@ -1,0 +1,1319 @@
+[
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "free_trade",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "trade_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 110
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "trade_laws/free_trade": {
+              "base": 150,
+              "effective": 120,
+              "factor": 0.8,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "effective cost overrides a cheaper declared threshold",
+    "readiness": true,
+    "expected": {
+      "readiness": false,
+      "cost": 120,
+      "effective": 120
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 150,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "free_trade",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "trade_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 130
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "trade_laws/free_trade": {
+              "base": 150,
+              "effective": 120,
+              "factor": 0.8,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "guide threshold is retained above discounted native cost",
+    "readiness": true,
+    "expected": {
+      "readiness": false,
+      "cost": 150,
+      "effective": 120
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "free_trade",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "trade_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 130
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "trade_laws/free_trade": {
+              "base": 150,
+              "effective": 120,
+              "factor": 0.8,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "native discount makes the qualified target affordable",
+    "readiness": true,
+    "expected": {
+      "readiness": true,
+      "cost": 120,
+      "effective": 120
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "free_trade",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "trade_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 130
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {}
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "base cost alone never proves affordability",
+    "readiness": true,
+    "expected": {
+      "readiness": null,
+      "cost": 100,
+      "effective": null
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "free_trade",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "trade_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 90
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {}
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "missing native cost can still fail a guide threshold",
+    "readiness": true,
+    "expected": {
+      "readiness": false,
+      "cost": 100,
+      "effective": null
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "free_trade",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "trade_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 130
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "trade_laws/free_trade": {
+              "base": 150,
+              "effective": 0,
+              "factor": 0,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "native zero price is observed rather than substituted",
+    "readiness": true,
+    "expected": {
+      "readiness": true,
+      "cost": 0,
+      "effective": 0
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "free_trade",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "trade_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 130
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "trade_laws/free_trade": {
+              "base": 150,
+              "effective": 120,
+              "factor": 0.8,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "missing threshold uses the effective price",
+    "readiness": true,
+    "expected": {
+      "readiness": true,
+      "cost": 120,
+      "effective": 120
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "free_trade",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "trade_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 130
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "trade_laws/free_trade": {
+              "base": 150,
+              "effective": 120,
+              "factor": 0.8,
+              "currency": "army_experience"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "wrong native currency cannot become a PP price",
+    "readiness": true,
+    "expected": {
+      "readiness": null,
+      "cost": 100,
+      "effective": null
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "decision_id": "custom_decision"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 130
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {}
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "unknown decision price remains unknown despite a threshold",
+    "readiness": true,
+    "expected": {
+      "readiness": null,
+      "cost": 100,
+      "effective": null
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "free_trade",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "trade_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 130
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "catalog_base",
+          "value": {
+            "trade_laws/free_trade": {
+              "base": 150,
+              "effective": 120,
+              "factor": 0.8,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "unqualified cost source cannot prove native affordability",
+    "readiness": true,
+    "expected": {
+      "readiness": null,
+      "cost": 100,
+      "effective": null
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "free_trade",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "trade_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 90
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "catalog_base",
+          "value": {
+            "trade_laws/free_trade": {
+              "base": 150,
+              "effective": 120,
+              "factor": 0.8,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "unqualified cost source still blocks an insufficient guide threshold",
+    "readiness": true,
+    "expected": {
+      "readiness": false,
+      "cost": 100,
+      "effective": null
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "free_trade",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "trade_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 130
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "observed",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "trade_laws/free_trade": {
+              "base": 150,
+              "effective": 120,
+              "factor": 0.8,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "observed cost packet cannot impersonate the native calculation",
+    "readiness": true,
+    "expected": {
+      "readiness": null,
+      "cost": 100,
+      "effective": null
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "decision_id": "NOR_focus_on_training",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                }
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 49
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "decision/NOR_focus_on_training": {
+              "base": 50,
+              "effective": 50,
+              "factor": 1,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "qualified constant native decision cost gates political power",
+    "readiness": true,
+    "expected": {
+      "readiness": false,
+      "cost": 50,
+      "effective": 50
+    }
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "characters",
+                "advisor_id": "NOR_alfred_roscher_lund",
+                "role": "high_command",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                }
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 239
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "high_command/NOR_alfred_roscher_lund": {
+              "base": 200,
+              "effective": 240,
+              "factor": 1.2,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "qualified native advisor role price uses effective cost",
+    "readiness": true,
+    "expected": {
+      "readiness": false,
+      "cost": 240,
+      "effective": 240
+    }
+  }
+]

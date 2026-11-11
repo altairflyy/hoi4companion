@@ -128,3 +128,17 @@ fn empty_or_unqualified_sources_never_establish_completion() {
     let i = input(json!({"focus.completed":{"status":"observed","source":"","value":["A"]}}));
     assert_ne!(c.evaluate(&i).unwrap()["steps"][0]["status"], "completed");
 }
+
+#[test]
+fn prepared_logistics_balances_require_calculated_native_provenance() {
+    let key="country.equipment.logistics.items.infantry_equipment.available";
+    let condition:Condition=serde_json::from_value(json!({"op":"fact","key":key,"test":"gte","value":0})).unwrap();
+    for (status,source,expected) in [
+        ("observed","native_logistics_ui_formula",None),
+        ("calculated","stockpile_delta",None),
+        ("calculated","native_logistics_ui_formula",Some(false)),
+    ] {
+        let state=state(json!({key:{"status":status,"source":source,"value":-5}}));
+        assert_eq!(condition.evaluate(&state,&BTreeMap::new()),expected);
+    }
+}

@@ -137,6 +137,14 @@ pub(crate) fn resource_ready(v: &Value) -> bool {
                 .iter()
                 .any(|r| r == "action_requirements_unknown"))
 }
+#[test]
+fn resource_gate_rejects_unknown_declared_source_rules_and_busy_facilities() {
+    let mut v=json!({"resources_available":true,"requirements_declared":true,"unknown":["action_requirements_unknown"],"blocked":[]});
+    assert!(!resource_ready(&v));
+    v["unknown"]=json!([]);assert!(resource_ready(&v));
+    v["blocked"]=json!(["compatible_facility_unavailable"]);assert!(!resource_ready(&v));
+    v["blocked"]=json!([]);v["resources_available"]=Value::Null;assert!(!resource_ready(&v));
+}
 pub(crate) fn actions(raw: &Value, proposals: &Value, view: &Value, pass: bool) -> Vec<Value> {
     let obs = &raw["action_ui"];
     let active = text(&raw["active_panel"]);

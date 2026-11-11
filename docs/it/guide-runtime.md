@@ -199,9 +199,18 @@ dal prezzo corrente modificabile del gioco. `requirements` usa le condizioni
 v1 esistenti. Per incarichi/leggi/progetti, `action_readiness` espone costi,
 risorse, blocchi e dati sconosciuti; availability non viene confusa con successo.
 Una quantità qualificata inferiore alla soglia produce waiting. Il campo
-politico canonico è `country.politics.political_power`; il reader attuale non lo
-espone e quindi manca anziché venire ricavato dall'OCR o da un delta di spesa.
-Non vengono sintetizzati costi da valori statici di default.
+politico canonico è `country.politics.political_power`. Per le definizioni native
+di idee, leggi e incarichi ammesse, `politics.costs` conserva separatamente costo
+base e prezzo effettivo: la formula qualificata include modificatori di gruppo
+e categoria, rimozione dell'idea corrente e livelli intermedi. Per i consiglieri
+si usano il ruolo effettivo nel roster e i due modificatori della formula nativa;
+per le decisioni si ammettono soltanto costi PP nativi con valore costante e
+flag qualificati. Costi personalizzati e script dipendenti dal contesto restano
+sconosciuti. La disponibilità
+richiede il maggiore fra prezzo effettivo e soglia della guida. Un prezzo
+nativo mancante, una valuta diversa o un costo script non qualificato rimangono
+sconosciuti; la sola soglia non prova che l'acquisto sia disponibile. Nessun
+prezzo viene ricavato dall'OCR, da un delta di spesa o da un default statico.
 
 `action_sequence.political` indica la prima legge/idea/nomina ancora pendente
 nell'ordine delle liste dichiarate (tracce ordinate per ID come il runtime).

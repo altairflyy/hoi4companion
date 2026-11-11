@@ -1,0 +1,20 @@
+{
+ "guide":{"id":"history-test","dependency_policy":"explicit","tracks":{"operations":[{"key":"repeat","action":{"kind":"manual"},"completion":{"op":"fact","key":"decisions.history.executions_lower_bound:test:country:GER","test":"gte","value":2}}]}},
+ "state":{"schema_version":1,"usable":true,"session_id":"s","facts":{"campaign.id":{"status":"observed","source":"native_game_unique_id_and_seed","value":"hoi4:11111111-1111-1111-1111-111111111111:12345678"},"country":{"status":"observed","source":"process_memory","value":"NOR"},"campaign.tick":{"status":"observed","source":"native_game_tick","value":100},"decisions.targeted.executed":{"status":"calculated","source":"native_targeted_decision_adapter","value":[]}}},
+ "progress":{"schema_version":1,"guide_id":"history-test","run_id":"r","session_id":"s","campaign_id":"hoi4:11111111-1111-1111-1111-111111111111:12345678","country":"NOR","checks":{},"decision_history":{"schema_version":1,"campaign_id":"hoi4:11111111-1111-1111-1111-111111111111:12345678","country":"NOR","session_id":"s","first_tick":50,"last_tick":99,"coverage":{"scope":"qualified_samples_only","pre_observation_history":"unknown","gaps_observed":false},"entries":{"test:country:GER":{"id":"test","target":{"kind":"country","id":"GER"},"executions_lower_bound":2,"completions_lower_bound":1,"first_tick":50,"last_tick":99,"phase":"active","phase_tick":99,"phase_session":"s","armed":false,"completion_pending":true}}}},
+ "cases":[
+  {"name":"observed repeated lower bound survives current disappearance","executions":2,"completed":true},
+  {"name":"one observed execution does not satisfy two","executions":1,"completed":false},
+  {"name":"future historical evidence is rejected","tick":98,"completed":false},
+  {"name":"missing qualified tick is rejected","missing_tick":true,"completed":false},
+  {"name":"unqualified tick source is rejected","tick_source":"fixture","completed":false},
+  {"name":"other country history is isolated","history_country":"GER","completed":false},
+  {"name":"other session history is isolated","history_session":"old","completed":false},
+  {"name":"unseen decision counter remains unknown","empty":true,"completed":false},
+  {"name":"guide switch reuses campaign history","guide_id":"another-guide","completed":true}
+ ],
+ "invalid_histories":[
+  {"name":"numeric country target is not a native tag","token":"test:country:123","id":"test","target":{"kind":"country","id":123}},
+  {"name":"numeric ordinary decision ID is not a token","token":"123","id":123,"target":null}
+ ]
+}

@@ -2343,5 +2343,988 @@
       }
     },
     "valid": false
+  },
+  {
+    "name": "deep bounded source predicates survive action parameter validation",
+    "valid": true,
+    "guide": {
+      "tracks": {
+        "focus": [
+          {
+            "kind": "gate",
+            "key": "focus-1",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "not",
+                    "arg": {
+                      "op": "not",
+                      "arg": {
+                        "op": "not",
+                        "arg": {
+                          "op": "not",
+                          "arg": {
+                            "op": "not",
+                            "arg": {
+                              "op": "not",
+                              "arg": {
+                                "op": "not",
+                                "arg": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "not",
+                                    "arg": {
+                                      "op": "not",
+                                      "arg": {
+                                        "op": "not",
+                                        "arg": {
+                                          "op": "not",
+                                          "arg": {
+                                            "op": "const",
+                                            "value": true
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "political_binding": {
+                  "source_criteria": {
+                    "schema_version": 1,
+                    "available": {
+                      "op": "not",
+                      "arg": {
+                        "op": "not",
+                        "arg": {
+                          "op": "not",
+                          "arg": {
+                            "op": "not",
+                            "arg": {
+                              "op": "not",
+                              "arg": {
+                                "op": "not",
+                                "arg": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "not",
+                                    "arg": {
+                                      "op": "not",
+                                      "arg": {
+                                        "op": "not",
+                                        "arg": {
+                                          "op": "not",
+                                          "arg": {
+                                            "op": "not",
+                                            "arg": {
+                                              "op": "const",
+                                              "value": true
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "branch": {
+                      "op": "const",
+                      "value": true
+                    }
+                  },
+                  "explicit_source_criteria": {
+                    "schema_version": 1,
+                    "available": {
+                      "op": "not",
+                      "arg": {
+                        "op": "not",
+                        "arg": {
+                          "op": "not",
+                          "arg": {
+                            "op": "not",
+                            "arg": {
+                              "op": "not",
+                              "arg": {
+                                "op": "not",
+                                "arg": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "not",
+                                    "arg": {
+                                      "op": "not",
+                                      "arg": {
+                                        "op": "not",
+                                        "arg": {
+                                          "op": "not",
+                                          "arg": {
+                                            "op": "not",
+                                            "arg": {
+                                              "op": "const",
+                                              "value": true
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "branch": {
+                      "op": "const",
+                      "value": true
+                    }
+                  }
+                },
+                "project_source_binding": {
+                  "operational_criteria": {
+                    "schema_version": 1,
+                    "available": {
+                      "op": "not",
+                      "arg": {
+                        "op": "not",
+                        "arg": {
+                          "op": "not",
+                          "arg": {
+                            "op": "not",
+                            "arg": {
+                              "op": "not",
+                              "arg": {
+                                "op": "not",
+                                "arg": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "not",
+                                    "arg": {
+                                      "op": "not",
+                                      "arg": {
+                                        "op": "not",
+                                        "arg": {
+                                          "op": "not",
+                                          "arg": {
+                                            "op": "not",
+                                            "arg": {
+                                              "op": "const",
+                                              "value": true
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "branch": {
+                      "op": "const",
+                      "value": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "schema_version": 1,
+      "applies_to": {},
+      "milestones": [],
+      "assumptions": [],
+      "title": "Guida",
+      "subtitle": ""
+    },
+    "normalized": {
+      "tracks": {
+        "focus": [
+          {
+            "kind": "gate",
+            "key": "focus-1",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "not",
+                    "arg": {
+                      "op": "not",
+                      "arg": {
+                        "op": "not",
+                        "arg": {
+                          "op": "not",
+                          "arg": {
+                            "op": "not",
+                            "arg": {
+                              "op": "not",
+                              "arg": {
+                                "op": "not",
+                                "arg": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "not",
+                                    "arg": {
+                                      "op": "not",
+                                      "arg": {
+                                        "op": "not",
+                                        "arg": {
+                                          "op": "not",
+                                          "arg": {
+                                            "op": "const",
+                                            "value": true
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "political_binding": {
+                  "source_criteria": {
+                    "schema_version": 1,
+                    "available": {
+                      "op": "not",
+                      "arg": {
+                        "op": "not",
+                        "arg": {
+                          "op": "not",
+                          "arg": {
+                            "op": "not",
+                            "arg": {
+                              "op": "not",
+                              "arg": {
+                                "op": "not",
+                                "arg": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "not",
+                                    "arg": {
+                                      "op": "not",
+                                      "arg": {
+                                        "op": "not",
+                                        "arg": {
+                                          "op": "not",
+                                          "arg": {
+                                            "op": "not",
+                                            "arg": {
+                                              "op": "const",
+                                              "value": true
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "branch": {
+                      "op": "const",
+                      "value": true
+                    }
+                  },
+                  "explicit_source_criteria": {
+                    "schema_version": 1,
+                    "available": {
+                      "op": "not",
+                      "arg": {
+                        "op": "not",
+                        "arg": {
+                          "op": "not",
+                          "arg": {
+                            "op": "not",
+                            "arg": {
+                              "op": "not",
+                              "arg": {
+                                "op": "not",
+                                "arg": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "not",
+                                    "arg": {
+                                      "op": "not",
+                                      "arg": {
+                                        "op": "not",
+                                        "arg": {
+                                          "op": "not",
+                                          "arg": {
+                                            "op": "not",
+                                            "arg": {
+                                              "op": "const",
+                                              "value": true
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "branch": {
+                      "op": "const",
+                      "value": true
+                    }
+                  }
+                },
+                "project_source_binding": {
+                  "operational_criteria": {
+                    "schema_version": 1,
+                    "available": {
+                      "op": "not",
+                      "arg": {
+                        "op": "not",
+                        "arg": {
+                          "op": "not",
+                          "arg": {
+                            "op": "not",
+                            "arg": {
+                              "op": "not",
+                              "arg": {
+                                "op": "not",
+                                "arg": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "not",
+                                    "arg": {
+                                      "op": "not",
+                                      "arg": {
+                                        "op": "not",
+                                        "arg": {
+                                          "op": "not",
+                                          "arg": {
+                                            "op": "not",
+                                            "arg": {
+                                              "op": "const",
+                                              "value": true
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "branch": {
+                      "op": "const",
+                      "value": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "schema_version": 1,
+      "applies_to": {},
+      "milestones": [],
+      "assumptions": [],
+      "title": "Guida",
+      "subtitle": ""
+    }
+  },
+  {
+    "name": "source predicate depth limit is not bypassed by metadata field name",
+    "valid": false,
+    "guide": {
+      "tracks": {
+        "focus": [
+          {
+            "kind": "gate",
+            "key": "focus-1",
+            "action": {
+              "kind": "manual",
+              "params": {
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "not",
+                    "arg": {
+                      "op": "not",
+                      "arg": {
+                        "op": "not",
+                        "arg": {
+                          "op": "not",
+                          "arg": {
+                            "op": "not",
+                            "arg": {
+                              "op": "not",
+                              "arg": {
+                                "op": "not",
+                                "arg": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "not",
+                                    "arg": {
+                                      "op": "not",
+                                      "arg": {
+                                        "op": "not",
+                                        "arg": {
+                                          "op": "not",
+                                          "arg": {
+                                            "op": "not",
+                                            "arg": {
+                                              "op": "not",
+                                              "arg": {
+                                                "op": "not",
+                                                "arg": {
+                                                  "op": "not",
+                                                  "arg": {
+                                                    "op": "not",
+                                                    "arg": {
+                                                      "op": "not",
+                                                      "arg": {
+                                                        "op": "not",
+                                                        "arg": {
+                                                          "op": "not",
+                                                          "arg": {
+                                                            "op": "not",
+                                                            "arg": {
+                                                              "op": "not",
+                                                              "arg": {
+                                                                "op": "not",
+                                                                "arg": {
+                                                                  "op": "not",
+                                                                  "arg": {
+                                                                    "op": "not",
+                                                                    "arg": {
+                                                                      "op": "not",
+                                                                      "arg": {
+                                                                        "op": "not",
+                                                                        "arg": {
+                                                                          "op": "not",
+                                                                          "arg": {
+                                                                            "op": "not",
+                                                                            "arg": {
+                                                                              "op": "not",
+                                                                              "arg": {
+                                                                                "op": "not",
+                                                                                "arg": {
+                                                                                  "op": "not",
+                                                                                  "arg": {
+                                                                                    "op": "not",
+                                                                                    "arg": {
+                                                                                      "op": "not",
+                                                                                      "arg": {
+                                                                                        "op": "not",
+                                                                                        "arg": {
+                                                                                          "op": "not",
+                                                                                          "arg": {
+                                                                                            "op": "not",
+                                                                                            "arg": {
+                                                                                              "op": "not",
+                                                                                              "arg": {
+                                                                                                "op": "not",
+                                                                                                "arg": {
+                                                                                                  "op": "not",
+                                                                                                  "arg": {
+                                                                                                    "op": "const",
+                                                                                                    "value": true
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "political_binding": {
+                  "source_criteria": {
+                    "schema_version": 1,
+                    "available": {
+                      "op": "not",
+                      "arg": {
+                        "op": "not",
+                        "arg": {
+                          "op": "not",
+                          "arg": {
+                            "op": "not",
+                            "arg": {
+                              "op": "not",
+                              "arg": {
+                                "op": "not",
+                                "arg": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "not",
+                                    "arg": {
+                                      "op": "not",
+                                      "arg": {
+                                        "op": "not",
+                                        "arg": {
+                                          "op": "not",
+                                          "arg": {
+                                            "op": "not",
+                                            "arg": {
+                                              "op": "not",
+                                              "arg": {
+                                                "op": "not",
+                                                "arg": {
+                                                  "op": "not",
+                                                  "arg": {
+                                                    "op": "not",
+                                                    "arg": {
+                                                      "op": "not",
+                                                      "arg": {
+                                                        "op": "not",
+                                                        "arg": {
+                                                          "op": "not",
+                                                          "arg": {
+                                                            "op": "not",
+                                                            "arg": {
+                                                              "op": "not",
+                                                              "arg": {
+                                                                "op": "not",
+                                                                "arg": {
+                                                                  "op": "not",
+                                                                  "arg": {
+                                                                    "op": "not",
+                                                                    "arg": {
+                                                                      "op": "not",
+                                                                      "arg": {
+                                                                        "op": "not",
+                                                                        "arg": {
+                                                                          "op": "not",
+                                                                          "arg": {
+                                                                            "op": "not",
+                                                                            "arg": {
+                                                                              "op": "not",
+                                                                              "arg": {
+                                                                                "op": "not",
+                                                                                "arg": {
+                                                                                  "op": "not",
+                                                                                  "arg": {
+                                                                                    "op": "not",
+                                                                                    "arg": {
+                                                                                      "op": "not",
+                                                                                      "arg": {
+                                                                                        "op": "not",
+                                                                                        "arg": {
+                                                                                          "op": "not",
+                                                                                          "arg": {
+                                                                                            "op": "not",
+                                                                                            "arg": {
+                                                                                              "op": "not",
+                                                                                              "arg": {
+                                                                                                "op": "not",
+                                                                                                "arg": {
+                                                                                                  "op": "not",
+                                                                                                  "arg": {
+                                                                                                    "op": "not",
+                                                                                                    "arg": {
+                                                                                                      "op": "const",
+                                                                                                      "value": true
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "branch": {
+                      "op": "const",
+                      "value": true
+                    }
+                  },
+                  "explicit_source_criteria": {
+                    "schema_version": 1,
+                    "available": {
+                      "op": "not",
+                      "arg": {
+                        "op": "not",
+                        "arg": {
+                          "op": "not",
+                          "arg": {
+                            "op": "not",
+                            "arg": {
+                              "op": "not",
+                              "arg": {
+                                "op": "not",
+                                "arg": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "not",
+                                    "arg": {
+                                      "op": "not",
+                                      "arg": {
+                                        "op": "not",
+                                        "arg": {
+                                          "op": "not",
+                                          "arg": {
+                                            "op": "not",
+                                            "arg": {
+                                              "op": "not",
+                                              "arg": {
+                                                "op": "not",
+                                                "arg": {
+                                                  "op": "not",
+                                                  "arg": {
+                                                    "op": "not",
+                                                    "arg": {
+                                                      "op": "not",
+                                                      "arg": {
+                                                        "op": "not",
+                                                        "arg": {
+                                                          "op": "not",
+                                                          "arg": {
+                                                            "op": "not",
+                                                            "arg": {
+                                                              "op": "not",
+                                                              "arg": {
+                                                                "op": "not",
+                                                                "arg": {
+                                                                  "op": "not",
+                                                                  "arg": {
+                                                                    "op": "not",
+                                                                    "arg": {
+                                                                      "op": "not",
+                                                                      "arg": {
+                                                                        "op": "not",
+                                                                        "arg": {
+                                                                          "op": "not",
+                                                                          "arg": {
+                                                                            "op": "not",
+                                                                            "arg": {
+                                                                              "op": "not",
+                                                                              "arg": {
+                                                                                "op": "not",
+                                                                                "arg": {
+                                                                                  "op": "not",
+                                                                                  "arg": {
+                                                                                    "op": "not",
+                                                                                    "arg": {
+                                                                                      "op": "not",
+                                                                                      "arg": {
+                                                                                        "op": "not",
+                                                                                        "arg": {
+                                                                                          "op": "not",
+                                                                                          "arg": {
+                                                                                            "op": "not",
+                                                                                            "arg": {
+                                                                                              "op": "not",
+                                                                                              "arg": {
+                                                                                                "op": "not",
+                                                                                                "arg": {
+                                                                                                  "op": "not",
+                                                                                                  "arg": {
+                                                                                                    "op": "not",
+                                                                                                    "arg": {
+                                                                                                      "op": "const",
+                                                                                                      "value": true
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "branch": {
+                      "op": "const",
+                      "value": true
+                    }
+                  }
+                },
+                "project_source_binding": {
+                  "operational_criteria": {
+                    "schema_version": 1,
+                    "available": {
+                      "op": "not",
+                      "arg": {
+                        "op": "not",
+                        "arg": {
+                          "op": "not",
+                          "arg": {
+                            "op": "not",
+                            "arg": {
+                              "op": "not",
+                              "arg": {
+                                "op": "not",
+                                "arg": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "not",
+                                    "arg": {
+                                      "op": "not",
+                                      "arg": {
+                                        "op": "not",
+                                        "arg": {
+                                          "op": "not",
+                                          "arg": {
+                                            "op": "not",
+                                            "arg": {
+                                              "op": "not",
+                                              "arg": {
+                                                "op": "not",
+                                                "arg": {
+                                                  "op": "not",
+                                                  "arg": {
+                                                    "op": "not",
+                                                    "arg": {
+                                                      "op": "not",
+                                                      "arg": {
+                                                        "op": "not",
+                                                        "arg": {
+                                                          "op": "not",
+                                                          "arg": {
+                                                            "op": "not",
+                                                            "arg": {
+                                                              "op": "not",
+                                                              "arg": {
+                                                                "op": "not",
+                                                                "arg": {
+                                                                  "op": "not",
+                                                                  "arg": {
+                                                                    "op": "not",
+                                                                    "arg": {
+                                                                      "op": "not",
+                                                                      "arg": {
+                                                                        "op": "not",
+                                                                        "arg": {
+                                                                          "op": "not",
+                                                                          "arg": {
+                                                                            "op": "not",
+                                                                            "arg": {
+                                                                              "op": "not",
+                                                                              "arg": {
+                                                                                "op": "not",
+                                                                                "arg": {
+                                                                                  "op": "not",
+                                                                                  "arg": {
+                                                                                    "op": "not",
+                                                                                    "arg": {
+                                                                                      "op": "not",
+                                                                                      "arg": {
+                                                                                        "op": "not",
+                                                                                        "arg": {
+                                                                                          "op": "not",
+                                                                                          "arg": {
+                                                                                            "op": "not",
+                                                                                            "arg": {
+                                                                                              "op": "not",
+                                                                                              "arg": {
+                                                                                                "op": "not",
+                                                                                                "arg": {
+                                                                                                  "op": "not",
+                                                                                                  "arg": {
+                                                                                                    "op": "not",
+                                                                                                    "arg": {
+                                                                                                      "op": "const",
+                                                                                                      "value": true
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "branch": {
+                      "op": "const",
+                      "value": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "schema_version": 1,
+      "applies_to": {},
+      "milestones": [],
+      "assumptions": [],
+      "title": "Guida",
+      "subtitle": ""
+    }
   }
 ]

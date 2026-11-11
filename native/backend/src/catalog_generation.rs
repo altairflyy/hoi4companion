@@ -240,6 +240,7 @@ impl Catalog {
         let mut focus_visuals = json!({});
         let mut assets = None;
         let mut dlcs = dlcs;
+        let mut operation_entities = operation_entities;
         let mut scripted_names = scripted_names;
         if !demo {
             let continuous_files = files(
@@ -290,6 +291,9 @@ impl Catalog {
                             focus_source_rules::expand(&focus["criteria"], &scripts, &dlcs);
                     }
                 }
+            }
+            for row in operation_entities.as_array_mut().into_iter().flatten() {
+                if row["operational_criteria"].is_object() { row["operational_criteria"] = focus_source_rules::expand(&row["operational_criteria"], &scripts, &dlcs); }
             }
             let tech_files = files(&game, &mods, "common/technologies", ".txt", &mut warnings)?;
             let tag_files = files(

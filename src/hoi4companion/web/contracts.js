@@ -2,13 +2,50 @@
 ((root)=>{
  const uiText=typeof module!=='undefined'&&module.exports?require('./i18n.js').t:root.HoiI18n.t;
  const designMatching=typeof module!=='undefined'&&module.exports?require('./design-matching.js'):root.HoiDesignMatching;
+ const decisionFields=['available','active','executed','completed'];
+ function decisionToken(id,target){if(typeof id!=='string'||!/^[A-Za-z0-9_.-]{1,160}$/.test(id))return null;if(target?.kind==='country'&&typeof target.id==='string'&&/^[A-Z0-9]{3}$/.test(target.id))return id+':country:'+target.id;if(target?.kind==='state'&&Number.isSafeInteger(target.id)&&target.id>=1&&target.id<=4095)return id+':state:'+target.id;return null;}
+ function validDecisionFact(key,value){return decisionFields.some(f=>key==='decisions.targeted.'+f)&&Array.isArray(value)&&value.length<=8192&&new Set(value).size===value.length&&value.every(v=>{if(typeof v!=='string')return false;const p=v.split(':');return p.length===3&&decisionToken(p[0],{kind:p[1],id:p[1]==='state'?Number(p[2]):p[2]})===v;});}
+ function targetedDecisionFacts(history){const out=Object.fromEntries(decisionFields.map(f=>['decisions.targeted.'+f,unknown('Targeted decision records not qualified')])),t=history?.targeted,rows=t?.records;if(history?.status!=='observed'||history.source!=='native_decisions_taken_and_timed_state'||t?.schema_version!==1||t.status!=='observed'||t.source!=='native_targeted_decision_records'||t.scope!=='current_native_records'||!Array.isArray(rows)||rows.length>8192)return out;const seen=new Set();if(!rows.every(r=>{const ok=decisionToken(r.id,r.target)&&typeof r.instance_id==='string'&&/^[A-Za-z0-9_.-]{1,160}$/.test(r.instance_id)&&!seen.has(r.instance_id)&&['targeted','targeted_timed'].includes(r.record_kind)&&typeof r.ignored==='boolean'&&['available','active','completed','cooldown','failed','aborted'].includes(r.phase)&&(r.phase!=='active'||r.record_kind==='targeted_timed')&&(r.phase!=='available'||r.record_kind==='targeted');seen.add(r.instance_id);return ok;}))return out;for(const f of decisionFields)out['decisions.targeted.'+f]=known([...new Set(rows.filter(r=>!r.ignored&&(f==='executed'?r.phase!=='available':r.phase===f)).map(r=>decisionToken(r.id,r.target)))].sort(),'native_targeted_decision_adapter',true);return out;}
  const VERSION=1;
  const relationKinds=['war','licence_production_access','embargo','military_access','offer_military_access','improve_relations','attache','boost_party_popularity','guarantee','non_aggression_pact','lend_lease','subject','air_base_access','offer_air_base_access','docking_rights','offer_docking_rights','naval_blockade','market_access_rights'];
  const experienceCurrencies=Object.freeze({army_experience:'country.experience.army',navy_experience:'country.experience.navy',air_experience:'country.experience.air'});
  const spiritCurrencies=Object.freeze(Object.fromEntries([['army_experience',['academy_spirit','army_spirit','division_command_spirit']],['navy_experience',['naval_academy_spirit','navy_spirit','naval_command_spirit']],['air_experience',['air_force_spirit','air_force_command_spirit','air_force_academy_spirit']]].flatMap(([currency,groups])=>groups.map(group=>[group,currency]))));
  const unknown=(reason="Campo non osservato")=>({status:'unknown',value:null,source:'',reason});
  const known=(value,source='process_memory',calculated=false)=>value===null||value===undefined?unknown():({status:calculated?'calculated':'observed',value,source});
+ const commanderKinds={field_marshal:'army_group',corps_commander:'army',navy_leader:'fleet'};
+ function validCommanderFact(key,value){return Array.isArray(value)&&value.length<=4096&&new Set(value).size===value.length&&value.every(v=>{if(typeof v!=='string')return false;const p=v.split(':');return p.length===(key==='politics.commanders.assigned'?2:4)&&Object.hasOwn(commanderKinds,p[0])&&/^[A-Za-z0-9_.-]{1,160}$/.test(p[1])&&(p.length===2||p[2]===commanderKinds[p[0]]&&/^[a-f0-9]{16}$/.test(p[3]));});}
+ function validPoliticalCosts(value){return value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length<=4096&&Object.entries(value).every(([key,row])=>/^[A-Za-z0-9_.-]{1,160}\/[A-Za-z0-9_.-]{1,160}$/.test(key)&&row&&typeof row==='object'&&!Array.isArray(row)&&row.currency==='political_power'&&['base','effective','factor'].every(k=>typeof row[k]==='number'&&Number.isFinite(row[k])&&row[k]>=0&&row[k]<=1000000));}
+ function politicalCosts(costs){
+  if(costs?.schema_version!==1||costs.scope!=='qualified_native_purchase_targets'||!['observed','partial'].includes(costs.status)||costs.source!=='native_political_purchase_formula'||!Array.isArray(costs.rows)||costs.rows.length>4096)return unknown('Native political costs unavailable');
+  const values={},seen=new Set();for(const row of costs.rows){if(![row?.id,row?.group].every(s=>typeof s==='string'&&/^[A-Za-z0-9_.-]{1,160}$/.test(s)))return unknown('Invalid political cost identity');const key=`${row.group}/${row.id}`;if(seen.has(key))return unknown('Duplicate political cost identity');seen.add(key);if(row.status==='unknown'){if(typeof row.reason!=='string'||!row.reason||row.reason.length>512||/[\x00-\x1f\x7f-\x9f]/.test(row.reason))return unknown('Invalid political cost reason');continue;}if(row.status!=='calculated')return unknown('Invalid political cost status');values[key]={base:row.base,effective:row.effective,factor:row.factor,currency:row.currency};}
+  return validPoliticalCosts(values)?known(values,'native_political_purchase_formula',true):unknown('Invalid native political costs');
+ }
+ function logisticsKey(key){return key==='equipment.logistics'||key.startsWith('country.equipment.logistics.');}
+ function validLogisticsFact(key,value){if(key==='equipment.logistics')return validLogistics(value);const m=/^country\.equipment\.logistics\.items\.([A-Za-z0-9_.-]{1,160})\.(gross_stockpile|logistics_stockpile|needed|available|balance_per_day)$/.exec(key);return !!m&&typeof value==='number'&&Number.isFinite(value)&&Math.abs(value)<=922337202&&(!['gross_stockpile','logistics_stockpile'].includes(m[2])||value>=0);}
+ function validLogistics(v){
+  if(v?.schema_version!==1||!['observed','partial'].includes(v.status)||v.source!=='native_logistics_ui_formula'||v.aggregation!=='equipment_archetype'||!Number.isSafeInteger(v.interval_days)||v.interval_days<1||v.interval_days>30||!Array.isArray(v.items)||v.items.length>4096)return false;
+  const seen=new Set();return v.items.every(r=>{
+   if(!r||typeof r.id!=='string'||!/^[A-Za-z0-9_.-]{1,160}$/.test(r.id)||seen.has(r.id)||r.aggregation!=='equipment_archetype'||!['observed','partial'].includes(r.status)||!Object.hasOwn(r,'reason')||r.reason!==null&&typeof r.reason!=='string')return false;seen.add(r.id);
+   if(!['gross_stockpile','logistics_stockpile','needed','available','balance_per_day'].every(f=>Object.hasOwn(r,f)&&(f!=='gross_stockpile'&&r[f]===null||validLogisticsFact('country.equipment.logistics.items.'+r.id+'.'+f,r[f]))))return false;
+   if((r.needed===null||r.logistics_stockpile===null)!==(r.available===null))return false;
+   if(r.needed!==null&&r.logistics_stockpile!==null&&Math.abs(r.available-Math.max(-922337202,Math.min(922337202,r.logistics_stockpile-r.needed)))>.000011)return false;
+   return r.status!=='observed'||['logistics_stockpile','needed','available','balance_per_day'].every(f=>r[f]!==null);
+  });
+ }
+ function logisticsFacts(overview){const v=overview?.equipment?.logistics,out={'equipment.logistics':unknown('National logistics formula not qualified')};if(!['observed','partial'].includes(overview?.equipment?.status)||!validLogistics(v))return out;out['equipment.logistics']=known(v,'native_logistics_ui_formula',true);for(const r of v.items)for(const field of ['gross_stockpile','logistics_stockpile','needed','available','balance_per_day'])out['country.equipment.logistics.items.'+r.id+'.'+field]=r[field]===null?unknown('Native logistics component unavailable'):known(r[field],'native_logistics_ui_formula',true);return out;}
  function validType(key,value){
+  if(logisticsKey(key))return validLogisticsFact(key,value);
+  if(key==='politics.costs')return validPoliticalCosts(value);
+  if(['politics.commanders.assigned','politics.commander_assignments'].includes(key))return validCommanderFact(key,value);
+  if(key==='campaign.tick')return Number.isSafeInteger(value)&&value>=0&&value<=2147483647;
+  if(key.startsWith('decisions.history.')||key.startsWith('decisions.targeted.history.')){
+   const identity=t=>{if(typeof t!=='string')return false;const p=t.split(':');return p.length===1?/^[A-Za-z0-9_.-]{1,160}$/.test(t):p.length===3&&decisionToken(p[0],{kind:p[1],id:p[1]==='state'?Number(p[2]):p[2]})===t;};
+   const prefix=['decisions.history.executions_lower_bound:','decisions.history.completions_lower_bound:'].find(p=>key.startsWith(p));
+   if(prefix)return identity(key.slice(prefix.length))&&Number.isSafeInteger(value)&&value>=1;
+   return ['decisions.history.executed','decisions.history.completed','decisions.targeted.history.executed','decisions.targeted.history.completed'].includes(key)&&Array.isArray(value)&&value.length<=16384&&new Set(value).size===value.length&&value.every(t=>identity(t)&&t.includes(':')===key.startsWith('decisions.targeted.history.'));
+  }
+  if(['projects.facilities.idle','politics.scientists.assigned'].includes(key))return Array.isArray(value)&&value.length<=4096&&new Set(value).size===value.length&&value.every(v=>typeof v==='string'&&/^[A-Za-z0-9_.-]{1,160}$/.test(v));
+  if(key.startsWith('decisions.targeted.'))return validDecisionFact(key,value);
   if(['diplomacy.outgoing','diplomacy.incoming'].includes(key))return Array.isArray(value)&&value.length<=8192&&new Set(value).size===value.length&&value.every(v=>typeof v==='string'&&v.split(':').length===2&&relationKinds.includes(v.split(':')[0])&&/^[A-Z0-9]{3}$/.test(v.split(':')[1]));
   if(['diplomacy.countries','diplomacy.improving_relations','diplomacy.non_aggression_pacts','intelligence.countries'].includes(key))return validForeignTags(value);
   if(key==='intelligence.active_missions')return Array.isArray(value)&&value.length<=4096&&value.every(x=>typeof x==='string'&&foreignMissions.slice(1).includes(x.split(':')[0])&&/^[A-Z0-9]{3}$/.test(x.split(':').slice(1).join(':')))&&new Set(value).size===value.length;
@@ -61,6 +98,7 @@
   const source=value?.source||'process_memory',f={};
     f.country=known(s.country,source);f['focus.tree']=known(s.focus_tree_id,'legacy_adapter',true);
     if(s.country_identity_validation==='primary_selector_and_country_map'&&typeof s.session_id==='string'&&s.session_id&&typeof s.executable_sha256==='string'&&/^[0-9a-f]{64}$/.test(s.executable_sha256)&&Number.isInteger(s.native_tick)&&s.native_tick>=0&&s.native_tick<=2147483647){
+     f['campaign.tick']=known(s.native_tick,'native_game_tick');
      const days=Math.floor(s.native_tick/24),year=Math.floor(days/365)-5000;let day=days%365;
      if(year>=1&&year<=9999)for(const [i,length]of [31,28,31,30,31,30,31,31,30,31,30,31].entries()){
       if(day<length){f['campaign.date']=known(year*10000+(i+1)*100+day+1,'paradox_calendar_adapter',true);break;}day-=length;
@@ -82,13 +120,14 @@
   const points=projects?.breakthroughs?.items;
   if(Boolean(s.country)&&overview.country===s.country&&projects?.breakthroughs?.status==='observed'&&Array.isArray(points)&&points.length<=64&&points.every(row=>row&&typeof row.id==='string'&&row.id&&Number.isInteger(row.available)&&row.available>=0&&row.available<=100000)&&new Set(points.map(row=>row.id)).size===points.length)for(const row of points)f['projects.points.'+row.id]=known(row.available,'breakthrough_points_adapter',true);
   const power=overview.politics?.power;
+  f['politics.costs']=Boolean(s.country)&&overview.country===s.country?politicalCosts(overview.politics?.costs):unknown('Political cost country mismatch');
   f['country.politics.political_power']=Boolean(s.country)&&overview.country===s.country&&power?.status==='observed'&&typeof power.available==='number'&&Number.isFinite(power.available)?known(power.available,source):unknown("Potere politico non qualificato");
   const production=overview.production,productionKnown=typeof s.country==='string'&&s.country&&overview.country===s.country&&production?.status==='observed'&&validProductionLines(production.lines);
   f['production.lines']=productionKnown?known(production.lines.map(row=>({...row})),'production_adapter',true):unknown("Linee di produzione non qualificate");
   Object.assign(f,politicalFacts(typeof s.country==='string'&&s.country&&overview.country===s.country?overview:{}));
   function put(path,data,present,calculated){f[path]=present?known(data,calculated?'legacy_adapter':source,calculated):unknown();}
   function flatten(path,data,present,calculated=false){
-   if(['country.diplomacy.interactions','country.intelligence.missions'].includes(path))return;
+   if(['country.diplomacy.interactions','country.intelligence.missions','country.equipment.logistics'].includes(path))return;
    if(Array.isArray(data)){put(path+'.count',data.length,present,true);data.forEach((child,i)=>flatten(path+'.'+(child&&typeof child==='object'?child.id??String(i):String(i)),child,present,calculated));}
    else if(data&&typeof data==='object'){present=present&&(!Object.hasOwn(data,'status')||['observed','partial'].includes(data.status));for(const [key,child]of Object.entries(data))if(!['status','reason'].includes(key))flatten(path+'.'+key,child,present,calculated||derived.has(key));}
    else put(path,data,present,calculated||(path.startsWith('country.equipment.items.')&&path.endsWith('.stockpile'))||(path.startsWith('country.production.lines.')&&path.endsWith('.id'))||(path.startsWith('country.construction.lines.')&&['position','location_status','state_name'].includes(path.split('.').at(-1))));
@@ -96,7 +135,7 @@
   const buildingLevels=value=>value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length<=512&&Object.entries(value).every(([key,level])=>/^[A-Za-z0-9_]+$/.test(key)&&Number.isSafeInteger(level)&&level>=0&&level<=1000);
   if(overview.country===s.country)for(const [section,data]of Object.entries(overview))if(data&&typeof data==='object'&&!Array.isArray(data)){
    const present=['experience','diplomacy','production'].includes(section)?data.status==='observed':['observed','partial'].includes(data.status);
-   if(section==='manpower'){for(const [key,child]of Object.entries(data))if(!['status','reason'].includes(key))put('country.manpower.'+key,child,present,key==='available');}
+   if(section==='manpower'){for(const [key,child]of Object.entries(data))if(!['status','reason'].includes(key))put('country.manpower.'+key,child,present&&(key!=='training_queue'||child?.status==='observed'&&child.schema_version===1&&child.source==='native_land_deployment_lines'&&child.scope==='land_queue_only'),key==='available');}
      else if(section==='states'){
       const rows=data.items,qualified=data.status==='observed'&&Array.isArray(rows)&&rows.length<=4096&&rows.every(r=>r&&typeof r==='object'&&!Array.isArray(r)&&Number.isSafeInteger(r.id)&&r.id>0&&r.id<=100000&&['civilian_factories','military_factories','dockyards','infrastructure'].every(k=>!Object.hasOwn(r,k)||Number.isSafeInteger(r[k])&&r[k]>=0&&r[k]<=1000)&&(!Object.hasOwn(r,'buildings')||buildingLevels(r.buildings)))&&new Set(rows.map(r=>r.id)).size===rows.length;flatten('country.states',data,qualified);
      }
@@ -108,6 +147,7 @@
      }
      else flatten('country.'+section,data,present);
   }
+  Object.assign(f,logisticsFacts(s.country&&overview.country===s.country?overview:{}));
   Object.assign(f,foreignFacts(s.country&&overview.country===s.country?overview:{}));
   const metrics=overview.metrics;
   for(const metric of ['war_support','stability']){const key='country.metrics.'+metric,value=metrics?.[metric];f[key]=Boolean(s.country)&&overview.country===s.country&&metrics?.status==='observed'&&validType(key,value)?known(value,'native_effective_country_metric',true):unknown('Country metric not qualified');}
@@ -136,6 +176,12 @@
   const publish=(key,values)=>result[key]=known([...new Set(values)].sort(),'politics_adapter',true),p=overview.politics;
   const selected=overview.doctrines?.status==='observed'?overview.doctrines.items:null;
   const chars=p?.characters,characters=chars?.items;
+  const assignment=p?.commander_assignments,assigned=assignment?.items;
+  for(const key of ['politics.commanders.assigned','politics.commander_assignments'])result[key]=unknown('Commander assignments not qualified');
+  if(p&&['observed','partial'].includes(p.status)&&assignment?.schema_version===1&&assignment.status==='observed'&&assignment.source==='native_reciprocal_commander_assignments'&&Array.isArray(assigned)&&assigned.length<=4096&&assigned.every(r=>r&&['role','commander_id','target_kind','instance_id'].every(k=>typeof r[k]==='string')&&typeof r.name==='string'&&r.name.length<=512&&!/[\x00-\x1f\x7f-\x9f]/.test(r.name)&&validCommanderFact('politics.commander_assignments',[r.role+':'+r.commander_id+':'+r.target_kind+':'+r.instance_id]))&&new Set(assigned.map(r=>r.commander_id)).size===assigned.length&&new Set(assigned.map(r=>r.instance_id)).size===assigned.length){
+   result['politics.commanders.assigned']=known(assigned.map(r=>r.role+':'+r.commander_id).sort(),'native_commander_assignment_adapter',true);
+   result['politics.commander_assignments']=known(assigned.map(r=>r.role+':'+r.commander_id+':'+r.target_kind+':'+r.instance_id).sort(),'native_commander_assignment_adapter',true);
+  }
   if(p&&['observed','partial'].includes(p.status)&&chars?.status==='observed'&&chars.source==='native_character_status_roles'&&Array.isArray(characters)&&characters.length<=4096&&characters.every(r=>r&&id(r.id)&&['country_leader','advisor','unit_leader','scientist'].every(k=>typeof r[k]==='boolean'))&&new Set(characters.map(r=>r.id)).size===characters.length)for(const [key,role]of [['politics.characters',null],['politics.unit_leaders','unit_leader'],['politics.scientists','scientist']])result[key]=known(characters.filter(r=>!role||r[role]).map(r=>r.id).sort(),'native_character_role_adapter',true);
   if(Array.isArray(selected)&&selected.length<=4096&&selected.every(row=>row&&id(row.id))&&new Set(selected.map(row=>row.id)).size===selected.length)publish('doctrines.selected',selected.map(row=>row.id));
   if(p&&['observed','partial'].includes(p.status))for(const part of ['ideas','advisors']){
@@ -155,12 +201,19 @@
   const listed=overview.decisions?.status==='observed'?overview.decisions.listed_ids:null;
   if(Array.isArray(listed)&&listed.length<=4096&&listed.every(id)&&new Set(listed).size===listed.length)publish('decisions.listed',listed);
   const history=overview.decisions?.execution_history;
+  if(overview.decisions?.status==='observed')Object.assign(result,targetedDecisionFacts(history));
   if(overview.decisions?.status==='observed'&&history?.status==='observed'&&history.source==='native_decisions_taken_and_timed_state'&&history.history_scope==='current_native_records')for(const [field,key]of [['executed_ids','decisions.executed'],['active_ids','decisions.active'],['completed_ids','decisions.completed']]){
    const values=history[field];if(Array.isArray(values)&&values.length<=4096&&values.every(id)&&new Set(values).size===values.length)result[key]=known([...values].sort(),'native_decision_membership_adapter',true);
   }
+  for(const key of ['projects.facilities.idle','politics.scientists.assigned'])result[key]=unknown('Facility scientist assignments not qualified');
+  const facilities=overview.projects?.facilities,items=facilities?.items;
+  if(overview.projects?.status==='observed'&&facilities?.status==='observed'&&facilities.schema_version===1&&facilities.source==='native_facility_scientist_assignments'&&Array.isArray(items)&&items.length<=256&&items.every(r=>id(r?.instance_id)&&id(r?.building_id)&&(r.scientist_id===null||id(r.scientist_id))&&typeof r.busy==='boolean')&&new Set(items.map(r=>r.instance_id)).size===items.length&&new Set(items.filter(r=>typeof r.scientist_id==='string').map(r=>r.scientist_id)).size===items.filter(r=>typeof r.scientist_id==='string').length){
+   result['projects.facilities.idle']=known([...new Set(items.filter(r=>!r.busy&&r.scientist_id!==null).map(r=>r.building_id))].sort(),'native_facility_assignment_adapter',true);
+   result['politics.scientists.assigned']=known(items.filter(r=>r.scientist_id!==null).map(r=>r.scientist_id).sort(),'native_facility_assignment_adapter',true);
+  }
   return result;
  }
- function fact(state,key){const f=state?.schema_version===VERSION&&state?.usable===true?state.facts?.[key]:null;return f&&['observed','calculated'].includes(f.status)&&typeof f.source==='string'&&f.source&&f.value!==null&&f.value!==undefined&&validType(key,f.value)&&!(typeof f.value==='number'&&!Number.isFinite(f.value))?f:unknown(f?.status==='unknown'&&f.value===null&&f.source===''&&typeof f.reason==='string'?f.reason:undefined);}
+ function fact(state,key){const f=state?.schema_version===VERSION&&state?.usable===true?state.facts?.[key]:null;return f&&['observed','calculated'].includes(f.status)&&typeof f.source==='string'&&f.source&&f.value!==null&&f.value!==undefined&&validType(key,f.value)&&(key!=='politics.costs'||f.status==='calculated'&&f.source==='native_political_purchase_formula')&&(!logisticsKey(key)||f.status==='calculated'&&f.source==='native_logistics_ui_formula')&&!(typeof f.value==='number'&&!Number.isFinite(f.value))?f:unknown(f?.status==='unknown'&&f.value===null&&f.source===''&&typeof f.reason==='string'?f.reason:undefined);}
  function condition(node,s,checks={},depth=0){
   if(!node||depth>16||typeof node!=='object')return null;
   if(node.op==='all'||node.op==='any'){
@@ -203,6 +256,13 @@
   const ids=new Set();
   for(const item of items){if(!record(item)||typeof item.id!=='string'||!item.id.length||textLength(item.id)>160||ids.has(item.id))throw Error(label+uiText(": missing or duplicate identifier"));ids.add(item.id);}
   return ids;
+ }
+ function actionParams(value){
+  if(!record(value)||Object.keys(value).length>128)throw Error(uiText("Invalid action parameters"));
+  const validSource=v=>{if(!record(v)||Object.keys(v).sort().join(',')!=='available,branch,schema_version'||v.schema_version!==1)return false;try{(typeof module!=='undefined'&&module.exports?require('./focus-criteria.js'):root.HoiFocusCriteria).validate({...v,prerequisites:[],mutex:[],conflicts:[]});return true;}catch{return false;}};
+  const rest={...value};if(validSource(rest.operational_criteria))delete rest.operational_criteria;
+  for(const [binding,fields]of [['political_binding',['source_criteria','explicit_source_criteria']],['project_source_binding',['operational_criteria']]])if(record(rest[binding])&&Object.keys(rest[binding]).length<=128){rest[binding]={...rest[binding]};for(const field of fields)if(validSource(rest[binding][field]))delete rest[binding][field];}
+  jsonData(rest);
  }
  function jsonData(value,depth=0){
   if(depth>8)throw Error(uiText("Action parameters are nested too deeply"));
@@ -273,7 +333,7 @@
     if(!['manual','special_project'].includes(step.action.kind))throw Error('Condizione di avvio incompatibile con azione: '+step.key);
     validateCondition(step.started_when);
    }
-   if(Object.hasOwn(step.action,'params')){if(!record(step.action.params))throw Error(uiText("Invalid action parameters"));jsonData(step.action.params);}
+   if(Object.hasOwn(step.action,'params'))actionParams(step.action.params);
    if(Object.hasOwn(step.action.params||{},'production_revision')){const p=step.action.params,r=p.production_revision;if(p.category!=='production'||!record(r)||Object.keys(r).sort().join(',')!=='group,order'||typeof r.group!=='string'||!r.group||r.group.length>160||!Number.isInteger(r.order)||r.order<0||r.order>10000000)throw Error('Invalid production revision');}
    if(Object.hasOwn(step.action.params||{},'production_section_when')){const p=step.action.params;if(!p.production_revision)throw Error('Production phase without revision');validateCondition(p.production_section_when);}
    if(Object.hasOwn(step.action.params||{},'production_milestones')){
@@ -344,6 +404,6 @@
   if(node?.arg)checkKeys(node.arg,result);
   return [...result];
  }
- const api={VERSION,state,fact,condition,guide,checkKeys};
+ const api={VERSION,state,fact,condition,guide,checkKeys,decisionToken,validLogistics};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiContracts=api;
 })(typeof window!=='undefined'?window:globalThis);

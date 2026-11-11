@@ -57,7 +57,10 @@
   const production=header('production');
   for(const key of ['civilian','military','dockyards'])$('effective'+key[0].toUpperCase()+key.slice(1)).textContent=number(production.effective_factories?.[key],{integer:true});
   empty('production',rows('productionRows',production.lines,(r,x)=>{nameCell(r,x);cell(r,({military:HoiI18n.t("Military"),naval:HoiI18n.t("Naval")})[x.category]||x.category);nameCell(r,{id:x.equipment,name:x.equipment_name});cell(r,x.requested_factories,{numeric:true,integer:true});cell(r,x.assigned_factories,{numeric:true,integer:true});cell(r,x.active_factories,{numeric:true,integer:true});cell(r,x.damaged_factories,{numeric:true,integer:true});const output=model.productionOutput(x.output_per_day,x.category);cell(r,output?productionFormats[output.digits].format(output.value):null);}));
-  const equipment=header('equipment');empty('equipment',rows('equipmentRows',equipment.items,(r,x)=>{nameCell(r,x);cell(r,x.stockpile,{numeric:true});cell(r,x.needed,{numeric:true});cell(r,x.balance_per_day,{numeric:true,signed:true});}));
+  const equipment=header('equipment'),logistics=equipment.logistics;
+  empty('equipment',rows('equipmentRows',equipment.items,(r,x)=>{nameCell(r,x);cell(r,x.stockpile,{numeric:true});}));
+  $('logisticsCoverage').textContent=['observed','partial'].includes(logistics?.status)?HoiI18n.t('Native logistics formula · {0} day window. Negative availability indicates a shortage.',logistics.interval_days):HoiI18n.t('National logistics formula not qualified');
+  rows('logisticsRows',['observed','partial'].includes(logistics?.status)?logistics.items:[],(r,x)=>{nameCell(r,x);cell(r,x.gross_stockpile,{numeric:true});cell(r,x.needed,{numeric:true,signed:true});cell(r,x.available,{numeric:true,signed:true});cell(r,x.balance_per_day,{numeric:true,signed:true});r.title=HoiI18n.t('Available stock after native supply reservations: {0}. Net availability subtracts equipment demand.',number(x.logistics_stockpile))+ (x.reason?' '+x.reason:'');});
   const politics=header('politics'),ideas=politics.ideas,advisors=politics.advisors;
   const characters=politics.characters;
   $('characterCoverage').textContent=characters?.status==='observed'?HoiI18n.t('Current native role status; appointments are listed separately.'):HoiI18n.t('Character roles unavailable.');

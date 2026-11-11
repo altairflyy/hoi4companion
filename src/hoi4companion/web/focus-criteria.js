@@ -55,5 +55,6 @@
    result.steps.push(key);break;
   }return result;
  }
- const api={validate,assess,alternatives};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiFocusCriteria=api;
+ function operational(r,state){const rules={schema_version:1,available:r?.available,branch:{op:'const',value:true},prerequisites:[],mutex:[],conflicts:[]};try{validate(rules);}catch{return {value:null,checks:[{value:null,reason:'invalid_operational_criteria'}]};}return assess(rules,{...state,facts:{...state.facts,'focus.completed':{status:'calculated',source:'no_focus_dependency',value:[]}}});}
+ const api={validate,assess,alternatives,operational};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiFocusCriteria=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -24,6 +24,7 @@ struct Provider {
     neighbors: Value,
     shared_focuses: Value,
     building_scopes: Value,
+    political_cost_ids: Value,
     stat: Option<(u64, SystemTime)>,
     profile: Option<Arc<Profile>>,
     game: Option<Arc<Game>>,
@@ -32,6 +33,14 @@ struct Provider {
     gui: Arc<Mutex<crate::gui_registry::Registry>>,
 }
 impl Provider {
+    fn set_political_cost_ids(&mut self,targets:&Value)->Result<()> {
+        if !targets.is_array() {return Err("Political cost targets must be an array".into());}
+        if self.political_cost_ids!=*targets {
+            self.political_cost_ids=targets.clone();
+            self.cached=None;
+        }
+        Ok(())
+    }
     fn new(args: &Value) -> Result<Self> {
         let audit = args["audit_seconds"].as_f64().unwrap_or(5.);
         if !audit.is_finite() || audit < 0. {
@@ -47,6 +56,7 @@ impl Provider {
             neighbors: args["province_neighbors"].clone(),
             shared_focuses: args["shared_focuses"].clone(),
             building_scopes: args["building_scopes"].clone(),
+            political_cost_ids: args["political_cost_ids"].clone(),
             stat: None,
             profile: None,
             game: None,
@@ -103,7 +113,7 @@ impl Provider {
                 .as_ref()
                 .map(|v| v.sample.event_cache.clone())
                 .unwrap_or(Value::Null);
-            let sample = acquisition::collect(game, &self.neighbors, &cache, &self.shared_focuses, &self.building_scopes)?;
+            let sample = acquisition::collect(game, &self.neighbors, &cache, &self.shared_focuses, &self.building_scopes, &self.political_cost_ids)?;
             let packet = watch::compile(&sample.watch)?;
             self.metrics["watch_ranges"] = json!(sample.watch.len());
             self.metrics["watch_bytes"] =
@@ -269,6 +279,7 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
     let mut provider = provider.lock().map_err(|_| "Provider unavailable")?;
     match op {
         "provider_collect" => {
+            if let Some(targets)=args.get("political_cost_ids") {provider.set_political_cost_ids(targets)?;}
             provider.collect(args["now"].as_f64().ok_or("Provider clock missing")?)
         }
         "provider_inspect" => Ok(
@@ -285,6 +296,16 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn guide_purchase_target_updates_invalidate_only_changed_acquisition_proofs() {
+        let old=json!([{"id":"old","group":"decision","countries":["NOR"]}]);
+        let mut p=Provider::new(&json!({"path":"unused","manifest_sha256":"unused","political_cost_ids":old})).unwrap();
+        p.cached=Some(Cached{sample:acquisition::Sample{value:Value::Null,watch:Default::default(),world:0,event_cache:Value::Null},packet:watch::Packet{bytes:vec![],ranges:0,read_bytes:0},audited:1.});
+        p.set_political_cost_ids(&old).unwrap();assert!(p.cached.is_some());
+        assert!(p.set_political_cost_ids(&Value::Null).is_err());assert!(p.cached.is_some());
+        let next=json!([{"id":"new","group":"decision","countries":["GER"]}]);
+        p.set_political_cost_ids(&next).unwrap();assert!(p.cached.is_none());assert_eq!(p.political_cost_ids,next);
+    }
     #[test]
     fn concurrent_gui_rejects_an_old_world_or_country_even_in_the_same_process() {
         let current=json!("123:456:aaa:bbb");

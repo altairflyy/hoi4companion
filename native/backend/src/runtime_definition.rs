@@ -129,7 +129,7 @@ pub fn prepare(
     let production = rows(&guide).any(|r| r["action"]["params"]["category"] == "production");
     let refresh_bindings = rows(&guide).any(|r| {
         let p=&r["action"]["params"];
-        p["decision_id"].is_string() || p["category"] == "construction"
+        ["decision_id","advisor_id","law_id","person_id","idea_id"].iter().any(|k|p[*k].is_string()) || p["category"] == "construction"
             || crate::political_binding::foreign_tasks()["relation_actions"][s(&p["operation_id"])].is_object()
     });
     if guide["dependency_policy"] == "explicit" && (word || known || production || refresh_bindings) {

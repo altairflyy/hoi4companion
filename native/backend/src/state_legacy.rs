@@ -26,6 +26,7 @@ impl Adapter {
     fn flatten(&mut self, path: &str, data: &Value, known: bool, calculated: bool) {
         if [
             "country.diplomacy.interactions",
+            "country.equipment.logistics",
             "country.intelligence.missions",
         ]
         .contains(&path)
@@ -206,6 +207,7 @@ pub(super) fn normalize(value: &Value) -> Value {
     };
     adapter.field("country", &sample["country"], true, false);
     if let Some(date) = crate::events::calendar(sample) {
+        adapter.facts.insert("campaign.tick".into(),known(sample["native_tick"].clone(),"observed","native_game_tick"));
         adapter.facts.insert(
             "campaign.date".into(),
             known(json!(date), "calculated", "paradox_calendar_adapter"),
@@ -339,6 +341,7 @@ pub(super) fn normalize(value: &Value) -> Value {
             unknown("Potere politico non qualificato")
         },
     );
+    adapter.facts.insert("politics.costs".into(),if matched {costs::project(overview)}else{unknown("Political cost country mismatch")});
     adapter.facts.extend(memberships::political(if matched {
         overview
     } else {
@@ -357,7 +360,8 @@ pub(super) fn normalize(value: &Value) -> Value {
                         adapter.field(
                             &format!("country.manpower.{key}"),
                             child,
-                            ["observed", "partial"].contains(&text(&data["status"])),
+                            ["observed", "partial"].contains(&text(&data["status"]))
+                                && (key != "training_queue" || child["status"] == "observed" && child["schema_version"] == 1 && child["source"] == "native_land_deployment_lines" && child["scope"] == "land_queue_only"),
                             key == "available",
                         );
                     }
@@ -428,6 +432,7 @@ pub(super) fn normalize(value: &Value) -> Value {
             }
         }
     }
+    adapter.facts.extend(logistics::project(if matched {overview}else{&empty}));
     adapter.facts.extend(memberships::foreign(if matched {
         overview
     } else {

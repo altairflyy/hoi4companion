@@ -106,6 +106,7 @@ fn campaign(state: &Value) -> Option<&str> {
 
 pub struct Application {
     guides: Map<String, Value>,
+    political_cost_ids: Value,
     context: Option<Arc<crate::runtime_context::Context>>,
     sources: Map<String, Value>,
     definition_generation: u64,
@@ -132,6 +133,7 @@ impl Application {
         let path = args["path"].as_str().map(PathBuf::from);
         let mut result = Self {
             guides: Map::new(),
+            political_cost_ids: json!([]),
             context: None,
             sources: Map::new(),
             definition_generation: 0,
@@ -224,8 +226,14 @@ impl Application {
         self.definition_generation += 1;
         self.sources.insert(id.clone(), source);
         self.guides.insert(id, guide.clone());
+        self.refresh_political_cost_ids();
         Ok(guide)
     }
+    fn refresh_political_cost_ids(&mut self) {
+        self.political_cost_ids=if let Some(context)=&self.context {context.political_cost_ids(self.guides.values())}
+            else {crate::operational_catalog::political_cost_ids(&Value::Null,self.guides.values())};
+    }
+    pub(crate) fn political_cost_ids(&self)->&Value {&self.political_cost_ids}
     fn revision(mut guide: Value) -> Result<Value> {
         guide
             .as_object_mut()
@@ -289,6 +297,7 @@ impl Application {
     pub(crate) fn apply_context(&mut self, prepared: PreparedContext) {
         self.guides = prepared.guides;
         self.context = Some(prepared.context);
+        self.refresh_political_cost_ids();
         self.revision += 1;
     }
     pub(crate) fn set_context(
@@ -327,6 +336,9 @@ impl Application {
             self.runs.call("bind",json!({"session_id":if self.live["usable"]==true {state["session_id"].clone()}else{Value::Null}}))?
         };
         if changed == true {
+            self.revision += 1;
+        }
+        if self.runs.observe_decisions(&self.live)? {
             self.revision += 1;
         }
         if self.live["usable"] == true {
@@ -525,7 +537,7 @@ impl Application {
             }
             self.revision += 1;
         }
-        let mut current = self.runs.call("get", json!({"guide_id":id,"run_id":run}))?;
+        let mut current = self.runs.call("get", json!({"guide_id":id,"run_id":run,"include_decision_history":true}))?;
         current["revision"] = json!(self.revision);
         current["server_id"] = json!(self.server);
         current["history"] = self.runs.call("history", json!({"guide_id":id}))?;
@@ -694,6 +706,18 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+    #[test]
+    fn guide_purchase_cache_refreshes_after_import_and_replacement() {
+        let make=|id:&str,country:&str,law:&str|json!({"id":id,"applies_to":{"country":country},"tracks":{"operations":[{"key":"buy","action":{"kind":"manual","params":{"category":"politics","law_id":law,"law_group":"trade_laws"}}}]}});
+        let mut app=Application::open(&json!({"guides":[make("nor-guide","NOR","free_trade")]})).unwrap();
+        assert_eq!(app.political_cost_ids().as_array().unwrap().len(),1);
+        app.put_guide(&make("ger-guide","GER","limited_exports")).unwrap();
+        assert_eq!(app.political_cost_ids().as_array().unwrap().len(),2);
+        app.put_guide(&make("nor-guide","NOR","closed_economy")).unwrap();
+        assert_eq!(app.political_cost_ids().as_array().unwrap().len(),2);
+        assert!(!app.political_cost_ids().to_string().contains("free_trade"));
+        assert!(app.political_cost_ids().to_string().contains("closed_economy"));
+    }
     #[test]
     fn only_delivery_metadata_can_skip_revaluation() {
         let original=json!({"usable":true,"sample":{"country":"HUN","native_tick":1},"error":""});
