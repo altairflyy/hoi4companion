@@ -1,12 +1,21 @@
 param([string]$Output)
 $ErrorActionPreference='Stop'
+function Get-Sha256([string]$Path){
+    $stream=[System.IO.File]::OpenRead($Path)
+    try{
+        $hash=[System.Security.Cryptography.SHA256]::Create().ComputeHash($stream)
+        return [System.BitConverter]::ToString($hash).Replace("-", "").ToLowerInvariant()
+    }finally{
+        $stream.Close()
+    }
+}
 $root=Split-Path -Parent $PSScriptRoot
 $dotnet=Join-Path $root '.local/toolchains/dotnet/dotnet.exe'
 if(!(Test-Path -LiteralPath $dotnet)){$dotnet=(Get-Command dotnet -ErrorAction Stop).Source}
 $source=Join-Path $root 'native/cwtools'
 $provenance=Get-Content -LiteralPath (Join-Path $source 'vendor-provenance.json') -Raw | ConvertFrom-Json
 foreach($entry in $provenance.files.PSObject.Properties){
-    if((Get-FileHash -LiteralPath (Join-Path $source ('vendor/'+$entry.Name))).Hash.ToLowerInvariant() -ne $entry.Value){throw ('CWTools source hash differs: '+$entry.Name)}
+    if((Get-Sha256 (Join-Path $source ('vendor/'+$entry.Name))) -ne $entry.Value){throw ('CWTools source hash differs: '+$entry.Name)}
 }
 $destination=if($Output){[IO.Path]::GetFullPath($Output)}else{Join-Path $root 'src/hoi4companion/_native/cwtools'}
 $env:DOTNET_CLI_TELEMETRY_OPTOUT='1';$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE='1';$env:NUGET_PACKAGES=Join-Path $root '.local/nuget-packages'
@@ -33,6 +42,6 @@ foreach($package in ($assets.libraries.PSObject.Properties | Sort-Object Name)){
 }
 ConvertTo-Json -InputObject @($notices) -Depth 8 | Set-Content -LiteralPath (Join-Path $destination 'THIRD-PARTY-NOTICES.json') -Encoding utf8
 $hashes=@{}
-Get-ChildItem -LiteralPath $destination -Recurse -File | Where-Object Name -ne 'provenance.json' | ForEach-Object {$hashes[$_.FullName.Substring($destination.Length+1).Replace('\','/')]=(Get-FileHash -LiteralPath $_.FullName).Hash.ToLowerInvariant()}
+Get-ChildItem -LiteralPath $destination -Recurse -File | Where-Object Name -ne 'provenance.json' | ForEach-Object {$hashes[$_.FullName.Substring($destination.Length+1).Replace('\','/')]=Get-Sha256 $_.FullName}
 @{schema_version=1;repository='https://github.com/cwtools/cwtools';revision=$provenance.revision;runtime='self-contained win-x64 .NET 9';parser_compatibility=1;reviewed_recovery=1;files=$hashes} | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $destination 'provenance.json') -Encoding utf8
 Write-Output $destination

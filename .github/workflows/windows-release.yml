@@ -4,9 +4,23 @@ on:
   workflow_dispatch:
   push:
     tags: ['v*']
+    # Tag caches cannot read caches from previous tags. Seed main so later
+    # releases can restore the default-branch caches instead of starting cold.
+    branches: [main]
+    paths:
+      - '.github/workflows/windows-release.yml'
+      - 'native/**'
+      - 'scripts/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'package.json'
 
 permissions:
   contents: read
+
+concurrency:
+  group: windows-distribution-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
   build:
@@ -23,19 +37,57 @@ jobs:
         with:
           global-json-file: native/cwtools/global.json
       - name: Install build dependencies
+        id: toolchain
         shell: pwsh
         run: |
           rustup toolchain install stable --profile minimal
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           rustup default stable
-          exit $LASTEXITCODE
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $versions = "$(rustc -Vv)`n$(dotnet --version)"
+          $key = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($versions))).ToLowerInvariant()
+          "key=$key" >> $env:GITHUB_OUTPUT
+      - name: Cache downloaded dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            .local/nuget-packages
+          key: windows-dependencies-v1-${{ hashFiles('native/**/Cargo.lock', 'native/cwtools/**/packages.lock.json', 'native/cwtools/Directory.Packages.props', 'native/cwtools/vendor/Directory.Packages.props') }}
+          restore-keys: windows-dependencies-v1-
+      - name: Cache production compilation
+        uses: actions/cache@v4
+        with:
+          path: |
+            .local/rust-backend-target
+            .local/rust-core-tests-target
+          key: windows-production-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**/Cargo.lock') }}-${{ hashFiles('native/**', 'src/hoi4companion/*.json', 'src/hoi4companion/*.md') }}
+          restore-keys: windows-production-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**/Cargo.lock') }}-
+      - name: Cache exact native components
+        id: native
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/hoi4companion/_native/hoi4-backend.exe
+            src/hoi4companion/_native/hoi4-desktop.exe
+            src/hoi4companion/_native/hoi4companion_backend.dll
+            src/hoi4companion/_native/hoi4companion_parser.dll
+            src/hoi4companion/_native/overlay
+            src/hoi4companion/_native/cwtools
+          # No partial key: Rust embeds the root JSON/Markdown resources too.
+          # Always repackage web files and rerun tests, even on an exact hit.
+          key: windows-native-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**', 'src/hoi4companion/*.json', 'src/hoi4companion/*.md', 'scripts/build-*.ps1', '.github/workflows/windows-release.yml') }}
       - name: Prepare native components and on-demand tools
         shell: pwsh
         run: |
-          & scripts/build-parser.ps1
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          & scripts/build-cwtools.ps1 -Output src/hoi4companion/_native/cwtools
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if ('${{ steps.native.outputs.cache-hit }}' -ne 'true') {
+            & scripts/build-parser.ps1
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            & scripts/build-cwtools.ps1 -Output src/hoi4companion/_native/cwtools
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
           node scripts/prepare-windows-tools.cjs
           exit $LASTEXITCODE
       - name: Build native application
@@ -45,17 +97,16 @@ jobs:
             node -e "if(process.env.GITHUB_REF_NAME!=='v'+require('./package.json').version)throw Error('Tag/version mismatch')"
             if ($LASTEXITCODE) { exit $LASTEXITCODE }
           }
-          node scripts/build-native-windows.cjs
+          if ('${{ steps.native.outputs.cache-hit }}' -eq 'true') {
+            node scripts/build-native-windows.cjs --skip-native
+          } else {
+            node scripts/build-native-windows.cjs
+          }
           exit $LASTEXITCODE
       - name: Test JavaScript and native HTTP contracts
         shell: pwsh
         run: |
           node scripts/test-web.cjs
-          exit $LASTEXITCODE
-      - name: Test native guide and service cores
-        shell: pwsh
-        run: |
-          node scripts/test-native.cjs
           exit $LASTEXITCODE
       - name: Test packaged application
         shell: pwsh
@@ -67,13 +118,57 @@ jobs:
         with:
           name: HOI4Companion-windows-x64
           if-no-files-found: error
+          # The distribution is already a ZIP; recompressing wastes CPU.
+          compression-level: 0
           path: |
             dist/HOI4Companion-*-native-windows-x64.zip
             dist/HOI4Companion-*-native-windows-x64.zip.sha256
             dist/windows-smoke-results.json
+  native-tests:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install test toolchain
+        id: toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          rustup default stable
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $key = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes((rustc -Vv | Out-String)))).ToLowerInvariant()
+          "key=$key" >> $env:GITHUB_OUTPUT
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: windows-rust-dependencies-v1-${{ hashFiles('native/**/Cargo.lock') }}
+          restore-keys: windows-rust-dependencies-v1-
+      - name: Cache isolated test compilation
+        uses: actions/cache@v4
+        with:
+          path: |
+            .local/rust-ci-backend-tests-target
+            .local/rust-ci-core-tests-target
+          key: windows-tests-no-lto-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**/Cargo.lock') }}-${{ hashFiles('native/**', 'tests/**', 'src/hoi4companion/*.json', 'src/hoi4companion/*.md') }}
+          restore-keys: windows-tests-no-lto-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**/Cargo.lock') }}-
+      - name: Test all native guide and service cores
+        shell: pwsh
+        run: |
+          node scripts/test-native.cjs --ci
+          exit $LASTEXITCODE
   draft-release:
     if: github.ref_type == 'tag'
-    needs: build
+    needs: [build, native-tests]
     runs-on: windows-2022
     permissions:
       contents: write
