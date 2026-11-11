@@ -1501,6 +1501,8 @@ impl Service {
             "text/javascript; charset=utf-8"
         } else if name.ends_with(".css") {
             "text/css; charset=utf-8"
+        } else if name == "guide-intent-model.json" {
+            "application/json; charset=utf-8"
         } else {
             return None;
         };
