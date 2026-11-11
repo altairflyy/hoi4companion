@@ -199,8 +199,7 @@
    }
    const heading=node('p',reminders.length+' ACTION reminders checked; '+low+
     ' flagged for review. Learned labels only: no changes to guide steps, native IDs or live tracking.');
-   target.children.unshift?.(heading);
-   if(!target.children.includes(heading))target.append(heading);
+   target.append(heading);
   }catch(e){
    intentModelPromise=null;
    target.append(node('p','Intent model unavailable; the normal Rust importer is unaffected.'));
