@@ -199,6 +199,7 @@ module Helpers =
                                 false,
                                 refHint
                             )
+                    | unexpected -> invalidArg "dataLinkType" (sprintf "Unsupported DataLinkType: %A" unexpected)
                 }
 
             let all = typeDefinedKeys |> Seq.collect keyToEffect
