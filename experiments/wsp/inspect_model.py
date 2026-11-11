@@ -31,9 +31,9 @@ def main():
     root=Path(args.model).resolve()
     if not (root/'config.json').exists():p.error('local checkpoint is required')
     import torch
-    from transformers import AutoTokenizer,Qwen3_5ForCausalLM
-    tok=AutoTokenizer.from_pretrained(str(root),local_files_only=True,trust_remote_code=False)
-    model=Qwen3_5ForCausalLM.from_pretrained(str(root),device_map='auto',dtype='auto',local_files_only=True,trust_remote_code=False)
+    from transformers import AutoProcessor,Qwen3_5ForConditionalGeneration
+    processor=AutoProcessor.from_pretrained(str(root),local_files_only=True,trust_remote_code=False)
+    model=Qwen3_5ForConditionalGeneration.from_pretrained(str(root),device_map='auto',dtype='auto',local_files_only=True,trust_remote_code=False)
     model.eval()
     rx=re.compile(args.match)
     selected=[(name,p) for name,p in model.named_parameters() if rx.search(name)][:args.max_tensors]
@@ -51,7 +51,7 @@ def main():
             handle=module.register_forward_pre_hook(hook)
             try:
                 for sentence in args.probe[:16]:
-                    tokens=tok(sentence,return_tensors='pt').to(next(model.parameters()).device)
+                    tokens=processor.tokenizer(sentence,return_tensors='pt').to(next(model.parameters()).device)
                     with torch.inference_mode():model(**tokens,use_cache=False)
                 observations=[]
                 for sentence,x in zip(args.probe[:16],outputs):
