@@ -241,6 +241,13 @@ pub unsafe extern "C" fn hoi4_backend_country_profile_process(
             for key in [
                 "world_rva",
                 "building_database_rva",
+                "ideas_database_rva",
+                "equipment_database_rva",
+                "logistics_days_rva",
+                "modifier_definitions_rva",
+                "decisions_database_rva",
+                "decision_cost_cheat_rva",
+                "commander_reference_registry_rva",
                 "production_owner_offset",
                 "production_totals",
                 "military_layout",

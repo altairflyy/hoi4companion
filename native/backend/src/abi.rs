@@ -6,6 +6,30 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 type Result<T> = std::result::Result<T, String>;
 const ABI: &str = include_str!("../../../src/hoi4companion/live-abi-v1.json");
+// Optional captured globals may be absent from the older reference layout.
+// Declare only reviewed root slots; set() must never create arbitrary paths.
+const OPTIONAL_CAPTURE_GLOBALS: &[&str] = &[
+    "ideas_database_rva",
+    "modifier_definitions_rva",
+    "commander_reference_registry_rva",
+    "equipment_database_rva",
+    "logistics_days_rva",
+    "decisions_database_rva",
+    "decision_cost_cheat_rva",
+];
+
+fn optional_slots(profile: &mut Value) {
+    for key in [
+        "building_database_rva",
+        "resources_database_rva",
+        "token_table_rva",
+        "political_power_offset",
+    ].into_iter().chain(OPTIONAL_CAPTURE_GLOBALS.iter().copied()) {
+        if profile.get(key).is_none() {
+            profile[key] = Value::Null;
+        }
+    }
+}
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
@@ -125,9 +149,15 @@ fn primary_vtable(pe: &Pe<'_>, areas: &[(u64, &[u8])], name: &str) -> Result<u64
     found.ok_or_else(|| format!("Missing RTTI: {name}"))
 }
 fn set(value: &mut Value, path: &str, new: Value) -> Result<()> {
-    *value
+    let slot = value
         .pointer_mut(path)
-        .ok_or_else(|| format!("Invalid ABI profile path: {path}"))? = new;
+        .ok_or_else(|| format!("Invalid ABI profile path: {path}"))?;
+    if path.strip_prefix('/').is_some_and(|key| OPTIONAL_CAPTURE_GLOBALS.contains(&key))
+        && (new.as_u64().is_none() || !slot.is_null() && slot.as_u64().is_none())
+    {
+        return Err(format!("Invalid ABI captured global: {path}"));
+    }
+    *slot = new;
     Ok(())
 }
 pub(crate) fn qualify(data: &[u8], manifest: &Value) -> Result<Value> {
@@ -149,16 +179,7 @@ pub(crate) fn qualify(data: &[u8], manifest: &Value) -> Result<Value> {
     profile["abi_functions"] = json!({});
     profile["abi_action_signatures"] = json!({});
     profile["abi_design_signatures"] = json!([]);
-    for key in [
-        "building_database_rva",
-        "resources_database_rva",
-        "token_table_rva",
-        "political_power_offset",
-    ] {
-        if profile.get(key).is_none() {
-            profile[key] = Value::Null;
-        }
-    }
+    optional_slots(&mut profile);
     for (group, rows) in definition["groups"]
         .as_object()
         .ok_or("Missing ABI groups")?
@@ -286,6 +307,48 @@ pub(crate) fn qualify(data: &[u8], manifest: &Value) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn compiled_capture_paths_are_admitted_by_the_reference_layout() {
+        let definition:Value=serde_json::from_str(ABI).unwrap();
+        let manifest:Value=serde_json::from_str(include_str!("../../../src/hoi4companion/live-profiles-v1.json")).unwrap();
+        let mut profile=manifest["profiles"][definition["reference_profile"].as_str().unwrap()].clone();
+        optional_slots(&mut profile);
+        for (group,rows) in definition["groups"].as_object().unwrap() {
+            for row in rows.as_array().unwrap() {
+                if row["capture"].is_array() {
+                    let path=row["set"].as_str().unwrap();
+                    set(&mut profile,path,json!(300)).unwrap_or_else(|error|panic!("{group} {path}: {error}"));
+                }
+            }
+        }
+    }
+    #[test]
+    fn reviewed_optional_captures_have_slots_without_arbitrary_path_creation() {
+        let mut profile=json!({"world_rva":100,"ideas_database_rva":200});
+        optional_slots(&mut profile);
+        assert_eq!(profile["world_rva"],100);
+        assert_eq!(profile["ideas_database_rva"],200);
+        for key in OPTIONAL_CAPTURE_GLOBALS {
+            set(&mut profile,&format!("/{key}"),json!(300)).unwrap();
+            assert_eq!(profile[*key],300);
+        }
+        let before=profile.clone();
+        for path in ["/unreviewed_database_rva","/unreviewed/nested","/ideas_database_rva/nested"] {
+            assert!(set(&mut profile,path,json!(400)).is_err());
+            assert_eq!(profile,before);
+        }
+    }
+    #[test]
+    fn reviewed_captured_global_slots_accept_only_unsigned_addresses() {
+        let mut profile=json!({});optional_slots(&mut profile);
+        for invalid in [Value::Null,json!(-1),json!("300"),json!({"address":300})] {
+            assert!(set(&mut profile,"/ideas_database_rva",invalid).is_err());
+            assert!(profile["ideas_database_rva"].is_null());
+        }
+        profile["ideas_database_rva"]=json!("not an address");
+        assert!(set(&mut profile,"/ideas_database_rva",json!(300)).is_err());
+        assert_eq!(profile["ideas_database_rva"],"not an address");
+    }
     #[test]
     fn relocation_ignores_only_explicit_masked_bytes() {
         let mut bytes = vec![0x90; 32];

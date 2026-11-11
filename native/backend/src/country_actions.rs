@@ -172,8 +172,15 @@ impl<M: Memory> Reader<'_, M> {
     }
     pub(super) fn politics(&mut self) -> Result<Value> {
         let mut result = json!({});
+        result["costs"] = match self.political_costs() {
+            Ok(value)=>value,Err(reason)=>json!({"status":"unavailable","reason":reason}),
+        };
         let mut observed = 0;
         result["characters"] = match self.characters() {
+            Ok(value) => value,
+            Err(reason) => json!({"status":"unavailable","reason":reason}),
+        };
+        result["commander_assignments"] = match self.commander_assignments() {
             Ok(value) => value,
             Err(reason) => json!({"status":"unavailable","reason":reason}),
         };
@@ -210,7 +217,7 @@ impl<M: Memory> Reader<'_, M> {
         }
         result["status"] = json!(if observed == 3 {
             "observed"
-        } else if observed > 0 || result["characters"]["status"] == "observed" {
+        } else if observed > 0 || result["characters"]["status"] == "observed" || result["commander_assignments"]["status"] == "observed" {
             "partial"
         } else {
             "unavailable"
@@ -292,6 +299,7 @@ impl<M: Memory> Reader<'_, M> {
             return Err("Progetti di una nazione diversa".into());
         }
         let mut programs = HashMap::new();
+        let mut facility_pointers = vec![];
         for p in self.array(status + 0x20, 256)? {
             self.typed(p, "CProgram@NProject")?;
             if self.integer(p + 0x18, 0, 8191)? != self.tag as i64 {
@@ -307,6 +315,7 @@ impl<M: Memory> Reader<'_, M> {
             if selected > 1 { return Err("Invalid facility project selection flag".into()); }
             let token = self.integer(p + 0x50, 0, 1_000_000)?;
             programs.insert(handle, (self.d.string(p + 0x20)?, (token, selected == 1)));
+            facility_pointers.push(p);
         }
         let raw = self.track(pool + 0x10, 16)?;
         let data = u64::from_le_bytes(raw[..8].try_into().unwrap());
@@ -361,11 +370,12 @@ impl<M: Memory> Reader<'_, M> {
             Ok(v) => v,
             Err(reason) => json!({"status":"unavailable","reason":reason}),
         };
+        let facilities=match self.facility_assignments(&facility_pointers) {Ok(v)=>v,Err(reason)=>json!({"status":"unavailable","reason":reason})};
         Ok(
-            json!({"status":"observed","items":rows,"breakthroughs":breakthroughs,"reason":"Progetti della nazione corrente; impianto associato distinto dallo stato finale di ricerca."}),
+            json!({"status":"observed","items":rows,"breakthroughs":breakthroughs,"facilities":facilities,"reason":"Progetti della nazione corrente; impianto associato distinto dallo stato finale di ricerca."}),
         )
     }
-    fn decision_id(&mut self, pointer: u64) -> Result<String> {
+    pub(super) fn decision_id(&mut self, pointer: u64) -> Result<String> {
         self.typed(pointer, "CDecision")?;
         self.d.string(pointer + 0x120)
     }
@@ -394,11 +404,13 @@ impl<M: Memory> Reader<'_, M> {
             executed.insert(key.clone());
             timed.push(json!({"id":key,"state":names[state],"days":days}));
         }
-        // Targeted choices need a qualified target identity before their outcome
-        // can satisfy an untargeted guide condition. Preserve them as unknown.
+        let targeted = match self.targeted_decisions(manager) {
+            Ok(value) => value,
+            Err(reason) => json!({"status":"unavailable","reason":reason}),
+        };
         Ok(json!({"status":"observed","source":"native_decisions_taken_and_timed_state",
             "taken_ids":taken,"executed_ids":executed,"active_ids":active,"completed_ids":completed,"timed":timed,
-            "history_scope":"current_native_records","targeted_history_status":"unavailable"}))
+            "history_scope":"current_native_records","targeted_history_status":targeted["status"],"targeted":targeted}))
     }
     pub(super) fn decisions(&mut self) -> Result<Value> {
         let manager = self.object_pointer(self.country + 0xfa0, "CDecisionStatus")?;

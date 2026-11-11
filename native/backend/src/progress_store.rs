@@ -101,23 +101,33 @@ impl Runs {
             }
             self.raw("accept", json!({}), vec![])?;
         }
-        Ok(result["value"].clone())
+        let mut value=result["value"].clone();
+        if op=="get" && args["include_decision_history"]==true && value["campaign_id"].is_string() {
+            let history=self.raw("decision_history",json!({"campaign_id":value["campaign_id"],"country":value["country"]}),vec![])?;
+            if history["value"].is_object() {value["decision_history"]=history["value"].clone();}
+        }
+        Ok(value)
+    }
+    pub fn observe_decisions(&mut self, state: &Value) -> Result<bool> {
+        self.call("observe_decisions",json!({"state":crate::state::normalize(state)})).map(|v|v==true)
     }
     pub fn observe(&mut self, guide: &Value, state: &Value, allow_research: bool) -> Result<bool> {
-        let record = self.call("get", json!({"guide_id":guide["id"]}))?;
-        let snapshot = self.call("snapshot", json!({}))?;
+        let record = self.call("get", json!({"guide_id":guide["id"],"include_decision_history":true}))?;
+        let records = self.call("records", json!({}))?;
         let result = crate::guide_observe::observe(
             guide,
             state,
             &record,
-            &snapshot["runs"],
+            &records,
             allow_research,
         )?;
         if result["changed"] != true {
             return Ok(false);
         }
         let mut records = json!({});
-        records[record["run_id"].as_str().ok_or("Missing run ID")?] = result["record"].clone();
+        let mut durable=result["record"].clone();
+        durable.as_object_mut().unwrap().remove("decision_history");
+        records[record["run_id"].as_str().ok_or("Missing run ID")?] = durable;
         self.call("observe_replace", json!({"records":records,"value":true}))?;
         Ok(true)
     }

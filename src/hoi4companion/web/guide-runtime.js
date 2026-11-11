@@ -103,15 +103,16 @@
   const fortified=fortificationContext(guide,{...state,facts});for(const [key,value]of fortified.details)details.set(key,value);
   return {state:fortified.state,details};
  }
- function actionDomain(step){const p=step.action.params||{};if(step.tracking==='reminder')return null;if(step.action.kind==='special_project')return 'project';if(p.commander_id||['corps_commander','navy_leader'].includes(p.role))return 'appointment';return Object.hasOwn(step,'political_power_cost')||['law_id','law_name','idea_id','idea_name','advisor_id','person_id','person_name','trait_name','role','decision_id','decision_name'].some(k=>p[k])?'political':null;}
+ function actionDomain(step){const p=step.action.params||{};if(step.tracking==='reminder')return null;if(step.action.kind==='special_project')return 'project';if(p.commander_id||['field_marshal','corps_commander','navy_leader'].includes(p.role))return 'appointment';return Object.hasOwn(step,'political_power_cost')||['law_id','law_name','idea_id','idea_name','advisor_id','person_id','person_name','trait_name','role','decision_id','decision_name'].some(k=>p[k])?'political':null;}
  function actionReadiness(step,state,checks){
   const domain=actionDomain(step);if(!domain)return null;
-  const missing=[],blocked=[],resources=[],affordability=[],value={domain,unknown:missing,blocked,resources,requirements_declared:Object.hasOwn(step,'requirements')};
+  const missing=[],blocked=[],resources=[],affordability=[],value={domain,unknown:missing,blocked,resources,requirements_declared:Object.hasOwn(step,'requirements')||Object.hasOwn(step.action.params||{},'operational_criteria')};
   if(domain==='political'&&!step.action.params?.cost_currency||Object.hasOwn(step,'political_power_cost')){
-   const cost=step.political_power_cost??null,f=c.fact(state,'country.politics.political_power'),amount=typeof f.value==='number'&&Number.isFinite(f.value)?f.value:null;
-   const affordable=cost===null||amount===null?null:amount>=cost;
-   value.political_power={cost,available:amount,affordable,cost_basis:cost===null?'unknown':'guide_declared'};
-   if(cost===null)missing.push('political_cost_unknown');if(amount===null)missing.push('political_power_unknown');if(affordable===false)blocked.push('insufficient_political_power');
+   const p=step.action.params||{},declared=step.political_power_cost??null,bound=['law_id','idea_id','advisor_id','decision_id'].some(k=>typeof p[k]==='string'),group=p.decision_id?'decision':p.law_group??p.idea_group??p.role,id=p.decision_id??p.law_id??p.idea_id??p.advisor_id,row=c.fact(state,'politics.costs').value?.[`${group}/${id}`],effective=row?.currency==='political_power'&&typeof row.effective==='number'&&Number.isFinite(row.effective)&&row.effective>=0&&row.effective<=1000000?row.effective:null;
+   const cost=declared===null?effective:effective===null?declared:Math.max(declared,effective),f=c.fact(state,'country.politics.political_power'),amount=typeof f.value==='number'&&Number.isFinite(f.value)?f.value:null;
+   const affordable=cost===null||amount===null||bound&&effective===null&&amount>=cost?null:amount>=cost;
+   value.political_power={cost,guide_threshold:declared,base_cost:row?.base??null,effective_cost:effective,available:amount,affordable,cost_basis:effective!==null?'native_effective':declared!==null?'guide_declared':'unknown'};
+   if(cost===null||bound&&effective===null)missing.push('political_cost_unknown');if(amount===null)missing.push('political_power_unknown');if(affordable===false)blocked.push('insufficient_political_power');
    affordability.push(affordable);
   }
   const costs=step.resource_costs;
@@ -124,9 +125,17 @@
   }
   value.resources_available=affordability.includes(false)?false:affordability.includes(null)?null:true;
   if(Object.hasOwn(step,'requirements')){const eligible=c.condition(step.requirements,state,checks);if(eligible===false)blocked.push('action_requirements_false');else if(eligible===null)missing.push('action_requirements_unknown');}
-  else missing.push('action_requirements_unknown');
-  if(domain==='appointment')missing.push('commander_assignment_unobserved');
-  if(domain==='project')missing.push('facility_compatibility_unknown');
+  else if(!step.action.params?.operational_criteria)missing.push('action_requirements_unknown');
+  if(step.action.params?.operational_criteria){const source=focusCriteria.operational(step.action.params.operational_criteria,state);value.source_checks=source.checks;if(source.value===false&&!blocked.includes('action_requirements_false'))blocked.push('action_requirements_false');else if(source.value===null&&!missing.includes('action_requirements_unknown'))missing.push('action_requirements_unknown');}
+  if(domain==='appointment'){
+   const node=step.action.params?.political_binding?.completion;
+   if(node?.op!=='fact'||!['politics.commanders.assigned','politics.commander_assignments'].includes(node.key)||!Array.isArray(c.fact(state,node.key).value))missing.push('commander_assignment_unobserved');
+  }
+  if(domain==='project'){
+   const buildings=step.action.params?.facility_buildings,idle=c.fact(state,'projects.facilities.idle').value;
+   if(!Array.isArray(buildings)||!buildings.length||!buildings.every(v=>typeof v==='string'&&v)||!Array.isArray(idle))missing.push('facility_compatibility_unknown');
+   else if(!buildings.some(v=>idle.includes(v)))blocked.push('compatible_facility_unavailable');
+  }
   value.value=blocked.length?false:missing.length?null:true;return value;
  }
  function compareIds(a,b){
@@ -174,6 +183,18 @@
   for(const phase of guide.phases||[])for(const key of c.checkKeys(phase.when))allowed.add(key);
   return {status:'accepted',run_id:input.run_id,checks:Object.fromEntries(Object.entries(provided).filter(([key])=>allowed.has(key))),started:Object.fromEntries(Object.entries(started).filter(([key])=>operations.has(key)))};
  }
+ function decisionHistoryContext(state,record){
+  const h=record?.decision_history;if(h===undefined)return state;
+  const object=v=>v&&typeof v==='object'&&!Array.isArray(v),safe=v=>Number.isSafeInteger(v)&&v>=0;
+  const token=r=>r.target===null?typeof r.id==='string'&&/^[A-Za-z0-9_.-]{1,160}$/.test(r.id)?r.id:null:c.decisionToken(r.id,r.target);
+  if(!object(h)||Object.keys(h).length!==8||h.schema_version!==1||!/^hoi4:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}$/.test(h.campaign_id)||h.campaign_id.split(':')[1]==='00000000-0000-0000-0000-000000000000'||typeof h.country!=='string'||!/^[A-Z0-9]{3}$/.test(h.country)||typeof h.session_id!=='string'||!h.session_id||!safe(h.first_tick)||!safe(h.last_tick)||h.first_tick>h.last_tick||!object(h.coverage)||Object.keys(h.coverage).length!==3||h.coverage.scope!=='qualified_samples_only'||h.coverage.pre_observation_history!=='unknown'||typeof h.coverage.gaps_observed!=='boolean'||!object(h.entries)||Object.keys(h.entries).length>16384||Object.entries(h.entries).some(([key,r])=>!object(r)||Object.keys(r).length!==11||token(r)!==key||!['executions_lower_bound','completions_lower_bound','first_tick','last_tick','phase_tick'].every(k=>safe(r[k]))||r.first_tick<h.first_tick||r.first_tick>r.last_tick||r.last_tick>h.last_tick||r.phase_tick>h.last_tick||r.completions_lower_bound>r.executions_lower_bound||!['available','active','executed','completed','unknown'].includes(r.phase)||typeof r.phase_session!=='string'||!r.phase_session||typeof r.armed!=='boolean'||typeof r.completion_pending!=='boolean'))throw Error('Storico decisioni campagna non valido');
+  const tick=state.facts['campaign.tick'];
+  if(h.campaign_id!==record.campaign_id||h.country!==record.country||h.session_id!==state.session_id||tick?.status!=='observed'||tick.source!=='native_game_tick'||tick.value<h.last_tick)return state;
+  const facts={...state.facts},known=value=>({...calculated(value,'campaign_decision_observations'),reason:'Observed lower bound; pre-observation history is unknown'}),rows=Object.entries(h.entries);
+  for(const [prefix,targeted]of [['decisions.history',false],['decisions.targeted.history',true]])for(const [field,counter]of [['executed','executions_lower_bound'],['completed','completions_lower_bound']])facts[prefix+'.'+field]=known(rows.filter(([,r])=>(r.target!==null)===targeted&&r[counter]>0).map(([key])=>key));
+  for(const [key,r]of rows)for(const [field,counter]of [['executions_lower_bound','executions_lower_bound'],['completions_lower_bound','completions_lower_bound']])if(r[counter]>0)facts['decisions.history.'+field+':'+key]=known(r[counter]);
+  return {...state,facts};
+ }
  function evaluate(input,value,progress=null){
   let guide=c.guide(input);const state=c.state(value),scope=guide.applies_to;
   const country=c.fact(state,'country').value,tree=c.fact(state,'focus.tree').value;
@@ -182,7 +203,7 @@
   const bindings=run.status==='accepted'&&progress?.research_bindings&&typeof progress.research_bindings==='object'?progress.research_bindings:{};
   for(const rows of Object.values(guide.tracks))for(const step of rows)if(step.research_choice){const selected=bindings[step.key],valid=Object.values(step.research_choice.branches).some(chain=>chain.includes(selected));step.action.entity.id=valid?selected:'unbound-choice:'+step.key;step.target=step.action.entity.id;if(valid)delete step.catalog_match;else step.catalog_match=false;}
   for(const rows of Object.values(guide.tracks))for(const step of rows)if(step.relative_research||step.relative_research_unresolved){const selected=bindings[step.key],valid=step.relative_research?.chain.includes(selected);if(valid&&step.action.entity.id.startsWith('unbound-up:'))delete step.catalog_match;step.action.entity.id=valid?selected:'unbound-up:'+step.key;step.target=step.action.entity.id;if(!valid)step.catalog_match=false;}
-  const acceptedBaselines=run.status==='accepted'?baselines:{},campaign=campaignContext(mode==='live'?state:{...state,usable:false},run.status==='accepted'?progress.campaign_conditions||{}:null),construction=constructionContext(guide,campaign,acceptedBaselines),assignments=production.context(guide,construction.state,acceptedBaselines),context=assignments.state;
+  const acceptedBaselines=run.status==='accepted'?baselines:{},campaign=campaignContext(mode==='live'?state:{...state,usable:false},run.status==='accepted'?progress.campaign_conditions||{}:null),history=run.status==='accepted'&&mode==='live'?decisionHistoryContext(campaign,progress):campaign,construction=constructionContext(guide,history,acceptedBaselines),assignments=production.context(guide,construction.state,acceptedBaselines),context=assignments.state;
   const choices=researchChoices(guide,run.status==='accepted'?context:{...context,usable:false},bindings,run.status==='accepted'?progress?.research_options||{}:{});
   const researchProgress=researchProgression(guide,context);
   const checks=['wrong_country','wrong_tree'].includes(mode)?{}:run.checks;

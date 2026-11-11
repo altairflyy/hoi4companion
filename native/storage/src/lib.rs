@@ -7,6 +7,7 @@ use std::ffi::{CString, c_char};
 use std::path::Path;
 use std::time::Duration;
 pub mod progress;
+pub mod decision_history;
 mod progress_ffi;
 const MAX_TEXT: usize = 16 * 1024 * 1024;
 #[derive(Deserialize)]

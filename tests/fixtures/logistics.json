@@ -1,0 +1,355 @@
+[
+  {
+    "name": "qualified national deficit",
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": "NOR",
+        "country_overview": {
+          "country": "NOR",
+          "equipment": {
+            "status": "observed",
+            "logistics": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "native_logistics_ui_formula",
+              "aggregation": "equipment_archetype",
+              "interval_days": 7,
+              "items": [
+                {
+                  "id": "infantry_equipment",
+                  "aggregation": "equipment_archetype",
+                  "gross_stockpile": 10,
+                  "needed": 15,
+                  "available": -5,
+                  "balance_per_day": -1,
+                  "status": "observed",
+                  "reason": null,
+                  "logistics_stockpile": 10
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "key": "country.equipment.logistics.items.infantry_equipment.available",
+    "status": "calculated",
+    "value": -5
+  },
+  {
+    "name": "unknown national need retains daily source",
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": "NOR",
+        "country_overview": {
+          "country": "NOR",
+          "equipment": {
+            "status": "partial",
+            "logistics": {
+              "schema_version": 1,
+              "status": "partial",
+              "source": "native_logistics_ui_formula",
+              "aggregation": "equipment_archetype",
+              "interval_days": 7,
+              "items": [
+                {
+                  "id": "infantry_equipment",
+                  "aggregation": "equipment_archetype",
+                  "gross_stockpile": 10,
+                  "needed": null,
+                  "available": null,
+                  "balance_per_day": -1,
+                  "status": "partial",
+                  "reason": null,
+                  "logistics_stockpile": 10
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "key": "country.equipment.logistics.items.infantry_equipment.available",
+    "status": "unknown",
+    "value": null
+  },
+  {
+    "name": "stockpile slope is unqualified",
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": "NOR",
+        "country_overview": {
+          "country": "NOR",
+          "equipment": {
+            "status": "observed",
+            "logistics": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "stockpile_delta",
+              "aggregation": "equipment_archetype",
+              "interval_days": 7,
+              "items": [
+                {
+                  "id": "infantry_equipment",
+                  "aggregation": "equipment_archetype",
+                  "gross_stockpile": 10,
+                  "needed": 15,
+                  "available": -5,
+                  "balance_per_day": -1,
+                  "status": "observed",
+                  "reason": null,
+                  "logistics_stockpile": 10
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "key": "country.equipment.logistics.items.infantry_equipment.available",
+    "status": "unknown",
+    "value": null
+  },
+  {
+    "name": "invalid native interval",
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": "NOR",
+        "country_overview": {
+          "country": "NOR",
+          "equipment": {
+            "status": "observed",
+            "logistics": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "native_logistics_ui_formula",
+              "aggregation": "equipment_archetype",
+              "interval_days": 0,
+              "items": [
+                {
+                  "id": "infantry_equipment",
+                  "aggregation": "equipment_archetype",
+                  "gross_stockpile": 10,
+                  "needed": 15,
+                  "available": -5,
+                  "balance_per_day": -1,
+                  "status": "observed",
+                  "reason": null,
+                  "logistics_stockpile": 10
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "key": "country.equipment.logistics.items.infantry_equipment.available",
+    "status": "unknown",
+    "value": null
+  },
+  {
+    "name": "duplicate archetype aggregation",
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": "NOR",
+        "country_overview": {
+          "country": "NOR",
+          "equipment": {
+            "status": "observed",
+            "logistics": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "native_logistics_ui_formula",
+              "aggregation": "equipment_archetype",
+              "interval_days": 7,
+              "items": [
+                {
+                  "id": "infantry_equipment",
+                  "aggregation": "equipment_archetype",
+                  "gross_stockpile": 10,
+                  "needed": 15,
+                  "available": -5,
+                  "balance_per_day": -1,
+                  "status": "observed",
+                  "reason": null,
+                  "logistics_stockpile": 10
+                },
+                {
+                  "id": "infantry_equipment",
+                  "aggregation": "equipment_archetype",
+                  "gross_stockpile": 10,
+                  "needed": 15,
+                  "available": -5,
+                  "balance_per_day": -1,
+                  "status": "observed",
+                  "reason": null,
+                  "logistics_stockpile": 10
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "key": "country.equipment.logistics.items.infantry_equipment.available",
+    "status": "unknown",
+    "value": null
+  },
+  {
+    "name": "gross does not match net",
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": "NOR",
+        "country_overview": {
+          "country": "NOR",
+          "equipment": {
+            "status": "observed",
+            "logistics": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "native_logistics_ui_formula",
+              "aggregation": "equipment_archetype",
+              "interval_days": 7,
+              "items": [
+                {
+                  "id": "infantry_equipment",
+                  "aggregation": "equipment_archetype",
+                  "gross_stockpile": 10,
+                  "needed": 15,
+                  "available": 5,
+                  "balance_per_day": -1,
+                  "status": "observed",
+                  "reason": null,
+                  "logistics_stockpile": 10
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "key": "country.equipment.logistics.items.infantry_equipment.available",
+    "status": "unknown",
+    "value": null
+  },
+  {
+    "name": "native fixed cap 922337202",
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": "NOR",
+        "country_overview": {
+          "country": "NOR",
+          "equipment": {
+            "status": "observed",
+            "logistics": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "native_logistics_ui_formula",
+              "aggregation": "equipment_archetype",
+              "interval_days": 7,
+              "items": [
+                {
+                  "id": "infantry_equipment",
+                  "aggregation": "equipment_archetype",
+                  "gross_stockpile": 922337202,
+                  "needed": 0,
+                  "available": 922337202,
+                  "balance_per_day": 922337202,
+                  "status": "observed",
+                  "reason": null,
+                  "logistics_stockpile": 922337202
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "key": "country.equipment.logistics.items.infantry_equipment.available",
+    "status": "calculated",
+    "value": 922337202
+  },
+  {
+    "name": "native fixed cap 922337203",
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": "NOR",
+        "country_overview": {
+          "country": "NOR",
+          "equipment": {
+            "status": "observed",
+            "logistics": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "native_logistics_ui_formula",
+              "aggregation": "equipment_archetype",
+              "interval_days": 7,
+              "items": [
+                {
+                  "id": "infantry_equipment",
+                  "aggregation": "equipment_archetype",
+                  "gross_stockpile": 922337203,
+                  "needed": 0,
+                  "available": 922337203,
+                  "balance_per_day": 922337203,
+                  "status": "observed",
+                  "reason": null,
+                  "logistics_stockpile": 922337203
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "key": "country.equipment.logistics.items.infantry_equipment.available",
+    "status": "unknown",
+    "value": null
+  },
+  {
+    "name": "native train gross189 required44 net145",
+    "input": {
+      "usable": true,
+      "sample": {
+        "country": "NOR",
+        "country_overview": {
+          "country": "NOR",
+          "equipment": {
+            "status": "observed",
+            "logistics": {
+              "schema_version": 1,
+              "status": "observed",
+              "source": "native_logistics_ui_formula",
+              "aggregation": "equipment_archetype",
+              "interval_days": 7,
+              "items": [
+                {
+                  "id": "infantry_equipment",
+                  "aggregation": "equipment_archetype",
+                  "gross_stockpile": 189,
+                  "needed": 0,
+                  "available": 145,
+                  "balance_per_day": -1,
+                  "status": "observed",
+                  "reason": null,
+                  "logistics_stockpile": 145
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "key": "country.equipment.logistics.items.infantry_equipment.available",
+    "status": "calculated",
+    "value": 145
+  }
+]

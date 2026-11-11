@@ -24,13 +24,8 @@ fn labels(values: impl Iterator<Item = Value>) -> Vec<Value> {
     }
     out
 }
-fn ready(value: &Value) -> bool {
-    value.is_object()
-        && value["resources_available"] == true
-        && !state::truth(&value["blocked"])
-        && !(state::truth(&value["requirements_declared"])
-            && a(&value["unknown"]).contains(&json!("action_requirements_unknown")))
-}
+use crate::hud_geometry::resource_ready as ready;
+
 pub fn targets(
     guide: &Value,
     runtime: &Value,

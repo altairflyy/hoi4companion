@@ -28,6 +28,16 @@ fn attach(step: &mut Value, params: &mut Value, field: &str, node: Value) {
         params["political_binding"][field] = node;
     }
 }
+fn source_criteria(params:&mut Value,item:&Value) {
+    if !item["operational_criteria"].is_object() {return;}
+    let explicit=params.get("operational_criteria").cloned();
+    let mut source=item["operational_criteria"].clone();
+    if let Some(base)=&explicit {source["available"]=json!({"op":"all","args":[base["available"],source["available"]]});}
+    params["operational_criteria"]=source;
+    if !params["political_binding"].is_object() {params["political_binding"]=json!({});}
+    if let Some(base)=explicit {params["political_binding"]["explicit_source_criteria"]=base;}
+    params["political_binding"]["source_criteria"]=params["operational_criteria"].clone();
+}
 struct Audit {
     record: bool,
     items: Vec<Value>,
@@ -81,6 +91,13 @@ pub fn bind(step: &Value, index: &Index, country: &Value, record: bool) -> Resul
         .remove("political_binding")
         .unwrap_or(json!({}));
     if previous.is_object() {
+        if previous.get("source_criteria").is_some() && params.get("operational_criteria")==previous.get("source_criteria") {
+            params.as_object_mut().unwrap().remove("operational_criteria");
+            if let Some(base)=previous.get("explicit_source_criteria") {params["operational_criteria"]=base.clone();}
+        }
+        if previous.get("persisted_completion").is_some() && step.get("completion")==previous.get("persisted_completion") {
+            step.as_object_mut().ok_or("Invalid guide step")?.remove("completion");
+        }
         for field in ["completion", "started_when"] {
             if previous.get(field).is_some() && step.get(field) == previous.get(field) {
                 step.as_object_mut()
@@ -109,6 +126,7 @@ pub fn bind(step: &Value, index: &Index, country: &Value, record: bool) -> Resul
                 return Ok(Some(reason(&found)));
             }
             let item = &found[0];
+            source_criteria(&mut params,item);
             params["law_id"] = item["id"].clone();
             params["law_group"] = item["group"].clone();
             attach(
@@ -120,7 +138,7 @@ pub fn bind(step: &Value, index: &Index, country: &Value, record: bool) -> Resul
             return Ok(Some("politics_live_law"));
         }
         if !params["commander_id"].is_null()
-            || ["corps_commander", "navy_leader"].contains(&s(&params["role"]))
+            || ["field_marshal", "corps_commander", "navy_leader"].contains(&s(&params["role"]))
         {
             let slot = &params["role"];
             let found = matches(
@@ -141,7 +159,21 @@ pub fn bind(step: &Value, index: &Index, country: &Value, record: bool) -> Resul
             }
             params["commander_id"] = found[0]["id"].clone();
             params["role"] = found[0]["slot"].clone();
-            return Ok(Some("commander_assignment_unobserved"));
+            let role=s(&params["role"]);
+            let target_kind=match role {"field_marshal"=>"army_group","corps_commander"=>"army","navy_leader"=>"fleet",_=>return Ok(Some("commander_role_unresolved"))};
+            // A declared target is never weakened to assignment somewhere.
+            // Only the explicit native instance contract can bind here; names
+            // and legacy free-form target fields require separate resolution.
+            let declared=params.as_object().is_some_and(|p|p.keys().any(|k| k!="assignment_target" && (k.starts_with("army_") || k.starts_with("fleet_") || k.starts_with("target_") || k.starts_with("assignment_") || ["army","fleet","target","unit_group"].contains(&k.as_str()))));
+            if declared { return Ok(Some("commander_target_unresolved")); }
+            let node=if let Some(target)=params.get("assignment_target") {
+                let valid=target.as_object().is_some_and(|o|o.len()==2) && target["kind"]==target_kind
+                    && target["instance_id"].as_str().is_some_and(|v|v.len()==16 && v.bytes().all(|b|b.is_ascii_hexdigit()&&!b.is_ascii_uppercase()));
+                if !valid {return Ok(Some("commander_target_unresolved"));}
+                fact("politics.commander_assignments",&json!(format!("{}:{}:{}:{}",role,s(&params["commander_id"]),target_kind,s(&target["instance_id"]))))
+            } else {fact("politics.commanders.assigned",&json!(format!("{}:{}",role,s(&params["commander_id"]))))};
+            attach(&mut step,&mut params,"completion",node);
+            return Ok(Some("politics_live_commander_assignment"));
         }
         if [
             "advisor_id",
@@ -222,6 +254,7 @@ pub fn bind(step: &Value, index: &Index, country: &Value, record: bool) -> Resul
             if found.is_empty() && concerns.len() == 1 {
                 let item = &concerns[0];
                 params["idea_id"] = item["id"].clone();
+                params["idea_group"] = item["group"].clone();
                 attach(
                     &mut step,
                     &mut params,
@@ -234,6 +267,7 @@ pub fn bind(step: &Value, index: &Index, country: &Value, record: bool) -> Resul
                 return Ok(Some(reason(&found)));
             }
             let item = &found[0];
+            source_criteria(&mut params,item);
             params["advisor_id"] = item["id"].clone();
             params["person_id"] = item["character_id"].clone();
             params["role"] = item["slot"].clone();
@@ -328,6 +362,8 @@ pub fn bind(step: &Value, index: &Index, country: &Value, record: bool) -> Resul
                     return Ok(Some(reason(&found)));
                 }
                 params[id_key] = found[0]["id"].clone();
+                if kind=="idea" && found[0]["group"].is_string() {params["idea_group"]=found[0]["group"].clone();}
+                source_criteria(&mut params,&found[0]);
                 if kind == "idea" {
                     attach(
                         &mut step,
@@ -335,6 +371,13 @@ pub fn bind(step: &Value, index: &Index, country: &Value, record: bool) -> Resul
                         "completion",
                         fact("politics.ideas", &found[0]["id"]),
                     );
+                } else if found[0]["targeted"] == true {
+                    let target = if params["target_country"].is_string() && params.get("target_state").is_none() { json!({"kind":"country","id":params["target_country"]}) }
+                        else if params["target_state"].is_number() && params.get("target_country").is_none() { json!({"kind":"state","id":params["target_state"]}) } else { Value::Null };
+                    if let Some(token) = crate::state::decisions::token(&found[0]["id"],&target) {
+                        attach(&mut step,&mut params,"started_when",fact("decisions.targeted.active",&json!(token)));
+                        attach(&mut step,&mut params,"completion",fact("decisions.targeted.executed",&json!(token)));
+                    }
                 } else if found[0]["targeted"] == false && params.get("target_country").is_none() && params.get("target_state").is_none() {
                     attach(&mut step, &mut params, "started_when", fact("decisions.active", &found[0]["id"]));
                     attach(&mut step, &mut params, "completion", fact("decisions.executed", &found[0]["id"]));
@@ -344,6 +387,14 @@ pub fn bind(step: &Value, index: &Index, country: &Value, record: bool) -> Resul
         }
         Ok(None)
     })()?;
+    if step["completion"] == params["political_binding"]["completion"] && step.get("completion").is_some()
+        && let Some(node)=crate::guide_prepare::foreign_predicate(&params) {
+        let token=crate::guide_prepare::foreign_token(&step["key"],&node);
+        step["completion"]=json!({"op":"any","args":[node,fact("guide.campaign.milestones",&json!(token))]});
+        if let Some(history)=crate::guide_prepare::decision_history_predicate(&node) {step["completion"]["args"].as_array_mut().unwrap().push(history);}
+        // Keep the generated wrapper removable on a later source refresh.
+        params["political_binding"]["persisted_completion"]=step["completion"].clone();
+    }
     if had_params || params.as_object().is_some_and(|m| !m.is_empty()) {
         step["action"]["params"] = params;
     }

@@ -97,71 +97,8 @@ fn focus_rules(rules: &Value) -> Result<()> {
     }
     Ok(())
 }
-fn criterion(node: &Value, depth: usize, budget: &mut usize) -> Result<()> {
-    *budget += 1;
-    if depth > 32 || *budget > 4096 || !node.is_object() {
-        return Err("Invalid focus criterion".into());
-    }
-    match text(&node["op"]) {
-        "all" | "any" => {
-            if !keys(node, &["op", "args"], &["op", "args"]) || !node["args"].is_array() {
-                return Err("Invalid focus criteria group".into());
-            }
-            for child in node["args"].as_array().unwrap() {
-                criterion(child, depth + 1, budget)?
-            }
-        }
-        "not" => {
-            if !keys(node, &["op", "arg"], &["op", "arg"]) {
-                return Err("Invalid focus criteria negation".into());
-            }
-            criterion(&node["arg"], depth + 1, budget)?
-        }
-        "if" => {
-            if !keys(
-                node,
-                &["op", "condition", "then"],
-                &["op", "condition", "then"],
-            ) {
-                return Err("Invalid focus criteria implication".into());
-            }
-            criterion(&node["condition"], depth + 1, budget)?;
-            criterion(&node["then"], depth + 1, budget)?
-        }
-        "const" => {
-            if !keys(node, &["op", "value"], &["op", "value"]) || !node["value"].is_boolean() {
-                return Err("Invalid focus constant".into());
-            }
-        }
-        "unknown" => {
-            if !keys(node, &["op", "trigger", "value"], &[])
-                || !node["trigger"].is_string()
-                || node.get("value").is_some_and(|v| !v.is_string())
-            {
-                return Err("Invalid unknown focus predicate".into());
-            }
-        }
-        "compare" => {
-            let test = text(&node["test"]);
-            let value = &node["value"];
-            if !keys(
-                node,
-                &["op", "fact", "test", "value", "trigger"],
-                &["op", "fact", "test", "value", "trigger"],
-            ) || !node["fact"].is_string()
-                || ![">", "<", ">=", "<=", "=", "!=", "contains"].contains(&test)
-                || !(value.is_string() || value.is_boolean() || value.is_number())
-                || [">", "<", ">=", "<="].contains(&test) && !value.is_number()
-                || test == "contains" && !value.is_string()
-                || !node["trigger"].is_string()
-            {
-                return Err("Invalid focus comparison".into());
-            }
-        }
-        _ => return Err("Unsupported focus criteria operator".into()),
-    }
-    Ok(())
-}
+fn criterion(node:&Value,depth:usize,budget:&mut usize)->Result<()> {hoi4companion_guide_core::source_criteria::validate(node,depth,budget)}
+
 fn spirit_currency(group: &Value) -> Option<&'static str> {
     match text(group) {
         "academy_spirit" | "army_spirit" | "division_command_spirit" => Some("army_experience"),
@@ -394,7 +331,7 @@ pub(super) fn validate(guide: &Value) -> Result<()> {
             if !p.is_object() {
                 return Err(format!("Parametri azione non validi: {key}"));
             }
-            json_data(p, 0)?;
+            action_params(p)?;
             if let Some(revision) = p.get("production_revision")
                 && (p["category"] != "production"
                     || !keys(revision, &["group", "order"], &["group", "order"])

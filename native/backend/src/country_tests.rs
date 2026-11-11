@@ -1,6 +1,8 @@
 //! Native-memory fixtures exercise the real decoders, not replacement readers.
 use super::*;
 use std::collections::BTreeMap;
+#[path = "country_costs_tests.rs"]
+mod political_costs_tests;
 
 #[derive(Default)]
 struct Fixture { bytes: BTreeMap<u64,u8>, classes: BTreeMap<u64,String>, next: u64, native_rtti: bool }
@@ -92,6 +94,51 @@ fn taken_and_timed_decisions_use_native_state_not_random_counters(){
 fn missing_decision_serializer_evidence_does_not_publish_execution(){
     let(mut m,mut a,_)=decisions();a["abi_functions"]["decisions"]=Value::Null;
     assert_eq!(m.request("decisions",a).unwrap()["execution_history"]["status"],"unavailable");
+}
+#[test]
+fn targeted_decisions_keep_targeted_state_enum_and_exact_state_identity(){
+    let(mut m,mut a,_)=decisions();let manager=u64::from_le_bytes((0..8).map(|i|m.bytes[&(COUNTRY+0xfa0+i)]).collect::<Vec<_>>().try_into().unwrap());
+    a["abi_functions"]["targeted_decisions"]=json!([[1,1,"fixture"],[2,1,"fixture"],[3,1,"fixture"]]);
+    let definition=m.alloc();m.object(definition,"CDecision");m.string(definition+0x120,"targeted_test");
+    let item=m.alloc();m.object(item,"CTargetedDecision");m.u(item+0x10,definition);let vt=m.object(item+0x18,"STargetedDecisionTarget");m.classes.insert(vt,".?AUSTargetedDecisionTarget@@".into());m.i(item+0x24,1);
+    let state=m.alloc();m.object(state,"CState");m.i(state+0x58,1);m.array(WORLD+0x2c8,&[0,state]);m.array(manager+0xe8,&[item]);
+    let h=m.request("decisions",a.clone()).unwrap()["execution_history"]["targeted"].clone();assert_eq!(h["records"][0]["phase"],"available");assert_eq!(h["records"][0]["target"],json!({"kind":"state","id":1}));
+    for (native,expected) in [(1,"completed"),(2,"cooldown"),(3,"failed"),(4,"aborted")] {m.i(item+0x28,native);assert_eq!(m.request("decisions",a.clone()).unwrap()["execution_history"]["targeted"]["records"][0]["phase"],expected);}
+    m.i(item+0x28,0);m.array(manager+0xe8,&[]);m.array(manager+0x100,&[item]);assert_eq!(m.request("decisions",a.clone()).unwrap()["execution_history"]["targeted"]["records"][0]["phase"],"active");
+    m.i(state+0x58,2);assert_eq!(m.request("decisions",a).unwrap()["execution_history"]["targeted"]["status"],"unavailable");
+}
+#[test]
+fn land_training_counts_native_manpower_without_counting_repeat_orders_as_units(){
+    let mut m=Fixture::new();m.object(COUNTRY,"CCountry");m.i(COUNTRY+8,1);
+    let manager=m.alloc();m.object(manager,"CDeploymentStatus");m.u(COUNTRY+0xf70,manager);m.u(manager+0x118,COUNTRY);
+    let conveyor=m.alloc();m.object(conveyor,"CMilitaryDeploymentConveyor");m.i(conveyor+0x18,0x34b2);m.i(conveyor+0x48,-1);m.array(manager+0x48,&[conveyor]);
+    let template=m.alloc();m.object(template,"CReferencedDivisionTemplate");m.u(template+8,0x100000034);m.string(template+0x20,"Infantry");m.u(conveyor+0x20,template);
+    let line=m.alloc();m.object(line,"CMilitaryDeploymentLine");m.u(line+0x10,template);m.u(line+0x38,conveyor);m.array(conveyor+0x78,&[line]);
+    let unit=m.alloc();m.object(unit,"CMilitaryDeployment");m.u(line+0x30,unit);m.u(unit+0x20,0x100000056);m.object(unit+0x70,"CArmyManpower");
+    let values=m.alloc();m.u(unit+0x78,values);m.i(unit+0x80,2);m.i(unit+0x84,2);m.i(values,1);m.i(values+4,200);m.i(values+8,2);m.i(values+12,100);
+    let a=json!({"function_signatures":[],"abi_functions":{"training":[[1,1,"fixture"],[2,1,"fixture"],[3,1,"fixture"],[4,1,"fixture"]]}});
+    let v=m.request("manpower",a.clone()).unwrap();assert_eq!(v["training"],300);assert_eq!(v["training_queue"]["rows"][0]["repeat"],true);assert_eq!(v["training_queue"]["rows"][0]["parallel_lines"],1);
+    m.u(line+0x38,COUNTRY);assert_eq!(m.request("manpower",a.clone()).unwrap()["training_queue"]["status"],"unavailable");
+    m.array(manager+0x48,&[]);assert_eq!(m.request("manpower",a.clone()).unwrap()["training"],0);
+    m.u(manager+0x118,COUNTRY+1);assert!(m.request("manpower",a.clone()).unwrap()["training"].is_null());m.u(manager+0x118,COUNTRY);
+    m.i(COUNTRY+8,2);assert!(m.request("manpower",a).unwrap()["training"].is_null());
+}
+#[test]
+fn scientist_facility_assignment_requires_exact_character_and_assignment_flag(){
+    let mut m=Fixture::new();let manager=m.alloc();m.object(manager,"CCountryCharacters");m.u(COUNTRY+0xff0,manager);m.u(manager+8,COUNTRY);
+    let person=m.alloc();m.object(person,"CCharacter");m.u(person+8,0x100000049);m.i(person+0x18,1);m.i(person+0x68,1);
+    let scientist=m.alloc();m.object(scientist,"CScientist");m.u(person+0xc0,scientist);m.put(scientist+0x130,&[1]);
+    let data=m.alloc();m.u(manager+0x10,data);m.i(manager+0x18,1);m.i(manager+0x1c,1);m.u(data,person);m.put(data+8,&[0,0,0,1]);
+    m.put(BASE+0x9000,&[1]);m.i(BASE+0x9004,1);let names=m.alloc();m.u(BASE+0x9030,names);m.string(names+32,"scientist");
+    let facility=m.alloc();m.object(facility,"CProgram@NProject");m.u(facility+8,0x100000053);m.string(facility+0x20,"land_facility");m.u(facility+0x58,0x100000049);
+    let a=json!({"token_table_rva":0x9000,"function_signatures":[],"abi_functions":{"facility_assignments":[[1,1,"fixture"],[2,1,"fixture"],[3,1,"fixture"]]}});
+    let read=|m:&mut Fixture| Reader{d:Decoder{memory:m,base:BASE},world:WORLD,country:COUNTRY,tag:1,watch:BTreeMap::new(),attributes:a.clone(),event_cache:None}.facility_assignments(&[facility]);
+    let v=read(&mut m).unwrap();assert_eq!(v["items"][0]["scientist_id"],"scientist");assert_eq!(v["items"][0]["busy"],false);
+    m.put(facility+0x54,&[1]);assert_eq!(read(&mut m).unwrap()["items"][0]["busy"],true);
+    m.put(scientist+0x130,&[0]);assert!(read(&mut m).is_err());m.put(scientist+0x130,&[1]);
+    m.u(facility+0x58,0x200000049);assert!(read(&mut m).is_err());m.u(facility+0x58,0x100000049);
+    m.i(person+0x68,2);assert!(read(&mut m).is_err());m.i(person+0x68,1);
+    m.u(facility+0x58,0);assert!(read(&mut m).unwrap()["items"][0]["scientist_id"].is_null());
 }
 fn foreign()->(Fixture,Value,u64,u64){
     let mut m=Fixture::new();m.object(COUNTRY,"CCountry");m.i(COUNTRY+8,1);
@@ -198,3 +245,6 @@ fn event_owner_is_recovered_from_the_actual_secondary_rtti_offset(){
     assert_eq!(m.request("events",a.clone()).unwrap()["visible"],json!([]));
     m.i(BASE+col+4,600);assert!(m.request("events",a).unwrap_err().contains("non individuata"));
 }
+
+#[path = "country_logistics_tests.rs"]
+mod logistics_tests;

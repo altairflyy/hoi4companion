@@ -1,6 +1,18 @@
 {
   "schema_version": 1,
   "messages": {
+    "National logistics by equipment archetype. Net availability includes native supply reservations and equipment demand.": "Logistica nazionale per archetipo. La disponibilità netta considera gli impegni logistici nativi e il fabbisogno di equipaggiamento.",
+    "Available stock after native supply reservations: {0}. Net availability subtracts equipment demand.": "Scorte disponibili dopo gli impegni logistici nativi: {0}. La disponibilità netta sottrae il fabbisogno di equipaggiamento.",
+    "National logistics by equipment archetype. Gross stockpiles by model remain separate.": "Logistica nazionale per archetipo. Le scorte lorde per modello restano separate.",
+    "National logistics by equipment archetype": "Logistica nazionale per archetipo",
+    "Equipment archetype": "Archetipo di equipaggiamento",
+    "Net available": "Disponibilità netta",
+    "Gross stockpiles by model": "Scorte lorde per modello",
+    "National logistics formula not qualified": "Formula della logistica nazionale non qualificata",
+    "Native logistics formula · {0} day window. Negative availability indicates a shortage.": "Formula nativa della logistica · intervallo di {0} giorni. La disponibilità negativa indica una carenza.",
+    "Political power: {0} · effective cost: {1} · guide threshold: {2}{3}": "Potere politico: {0} · costo effettivo: {1} · soglia della guida: {2}{3}",
+    "The effective political cost is not qualified; a guide threshold alone cannot confirm affordability.": "Costo politico effettivo non qualificato; la sola soglia della guida non conferma la disponibilità dei punti.",
+    "{0}. Political power: {1}; effective cost: {2}; guide threshold: {3}.": "{0}. Potere politico: {1}; costo effettivo: {2}; soglia della guida: {3}.",
     "Waiting for a validated game nation to list compatible guides": "In attesa di una nazione di partita verificata per elencare le guide compatibili",
     "View reference: {0}": "Mostra riferimento: {0}",
     "Guide references": "Riferimenti della guida",
@@ -1367,7 +1379,9 @@
     "Role membership does not prove an appointment or hiring availability.": "La presenza di un ruolo non prova una nomina o la possibilità di assumere il personaggio.",
     "Only qualified native taken records and timed states prove progress. Random counters and missing entries do not prove a completed action.": "Solo i dati nativi qualificati delle decisioni prese e degli stati temporizzati provano un avanzamento. Contatori casuali e voci mancanti non provano il completamento.",
     "Native completed/taken records: {0}. Active timed decisions: {1}.": "Registrazioni native di decisioni completate/prese: {0}. Decisioni temporizzate in corso: {1}.",
-    "Decision bound to the catalog. Progress requires qualified native taken/timed records; targeted outcomes remain unverified.": "Decisione associata al catalogo. L’avanzamento richiede registrazioni native qualificate; gli esiti con una destinazione specifica restano non verificati."
+    "Decision bound to the catalog. Progress requires qualified native taken/timed records; targeted outcomes remain unverified.": "Decisione associata al catalogo. L’avanzamento richiede registrazioni native qualificate; gli esiti con una destinazione specifica restano non verificati.",
+    "No compatible idle facility with an assigned scientist is available.": "Non è disponibile un impianto compatibile libero con uno scienziato assegnato.",
+    "Decision bound to the catalog. Progress requires qualified execution evidence for the exact decision and target; availability does not prove execution.": "Decisione associata al catalogo. L’avanzamento richiede evidenze di esecuzione della decisione sul destinatario esatto; la disponibilità non prova l’esecuzione."
   },
   "legacy": {
     "Contesto GUI della produzione non qualificato: ": "Production GUI context is not qualified: ",

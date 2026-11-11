@@ -1,0 +1,914 @@
+[
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "a",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "fixture_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 100
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "fixture_laws/a": {
+              "base": 100,
+              "effective": 100,
+              "factor": 1,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "source requirement 0.6",
+    "readiness": true
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "a",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "fixture_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 100
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.4
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "fixture_laws/a": {
+              "base": 100,
+              "effective": 100,
+              "factor": 1,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "source requirement 0.4",
+    "readiness": false
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "a",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "fixture_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 100
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "unknown",
+          "source": "",
+          "value": null
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "fixture_laws/a": {
+              "base": 100,
+              "effective": 100,
+              "factor": 1,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "source requirement null",
+    "readiness": null
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "a",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "unknown",
+                    "trigger": "unsupported_dynamic_trigger"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "fixture_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 100
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "fixture_laws/a": {
+              "base": 100,
+              "effective": 100,
+              "factor": 1,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "unsupported trigger does not become eligibility",
+    "readiness": null
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "a",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "compare",
+                    "fact": "country.metrics.war_support",
+                    "test": ">=",
+                    "value": 0.5,
+                    "trigger": "has_war_support"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "fixture_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            },
+            "requirements": {
+              "op": "fact",
+              "key": "country.experience.army",
+              "test": "gte",
+              "value": 5
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 100
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "country.experience.army": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "fixture_laws/a": {
+              "base": 100,
+              "effective": 100,
+              "factor": 1,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "source rules never override explicit guide requirements",
+    "readiness": false
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "a",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "all"
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "fixture_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 100
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "fixture_laws/a": {
+              "base": 100,
+              "effective": 100,
+              "factor": 1,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "malformed source rules remain unverifiable",
+    "readiness": null
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "action": {
+              "kind": "special_project",
+              "params": {
+                "facility_buildings": [
+                  "land_facility"
+                ],
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "const",
+                    "value": true
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                }
+              },
+              "entity": {
+                "kind": "project",
+                "id": "project"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            },
+            "resource_costs": {
+              "projects.points.specialization_land": 1
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 100
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "projects.points.specialization_land": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 2
+        },
+        "projects.facilities.idle": {
+          "status": "calculated",
+          "source": "fixture",
+          "value": [
+            "land_facility"
+          ]
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "idle compatible staffed facility",
+    "readiness": true
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "action": {
+              "kind": "special_project",
+              "params": {
+                "facility_buildings": [
+                  "land_facility"
+                ],
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "const",
+                    "value": true
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                }
+              },
+              "entity": {
+                "kind": "project",
+                "id": "project"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            },
+            "resource_costs": {
+              "projects.points.specialization_land": 1
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 100
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "projects.points.specialization_land": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 2
+        },
+        "projects.facilities.idle": {
+          "status": "calculated",
+          "source": "fixture",
+          "value": []
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "busy or incompatible facilities",
+    "readiness": false
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "action": {
+              "kind": "special_project",
+              "params": {
+                "facility_buildings": [
+                  "land_facility"
+                ],
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "const",
+                    "value": true
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                }
+              },
+              "entity": {
+                "kind": "project",
+                "id": "project"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            },
+            "resource_costs": {
+              "projects.points.specialization_land": 1
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 100
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "projects.points.specialization_land": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 2
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "unknown facility assignments",
+    "readiness": null
+  },
+  {
+    "guide": {
+      "id": "readiness",
+      "dependency_policy": "explicit",
+      "tracks": {
+        "operations": [
+          {
+            "key": "law",
+            "political_power_cost": 100,
+            "action": {
+              "kind": "manual",
+              "params": {
+                "category": "politics",
+                "law_id": "a",
+                "operational_criteria": {
+                  "schema_version": 1,
+                  "available": {
+                    "op": "const",
+                    "value": true,
+                    "extraneous": true
+                  },
+                  "branch": {
+                    "op": "const",
+                    "value": true
+                  }
+                },
+                "law_group": "fixture_laws"
+              }
+            },
+            "completion": {
+              "op": "fact",
+              "key": "politics.ideas",
+              "test": "contains",
+              "value": "a"
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "schema_version": 1,
+      "usable": true,
+      "session_id": "session",
+      "facts": {
+        "country": {
+          "status": "observed",
+          "source": "fixture",
+          "value": "TST"
+        },
+        "country.politics.political_power": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 100
+        },
+        "politics.ideas": {
+          "status": "observed",
+          "source": "fixture",
+          "value": []
+        },
+        "country.metrics.war_support": {
+          "status": "observed",
+          "source": "fixture",
+          "value": 0.6
+        },
+        "politics.costs": {
+          "status": "calculated",
+          "source": "native_political_purchase_formula",
+          "value": {
+            "fixture_laws/a": {
+              "base": 100,
+              "effective": 100,
+              "factor": 1,
+              "currency": "political_power"
+            }
+          }
+        }
+      }
+    },
+    "progress": {
+      "schema_version": 1,
+      "guide_id": "readiness",
+      "run_id": "r",
+      "session_id": "session",
+      "country": "TST",
+      "checks": {}
+    },
+    "name": "extra source predicate fields do not bypass validation",
+    "readiness": null
+  }
+]

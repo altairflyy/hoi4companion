@@ -180,6 +180,7 @@ pub struct State {
     runs: Object,
     active: Object,
     campaigns: Object,
+    decision_history: Object,
     restored: HashSet<String>,
     binding: Option<[Value; 3]>,
     tick: Option<u64>,
@@ -190,6 +191,7 @@ impl Default for State {
             runs: Object::new(),
             active: Object::new(),
             campaigns: Object::new(),
+            decision_history: Object::new(),
             restored: HashSet::new(),
             binding: None,
             tick: None,
@@ -198,11 +200,13 @@ impl Default for State {
 }
 impl State {
     fn snapshot(&self) -> Value {
-        json!({"schema_version":1,"runs":self.runs,"active":self.active,"campaign_active":self.campaigns})
+        let mut value=json!({"schema_version":1,"runs":self.runs,"active":self.active,"campaign_active":self.campaigns});
+        if !self.decision_history.is_empty() {value["decision_history"]=json!(self.decision_history);}
+        value
     }
     fn load(&mut self, v: Value) -> Result<()> {
         if !v.as_object().is_some_and(|m| {
-            m.len() == 4
+            (m.len() == 4 || m.len()==5 && m.contains_key("decision_history"))
                 && ["schema_version", "runs", "active", "campaign_active"]
                     .iter()
                     .all(|k| m.contains_key(*k))
@@ -213,6 +217,13 @@ impl State {
         let runs = object(&v["runs"])?;
         let active = object(&v["active"])?;
         let campaigns = object(&v["campaign_active"])?;
+        let histories=v.get("decision_history").cloned().unwrap_or_else(||json!({}));
+        let histories=object(&histories)?;
+        if histories.len()>10000 {return Err("Archivio storico decisioni non valido".into());}
+        for (key,history) in histories {
+            crate::decision_history::validate(history)?;
+            if key!=&campaign_key(&history["campaign_id"],&history["country"]) {return Err("Identità storico decisioni non valida".into());}
+        }
         if runs.len() > 10000 {
             return Err("Archivio avanzamento non valido".into());
         }
@@ -242,6 +253,7 @@ impl State {
         self.runs = runs.clone();
         self.active = active.clone();
         self.campaigns = campaigns.clone();
+        self.decision_history=histories.clone();
         self.restored = self.runs.keys().cloned().collect();
         for row in self.runs.values_mut() {
             if row["campaign_id"].is_null() {
@@ -299,6 +311,22 @@ impl State {
         let session = &args["session_id"];
         match op {
             "snapshot" => Ok(self.snapshot()),
+            "records" => Ok(json!(self.runs)),
+            "decision_history" => Ok(self.decision_history.get(&campaign_key(&args["campaign_id"],&args["country"])).cloned().unwrap_or(Value::Null)),
+            "observe_decisions" => {
+                let Some(binding)=self.binding.as_ref() else {return Ok(json!(false));};
+                let tick=self.tick.ok_or("Data campagna non qualificata")?;
+                let key=campaign_key(&binding[0],&binding[1]);
+                let history=self.decision_history.get_mut(&key).ok_or("Storico campagna non associato")?;
+                let state=&args["state"];
+                let before=history.clone();
+                if state["facts"]["campaign.id"]["status"]!="observed" || state["facts"]["campaign.id"]["value"]!=binding[0]
+                    || state["facts"]["country"]["value"]!=binding[1] || state["session_id"]!=binding[2] || state["usable"]!=true {
+                    crate::decision_history::interrupt(history);return Ok(json!(*history!=before));
+                }
+                crate::decision_history::observe(history,state,tick)?;
+                Ok(json!(*history!=before))
+            }
             "get" => self.get(guide, args.get("run_id")),
             "history" => Ok(Value::Array(
                 self.runs
@@ -421,6 +449,19 @@ impl State {
                 }
                 identifier(session, "Sessione", false, None)?;
                 let binding = [a.clone(), c.clone(), session.clone()];
+                if let Some(previous)=&self.binding && (previous[0]!=*a || previous[1]!=*c)
+                    && let Some(history)=self.decision_history.get_mut(&campaign_key(&previous[0],&previous[1])) {crate::decision_history::interrupt(history);}
+                let index = campaign_key(a, c);
+                let history=self.decision_history.entry(index.clone()).or_insert_with(||crate::decision_history::empty(a,c,session,tick));
+                if tick<history["last_tick"].as_u64().unwrap_or(tick) || self.binding.as_ref().is_some_and(|b|b[0]==*a && b[1]==*c) && self.tick.is_some_and(|last|tick<last) {
+                    *history=crate::decision_history::empty(a,c,session,tick);
+                } else if history["session_id"]!=*session {
+                    history["session_id"]=session.clone();
+                    history["coverage"]["gaps_observed"]=json!(true);
+                    for row in history["entries"].as_object_mut().unwrap().values_mut() {
+                        row["armed"]=json!(false); row["completion_pending"]=json!(false); row["phase"]=json!("unknown");
+                    }
+                }
                 if self.binding.as_ref() == Some(&binding)
                     && self.tick.is_some_and(|t| tick >= t)
                     && self.active.values().all(|k| {
@@ -431,7 +472,6 @@ impl State {
                     self.tick = Some(tick);
                     return Ok(json!(false));
                 }
-                let index = campaign_key(a, c);
                 let mut changed = false;
                 for (g, k) in self.active.clone() {
                     let current = self.runs[string(&k)].clone();
@@ -568,7 +608,8 @@ impl Store {
         }
         let changed = next.runs != self.state.runs
             || next.active != self.state.active
-            || next.campaigns != self.state.campaigns;
+            || next.campaigns != self.state.campaigns
+            || next.decision_history != self.state.decision_history;
         if changed {
             for (key, row) in &mut next.runs {
                 let old = self.state.runs.get(key);

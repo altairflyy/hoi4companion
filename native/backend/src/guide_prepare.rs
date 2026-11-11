@@ -195,7 +195,25 @@ fn progress(guide: &Value, state: &Value, value: &Value) -> Result<Value> {
         .collect::<serde_json::Map<_, _>>();
     Ok(json!(["accepted", value["run_id"], checks, started]))
 }
+pub(crate) fn decision_history_predicate(node: &Value) -> Option<Value> {
+    let key=match text(&node["key"]) {
+        "decisions.executed"=>"decisions.history.executed", "decisions.completed"=>"decisions.history.completed",
+        "decisions.targeted.executed"=>"decisions.targeted.history.executed", "decisions.targeted.completed"=>"decisions.targeted.history.completed", _=>return None,
+    };
+    Some(json!({"op":"fact","key":key,"test":"contains","value":node["value"]}))
+}
 pub(crate) fn foreign_predicate(params: &Value) -> Option<Value> {
+    // Existing durable milestones also retain positively observed decision
+    // evidence; the generated predicate includes the exact optional target.
+    if params["decision_id"].is_string() {
+        let node=&params["political_binding"]["completion"];
+        if node["op"]=="fact" && node["test"]=="contains" &&
+            (["decisions.executed","decisions.completed"].contains(&text(&node["key"])) && node["value"]==params["decision_id"] ||
+             ["decisions.targeted.executed","decisions.targeted.completed"].contains(&text(&node["key"])) && crate::state::decisions::valid_fact(text(&node["key"]),&json!([node["value"]]))) {
+            return Some(node.clone());
+        }
+        return None;
+    }
     let target = text(&params["target_country"]);
     if target.len() != 3
         || !target
@@ -356,6 +374,15 @@ pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
         Value::Null
     };
     let context = domain_context::campaign_context(&context, &observations)?;
+    let mut context=context;
+    if status=="accepted" && mode=="live" && let Some(history)=record.get("decision_history") {
+        hoi4companion_storage::decision_history::validate(history)?;
+        let tick=&state["facts"]["campaign.tick"];
+        if history["campaign_id"]==record["campaign_id"] && history["country"]==record["country"] && history["session_id"]==state["session_id"]
+            && tick["status"]=="observed" && tick["source"]=="native_game_tick" && tick["value"].as_u64().is_some_and(|t|t>=history["last_tick"].as_u64().unwrap()) {
+            context["facts"].as_object_mut().ok_or("Invalid history state")?.extend(hoi4companion_storage::decision_history::facts(history)?);
+        }
+    }
     let baseline_context = if status == "accepted" {
         baselines
     } else {

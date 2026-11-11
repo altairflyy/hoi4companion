@@ -123,7 +123,7 @@ impl<M: Memory> Reader<'_, M> {
         }
         Ok(())
     }
-    fn country_mapping(
+    pub(super) fn country_mapping(
         &mut self,
         identity_error: &str,
         mapping_error: &str,

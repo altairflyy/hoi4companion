@@ -311,6 +311,7 @@ impl Service {
                     &mods,
                 )?;
             }
+            spec["political_cost_ids"] = app.political_cost_ids().clone();
             Some(ProviderOwner::open(spec)?)
         } else {
             None
@@ -420,6 +421,7 @@ impl Service {
             return Ok(packet.clone());
         }
         let now = self.now();
+        let political_cost_ids=self.application.lock().map_err(|_|"Application unavailable")?.political_cost_ids().clone();
         let provider = self
             .provider
             .lock()
@@ -429,7 +431,7 @@ impl Service {
             .ok_or_else(|| "Game installation not configured".into())
             .and_then(|provider| {
                 let handle = provider.handle;
-                crate::request(0, "provider_collect", json!({"handle":handle,"now":now}))
+                crate::request(0, "provider_collect", json!({"handle":handle,"now":now,"political_cost_ids":political_cost_ids}))
             });
         let mut value = match sample {
             Ok(sample) => reading.monitor.accept(sample, now, &timestamp())?,
@@ -1348,6 +1350,7 @@ impl Service {
                 let source = &replacement.as_ref().unwrap().sources;
                 spec["shared_focuses"] = crate::focus_catalog::shared_members(&source["all_trees"]);
                 spec["building_scopes"] = crate::operational_catalog::building_scopes(&source["operation_entities"]);
+                spec["political_cost_ids"] = json!([]); // Refreshed from prepared guides on the next poll.
                 let mods: Vec<_> = source["mod_roots"]
                     .as_array()
                     .into_iter()

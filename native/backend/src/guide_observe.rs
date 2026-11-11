@@ -96,9 +96,10 @@ fn definitions(guide: &Value) -> Value {
             continue;
         }
         let token = guide_prepare::foreign_token(&row["key"], &node);
-        if row["completion"]
-            == json!({"op":"any","args":[node,{"op":"fact","key":"guide.campaign.milestones","test":"contains","value":token}]})
-        {
+        let legacy=json!({"op":"any","args":[node,{"op":"fact","key":"guide.campaign.milestones","test":"contains","value":token}]});
+        let mut current=legacy.clone();
+        if let Some(history)=guide_prepare::decision_history_predicate(&node) {current["args"].as_array_mut().unwrap().push(history);}
+        if row["completion"]==legacy || row["completion"]==current {
             result[&token] = json!({"step":row["key"],"token":token,"condition":node,"foreign_interaction":true});
         }
     }

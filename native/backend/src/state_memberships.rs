@@ -34,6 +34,17 @@ fn tags(value: &Value) -> bool {
         .is_some_and(|a| a.len() <= 8192 && a.iter().all(tag) && unique(a))
 }
 pub(super) fn valid(key: &str, value: &Value) -> bool {
+    if ["politics.commanders.assigned", "politics.commander_assignments"].contains(&key) {
+        return value.as_array().is_some_and(|rows| rows.len() <= 4096 && unique(rows) && rows.iter().all(|v| {
+            let parts = text(v).split(':').collect::<Vec<_>>();
+            let role = parts.first().copied().unwrap_or("");
+            parts.len() == (if key == "politics.commanders.assigned" {2} else {4})
+                && ["field_marshal","corps_commander","navy_leader"].contains(&role)
+                && id(&json!(parts[1]))
+                && (parts.len() == 2 || parts[2] == match role {"field_marshal"=>"army_group","corps_commander"=>"army",_=>"fleet"}
+                    && parts[3].len() == 16 && parts[3].bytes().all(|b|b.is_ascii_hexdigit() && !b.is_ascii_uppercase()))
+        }));
+    }
     if !FOREIGN.contains(&key) {
         return true;
     }
@@ -175,6 +186,8 @@ pub(super) fn political(overview: &Value) -> Map<String, Value> {
         "politics.characters",
         "politics.unit_leaders",
         "politics.scientists",
+        "politics.commanders.assigned",
+        "politics.commander_assignments",
         "events.visible",
         "events.visible_options",
         "decisions.listed",
@@ -207,6 +220,18 @@ pub(super) fn political(overview: &Value) -> Map<String, Value> {
         );
     }
     let politics = &overview["politics"];
+    let assignments = &politics["commander_assignments"];
+    if ["observed","partial"].contains(&text(&politics["status"])) && assignments["schema_version"] == 1
+        && assignments["status"] == "observed" && assignments["source"] == "native_reciprocal_commander_assignments"
+        && assignments["items"].as_array().is_some_and(|rows| rows.len() <= 4096
+            && rows.iter().all(|r| id(&r["commander_id"]) && r["name"].as_str().is_some_and(|n| n.len()<=512 && !n.chars().any(char::is_control))
+                && valid("politics.commander_assignments", &json!([format!("{}:{}:{}:{}",text(&r["role"]),text(&r["commander_id"]),text(&r["target_kind"]),text(&r["instance_id"]))])))
+            && rows.iter().map(|r|text(&r["commander_id"])).collect::<BTreeSet<_>>().len()==rows.len()
+            && rows.iter().map(|r|text(&r["instance_id"])).collect::<BTreeSet<_>>().len()==rows.len())
+    {
+        publish(&mut result,"politics.commanders.assigned",list(&assignments["items"]).iter().map(|r|format!("{}:{}",text(&r["role"]),text(&r["commander_id"]))),"native_commander_assignment_adapter");
+        publish(&mut result,"politics.commander_assignments",list(&assignments["items"]).iter().map(|r|format!("{}:{}:{}:{}",text(&r["role"]),text(&r["commander_id"]),text(&r["target_kind"]),text(&r["instance_id"]))),"native_commander_assignment_adapter");
+    }
     let characters = &politics["characters"];
     if ["observed", "partial"].contains(&text(&politics["status"]))
         && characters["status"] == "observed" && characters["source"] == "native_character_status_roles"
@@ -299,6 +324,7 @@ pub(super) fn political(overview: &Value) -> Map<String, Value> {
     }
     let decisions = &overview["decisions"];
     let history = &decisions["execution_history"];
+    if decisions["status"] == "observed" { result.extend(super::decisions::facts(history)); }
     if decisions["status"] == "observed" && history["status"] == "observed"
         && history["source"] == "native_decisions_taken_and_timed_state"
         && history["history_scope"] == "current_native_records"
@@ -322,6 +348,12 @@ pub(super) fn political(overview: &Value) -> Map<String, Value> {
                 .map(|v| text(v).to_owned()),
             "politics_adapter",
         );
+    }
+    for key in ["projects.facilities.idle", "politics.scientists.assigned"] { result.insert(key.into(),unknown("Facility scientist assignments not qualified")); }
+    let facilities=&overview["projects"]["facilities"];
+    if overview["projects"]["status"]=="observed" && facilities["status"]=="observed" && facilities["schema_version"]==1 && facilities["source"]=="native_facility_scientist_assignments" && facilities["items"].as_array().is_some_and(|a| a.len()<=256 && a.iter().all(|r| id(&r["instance_id"]) && id(&r["building_id"]) && (r.get("scientist_id").is_some() && (r["scientist_id"].is_null() || id(&r["scientist_id"]))) && r["busy"].is_boolean()) && a.iter().map(|r|text(&r["instance_id"])).collect::<BTreeSet<_>>().len()==a.len() && {let ids=a.iter().filter(|r|r["scientist_id"].is_string()).map(|r|text(&r["scientist_id"])).collect::<Vec<_>>();ids.iter().copied().collect::<BTreeSet<_>>().len()==ids.len()}) {
+        publish(&mut result,"projects.facilities.idle",list(&facilities["items"]).iter().filter(|r|r["busy"]==false && r["scientist_id"].is_string()).map(|r|text(&r["building_id"]).to_owned()),"native_facility_assignment_adapter");
+        publish(&mut result,"politics.scientists.assigned",list(&facilities["items"]).iter().filter(|r|r["scientist_id"].is_string()).map(|r|text(&r["scientist_id"]).to_owned()),"native_facility_assignment_adapter");
     }
     result
 }

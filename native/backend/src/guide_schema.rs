@@ -294,6 +294,21 @@ fn identifiers(value: &Value, label: &str, limit: usize) -> Result<HashSet<Strin
     }
     Ok(ids)
 }
+fn action_params(value: &Value) -> Result<()> {
+    if value.as_object().is_none_or(|m|m.len()>128) {return Err("Parametri azione non validi".into());}
+    fn source(v:&Value)->bool {
+        keys(v,&["schema_version","available","branch"],&["schema_version","available","branch"])
+            && v["schema_version"]==1 && {let mut budget=0;hoi4companion_guide_core::source_criteria::validate(&v["available"],0,&mut budget).is_ok() && hoi4companion_guide_core::source_criteria::validate(&v["branch"],0,&mut budget).is_ok()}
+    }
+    // Typed script predicates have their own depth/node bounds. Other action
+    // parameters retain the existing generic depth limit, including bad trees.
+    let mut rest=value.clone();
+    if source(&rest["operational_criteria"]) {rest.as_object_mut().unwrap().remove("operational_criteria");}
+    for (binding,fields) in [("political_binding",&["source_criteria","explicit_source_criteria"][..]),("project_source_binding",&["operational_criteria"][..])] {
+        if let Some(map)=rest.get_mut(binding).and_then(Value::as_object_mut).filter(|m|m.len()<=128) {for field in fields {if map.get(*field).is_some_and(source) {map.remove(*field);}}}
+    }
+    json_data(&rest,0)
+}
 fn json_data(value: &Value, depth: usize) -> Result<()> {
     if depth > 8 {
         return Err("Parametri azione troppo profondi".into());

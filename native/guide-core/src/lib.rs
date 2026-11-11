@@ -1,5 +1,6 @@
 //! Deterministic guide decisions. No I/O, game access, clocks or persistence.
 mod ffi;
+pub mod source_criteria;
 mod research;
 mod revisions;
 #[cfg(test)]
@@ -172,6 +173,9 @@ impl State {
             || !matches!(text(&fact["status"]), "observed" | "calculated")
             || text(&fact["source"]).is_empty()
             || fact["value"].is_null()
+            || key == "politics.costs" && (fact["status"] != "calculated" || fact["source"] != "native_political_purchase_formula")
+            || (key == "equipment.logistics" || key.starts_with("country.equipment.logistics."))
+                && (fact["status"] != "calculated" || fact["source"] != "native_logistics_ui_formula")
         {
             return None;
         }
@@ -294,7 +298,7 @@ impl Step {
         } else if self.action.kind == Kind::SpecialProject {
             Some("project")
         } else if truth(&p["commander_id"])
-            || matches!(text(&p["role"]), "corps_commander" | "navy_leader")
+            || matches!(text(&p["role"]), "field_marshal" | "corps_commander" | "navy_leader")
         {
             Some("appointment")
         } else if self.political_power_cost.is_some()
@@ -483,20 +487,29 @@ fn readiness(step: &Step, input: &Input) -> Option<Value> {
     let mut blocked = Vec::<&str>::new();
     let mut resources = Vec::new();
     let mut affordability = Vec::new();
-    let mut out = json!({"domain":domain,"requirements_declared":step.requirements.is_some()});
+    let mut out = json!({"domain":domain,"requirements_declared":step.requirements.is_some() || step.action.params.get("operational_criteria").is_some()});
     if domain == "political" && !truth(&step.action.params["cost_currency"])
         || step.political_power_cost.is_some()
     {
-        let cost = step.political_power_cost.as_ref();
+        let declared = step.political_power_cost.as_ref().and_then(Value::as_f64);
+        let params=&step.action.params;
+        let bound=["law_id","idea_id","advisor_id","decision_id"].iter().any(|k|params[*k].is_string());
+        let group=if params["decision_id"].is_string(){Some("decision")}else{params["law_group"].as_str().or_else(||params["idea_group"].as_str()).or_else(||params["role"].as_str())};
+        let id=params["decision_id"].as_str().or_else(||params["law_id"].as_str()).or_else(||params["idea_id"].as_str()).or_else(||params["advisor_id"].as_str());
+        let costs=input.state.value("politics.costs");
+        let row=group.zip(id).and_then(|(g,id)|costs?.get(format!("{g}/{id}"))).filter(|r|r["currency"]=="political_power");
+        let effective=row.and_then(|r|r["effective"].as_f64()).filter(|n|n.is_finite()&&(0. ..=1_000_000.).contains(n));
+        let cost=match (declared,effective) {(Some(a),Some(b))=>Some(a.max(b)),(Some(a),None)=>Some(a),(None,b)=>b};
         let amount = input
             .state
             .value("country.politics.political_power")
             .filter(|v| v.is_number());
-        let affordable = cost
-            .zip(amount)
-            .and_then(|(c, a)| Some(a.as_f64()? >= c.as_f64()?));
-        out["political_power"] = json!({"cost":cost,"available":amount,"affordable":affordable,"cost_basis":if cost.is_some(){"guide_declared"}else{"unknown"}});
-        if cost.is_none() {
+        let affordable = cost.zip(amount).and_then(|(c,a)| {
+            let enough=a.as_f64()? >= c;
+            if enough && bound && effective.is_none() {None}else{Some(enough)}
+        });
+        out["political_power"] = json!({"cost":cost,"guide_threshold":declared,"base_cost":row.and_then(|r|r.get("base")),"effective_cost":effective,"available":amount,"affordable":affordable,"cost_basis":if effective.is_some(){"native_effective"}else if declared.is_some(){"guide_declared"}else{"unknown"}});
+        if cost.is_none() || bound && effective.is_none() {
             missing.push("political_cost_unknown")
         };
         if amount.is_none() {
@@ -528,16 +541,30 @@ fn readiness(step: &Step, input: &Input) -> Option<Value> {
         }
     }
     out["resources_available"] = json!(group(&affordability, true));
-    match condition_value(&step.requirements, input) {
+    let source = &step.action.params["operational_criteria"];
+    let source_value = if source.is_object() {
+        let mut checks=Vec::new();
+        let value=if source_criteria::validate(&source["available"],0,&mut 1).is_ok() {source_condition(&source["available"], &input.state, &mut checks, 0)} else {checks.push(json!({"value":null,"reason":"invalid_operational_criteria"}));None};
+        out["source_checks"]=json!(checks);
+        value
+    } else { None };
+    let requirements = if source.is_object() {
+        group(&[source_value, if step.requirements.is_some(){condition_value(&step.requirements,input)}else{Some(true)}],true)
+    } else { condition_value(&step.requirements,input) };
+    match requirements {
         Some(false) => blocked.push("action_requirements_false"),
         None => missing.push("action_requirements_unknown"),
         _ => {}
     }
     if domain == "appointment" {
-        missing.push("commander_assignment_unobserved")
+        let node=&step.action.params["political_binding"]["completion"];
+        if node["op"]!="fact" || !["politics.commanders.assigned","politics.commander_assignments"].contains(&text(&node["key"]))
+            || input.state.value(text(&node["key"])).is_none_or(|v|!v.is_array()) {missing.push("commander_assignment_unobserved")}
     };
     if domain == "project" {
-        missing.push("facility_compatibility_unknown")
+        let buildings=step.action.params["facility_buildings"].as_array().filter(|a|!a.is_empty()&&a.iter().all(Value::is_string));
+        let idle=input.state.value("projects.facilities.idle").and_then(Value::as_array).filter(|a|a.iter().all(Value::is_string));
+        match buildings.zip(idle).map(|(a,b)|a.iter().any(|v|b.contains(v))) {Some(true)=>{},Some(false)=>blocked.push("compatible_facility_unavailable"),None=>missing.push("facility_compatibility_unknown")}
     };
     out["value"] = json!(if !blocked.is_empty() {
         Some(false)
@@ -552,8 +579,7 @@ fn readiness(step: &Step, input: &Input) -> Option<Value> {
     Some(out)
 }
 
-fn focus_readiness(rules: &Value, state: &State) -> Value {
-    fn evaluate(
+fn source_condition(
         node: &Value,
         state: &State,
         checks: &mut Vec<Value>,
@@ -562,19 +588,22 @@ fn focus_readiness(rules: &Value, state: &State) -> Value {
         if depth > 32 {
             return None;
         }
+        if ["all","any"].contains(&text(&node["op"])) && node["args"].as_array().is_none_or(|a|a.len()>4096) {
+            return None;
+        }
         match text(&node["op"]) {
             "const" => node["value"].as_bool(),
             "all" | "any" => group(
                 &list(&node["args"])
                     .iter()
-                    .map(|a| evaluate(a, state, checks, depth + 1))
+                    .map(|a| source_condition(a, state, checks, depth + 1))
                     .collect::<Vec<_>>(),
                 node["op"] == "all",
             ),
-            "not" => evaluate(&node["arg"], state, checks, depth + 1).map(|x| !x),
+            "not" => source_condition(&node["arg"], state, checks, depth + 1).map(|x| !x),
             "if" => {
-                let a = evaluate(&node["condition"], state, checks, depth + 1);
-                let b = evaluate(&node["then"], state, checks, depth + 1);
+                let a = source_condition(&node["condition"], state, checks, depth + 1);
+                let b = source_condition(&node["then"], state, checks, depth + 1);
                 if a == Some(false) || b == Some(true) {
                     Some(true)
                 } else if a == Some(true) {
@@ -614,9 +643,11 @@ fn focus_readiness(rules: &Value, state: &State) -> Value {
             _ => None,
         }
     }
+
+fn focus_readiness(rules: &Value, state: &State) -> Value {
     let mut checks = Vec::new();
-    let available = evaluate(&rules["available"], state, &mut checks, 0);
-    let branch = evaluate(&rules["branch"], state, &mut checks, 0);
+    let available = source_condition(&rules["available"], state, &mut checks, 0);
+    let branch = source_condition(&rules["branch"], state, &mut checks, 0);
     let done = state
         .value("focus.completed")
         .and_then(Value::as_array)

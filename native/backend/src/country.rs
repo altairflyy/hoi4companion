@@ -6,6 +6,18 @@ use std::collections::{BTreeMap, HashSet};
 type Result<T> = std::result::Result<T, String>;
 #[path = "country_actions.rs"]
 mod actions;
+#[path = "country_decisions.rs"]
+mod decision_records;
+#[path = "country_training.rs"]
+mod training;
+#[path = "country_logistics.rs"]
+mod logistics;
+#[path = "country_facilities.rs"]
+mod facilities;
+#[path = "country_commanders.rs"]
+mod commanders;
+#[path = "country_costs.rs"]
+mod costs;
 #[path = "country_campaign.rs"]
 mod campaign;
 #[path = "country_design.rs"]
@@ -164,9 +176,9 @@ impl<M: Memory> Reader<'_, M> {
         if !(0..=2_000_000_000).contains(&reserve) {
             return Err("Manpower disponibile fuori intervallo".into());
         }
-        Ok(
-            json!({"status":"partial","available":reserve,"fielded":self.integer(self.country+0x348,0,2_000_000_000)?,"training":null,"reason":"Disponibili e totale schierato letti dal contatore nativo. Coda addestramento non ancora decodificata."}),
-        )
+        let training=match self.training() { Ok(v)=>v,Err(reason)=>json!({"status":"unavailable","reason":reason}) };
+        Ok(json!({"status":"partial","available":reserve,"fielded":self.integer(self.country+0x348,0,2_000_000_000)?,
+            "training":training["land_manpower"],"training_queue":training,"reason":"Available and fielded manpower; training covers qualified land deployment lines, not naval or air personnel."}))
     }
     fn states(&mut self) -> Result<Value> {
         let rva = self.attributes["building_database_rva"]
@@ -253,6 +265,17 @@ impl<M: Memory> Reader<'_, M> {
         )
     }
     fn equipment(&mut self) -> Result<Value> {
+        let mut value = self.equipment_gross()?;
+        value["logistics"] = match self.logistics() {
+            Ok(logistics) => logistics,
+            Err(reason) => json!({"schema_version":1,"status":"unavailable","source":"native_logistics_ui_formula","items":[],"reason":reason}),
+        };
+        value["status"] = value["logistics"]["status"].clone();
+        if value["status"] == "unavailable" { value["status"] = json!("partial"); }
+        value["reason"] = json!("Scorte lorde per modello e variante; fabbisogno, disponibilità e flusso giornaliero qualificati separatamente per archetipo nella sezione Logistica.");
+        Ok(value)
+    }
+    fn equipment_gross(&mut self) -> Result<Value> {
         let status = self.object_pointer(self.country + 0xf68, "CProductionStatus")?;
         if self.pointer(
             status

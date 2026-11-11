@@ -80,7 +80,7 @@ fn watch_rows(output: &Value, plan: &mut Witnesses) -> Result<()> {
     }
     Ok(())
 }
-pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focuses: &Value, building_scopes: &Value) -> Result<Sample> {
+pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focuses: &Value, building_scopes: &Value, political_cost_ids:&Value) -> Result<Sample> {
     let metadata = game.profile.metadata();
     let attributes = profile_value(&metadata["selected"]);
     let base = game.base;
@@ -140,7 +140,7 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
             },
         ) && let Some(cache) = output.get("event_cache").filter(|v| v.is_array())
         {
-            return collect(game, neighbors, cache, shared_focuses, building_scopes);
+            return collect(game, neighbors, cache, shared_focuses, building_scopes, political_cost_ids);
         }
     }
     let mut state = packet["state"].clone();
@@ -165,6 +165,9 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
     }
     let mut section_attributes = attributes.clone();
     section_attributes["building_scopes"] = building_scopes.clone();
+    let targets=political_cost_ids.as_array().into_iter().flatten().filter(|row|row["countries"].as_array().is_some_and(|a|a.is_empty()||a.contains(&state["country"])))
+        .map(|row|json!({"id":row["id"],"group":row["group"]})).collect::<Vec<_>>();
+    section_attributes["political_cost_ids"] = json!(targets);
     section_attributes["sha256"] = metadata["sha256"].clone();
     section_attributes["image_base"] = metadata["image_base"].clone();
     section_attributes["executable_bytes"] = json!(true);
