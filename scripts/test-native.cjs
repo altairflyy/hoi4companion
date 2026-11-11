@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),{spawnSync}=require('node:child_process');
 const {ROOT,options}=require('./native-tooling.cjs'),args=options(),local=path.join(ROOT,'.local/toolchains/cargo/bin/cargo.exe');
+if(args.ci&&args.dev)throw Error('CI validation requires release test semantics');
 const cargo=fs.existsSync(local)?local:'cargo',env={...process.env};
 if(cargo===local){env.CARGO_HOME=path.join(ROOT,'.local/toolchains/cargo');env.RUSTUP_HOME=path.join(ROOT,'.local/toolchains/rustup');}
 // CI tests keep release semantics but avoid expensive whole-program LTO for

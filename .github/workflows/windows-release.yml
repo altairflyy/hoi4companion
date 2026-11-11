@@ -44,27 +44,9 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           rustup default stable
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $versions = "$(rustc -Vv)`n$(dotnet --version)"
+          $versions = "$(rustc -Vv)`n$(dotnet --version)`n$env:ImageOS`n$env:ImageVersion"
           $key = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($versions))).ToLowerInvariant()
           "key=$key" >> $env:GITHUB_OUTPUT
-      - name: Cache downloaded dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            .local/nuget-packages
-          key: windows-dependencies-v1-${{ hashFiles('native/**/Cargo.lock', 'native/cwtools/**/packages.lock.json', 'native/cwtools/Directory.Packages.props', 'native/cwtools/vendor/Directory.Packages.props') }}
-          restore-keys: windows-dependencies-v1-
-      - name: Cache production compilation
-        uses: actions/cache@v4
-        with:
-          path: |
-            .local/rust-backend-target
-            .local/rust-core-tests-target
-          key: windows-production-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**/Cargo.lock') }}-${{ hashFiles('native/**', 'src/hoi4companion/*.json', 'src/hoi4companion/*.md') }}
-          restore-keys: windows-production-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**/Cargo.lock') }}-
       - name: Cache exact native components
         id: native
         uses: actions/cache@v4
@@ -78,7 +60,27 @@ jobs:
             src/hoi4companion/_native/cwtools
           # No partial key: Rust embeds the root JSON/Markdown resources too.
           # Always repackage web files and rerun tests, even on an exact hit.
-          key: windows-native-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**', 'src/hoi4companion/*.json', 'src/hoi4companion/*.md', 'scripts/build-*.ps1', '.github/workflows/windows-release.yml') }}
+          key: windows-native-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**', 'Cargo.toml', 'Cargo.lock', '.cargo/**', 'rust-toolchain*', 'src/hoi4companion/*.json', 'src/hoi4companion/*.md', 'scripts/build-*.ps1', '.github/workflows/windows-release.yml') }}
+      - name: Cache downloaded dependencies
+        if: steps.native.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            .local/nuget-packages
+          key: windows-dependencies-v1-${{ hashFiles('native/**/Cargo.lock', 'native/cwtools/**/packages.lock.json', 'native/cwtools/Directory.Packages.props', 'native/cwtools/vendor/Directory.Packages.props') }}
+          restore-keys: windows-dependencies-v1-
+      - name: Cache production compilation
+        if: steps.native.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            .local/rust-backend-target
+            .local/rust-core-tests-target
+          key: windows-production-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**/Cargo.lock') }}-${{ hashFiles('native/**', 'Cargo.toml', 'Cargo.lock', '.cargo/**', 'rust-toolchain*', 'src/hoi4companion/*.json', 'src/hoi4companion/*.md') }}
+          restore-keys: windows-production-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**/Cargo.lock') }}-
       - name: Prepare native components and on-demand tools
         shell: pwsh
         run: |
@@ -142,7 +144,8 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           rustup default stable
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $key = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes((rustc -Vv | Out-String)))).ToLowerInvariant()
+          $versions = "$(rustc -Vv)`n$env:ImageOS`n$env:ImageVersion"
+          $key = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($versions))).ToLowerInvariant()
           "key=$key" >> $env:GITHUB_OUTPUT
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -159,7 +162,7 @@ jobs:
           path: |
             .local/rust-ci-backend-tests-target
             .local/rust-ci-core-tests-target
-          key: windows-tests-no-lto-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**/Cargo.lock') }}-${{ hashFiles('native/**', 'tests/**', 'src/hoi4companion/*.json', 'src/hoi4companion/*.md') }}
+          key: windows-tests-no-lto-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**/Cargo.lock') }}-${{ hashFiles('native/**', 'tests/**', 'Cargo.toml', 'Cargo.lock', '.cargo/**', 'rust-toolchain*', 'src/hoi4companion/*.json', 'src/hoi4companion/*.md', 'scripts/test-native.cjs') }}
           restore-keys: windows-tests-no-lto-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('native/**/Cargo.lock') }}-
       - name: Test all native guide and service cores
         shell: pwsh
