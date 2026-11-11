@@ -38,3 +38,15 @@ test('classification never mutates the original source or word step schema', () 
   assert.ok(result.label);
   assert.equal(JSON.stringify(step), before);
 });
+
+test('trained action labels remain useful on representative original-guide notation', () => {
+  const classifier = load(model);
+  assert.equal(classifier.predict('Build MILs').label, 'CONSTRUCTION');
+  assert.equal(classifier.predict('Inf->25').label, 'PRODUCTION');
+  assert.equal(classifier.predict('Improve relations with Germany').label, 'DIPLOMACY');
+});
+test('only the single model data asset is exposed by the native static allowlist', () => {
+  const server = fs.readFileSync('native/backend/src/http.rs', 'utf8');
+  assert.match(server, /name == "guide-intent-model\\.json"/);
+  assert.doesNotMatch(server, /name\\.ends_with\\("\\.json"\\)/);
+});
