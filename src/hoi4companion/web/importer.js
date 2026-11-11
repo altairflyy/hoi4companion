@@ -4,6 +4,7 @@
  const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
  let sources=[],report=null,busy=false,aiConfigured=false,generation=0,entities=[],eventExport={catalog:[]},sections=[],wordFile=null,wordSingle=false,scenarioGuideId=null;
  let aiCatalogPromise=null;
+ let intentModelPromise=null;
  let referenceData={designs:[],images:[]},referenceCategory=null;
  const buttons=['acquire','packet','extract','validate','saveDraft','exportGuide','install','copyPrompt','downloadPrompt','downloadCatalog','downloadSection','applyFocusSequence'];
  function exportedCatalog(section){return section?.id==='events'&&$('eventsMultiple').checked?{...section,...eventExport,catalog_scope:section.id}:section;}
@@ -169,7 +170,42 @@
   if($('treeScope').value)result.document.guide.applies_to={tree_id:$('treeScope').value};
   sources=result.sources;writeGuide(result.document);invalidate();sourceList();
   $('wordStatus').textContent=(result.warnings||[]).map(text=>HoiI18n.t(text)).join(' ');
+  await showIntentReview(result);
  });
+ async function showIntentReview(result){
+  const panel=$('wordIntentReview'),target=$('wordIntentResults');
+  panel.hidden=true;target.replaceChildren();
+  const steps=result?.document?.guide?.steps;
+  if(!Array.isArray(steps)||typeof HoiGuideIntent==='undefined')return;
+  const reminders=steps.filter(row=>row?.type==='reminder'&&typeof(row.instructions?.[0]||row.title)==='string').slice(0,40);
+  if(!reminders.length)return;
+  panel.hidden=false;
+  try{
+   if(!intentModelPromise)intentModelPromise=fetch('/guide-intent-model.json').then(async response=>{
+    if(!response.ok)throw Error('Model asset unavailable');
+    return HoiGuideIntent.load(await response.json());
+   });
+   const classifier=await intentModelPromise;
+   let low=0;
+   for(const step of reminders){
+    const source=step.instructions?.[0]||step.title;
+    const prediction=classifier.predict(source);
+    if(prediction.requires_review)low++;
+    const line=node('p');
+    line.textContent=source.slice(0,180)+' — '+prediction.label+
+     (prediction.requires_review?' (uncertain)':' (suggested)')+
+     ' · margin '+prediction.margin.toFixed(2);
+    target.append(line);
+   }
+   const heading=node('p',reminders.length+' ACTION reminders checked; '+low+
+    ' flagged for review. Learned labels only: no changes to guide steps, native IDs or live tracking.');
+   target.children.unshift?.(heading);
+   if(!target.children.includes(heading))target.append(heading);
+  }catch(e){
+   intentModelPromise=null;
+   target.append(node('p','Intent model unavailable; the normal Rust importer is unaffected.'));
+  }
+ }
  function writeGuide(value){$('guideJson').value=JSON.stringify(value,null,2);}
  function constructionEditor(row){
   const params=row.action.params,details=node('details');details.className='construction-editor';details.append(node('summary',HoiI18n.t("Correct construction")));
