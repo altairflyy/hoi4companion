@@ -29,23 +29,19 @@ def extract_json(message):
     except json.JSONDecodeError:
         return {'operations':[],'unresolved':['INVALID_MODEL_OUTPUT']}
 
-def predict(model, tokenizer, record, max_new_tokens=512):
+def predict(model, processor, record, max_new_tokens=512):
     import torch
     messages=build_messages(record['text'],record.get('section','ACTION'))
-    values=tokenizer.apply_chat_template(messages,tokenize=True,add_generation_prompt=True,return_tensors='pt')
-    if hasattr(values,'input_ids'):
-        inputs=values.input_ids
-    else:
-        inputs=values
+    inputs=processor.apply_chat_template(messages,tokenize=True,add_generation_prompt=True,
+                                        return_dict=True,return_tensors='pt')
     inputs=inputs.to(next(model.parameters()).device)
     with torch.inference_mode():
-        output=model.generate(input_ids=inputs,max_new_tokens=max_new_tokens,
-                              do_sample=False,pad_token_id=tokenizer.eos_token_id)
-    answer=tokenizer.decode(output[0][inputs.shape[-1]:],skip_special_tokens=True)
+        output=model.generate(**inputs,max_new_tokens=max_new_tokens,do_sample=False)
+    answer=processor.decode(output[0][inputs['input_ids'].shape[-1]:],skip_special_tokens=True)
     return {'id':record['id'],'result':extract_json(answer),'raw':answer}
 
-def run(model,tokenizer,dataset,max_tokens):
-    return [predict(model,tokenizer,item,max_tokens) for item in dataset]
+def run(model,processor,dataset,max_tokens):
+    return [predict(model,processor,item,max_tokens) for item in dataset]
 
 def main():
     p=argparse.ArgumentParser(description='Local semantic parser, base vs direct-weight WSP candidate')
@@ -61,21 +57,21 @@ def main():
     if not root.is_dir() or not (root/'config.json').is_file():
         p.error('base model not found locally; acquire a pinned open-weight model first')
     import torch
-    from transformers import AutoTokenizer, Qwen3_5ForCausalLM
-    tok=AutoTokenizer.from_pretrained(str(root),local_files_only=True,trust_remote_code=False)
-    model=Qwen3_5ForCausalLM.from_pretrained(str(root),device_map='auto',dtype='auto',
+    from transformers import AutoProcessor, Qwen3_5ForConditionalGeneration
+    processor=AutoProcessor.from_pretrained(str(root),local_files_only=True,trust_remote_code=False)
+    model=Qwen3_5ForConditionalGeneration.from_pretrained(str(root),device_map='auto',dtype='auto',
                                             local_files_only=True,trust_remote_code=False)
     model.eval()
     cases=[x for x in read_jsonl(args.cases) if x['split']==args.split]
     out=Path(args.out_dir).resolve();out.mkdir(parents=True,exist_ok=True)
-    original=run(model,tok,cases,args.max_new_tokens)
+    original=run(model,processor,cases,args.max_new_tokens)
     (out/'baseline.jsonl').write_text(''.join(json.dumps(x,ensure_ascii=False)+'\n' for x in original),'utf8')
     before=evaluate(cases,original)
     report={'base':{k:v for k,v in before.items() if k!='cases'},'split':args.split,'n_cases':len(cases)}
     if args.patch:
         patch=json.loads(Path(args.patch).read_text('utf8'))
         report['edit']=apply_torch_edit(model,patch)
-        revised=run(model,tok,cases,args.max_new_tokens)
+        revised=run(model,processor,cases,args.max_new_tokens)
         (out/'candidate.jsonl').write_text(''.join(json.dumps(x,ensure_ascii=False)+'\n' for x in revised),'utf8')
         after=evaluate(cases,revised)
         report['candidate']={k:v for k,v in after.items() if k!='cases'}
@@ -91,7 +87,7 @@ def main():
             if target.exists():
                 p.error('refusing to overwrite a saved model')
             model.save_pretrained(target,safe_serialization=True)
-            tok.save_pretrained(target)
+            processor.save_pretrained(target)
             report['saved_candidate']=str(target)
     (out/'report.json').write_text(json.dumps(report,indent=2,ensure_ascii=False)+'\n','utf8')
     print(json.dumps(report,indent=2,ensure_ascii=False))
