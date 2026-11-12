@@ -20,6 +20,11 @@ type Result<T> = std::result::Result<T, String>;
 fn recent_delivery(age: Option<Duration>) -> bool {
     age.is_some_and(|age| age < Duration::from_secs(2))
 }
+fn current_hud_delivery(delivery:Option<&(u64,Instant,Value)>,epoch:u64)->Option<Value>{
+    let (published,observed,value)=delivery?;
+    if *published!=epoch||!recent_delivery(Some(observed.elapsed())){return None;}
+    let mut value=value.clone();value["state_age_ms"]=json!(observed.elapsed().as_secs_f64()*1000.);Some(value)
+}
 #[path = "http_collections.rs"]
 mod collections;
 const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'";
@@ -106,6 +111,8 @@ pub struct Service {
     provider: Mutex<Option<ProviderOwner>>,
     hud: Mutex<crate::hud_service::Hud>,
     hud_cache: Mutex<Option<(Value, Value)>>,
+    hud_delivery: Mutex<Option<(u64, Instant, Value)>>,
+    hud_epoch: AtomicU64,
     guide_catalog_cache: Mutex<Option<(Value, Value)>>,
     hud_status_path: PathBuf,
     web: PathBuf,
@@ -180,6 +187,7 @@ fn timestamp() -> String {
 }
 impl Service {
     pub fn open(config: &Value) -> Result<Arc<Self>> {
+        let startup=Instant::now();
         let web = PathBuf::from(
             config["web_root"]
                 .as_str()
@@ -279,6 +287,7 @@ impl Service {
             crate::video_jobs::Jobs::new(videos_root, frames.clone(), package.to_path_buf());
         let catalog_args = config.get("catalog").cloned();
         let mut catalog = catalog_args.as_ref().map(Catalog::open).transpose()?;
+        eprintln!("[startup] catalog ready in {:.3}s",startup.elapsed().as_secs_f64());
         if let Some(catalog) = catalog.as_mut() {
             app.set_context(crate::runtime_context::Context::new(
                 catalog,
@@ -290,6 +299,7 @@ impl Service {
             .and_then(|c| c.sources["settings"]["ui_language"].as_str())
             .unwrap_or("english")
             .to_owned();
+        eprintln!("[startup] guides ready in {:.3}s",startup.elapsed().as_secs_f64());
         let provider = if let Some(mut spec) = config.get("provider").cloned() {
             if let Some(c) = &catalog {
                 spec["shared_focuses"] = crate::focus_catalog::shared_members(&c.sources["all_trees"]);
@@ -317,6 +327,7 @@ impl Service {
             None
         };
         let hub = Hub::new(0.25, 8)?;
+        eprintln!("[startup] services ready in {:.3}s",startup.elapsed().as_secs_f64());
         let result = Arc::new_cyclic(|owner| Self {
             owner: owner.clone(),
             collection_jobs: Mutex::new(Default::default()),
@@ -333,6 +344,8 @@ impl Service {
             provider: Mutex::new(provider),
             hud: Mutex::new(crate::hud_service::Hud::default()),
             hud_cache: Mutex::new(None),
+            hud_delivery: Mutex::new(None),
+            hud_epoch: AtomicU64::new(0),
             guide_catalog_cache: Mutex::new(None),
             hud_status_path: association_directory.parent().unwrap_or(&association_directory).join("overlay-status.json"),
             web,
@@ -395,6 +408,7 @@ impl Service {
                     let packet = owner.poll().unwrap_or_else(
                         |e| json!({"usable":false,"status":"disconnected","sample":null,"error":e}),
                     );
+                    let _ = owner.publish_hud();
                     let _ = owner.hub.publish(packet, owner.now());
                     let clients = match owner.clients.lock() {
                         Ok(v) => v,
@@ -803,7 +817,7 @@ impl Service {
     fn overlay_guides(&self) -> Result<Value> {
         // The caller has already refreshed the qualified state. Listing guides
         // must not trigger another full acquisition after preparing the HUD.
-        let packet = self.app("app_live_packet", &json!({}))?;
+        let packet = self.app("app_hud_context", &json!({}))?;
         // No need to prepare static DLC checks until an actual nation exists.
         if crate::hud_guides::select(&packet, &json!([]))["guide_filter"]["status"] != "observed" {
             return Ok(crate::hud_guides::select(&packet, &json!([])));
@@ -845,25 +859,37 @@ impl Service {
                 .unavailable(&error)),
         }
     }
+    fn publish_hud(&self) -> Result<()> {
+        let epoch=self.hud_epoch.load(Ordering::Acquire);
+        let observed=*self.last_delivery.lock().map_err(|_|"Live delivery unavailable")?;
+        let Some(observed)=observed else{return Ok(());};
+        let stamp=self.app("app_overlay_stamp",&json!({}))?;
+        let mut value=self.overlay_project()?;
+        let eligible=self.overlay_guides()?;
+        let identity=self.app("app_hud_context",&json!({}))?;
+        value["guides"]=eligible["guides"].clone();
+        value["guide_filter"]=eligible["guide_filter"].clone();
+        value["observer_session_id"]=identity["sample"]["session_id"].clone();
+        if self.app("app_overlay_stamp",&json!({}))?!=stamp{return Ok(());}
+        let mut delivery=self.hud_delivery.lock().map_err(|_|"HUD delivery unavailable")?;
+        if self.hud_epoch.load(Ordering::Acquire)==epoch{*delivery=Some((epoch,observed,value));}
+        Ok(())
+    }
     fn overlay_latest(&self) -> Result<Value> {
         // The existing SSE reader owns process acquisition. HUD geometry uses
         // the latest qualified delivery without queuing behind an integrity
         // audit. Coarse guide facts have a bounded 2s delivery budget (normal
         // cadence250ms + measured full reads~850ms); GUI evidence stays750ms.
-        let age=self.last_delivery.lock().map_err(|_|"Live delivery unavailable")?
-            .map(|when|when.elapsed());
-        if recent_delivery(age) {
-            let mut value=self.overlay_project()?;
-            value["state_age_ms"]=json!(age.unwrap().as_secs_f64()*1000.);
-            return Ok(value);
-        }
+        let delivery=self.hud_delivery.lock().map_err(|_|"HUD delivery unavailable")?;
+        if let Some(value)=current_hud_delivery(delivery.as_ref(),self.hud_epoch.load(Ordering::Acquire)){return Ok(value);}
+        drop(delivery);
         self.wake.notify_all();
-        let mut value=self.hud_cache.lock().map_err(|_|"HUD cache unavailable")?
-            .as_ref().map(|(_,value)|value.clone()).unwrap_or_else(||json!({"version":0,"guide_id":null}));
-        let active=self.app("app_active",&json!({}))?;
-        value["guide_id"]=active["guide_id"].clone();
-        value["guide_server_id"]=active["server_id"].clone();
-        value["title"]=active["title"].clone();
+        let mut value=json!({"version":0,"guide_id":null,"guides":[],"guide_filter":{"status":"unavailable","country":null}});
+        // Preserve display identity while disconnected, without waiting behind
+        // application work or admitting any unqualified highlight.
+        if let Ok(mut app)=self.application.try_lock() && let Ok(active)=app.active(None){
+            value["guide_id"]=active["guide_id"].clone();value["guide_server_id"]=active["server_id"].clone();value["title"]=active["title"].clone();
+        }
         value["usable"]=json!(false);value["proposed"]=json!([]);
         value["live_delivery_fresh"]=json!(false);
         value["error"]=json!("Waiting for a current qualified game observation");
@@ -881,11 +907,11 @@ impl Service {
                 }
                 cached.as_ref().unwrap().1.clone()
             };
-            let packet=self.app("app_live_packet",&json!({}))?;
-            if packet["usable"]!=true || packet["status"]!="observed" {
+            let packet=self.overlay_latest()?;
+            if packet["usable"]!=true || packet["observer_session_id"].as_str().is_none_or(str::is_empty) {
                 return Err("No current qualified live session".into());
             }
-            lane.geometry(&json!({"view":view,"proposals":proposals,"session_id":packet["sample"]["session_id"]}))
+            lane.geometry(&json!({"view":view,"proposals":proposals,"session_id":packet["observer_session_id"]}))
         }
         #[cfg(not(windows))] {
             let _=(view,proposals);
@@ -935,7 +961,7 @@ impl Service {
         if ["snapshot", "observe", "select"].contains(&kind) {
             let eligible = if snapshot["live_delivery_fresh"]==false {
                 json!({"guides":[],"guide_filter":{"status":"unavailable","country":null}})
-            } else { self.overlay_guides()? };
+            } else { json!({"guides":snapshot["guides"],"guide_filter":snapshot["guide_filter"]}) };
             result["guides"] = eligible["guides"].clone();
             result["guide_filter"] = eligible["guide_filter"].clone();
             if !crate::hud_geometry::rows(&eligible["guides"]).iter().any(|g|g["id"] == result["guide_id"]) {
@@ -1239,6 +1265,8 @@ impl Service {
         })
     }
     fn invalidate(&self) -> Result<()> {
+        self.hud_epoch.fetch_add(1,Ordering::AcqRel);
+        *self.hud_delivery.lock().map_err(|_|"HUD delivery unavailable")?=None;
         self.reading
             .lock()
             .map_err(|_| "Reader unavailable")?
@@ -1990,6 +2018,15 @@ pub fn serve(config: Value, port: u16, ready: Option<PathBuf>) -> Result<()> {
 #[cfg(test)]
 mod accept_tests {
     use super::*;
+    #[test]
+    fn published_hud_rejects_mutations_and_stale_identity_without_waiting_for_application(){
+        let current=(7,Instant::now(),json!({"guide_id":"hun","observer_session_id":"one","usable":true}));
+        assert_eq!(current_hud_delivery(Some(&current),7).unwrap()["guide_id"],"hun");
+        assert!(current_hud_delivery(Some(&current),8).is_none());
+        assert!(current_hud_delivery(None,7).is_none());
+        let stale=(7,Instant::now()-Duration::from_secs(2),current.2.clone());
+        assert!(current_hud_delivery(Some(&stale),7).is_none());
+    }
     #[test]
     fn hud_delivery_budget_never_treats_missing_or_expired_state_as_current() {
         assert!(!recent_delivery(None));

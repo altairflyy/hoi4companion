@@ -110,6 +110,11 @@ Restart the HUD after changing the interface language to update its controls.
 
 For the source checkout, build the native components and use
 **`START COMPANION AND HUD.bat`**. This is the single launcher in the project root.
+It starts the native GUI launcher directly and closes its command window immediately.
+Cold starts show a preparation window. Static prepared guides are cached between
+starts, with automatic invalidation for program, game/mod, language, vocabulary
+and reference changes. Live observations and campaign progress are not cached
+by this optimization. The first start after an update can still take longer.
 See [START HERE.txt](START%20HERE.txt). Closing the browser does not stop the server;
 close the HUD through its control window. Web-only portable startup:
 

@@ -276,7 +276,7 @@ impl Application {
             .ok_or("Missing guide definitions")?
             .iter()
             .map(|source| {
-                let guide = Self::revision(context.present(&context.prepare(source)?)?)?;
+                let guide = Self::revision(context.prepare_presented(source)?)?;
                 Ok((text(&guide["id"]).to_owned(), guide))
             })
             .collect::<Result<Map<String, Value>>>()?;
@@ -644,6 +644,9 @@ impl Application {
     pub fn request(&mut self, op: &str, args: &Value) -> Result<Value> {
         match op {
         "app_live_packet"=>self.live_packet(),
+        // The display-cadence HUD needs identity, not every campaign's stored
+        // checklist/history. Keep all qualification witnesses, without DB reads.
+        "app_hud_context"=>Ok(json!({"usable":self.live["usable"],"status":self.live["status"],"source":self.live["source"],"sample":{"country":self.live["sample"]["country"],"focus_tree_id":self.live["sample"]["focus_tree_id"],"session_id":self.live["sample"]["session_id"]}})),
         "app_overlay_packet"=>{let id=self.identity(None)?;let packet=self.projection(Some(&id),true)?;Ok(packet)},
         "app_overlay_stamp"=>Ok(json!({"server":self.server,"guide":self.active,"selection":self.active_revision,"definition":self.definition_generation,"progress":self.revision,"observation":self.observation_revision})),
         "app_state"=>self.accept(args["value"].clone()),
@@ -706,6 +709,23 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+    #[test]
+    fn hud_identity_is_qualified_without_serializing_campaign_progress() {
+        let mut app=Application::open(&json!({})).unwrap();
+        let catalog=json!([{"id":"hun","applies_to":{"country":"HUN","tree_id":"hungary"}}]);
+        app.live=json!({"usable":true,"status":"observed","source":"process_memory","sample":{"country":"HUN","session_id":"one","focus_tree_id":"hungary","country_overview":{"large":"not needed"}}});
+        let identity=app.request("app_hud_context",&json!({})).unwrap();
+        assert!(identity["sample"]["country_overview"].is_null());
+        assert!(identity["guide_runs"].is_null());
+        assert_eq!(crate::hud_guides::select(&identity,&catalog),crate::hud_guides::select(&app.live,&catalog));
+        for (key,value) in [("usable",json!(false)),("status",json!("stale")),("source",json!("snapshot"))] {
+            let old=app.live[key].clone();app.live[key]=value;
+            let identity=app.request("app_hud_context",&json!({})).unwrap();
+            assert_eq!(crate::hud_guides::select(&identity,&catalog)["guides"],json!([]));app.live[key]=old;
+        }
+        app.live["sample"]["session_id"]=json!("");
+        assert_eq!(crate::hud_guides::select(&app.request("app_hud_context",&json!({})).unwrap(),&catalog)["guides"],json!([]));
+    }
     #[test]
     fn guide_purchase_cache_refreshes_after_import_and_replacement() {
         let make=|id:&str,country:&str,law:&str|json!({"id":id,"applies_to":{"country":country},"tracks":{"operations":[{"key":"buy","action":{"kind":"manual","params":{"category":"politics","law_id":law,"law_group":"trade_laws"}}}]}});

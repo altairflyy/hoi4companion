@@ -19,6 +19,7 @@ type Result<T> = std::result::Result<T, String>;
 pub struct Catalog {
     pub sources: Arc<Value>,
     pub vocabulary: Value,
+    pub(crate) compiled_cache_root: Option<PathBuf>,
     pub(crate) import_index_cache: Option<crate::import_catalog::Index>,
     pub(crate) research_context_cache: HashMap<String, Value>,
     pub assets: Option<Assets>,
@@ -368,6 +369,7 @@ impl Catalog {
         let excluded_focuses = excluded(&trees, &dlcs);
         Ok(Self {
             vocabulary,
+            compiled_cache_root:args["cache"].as_str().map(PathBuf::from),
             import_index_cache: None,
             research_context_cache: HashMap::new(),
             sources: Arc::new(
