@@ -1,14 +1,24 @@
 'use strict';
 (() => {
+  // Embedded suite views share the qualified stream, not a second reader.
+  // Dispose child subscriptions when navigating to avoid retaining old DOMs.
+  try{
+    const shared=window.parent&&window.parent!==window&&window.parent.location.origin===window.location.origin&&window.parent.HoiSuiteLive;
+    if(shared){const subscriptions=new Map(),active=()=>window.parent.HoiSuiteFrameActive!==false;
+      window.hoiLive={get enabled(){return active()&&shared.enabled;},get value(){return active()?shared.value:null;},sample:()=>active()?shared.sample():null,subscribe(fn){const forward=value=>{if(active())fn(value);};subscriptions.set(fn,{forward,off:shared.subscribe(forward)});return ()=>{const item=subscriptions.get(fn);if(typeof item?.off==='function')item.off();subscriptions.delete(fn);};}};
+      window.addEventListener('pagehide',()=>{for(const item of subscriptions.values()){if(typeof item.off==='function')item.off();item.off=null;}});
+      window.addEventListener('pageshow',event=>{if(event.persisted)for(const item of subscriptions.values())if(!item.off)item.off=shared.subscribe(item.forward);});
+      window.addEventListener('suiteviewchange',()=>{if(active())for(const item of subscriptions.values())item.forward(shared.value);});return;}
+  }catch{/* A cross-origin parent never receives or supplies game state. */}
   const root=document.createElement('section');root.className='live-panel';root.setAttribute('aria-label',HoiI18n.t("Current game state"));
   const heading=document.createElement('div');heading.className='live-heading';
   const label=document.createElement('label'),toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=sessionStorage.getItem('hoi4-live-enabled')!=='off';
   label.append(toggle,document.createTextNode(HoiI18n.t(" Read current state · experimental")));
   const status=document.createElement('strong');status.textContent=HoiI18n.t("Connecting to the game…");heading.append(label,status);
   const detail=document.createElement('p'),list=document.createElement('ul'),follow=document.createElement('button');follow.type='button';follow.textContent=HoiI18n.t("Open the observed country's focus tree");follow.className='line-button';follow.hidden=true;
-  if(document.body.classList.contains?.('guide-page')){const disclosure=document.createElement('details'),summary=document.createElement('summary');disclosure.className='live-details';summary.textContent=HoiI18n.t('Game state details');disclosure.append(summary,detail,list,follow);root.append(heading,disclosure);}else{root.append(heading,detail,list,follow);}document.querySelector('.hero').after(root);
+  if(document.body.classList.contains?.('guide-page')){const disclosure=document.createElement('details'),summary=document.createElement('summary');disclosure.className='live-details';summary.textContent=HoiI18n.t('Game state details');disclosure.append(summary,detail,list,follow);root.append(heading,disclosure);}else{root.append(heading,detail,list,follow);}const liveHost=document.querySelector('[data-live-host]');if(liveHost)liveHost.append(root);else document.querySelector('.hero').after(root);
   let value=null,connection=null,signature='',lastArrival=0;const listeners=[];
-  const api=window.hoiLive={enabled:toggle.checked,value:null,subscribe(callback){listeners.push(callback);if(value)callback(value);},
+  const api=window.hoiLive={enabled:toggle.checked,value:null,subscribe(callback){listeners.push(callback);if(value)callback(value);return ()=>{const index=listeners.indexOf(callback);if(index>=0)listeners.splice(index,1);};},
     sample(){return this.enabled&&this.value?.usable?this.value.sample:null;}};
   function changed(){for(const fn of listeners)fn(value);}
   function draw(){api.value=value;api.enabled=toggle.checked;document.body.classList.toggle('live-mode',toggle.checked);list.replaceChildren();follow.hidden=true;

@@ -11,6 +11,7 @@ pub mod bootstrap;
 mod catalog_generation;
 mod catalog_views;
 mod command_families;
+mod compiled_cache;
 mod construction_binding;
 pub mod country;
 mod country_ffi;

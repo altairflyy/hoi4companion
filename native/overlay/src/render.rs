@@ -29,6 +29,7 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::HiDpi::{GetDpiForWindow, SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2};
 use windows::Win32::UI::Accessibility::{HWINEVENTHOOK,SetWinEventHook,UnhookWinEvent};
 use windows::Win32::UI::WindowsAndMessaging::*;
+use windows::Win32::UI::Shell::{Shell_NotifyIconW,NOTIFYICONDATAW,NIF_MESSAGE,NIF_ICON,NIF_TIP,NIM_ADD,NIM_DELETE};
 use crate::wake::Wake;
 
 thread_local! {static FOREGROUND_WAKE:std::cell::RefCell<Option<Arc<Wake>>>=const {std::cell::RefCell::new(None)};}
@@ -44,6 +45,7 @@ impl Drop for ForegroundEvents {
 
 const UPDATE: u32 = WM_APP + 33;
 const STOP: u32 = WM_APP + 34;
+const TRAY: u32 = WM_APP + 35;
 const PAUSE: usize = 201;
 const QUIT: usize = 202;
 const GUIDES: usize = 203;
@@ -134,6 +136,7 @@ pub struct OverlayFrame {
 pub enum ControlAction {
     SelectGuide(String),
     RefreshGuides,
+    OpenSuite,
 }
 
 #[derive(Default)]
@@ -146,6 +149,7 @@ struct Shared {
     excluded: bool,
     revision: u64,
     foreground_events:bool,
+    tray_controls:bool,
 }
 
 impl Shared {
@@ -188,7 +192,7 @@ fn hwnd(value: isize) -> HWND { HWND(value as *mut core::ffi::c_void) }
 fn wide(text: &str) -> Vec<u16> { text.encode_utf16().chain(Some(0)).collect() }
 
 impl Renderer {
-    pub fn new() -> Result<Self, String> {
+    pub fn new(discreet:bool) -> Result<Self, String> {
         let shared=Arc::new(Mutex::new(Shared { excluded:true, ..Shared::default() }));
         let paused=Arc::new(AtomicBool::new(false));
         let exit=Arc::new(AtomicBool::new(false));
@@ -197,7 +201,7 @@ impl Renderer {
         let (s,p,e)=(shared.clone(),paused.clone(),exit.clone());
         let events=wake.clone();
         let thread=thread::Builder::new().name("overlay-window".into()).spawn(move || {
-            let result=unsafe { run(s,p,e.clone(),events,&ready) };
+            let result=unsafe { run(s,p,e.clone(),events,discreet,&ready) };
             if let Err(error)=result { let _=ready.send(Err(error)); }
             e.store(true,Ordering::Release);
         }).map_err(|e|e.to_string())?;
@@ -245,6 +249,7 @@ impl Renderer {
     pub fn should_exit(&self)->bool {self.exit.load(Ordering::Acquire)}
     pub fn overlay_window(&self)->isize {self.layer}
     pub fn control_window(&self)->isize {self.hwnd}
+    pub fn controls_in_tray(&self)->bool {self.shared.lock().is_ok_and(|s|s.tray_controls)}
     pub fn shutdown(&mut self) {
         if self.thread.is_none() {return;}
         if !self.exit.load(Ordering::Acquire) {
@@ -576,6 +581,13 @@ unsafe extern "system" fn window_proc(window:HWND,message:u32,wparam:WPARAM,lpar
                 // The visual revision decides whether presenting is necessary.
                 UPDATE=>{ui.update(false);return LRESULT(0);}
                 WM_TIMER=>{ui.update(false);return LRESULT(0);}
+                TRAY=>{
+                    if lparam.0 as u32==WM_LBUTTONUP {
+                        if let Ok(mut s)=ui.shared.lock() && s.actions.len()<32 && !s.actions.contains(&ControlAction::OpenSuite){s.actions.push_back(ControlAction::OpenSuite);}
+                        ui.wake.notify();
+                    }else if lparam.0 as u32==WM_RBUTTONUP {let _=ShowWindow(window,SW_SHOWNORMAL);}
+                    return LRESULT(0);
+                }
                 STOP|WM_CLOSE=>{ui.exit.store(true,Ordering::Release);PostQuitMessage(0);return LRESULT(0);}
                 WM_COMMAND=>{ui.command(wparam.0&0xffff,(wparam.0>>16) as u16);return LRESULT(0);}
                 WM_NCHITTEST if window==ui.overlay=>return LRESULT(HTTRANSPARENT as isize),
@@ -589,7 +601,7 @@ unsafe extern "system" fn window_proc(window:HWND,message:u32,wparam:WPARAM,lpar
 }
 
 unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBool>,
-    wake:Arc<Wake>,
+    wake:Arc<Wake>,discreet:bool,
               ready:&mpsc::SyncSender<Result<(isize,isize),String>>)->Result<(),String> {
     unsafe {
         CoInitializeEx(None,COINIT_APARTMENTTHREADED).ok().map_err(|e|e.to_string())?;
@@ -631,7 +643,14 @@ unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBo
         let foreground=ForegroundEvents(SetWinEventHook(EVENT_SYSTEM_FOREGROUND,EVENT_SYSTEM_FOREGROUND,None,
             Some(foreground_changed),0,0,WINEVENT_OUTOFCONTEXT));
         if let Ok(mut state)=ui.shared.lock(){state.foreground_events = !foreground.0.0.is_null();}
-        let _=ShowWindow(control,SW_SHOWNOACTIVATE);
+        let mut tray=NOTIFYICONDATAW {cbSize:std::mem::size_of::<NOTIFYICONDATAW>() as u32,hWnd:control,uID:1,
+            uFlags:NIF_MESSAGE|NIF_ICON|NIF_TIP,uCallbackMessage:TRAY,..Default::default()};
+        let tip=wide("HOI4 Companion");tray.szTip[..tip.len()].copy_from_slice(&tip);
+        tray.hIcon=LoadIconW(None,IDI_APPLICATION).unwrap_or_default();
+        let tray_added=discreet && Shell_NotifyIconW(NIM_ADD,&tray).as_bool();
+        if let Ok(mut s)=ui.shared.lock(){s.tray_controls=tray_added;}
+        // Keep the legacy panel visible if notification-area registration fails.
+        if !tray_added {let _=ShowWindow(control,SW_SHOWNOACTIVATE);}
         ready.send(Ok((control.0 as isize,overlay.0 as isize))).map_err(|e|e.to_string())?;
         let mut message=MSG::default();
         loop {
@@ -641,6 +660,7 @@ unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBo
                 let _=TranslateMessage(&message);DispatchMessageW(&message);
             }
         }
+        if tray_added {let _=Shell_NotifyIconW(NIM_DELETE,&tray);}
         ui.hide();KillTimer(Some(control),1).ok();
         SetWindowLongPtrW(overlay,GWLP_USERDATA,0);SetWindowLongPtrW(control,GWLP_USERDATA,0);
         let _=DestroyWindow(overlay);let _=DestroyWindow(control);

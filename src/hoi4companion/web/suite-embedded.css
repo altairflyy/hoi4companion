@@ -1,0 +1,9 @@
+/* Presentation only: original page IDs, controls and graph renderers remain. */
+html.suite-embedded body{min-height:100vh}
+html.suite-embedded .side,html.suite-embedded .view-tabs,html.suite-embedded .site-nav,html.suite-embedded .nav-brand,html.suite-embedded footer{display:none!important}
+html.suite-embedded .app{display:block}
+html.suite-embedded .main{margin-left:0;width:100%}
+html.suite-embedded .topbar{min-height:0;height:auto;justify-content:flex-end;padding:12px 24px}
+html.suite-embedded .topbar:not(:has(.top-actions)){display:none}
+html.suite-embedded .content{padding-top:20px}
+html.suite-embedded .hero{margin-top:0}

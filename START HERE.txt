@@ -5,10 +5,15 @@ Portable Windows release: extract the complete ZIP, then open HOI4 Companion.exe
 Source checkout: after building the native components, double-click
 START COMPANION AND HUD.bat.
 
-This starts the Rust server and Rust HUD, then opens the walkthrough.
+This starts the Rust server and Rust HUD, then opens the desktop suite.
 No Python interpreter is needed to run the native Windows distribution.
 FFmpeg, yt-dlp and Node run only while the requested video/source job needs them.
+The command window closes immediately. A native preparation window shows loading
+when a cold start is needed; startup errors appear in a native error dialog.
 An existing server/HUD is reused. Initial game indexing can take several minutes.
+Prepared guides are cached locally for subsequent starts. Changes to the program,
+game/mod data, language, vocabulary or references invalidate those cached results.
+Live game data and campaign progress are never restored from this cache.
 This is the only launcher in the source project root.
 
 English is the default interface language. Use Interface language in the page
@@ -21,7 +26,7 @@ Load the matching campaign in HOI4 and bring it to the foreground to display
 supported highlights. The HUD never clicks or changes the game.
 Use Resume if the HUD is paused and Close overlay to close it.
 
-Application: http://127.0.0.1:8766/walkthrough
+Application: http://127.0.0.1:8766/suite.html
 Import another guide: http://127.0.0.1:8766/importer
 
 Closing the launch window or browser does not stop the background server/HUD.

@@ -31,16 +31,18 @@ struct Options {
     prepare_dir:Option<PathBuf>,
     capture_access_check:bool,
     native_protocol_check:bool,
+    discreet:bool,
     status:PathBuf,
 }
 fn options()->Result<Options,String> {
     let mut result=Options {ui_language:"english".into(),port:8766,guide:String::new(),start:false,
-        proof:None,ocr_image:None,ocr_scale:2,ocr_repeat:3,ocr_prepared:false,prepare_dir:None,capture_access_check:false,native_protocol_check:false,
+        proof:None,ocr_image:None,ocr_scale:2,ocr_repeat:3,ocr_prepared:false,prepare_dir:None,capture_access_check:false,native_protocol_check:false,discreet:false,
         status:PathBuf::from(".local/overlay-status.json")};
     let mut args=std::env::args().skip(1);
     while let Some(arg)=args.next() {
         match arg.as_str() {
             "--native-protocol-check"=>result.native_protocol_check=true,
+            "--discreet"=>result.discreet=true,
             "--ui-language"=>result.ui_language=args.next().ok_or("Missing interface language")?,
             "--port"=>result.port=args.next().ok_or("Missing port")?.parse().map_err(|_|"Invalid port")?,
             "--guide"=>result.guide=args.next().ok_or("Missing guide")?,
@@ -238,7 +240,7 @@ fn run(options:Options)->Result<(),String> {
     if options.ocr_image.is_some(){return benchmark(&options);}
     let Some(_instance)=singleton()? else {return Ok(());};
     unsafe {let _=SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);}
-    let mut renderer=Renderer::new()?;renderer.set_paused(!options.start);
+    let mut renderer=Renderer::new(options.discreet)?;renderer.set_paused(!options.start);
     let mut bridge=protocol::Bridge::new(options.port)?;
     let mut visual:Option<visual_worker::VisualWorker>=None;
     let mut capture:Option<Capture>=None;let mut target:Option<TargetWindow>=None;
@@ -258,6 +260,13 @@ fn run(options:Options)->Result<(),String> {
             match action {
                 ControlAction::SelectGuide(id)=>{let _=bridge.request(json!({"kind":"select","guide_id":id}),&[])?;},
                 ControlAction::RefreshGuides=>refresh=true,
+                ControlAction::OpenSuite=>{
+                    // Start/reuse only our launcher, never issue game input.
+                    if let Ok(exe)=std::env::current_exe() && let Some(native)=exe.parent().and_then(|p|p.parent()) {
+                        let _=std::process::Command::new(native.join("hoi4-desktop.exe"))
+                            .args(["--no-hud","--port",&options.port.to_string()]).spawn();
+                    }
+                },
             }
         }
         let current=game_view();
@@ -274,7 +283,7 @@ fn run(options:Options)->Result<(),String> {
                 else{snapshot["idle_explanation"]["message"].as_str().or_else(||snapshot["error"].as_str().filter(|s|!s.is_empty())).unwrap_or("No current guide recommendation")};
             let code=if renderer.is_paused(){"paused"}else if nation_unknown{"nation_unavailable"}else if current.is_none(){"game_background"}else{snapshot["idle_explanation"]["code"].as_str().unwrap_or("live_unavailable")};
             if last_status.elapsed()>Duration::from_millis(500) {
-                renderer.set_status(message);save_status(&options.status,&idle_status(&snapshot,message,code,[renderer.overlay_window(),renderer.control_window()],renderer.foreground_events()));last_status=Instant::now();
+                renderer.set_status(message);let mut status=idle_status(&snapshot,message,code,[renderer.overlay_window(),renderer.control_window()],renderer.foreground_events());status["controls_in_tray"]=json!(renderer.controls_in_tray());save_status(&options.status,&status);last_status=Instant::now();
             }
             renderer.wait_idle(wake_revision,Duration::from_millis(100));continue;
         }
@@ -314,7 +323,7 @@ fn run(options:Options)->Result<(),String> {
                 save_status(&options.status,&json!({"engine":"rust-native-gui-direct2d","host_pid":std::process::id(),
                     "guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],
                     "guide_server_id":snapshot["guide_server_id"],"status_message":message,"status_code":code,"explanations":geometry["explanations"],
-                    "visible":!last_matches.is_empty(),"overlay_window":renderer.overlay_window(),"control_window":renderer.control_window(),
+                    "visible":!last_matches.is_empty(),"overlay_window":renderer.overlay_window(),"control_window":renderer.control_window(),"controls_in_tray":renderer.controls_in_tray(),
                     "game_window":view.hwnd,"target_count":snapshot["proposed"].as_array().map_or(0,Vec::len),
                     "matches":last_matches,"geometry_ms":ms,"native_frames":native_frames,"frames_observed":total_frames,
                     "ocr_calls":total_ocr,"diagnostics":geometry["diagnostics"],"active_panel":geometry["active_panel"],"foreground_events":renderer.foreground_events(),
@@ -393,7 +402,7 @@ fn run(options:Options)->Result<(),String> {
             save_status(&options.status,&json!({"engine":"rust-wgc-winrtocr-direct2d","host_pid":std::process::id(),"visible":!last_matches.is_empty(),
                 "guide_id":snapshot["guide_id"],"guide_title":snapshot["title"],"capture_active":true,"capture_borderless_allowed":source.borderless_allowed,
                 "guide_server_id":snapshot["guide_server_id"],"status_message":message,"status_code":code,"explanations":[],
-                "overlay_window":renderer.overlay_window(),"control_window":renderer.control_window(),"game_window":view.hwnd,"target_count":snapshot["proposed"].as_array().map_or(0,Vec::len),
+                "overlay_window":renderer.overlay_window(),"control_window":renderer.control_window(),"controls_in_tray":renderer.controls_in_tray(),"game_window":view.hwnd,"target_count":snapshot["proposed"].as_array().map_or(0,Vec::len),
                 "matches":last_matches,"ocr_ms":ocr_ms,"matching_ms":matching_ms,"iteration_ms":started.elapsed().as_secs_f64()*1000.,
                 "frames_observed":total_frames,"ocr_calls":total_ocr,"frame_generation":frame_generation,
                 "evidence_cache_hits":evidence_cache_hits,

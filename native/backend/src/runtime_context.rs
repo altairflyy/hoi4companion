@@ -13,6 +13,7 @@ pub struct Context {
     library: Value,
     presentation: guide_enrich::Presentation,
     compiled: Mutex<HashMap<String, (String, Value)>>,
+    prepared_cache: Option<crate::compiled_cache::Cache>,
 }
 impl Context {
     pub(crate) fn political_cost_ids<'a>(&self,guides:impl IntoIterator<Item=&'a Value>)->Value {
@@ -22,12 +23,14 @@ impl Context {
         let source = catalog.sources.clone();
         let index = catalog.import_index()?;
         let presentation = guide_enrich::Presentation::new(source.clone(), &catalog.vocabulary);
+        let prepared_cache=catalog.compiled_cache_root.as_ref().and_then(|root|crate::compiled_cache::Cache::open(root,&source,&library,&catalog.vocabulary));
         Ok(Arc::new(Self {
             index,
             source,
             library,
             presentation,
             compiled: Mutex::new(HashMap::new()),
+            prepared_cache,
         }))
     }
     pub fn prepare(&self, guide: &Value) -> Result<Value, String> {
@@ -65,6 +68,10 @@ impl Context {
     }
     pub fn present(&self, guide: &Value) -> Result<Value, String> {
         self.presentation.enrich(guide)
+    }
+    pub fn prepare_presented(&self,guide:&Value)->Result<Value,String>{
+        let build=||self.present(&self.prepare(guide)?);
+        if let Some(cache)=&self.prepared_cache{cache.resolve(guide,build)}else{build()}
     }
     pub fn compare(&self, guide: &Value) -> Result<Value, String> {
         let prepared = self.prepare(guide)?;

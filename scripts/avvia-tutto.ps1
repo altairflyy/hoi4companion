@@ -12,7 +12,11 @@ New-Item -ItemType Directory -Path $launchLocal -Force | Out-Null
 $launchArgs=@('--port','8766')
 if($NoBrowser){$launchArgs+='--no-browser'}
 if($Stop){$launchArgs+='--stop'}
-$launchProcess=Start-Process -FilePath $launchNative -ArgumentList $launchArgs -WorkingDirectory $launchRoot -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput (Join-Path $launchLocal 'launcher.log') -RedirectStandardError (Join-Path $launchLocal 'launcher-error.log')
+$launchProcess=Start-Process -FilePath $launchNative -ArgumentList $launchArgs -WorkingDirectory $launchRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $launchLocal 'launcher.log') -RedirectStandardError (Join-Path $launchLocal 'launcher-error.log')
+# Wait only for the launcher, not its long-lived server, HUD and browser children.
+$null=$launchProcess.Handle
+$launchProcess.WaitForExit()
+$launchProcess.Refresh()
 if($launchProcess.ExitCode -ne 0){
     Get-Content -LiteralPath (Join-Path $launchLocal 'launcher-error.log') -ErrorAction SilentlyContinue
     Write-Error 'Companion did not complete the requested operation. See .local\launcher-error.log.'

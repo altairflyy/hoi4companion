@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark">
+<title>HOI4 Companion</title><link rel="stylesheet" href="/suite.css"><script src="/i18n.js"></script>
+<script defer src="/suite-copy.js"></script><script defer src="/live-model.js"></script><script defer src="/live-state.js"></script>
+<script defer src="/focus-criteria.js"></script><script defer src="/design-matching.js"></script><script defer src="/contracts.js"></script><script defer src="/country-model.js"></script><script defer src="/operational-summary.js"></script><script defer src="/suite-model.js"></script><script defer src="/suite.js"></script></head>
+<body>
+<svg class="icon-definitions" aria-hidden="true"><defs>
+<symbol id="home" viewBox="0 0 24 24"><path d="M3 10 12 3l9 7v11H3Z M9 21v-8h6v8"/></symbol>
+<symbol id="route" viewBox="0 0 24 24"><path d="M5 4v11a5 5 0 0 0 10 0V9 M11 9l4-4 4 4"/><circle cx="5" cy="4" r="2"/><circle cx="15" cy="20" r="2"/></symbol>
+<symbol id="tree" viewBox="0 0 24 24"><path d="M12 7v5M5 17v-5h14v5"/><rect x="9" y="2" width="6" height="5"/><rect x="2" y="17" width="6" height="5"/><rect x="16" y="17" width="6" height="5"/></symbol>
+<symbol id="research" viewBox="0 0 24 24"><path d="M8 3h8m-6 0v6l-6 10v2h16v-2L14 9V3M7 15h10"/></symbol>
+<symbol id="library" viewBox="0 0 24 24"><path d="M4 3v18M9 3v18M14 3v18M18 3l3 18"/></symbol>
+<symbol id="upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M3 15v6h18v-6"/></symbol>
+<symbol id="country" viewBox="0 0 24 24"><path d="M4 22V3m0 1h16l-4 5 4 5H4"/></symbol>
+<symbol id="tools" viewBox="0 0 24 24"><path d="m4 4 16 16M20 4 4 20M4 4h5M4 4v5M20 4h-5m5 0v5"/></symbol>
+<symbol id="arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+</defs></svg>
+<a class="skip" href="#workspace" data-copy="Skip to workspace">Skip to workspace</a>
+<aside class="suite-sidebar">
+ <a class="suite-brand" href="#overview"><span class="suite-mark">H4</span><span>HOI4 <strong>Companion</strong></span></a>
+ <nav aria-label="Companion workspace">
+  <button data-view="overview" aria-current="page"><svg><use href="#home"/></svg><span data-copy="Command center">Command center</span></button>
+  <button data-view="walkthrough"><svg><use href="#route"/></svg><span data-copy="Campaign plan">Campaign plan</span></button>
+  <button data-view="focus"><svg><use href="#tree"/></svg><span>National focuses</span></button>
+  <button data-view="technologies"><svg><use href="#research"/></svg><span>Technologies</span></button>
+  <button data-view="country"><svg><use href="#country"/></svg><span>Country overview</span></button>
+  <div class="nav-divider"></div>
+  <button data-view="library"><svg><use href="#library"/></svg><span data-copy="Guide library">Guide library</span><small id="libraryCount">—</small></button>
+  <button data-view="templates"><svg><use href="#tools"/></svg><span data-copy="Templates & references">Templates & references</span></button>
+  <button data-view="importer"><svg><use href="#upload"/></svg><span data-copy="Import ZIPs">Import ZIPs</span></button>
+ </nav>
+ <div class="sidebar-bottom"><button data-view="settings">Settings</button><button data-view="analysis" data-copy="Diagnostics">Diagnostics</button><a href="/walkthrough" target="_blank" rel="noopener" data-copy="Open classic workspace">Open classic workspace</a><p data-copy="Local processing · read-only game access">Local processing · read-only game access</p></div>
+</aside>
+<div class="suite-main">
+ <header class="suite-topbar"><div class="suite-breadcrumb"><span>HOI4 Companion</span><span aria-hidden="true">/</span><strong id="viewTitle" data-copy="Command center">Command center</strong></div><div class="reader-badge" id="readerBadge"><i></i><span id="readerText" data-copy="Waiting for HOI4">Waiting for HOI4</span><strong id="countryTag">—</strong></div></header>
+ <main id="workspace" tabindex="-1">
+  <section id="overviewView" class="suite-dashboard">
+   <header class="hero"><div><p class="overline" data-copy="Campaign workspace">Campaign workspace</p><h1 data-copy="Your next move, in context">Your next move, in context</h1><p class="muted" data-copy="Your guide, current game state and next actions in one place.">Your guide, current game state and next actions in one place.</p></div><button class="primary" data-view="importer"><svg><use href="#upload"/></svg><span data-copy="Import ZIPs">Import ZIPs</span></button></header>
+   <div class="campaign-metrics" aria-label="Current campaign"><div><span>Country</span><strong id="metricCountry">—</strong><small id="campaignHint" data-copy="No qualified game state">No qualified game state</small></div><div><span>Divisions</span><strong id="metricDivisions">—</strong><small data-copy="Observed in the current campaign">Observed in the current campaign</small></div><div><span>Political power</span><strong id="metricPP">—</strong><small data-copy="Available political power">Available political power</small></div><div><span>Military factories</span><strong id="metricFactories">—</strong><small data-copy="Effective military capacity">Effective military capacity</small></div></div>
+   <div class="dashboard-columns"><section class="active-route"><div class="section-heading"><h2 data-copy="Active route">Active route</h2><span class="quiet-badge" id="routeStatus">—</span></div><h3 id="activeGuideTitle" data-copy="Choose a guide to begin">Choose a guide to begin</h3><p id="routeNotice" class="muted" role="status"></p><div id="routeItems" class="route-items"></div><div class="section-actions"><button class="primary" data-view="walkthrough" data-copy="Continue campaign plan">Continue campaign plan</button><button class="secondary" data-view="library" data-copy="Change guide">Change guide</button></div></section>
+    <section class="session-panel"><div class="section-heading"><h2 data-copy="Session & HUD">Session & HUD</h2><span class="quiet-badge" data-copy="Read-only">Read-only</span></div><p data-copy="Guidance stays in the suite. Only contextual highlights appear over the game.">Guidance stays in the suite. Only contextual highlights appear over the game.</p><div class="hud-note"><svg><use href="#tree"/></svg><div><strong data-copy="Same guide, same campaign">Same guide, same campaign</strong><p data-copy="Focuses, research and operations use the existing runtime and its verification rules.">Focuses, research and operations use the existing runtime and its verification rules.</p></div></div><p id="hudStatus" class="muted" role="status"></p><p class="muted" data-copy="With the discreet HUD, left-click its tray icon to open Companion; right-click for legacy controls.">With the discreet HUD, left-click its tray icon to open Companion; right-click for legacy controls.</p><details class="reader-settings"><summary data-copy="Reader details">Reader details</summary><div data-live-host></div></details></section></div>
+   <section class="collection-entry"><div><h2 data-copy="Bring your collection once">Bring your collection once</h2><p class="muted" data-copy="Import guide and template ZIPs, review the collection and keep everything in your library.">Import guide and template ZIPs, review the collection and keep everything in your library.</p></div><button data-view="importer" class="secondary" data-copy="Manage collection">Manage collection</button></section>
+  </section>
+  <section id="libraryView" class="suite-library" hidden><header class="hero"><div><p class="overline" data-copy="Your collection">Your collection</p><h1 data-copy="Guide library">Guide library</h1><p class="muted" data-copy="Recommended for your observed country. Missing DLCs remain visible and unavailable.">Recommended for your observed country. Missing DLCs remain visible and unavailable.</p></div><button class="primary" data-view="importer" data-copy="Import ZIPs">Import ZIPs</button></header><div class="library-toolbar"><label><span data-copy="Find a guide">Find a guide</span><input id="guideSearch" type="search" autocomplete="off"></label><label class="library-check"><input id="allCountries" type="checkbox"><span data-copy="Show all countries">Show all countries</span></label></div><p id="libraryNotice" class="muted" role="status"></p><div id="guideCards" class="guide-cards"></div></section>
+  <section id="frameView" class="suite-frame-view" hidden><p id="frameStatus" class="frame-status" role="status"></p><iframe id="workspaceFrame" title="Companion workspace" src="about:blank"></iframe></section>
+  <p id="suiteError" class="suite-error" role="alert" hidden></p>
+ </main>
+ <footer class="suite-footer"><span data-copy="Observed data stays distinct from unknown data">Observed data stays distinct from unknown data</span><span id="activeGuideShort">—</span></footer>
+</div></body></html>
