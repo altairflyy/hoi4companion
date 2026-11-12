@@ -678,6 +678,21 @@ impl Drop for ComGuard {fn drop(&mut self) {unsafe {CoUninitialize();}}}
 mod tests {
     use super::*;
     #[test]
+    fn identical_evidence_renewals_do_not_require_an_immediate_ui_redraw() {
+        let mut shared=Shared::default();
+        let first=frame();
+        assert!(shared.publish(first.clone()));
+        let revision=shared.revision;
+        let mut renewed=first;
+        renewed.observed_at=Instant::now();
+        assert!(!shared.publish(renewed), "Only a new visual needs an immediate UI message");
+        assert_eq!(shared.revision,revision);
+        let mut changed=frame();
+        changed.marks[0].caption.push('!');
+        assert!(shared.publish(changed));
+        assert_eq!(shared.revision,revision+1);
+    }
+    #[test]
     fn repeated_metadata_updates_do_not_queue_render_messages() {
         let mut shared=Shared::default();let guides=vec![("one".into(),"Guide one".into())];
         assert!(shared.set_guides(guides.clone(),"one"));
