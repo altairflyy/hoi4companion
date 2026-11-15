@@ -446,6 +446,12 @@ pub fn observe(
     allow_research: bool,
 ) -> Result<Value> {
     let state = state::normalize(input);
+    // The runtime cannot admit observations for another country/tree or an
+    // unqualified state. Apply its existing scope gate before preparing every
+    // action in those guides; leave all stored progress untouched.
+    if guide_prepare::mode(guide, &state) != "live" {
+        return Ok(json!({"changed":false,"record":record}));
+    }
     let mut record = record.clone();
     let before = record.clone();
     let mut specs = json!({});

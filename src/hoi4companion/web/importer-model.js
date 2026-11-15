@@ -150,7 +150,7 @@
   return url;
  }
  function referenceGroups(data,query=''){
-  const groups=[['templates','Division templates'],['armor','Armor designs'],['air','Aircraft designs'],['navy','Naval designs'],['multiplayer','Multiplayer'],['other','Other references']];
+  const groups=[['templates','Division templates'],['armor','Armor designs'],['air','Aircraft designs'],['navy','Naval designs'],['mios','MIO priorities'],['advanced','Advanced guide illustrations'],['multiplayer','Multiplayer'],['other','Other references']];
   const needle=String(query).trim().toLocaleLowerCase(),images=Array.isArray(data?.images)?data.images:[];
   const legacy=[['templates',/^(?:division\s+)?templates?(?:\s|\(|$)/i],['armor',/^(?:armor|armour|tank)(?:\s|\(|$)/i],['air',/^(?:air|aircraft|aviation)(?:\s|\(|$)/i],['navy',/^(?:navy|naval|ship)(?:\s|\(|$)/i],['multiplayer',/^multiplayer(?:\s|\(|$)/i]];
   const category=ref=>groups.some(([id])=>id===ref.category)?ref.category:(legacy.find(([,pattern])=>pattern.test(ref.section||''))?.[0]||'other');
@@ -163,6 +163,10 @@
    .map(row=>({...row,preset:data.game_presets?.designs?.[row.id]||{status:'unknown',folders:[]}}))
    .sort((a,b)=>a.name.localeCompare(b.name,'en',{numeric:true,sensitivity:'base'}));
  }
- const api={referenceDesigns,referenceGroups,editCoverage,sourceHref,readDraft,editStep,editConstruction,eventCatalog,catalogSections,countryCompatibility,normalise:c.guide,canPublish:(report,reviewed,busy)=>report?.valid===true&&!report.compatibility?.blocked&&reviewed===true&&!busy};
+ function advancedReferences(data,query='',category='all'){
+  const needle=String(query).trim().toLocaleLowerCase(),match=row=>row&&typeof row.name==='string'&&(category==='all'||(row.category||'mios')===category)&&[row.name,row.text,row.organization_id,row.organization_name,...(row.traits||[])].filter(s=>typeof s==='string').join(' ').toLocaleLowerCase().includes(needle);
+  return {documents:(data.documents||[]).filter(match).slice().sort((a,b)=>a.category.localeCompare(b.category)||a.name.localeCompare(b.name)),mios:(data.mio_queues||[]).filter(match).slice().sort((a,b)=>a.name.localeCompare(b.name)||a.organization_id.localeCompare(b.organization_id))};
+ }
+ const api={advancedReferences,referenceDesigns,referenceGroups,editCoverage,sourceHref,readDraft,editStep,editConstruction,eventCatalog,catalogSections,countryCompatibility,normalise:c.guide,canPublish:(report,reviewed,busy)=>report?.valid===true&&!report.compatibility?.blocked&&reviewed===true&&!busy};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiImporter=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -1,9 +1,10 @@
 //! Owns campaign transitions and durable SQLite commit as one service. A failed
 //! disk/conflict write rolls back the in-memory transaction before returning.
-use hoi4companion_storage::{progress, request as database};
+use crate::definition_archive::{self, Archive};
+use hoi4companion_storage::{progress, referenced_definitions, request as database};
 use serde_json::{Value, json};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     sync::{
         Arc, Mutex, OnceLock,
@@ -11,10 +12,18 @@ use std::{
     },
 };
 type Result<T> = std::result::Result<T, String>;
+/// Supplies the archive of the definition currently evaluated for a guide, or
+/// None when that guide is unknown (its new runs then stay unbound).
+pub type Provider<'a> = dyn FnMut(&str) -> Result<Option<Archive>> + 'a;
 pub struct Runs {
     store: progress::Store,
     path: Option<PathBuf>,
     revision: i64,
+    pub(crate) generation: u64,
+    /// Archive payloads by ID: loaded from SQLite or awaiting publication.
+    archives: HashMap<String, Arc<str>>,
+    /// IDs already committed in `guide_definitions` (memory stores: none).
+    persisted: HashSet<String>,
 }
 pub(crate) fn new_id() -> Result<String> {
     #[cfg(windows)]
@@ -34,6 +43,9 @@ impl Runs {
             store: progress::Store::default(),
             path,
             revision: 0,
+            generation: 0,
+            archives: HashMap::new(),
+            persisted: HashSet::new(),
         };
         if let Some(path) = &result.path {
             let name = path.to_string_lossy();
@@ -55,6 +67,14 @@ impl Runs {
                 result.revision = saved["revision"]
                     .as_i64()
                     .ok_or("Invalid storage revision")?;
+                // Verified lazily per run (definition_archive::open); a missing
+                // or corrupt archive makes only its runs unverifiable.
+                for (id, payload) in saved["definitions"].as_object().into_iter().flatten() {
+                    if let Some(payload) = payload.as_str() {
+                        result.archives.insert(id.clone(), Arc::from(payload));
+                        result.persisted.insert(id.clone());
+                    }
+                }
             }
         }
         Ok(result)
@@ -67,13 +87,50 @@ impl Runs {
             ids,
         })
     }
+    /// Payload of an archived definition known to this store, if any.
+    pub fn archive(&self, id: &str) -> Option<Arc<str>> {
+        self.archives.get(id).cloned()
+    }
+    /// Definition-unaware call (older ABI/test callers): runs stay unbound.
     pub fn call(&mut self, op: &str, args: Value) -> Result<Value> {
+        self.transact(op, args, None)
+    }
+    /// Pinning-aware call: every written run is bound to a definition from
+    /// `provider` before the same SQLite transaction commits it.
+    pub fn call_with(&mut self, op: &str, mut args: Value, provider: &mut Provider<'_>) -> Result<Value> {
+        if !args.is_object() {
+            args = json!({});
+        }
+        if !args["definitions"].is_object() {
+            args["definitions"] = json!({});
+        }
+        self.transact(op, args, Some(provider))
+    }
+    fn transact(&mut self, op: &str, mut args: Value, mut provider: Option<&mut Provider<'_>>) -> Result<Value> {
         if ["accept", "rollback"].contains(&op) {
             return Err("Storage transaction boundary is owned by the backend".into());
         }
         let mut ids = vec![];
+        let mut asked = 0;
         let result = loop {
             let result = self.raw(op, args.clone(), ids.clone())?;
+            if let Some(guide) = result["needs_definition"].as_str() {
+                let provider = provider.as_mut().ok_or("Definition provider unavailable")?;
+                asked += 1;
+                if asked > 4096 || args["definitions"].get(guide).is_some() {
+                    return Err("Guide definition binding did not converge".into());
+                }
+                args["definitions"][guide] = match provider(guide)? {
+                    Some(archive) => {
+                        self.archives
+                            .entry(archive.id.clone())
+                            .or_insert_with(|| Arc::from(archive.payload.as_str()));
+                        definition_archive::pin(&archive.id)
+                    }
+                    None => Value::Null,
+                };
+                continue;
+            }
             if result["needs_id"] != true {
                 break result;
             }
@@ -84,14 +141,34 @@ impl Runs {
         };
         if result["changed"] == true {
             if let Some(path) = &self.path {
-                let saved = database(
-                    json!({"schema_version":1,"op":"save","path":path.to_string_lossy(),"expected_revision":self.revision,"payload":result["snapshot"].to_string()}),
-                );
+                // Publish exactly the archives this snapshot references and the
+                // database does not hold yet, in the progress transaction.
+                let mut definitions = serde_json::Map::new();
+                let mut missing = false;
+                for id in referenced_definitions(&result["snapshot"]) {
+                    if self.persisted.contains(&id) {
+                        continue;
+                    }
+                    match self.archives.get(&id) {
+                        Some(payload) => {
+                            definitions.insert(id, json!(&**payload));
+                        }
+                        None => missing = true,
+                    }
+                }
+                let saved = if missing {
+                    Err("Progress references an unarchived guide definition".to_string())
+                } else {
+                    database(
+                        json!({"schema_version":1,"op":"save","path":path.to_string_lossy(),"expected_revision":self.revision,"version":hoi4companion_storage::PROGRESS_VERSION,"definitions":definitions,"payload":result["snapshot"].to_string()}),
+                    )
+                };
                 match saved {
                     Ok(value) => {
                         self.revision = value["revision"]
                             .as_i64()
-                            .ok_or("Invalid committed revision")?
+                            .ok_or("Invalid committed revision")?;
+                        self.persisted.extend(definitions.keys().cloned());
                     }
                     Err(error) => {
                         self.raw("rollback", json!({}), vec![])?;
@@ -100,6 +177,7 @@ impl Runs {
                 }
             }
             self.raw("accept", json!({}), vec![])?;
+            self.generation = self.generation.wrapping_add(1);
         }
         let mut value=result["value"].clone();
         if op=="get" && args["include_decision_history"]==true && value["campaign_id"].is_string() {
@@ -112,6 +190,17 @@ impl Runs {
         self.call("observe_decisions",json!({"state":crate::state::normalize(state)})).map(|v|v==true)
     }
     pub fn observe(&mut self, guide: &Value, state: &Value, allow_research: bool) -> Result<bool> {
+        self.observe_with(guide, state, allow_research, None)
+    }
+    /// Observe with the definition the active run is evaluated against. With a
+    /// provider, a legacy run also records its first observed definition.
+    pub fn observe_with(
+        &mut self,
+        guide: &Value,
+        state: &Value,
+        allow_research: bool,
+        provider: Option<&mut Provider<'_>>,
+    ) -> Result<bool> {
         let record = self.call("get", json!({"guide_id":guide["id"],"include_decision_history":true}))?;
         let records = self.call("records", json!({}))?;
         let result = crate::guide_observe::observe(
@@ -128,7 +217,11 @@ impl Runs {
         let mut durable=result["record"].clone();
         durable.as_object_mut().unwrap().remove("decision_history");
         records[record["run_id"].as_str().ok_or("Missing run ID")?] = durable;
-        self.call("observe_replace", json!({"records":records,"value":true}))?;
+        let args = json!({"records":records,"value":true});
+        match provider {
+            Some(provider) => self.call_with("observe_replace", args, provider)?,
+            None => self.call("observe_replace", args)?,
+        };
         Ok(true)
     }
 }
@@ -171,7 +264,7 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
         .ok_or("Unknown progress owner handle")?;
     let mut store = store.lock().map_err(|_| "Progress store unavailable")?;
     match op {
-        "runs_status" => Ok(json!({"revision":store.revision,"path":store.path})),
+        "runs_status" => Ok(json!({"revision":store.revision,"path":store.path,"archives":store.persisted.len()})),
         "runs_call" => store.call(
             args["operation"]
                 .as_str()

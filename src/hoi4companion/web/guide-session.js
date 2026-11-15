@@ -12,6 +12,10 @@
   const state=shared?shared.state:window.hoiLive?.enabled?live:null,view=guide?HoiGuidePresentation.evaluate(guide,state,progress,shared?.evaluation):null;
   api.value={guide,catalog,progress,view,state,error,pending};for(const fn of listeners)fn(api.value);
  }
+ // A projection is evaluated against the live observation its request saw. Rust reads live state only when this
+ // predicate holds, so another event with the same basis cannot change the evaluation and keeps the current cards.
+ const readsLive=value=>!!window.hoiLive?.enabled&&value?.usable===true&&(typeof document==='undefined'||document.visibilityState!=='hidden');
+ const liveBasis=value=>JSON.stringify([readsLive(value),value?.session_id??null,value?.sample?.session_id??null,value?.sample?.country??null]);
  function requestProjection(){
   if(guide?.runtime_engine!=='rust-guide-core')return Promise.resolve();
   projectionVersion++;if(projectionTask)return projectionTask;
@@ -19,15 +23,15 @@
    let processed=-1;
    while(processed!==projectionVersion&&guide?.runtime_engine==='rust-guide-core'){
     processed=projectionVersion;const selected=sequence,id=guide.id,expectedServer=server;
-    const read=window.hoiLive?.enabled&&live?.usable===true&&(typeof document==='undefined'||document.visibilityState!=='hidden');
+    const read=readsLive(live),basis=liveBasis(live);
     let timer=null;const controller=typeof AbortController==='function'&&typeof setTimeout==='function'?new AbortController():null;
     if(controller)timer=setTimeout(()=>controller.abort(),5000);
     try{
      const packet=await json('/api/guide/projection?id='+encodeURIComponent(id)+'&live='+(read?'1':'0'),controller?{signal:controller.signal}:undefined);
      if(selected!==sequence||processed!==projectionVersion)continue;
-     if(packet.schema_version!==1||packet.engine!=='rust-guide-core'||packet.guide_id!==id||packet.progress?.guide_id!==id||packet.evaluation?.guide_id!==id||packet.evaluation.run_id!==null&&packet.evaluation.run_id!==packet.progress.run_id||!packet.state||!packet.server_id||expectedServer&&packet.server_id!==expectedServer)throw Error('Invalid shared guide evaluation');
+     if(packet.schema_version!==1||packet.engine!=='rust-guide-core'||packet.guide_id!==id||packet.progress?.guide_id!==id||packet.evaluation?.guide_id!==id||packet.evaluation.run_id!==null&&packet.evaluation.run_id!==packet.progress.run_id||!packet.state||!packet.server_id||expectedServer&&packet.server_id!==expectedServer||packet.definition&&(packet.definition.run_id!==packet.progress.run_id||packet.definition.status==='pinned'&&packet.definition.id!==packet.progress.definition_ref?.id))throw Error('Invalid shared guide evaluation');
      if(packet.definition_revision!==guide.runtime_definition_revision){projection=null;Promise.resolve().then(()=>select(id,false));break;}
-     projection={sequence:selected,packet};if(!pending)progress=packet.progress;
+     projection={sequence:selected,packet,basis};if(!pending)progress=packet.progress;
      revision=packet.progress.revision;server=packet.server_id;bindingVersion=JSON.stringify(progress.research_bindings||{});
      if(projectionError){error='';projectionError=false;}publish();
     }catch(e){if(selected===sequence&&processed===projectionVersion){projection=null;projectionError=true;error=HoiI18n.t('Shared guide evaluation unavailable: ')+e.message;publish();}}
@@ -69,7 +73,7 @@
   }catch(e){if(current===sequence){error=HoiI18n.t("Guide unavailable: ")+e.message;publish();}}
  }
  function write(payload){
-  const id=guide.id,current=sequence,guard={expected_run_id:progress.run_id,expected_revision:progress.run_revision,server_id:progress.server_id};pending++;projection=null;projectionVersion++;publish();
+  const id=guide.id,current=sequence,guard={expected_run_id:progress.run_id,expected_revision:progress.run_revision,expected_definition_id:progress.definition_ref?.id??null,server_id:progress.server_id};pending++;projection=null;projectionVersion++;publish();
   const task=queue.then(async()=>{
    const saved=await json('/api/guide/progress?id='+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,...guard})});
    if(current===sequence){revision=saved.revision;if(pending===1)progress=saved;else progress={...saved,checks:progress.checks,started:progress.started};error='';}
@@ -110,8 +114,9 @@
    activeRevision=value.active_guide_revision;select(shared,false);return;
   }
   if(guide?.runtime_engine==='rust-guide-core'){
-   const previous=projection?.packet.state;
-   if(value?.usable!==true||previous?.sample?.session_id!==value.sample?.session_id||previous?.sample?.country!==value.sample?.country||previous?.session_id!==value.session_id)projection=null;
+   // Keep the current packet until its replacement arrives unless the event changes its basis: a usable flip, a
+   // session or country change, or another server. Never show a packet for the wrong campaign, even briefly.
+   if(projection&&(projection.basis!==liveBasis(value)||value?.guide_server_id&&value.guide_server_id!==projection.packet.server_id))projection=null;
    publish();requestProjection();return;
   }
   if(guide&&value?.guide_revision!==undefined&&value.guide_revision>=revision&&!pending){

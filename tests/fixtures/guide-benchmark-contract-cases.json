@@ -1,0 +1,10 @@
+{
+  "country_names": {"GER": ["Germany"], "FRA": ["France"]},
+  "foreign_cases": [
+    {"text": "improve relations with Germany", "expected_target": "GER"},
+    {"text": "improve relations with Atlantis", "expected_target": null}
+  ],
+  "named_cases": [
+    {"text": "A Name Not In Catalog", "expected_promoted": 0}
+  ]
+}

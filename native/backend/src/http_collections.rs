@@ -52,6 +52,7 @@ fn selection(documents: &Value) -> (Vec<String>, Option<String>) {
     let guides = all
         .into_iter()
         .filter(|p| {
+            if crate::advanced_references::is_advanced(p){return false}
             let lower = format!("/{p}").to_lowercase();
             !lower.contains("/tools/")
                 && !contexts.iter().any(|c| c == *p)
@@ -63,6 +64,10 @@ fn selection(documents: &Value) -> (Vec<String>, Option<String>) {
 }
 fn reference_count(value: &Value, kind: &str) -> usize {
     value[kind].as_array().map(Vec::len).unwrap_or(0)
+}
+fn unfinished(value: &Value) -> bool {
+    value["status"] == "preparing" || value["status"] == "prepared"
+        && value["auto_import"] == true && value["auto_finished"] != true
 }
 fn summary(mut value: Value) -> Value {
     let rows = value["items"]
@@ -91,7 +96,7 @@ impl Service {
                 let id = entry.file_name().to_string_lossy().into_owned();
                 if identity(&id).is_ok()
                     && read(&entry.path().join("manifest.json"))
-                        .is_ok_and(|v| v["status"] == "preparing")
+                        .is_ok_and(|v| unfinished(&v))
                 {
                     let _ = self.start_collection(&id);
                     return;
@@ -126,8 +131,12 @@ impl Service {
                     continue;
                 }
                 let mut value = read(&entry.path().join("manifest.json"))?;
-                if value["status"] == "preparing" {
+                if unfinished(&value) {
                     self.start_collection(&id)?;
+                }
+                if matches!(value["mio_install"]["status"].as_str(), Some("pending" | "waiting_for_game_exit")) {
+                    let current = crate::mio_install::status(&self.references);
+                    if current["status"] != "not_requested" {value["mio_install"] = current;}
                 }
                 // An item corrected through the existing editor needs no re-upload.
                 for row in value["items"].as_array_mut().into_iter().flatten() {
@@ -152,9 +161,15 @@ impl Service {
             .lock()
             .map_err(|_| "Library unavailable")?;
         let mut value = read(&root.join("manifest.json"))?;
-        if value["status"] == "failed" {
+        if value["status"] == "failed" || value["references_status"] == "needs_revision" {
             value["status"] = json!("preparing");
+            value["import_stage"] = json!("validating");
+            value["auto_finished"] = json!(false);
             value.as_object_mut().unwrap().remove("error");
+            if value["references_status"] == "needs_revision" {
+                value["references_status"] = json!("pending");
+                value.as_object_mut().unwrap().remove("references_error");
+            }
             save(&root.join("manifest.json"), &value)?;
         }
         self.start_collection(id)?;
@@ -164,7 +179,7 @@ impl Service {
         let id = request.query.get("id").ok_or("Missing collection")?;
         let root = self.collection_root(id)?;
         let value = read(&root.join("manifest.json"))?;
-        if value["status"] == "preparing" {
+        if unfinished(&value) {
             self.start_collection(id)?;
         }
         Ok(summary(value))
@@ -176,6 +191,10 @@ impl Service {
         read(&root.join("reports").join(format!("{key}.json")))
     }
     pub(super) fn collection_upload(&self, request: &Request) -> Result<Value> {
+        let automatic = match request.query.get("automatic").map(String::as_str) {
+            Some("1") => true, Some("0") | None => false,
+            _ => return Err("Invalid automatic import option".into()),
+        };
         let path = &request.upload.as_ref().ok_or("Choose a ZIP archive")?.path;
         let docs = crate::word_sources::documents(path)?;
         if docs["single_document"] == true {
@@ -202,7 +221,7 @@ impl Service {
             Path::new(p)
                 .extension()
                 .and_then(|s| s.to_str())
-                .is_some_and(|s| ["txt", "png", "jpg", "jpeg"].contains(&s.to_lowercase().as_str()))
+                .is_some_and(|s| ["txt", "png", "jpg", "jpeg"].contains(&s.to_lowercase().as_str()) || crate::advanced_references::is_advanced(p)&&["docx","xlsx"].contains(&s.to_lowercase().as_str()))
         });
         if guides.is_empty() && !assets {
             return Err(
@@ -219,7 +238,12 @@ impl Service {
             .lock()
             .map_err(|_| "Library unavailable")?;
         if root.join("manifest.json").exists() {
-            let result = summary(read(&root.join("manifest.json"))?);
+            let mut manifest = read(&root.join("manifest.json"))?;
+            if automatic && manifest["reviewed"] != true {
+                manifest["auto_import"] = json!(true);
+                save(&root.join("manifest.json"), &manifest)?;
+            }
+            let result = summary(manifest);
             self.start_collection(&id)?;
             return Ok(result);
         }
@@ -239,7 +263,7 @@ impl Service {
                     .collect::<String>()
             })
             .unwrap_or_else(|| "ZIP collection".into());
-        let manifest = json!({"schema_version":1,"id":id,"name":name,"status":"preparing","context":context,"has_assets":assets,"references_status":if assets{"pending"}else{"none"},"items":items});
+        let manifest = json!({"schema_version":1,"id":id,"name":name,"status":"preparing","import_stage":"reading","auto_import":automatic,"context":context,"has_assets":assets,"references_status":if assets{"pending"}else{"none"},"items":items});
         save(&root.join("manifest.json"), &manifest)?;
         self.start_collection(&id)?;
         Ok(summary(manifest))
@@ -259,10 +283,19 @@ impl Service {
         if let Err(e) = thread::Builder::new()
             .name("hoi4-collection".into())
             .spawn(move || {
-                if let Err(error) = owner.prepare_collection(&id) {
+                let result = owner.prepare_collection(&id).and_then(|_| {
+                    if owner.stopped.load(Ordering::Acquire) {return Ok(());}
+                    let manifest = read(&owner.collection_root(&id)?.join("manifest.json"))?;
+                    if manifest["status"] == "prepared" && manifest["auto_import"] == true && manifest["auto_finished"] != true {
+                        owner.commit_collection(&id, true)?;
+                    }
+                    Ok(())
+                });
+                if let Err(error) = result {
                     if let Ok(root) = owner.collection_root(&id) {
                         if let Ok(mut value) = read(&root.join("manifest.json")) {
                             value["status"] = json!("failed");
+                            value["import_stage"] = json!("failed");
                             value["error"] = json!(error);
                             let _ = save(&root.join("manifest.json"), &value);
                         }
@@ -293,7 +326,7 @@ impl Service {
             ) {
                 Ok(refs) => {
                     manifest["references_status"] = json!("ready");
-                    manifest["references"] = json!({"designs":reference_count(&refs,"designs"),"images":reference_count(&refs,"images")});
+                    manifest["references"] = json!({"designs":reference_count(&refs,"designs"),"images":reference_count(&refs,"images"),"documents":reference_count(&refs,"documents"),"mio_queues":reference_count(&refs,"mio_queues")});
                 }
                 Err(e) => {
                     manifest["references_status"] = json!("needs_revision");
@@ -303,6 +336,8 @@ impl Service {
             save(&file, &manifest)?;
         }
         let mut library = crate::reference_library::manifest(&self.references);
+        manifest["import_stage"] = json!("validating");
+        save(&file, &manifest)?;
         let staged = crate::reference_library::manifest(&root.join("references"));
         for kind in ["designs", "images"] {
             library[kind]
@@ -389,11 +424,14 @@ impl Service {
         save(&file, &manifest)
     }
     pub(super) fn collection_commit(&self, request: &Request) -> Result<Value> {
-        let input = request.json_fields(&["id", "reviewed"])?;
-        if input["reviewed"] != true {
+        let input = request.json_fields(&["id", "reviewed", "automatic"])?;
+        if input["reviewed"] != true && input["automatic"] != true {
             return Err("Review the collection before adding it to the library".into());
         }
-        let root = self.collection_root(input["id"].as_str().ok_or("Missing collection")?)?;
+        self.commit_collection(input["id"].as_str().ok_or("Missing collection")?, input["automatic"] == true)
+    }
+    fn commit_collection(&self, id: &str, automatic: bool) -> Result<Value> {
+        let root = self.collection_root(id)?;
         let _guard = self
             .template_mutation
             .lock()
@@ -403,6 +441,8 @@ impl Service {
         if manifest["status"] != "prepared" {
             return Err("Wait for collection preparation to finish".into());
         }
+        manifest["import_stage"] = json!("saving");
+        save(&file, &manifest)?;
         if manifest["references_status"] == "ready" {
             let refs = crate::reference_library::merge(&self.references, &root.join("references"))?;
             self.refresh_guide_context(refs)?;
@@ -477,14 +517,34 @@ impl Service {
             save(&file, &manifest)?;
         }
         manifest["reviewed"] = json!(true);
+        manifest["review_mode"] = json!(if automatic {"automatic"} else {"manual"});
+        manifest["auto_finished"] = json!(true);
+        manifest["import_stage"] = json!("complete");
+        let library=crate::reference_library::manifest(&root.join("references"));
+        if !library["mio_queues"].as_array().unwrap().is_empty(){
+            manifest["mio_install"]=self.install_mio_presets().unwrap_or_else(|error|json!({"status":"error","error":error}));
+        }
         save(&file, &manifest)?;
         Ok(summary(manifest))
+    }
+    pub(super) fn install_mio_presets(&self)->Result<Value>{
+        let docs=self.catalog(|c|Ok(c.sources["settings"]["docs_dir"].clone()))?;
+        let library=crate::reference_library::manifest(&self.references);
+        crate::mio_install::request(&self.references,docs.as_str().ok_or("Configure the HOI4 documents folder first")?,library["mio_queues"].as_array().unwrap())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn automatic_jobs_resume_publication_but_not_finished_or_legacy_reviews() {
+        assert!(unfinished(&json!({"status":"preparing"})));
+        assert!(unfinished(&json!({"status":"prepared","auto_import":true})));
+        assert!(!unfinished(&json!({"status":"prepared","auto_import":true,"auto_finished":true})));
+        assert!(!unfinished(&json!({"status":"prepared","reviewed":false})));
+        assert!(!unfinished(&json!({"status":"failed","auto_import":true})));
+    }
     #[test]
     fn selection_keeps_country_guides_and_uses_unique_glossary() {
         let docs = json!({"documents":["Root/Country Guides/Hungary.docx","Root/Country Guides/Germany.docx","Root/Tools/Abbreviations.docx","Root/Other.docx"]});
@@ -501,5 +561,12 @@ mod tests {
         assert_eq!(result["counts"]["needs_revision"], 1);
         assert!(identity("../manifest.json").is_err());
         assert!(identity(&"a".repeat(64)).is_ok());
+    }
+    #[test]
+    fn advanced_documents_are_passive_references_not_country_campaigns(){
+        let (guides,_)=selection(&json!({"documents":["ADVANCED GUIDES (NEW & UPDATING)/BEST LAND DOCTRINES.docx","ADVANCED GUIDES (NEW & UPDATING)/MIO PRIORITY SYSTEM.docx"]}));
+        assert!(guides.is_empty());
+        let (guides,_)=selection(&json!({"documents":["COUNTRY GUIDES/Finland.docx","ADVANCED GUIDES (NEW)/TIER LIST.docx"]}));
+        assert_eq!(guides,vec!["COUNTRY GUIDES/Finland.docx"]);
     }
 }

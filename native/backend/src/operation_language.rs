@@ -22,7 +22,7 @@ fn change(row: &Value, keys: Value, actions: usize, unknown: bool) -> Value {
 fn base_key(key: &str) -> String {
     regex(r"(?:--operation-\d+)+$").replace(key, "").to_string()
 }
-fn generated(guide: &str, key: &str, text: &str) -> Vec<Value> {
+pub(crate) fn generated(guide: &str, key: &str, text: &str) -> Vec<Value> {
     let base = base_key(key);
     let mut keys = vec![key];
     if base != key {
@@ -267,6 +267,26 @@ fn production_signature(params: &Value) -> Value {
         result[key] = params[key].clone();
     }
     guide_prepare::canonical(&result)
+}
+/// The same timing-condition compiler `promote` uses for a guide (catalog
+/// timing rules, then a unique focus-name prefix). Used by contract-2
+/// decomposition so headers are compiled exactly as promoted pieces are.
+pub(crate) fn compile_condition(guide: &Value, index: &Index, text: &str) -> Result<Option<Value>> {
+    let context = Context {
+        index,
+        id: s(&guide["id"]).into(),
+        country: guide["applies_to"]["country"].clone(),
+        scope: guide["applies_to"]["tree_id"].clone(),
+        focuses: guide["tracks"]
+            .as_object()
+            .into_iter()
+            .flat_map(|m| m.values())
+            .flat_map(arr)
+            .filter(|r| r["action"]["kind"] == "select_focus")
+            .map(|r| s(&r["action"]["entity"]["id"]).to_owned())
+            .collect(),
+    };
+    context.condition(&json!(text), &json!({}))
 }
 pub fn promote(guide: &Value, index: &Index, library: &Value) -> Result<Value> {
     if guide["dependency_policy"] != "explicit" {

@@ -1,10 +1,5 @@
 'use strict';
-const test=require('node:test'),assert=require('node:assert/strict'),runtime=require('../src/hoi4companion/web/guide-runtime.js'),contracts=require('../src/hoi4companion/web/contracts.js');
-for(const row of require('./fixtures/political-costs.json'))test(row.name,()=>{
- const r=runtime.evaluate(row.guide,row.state,row.progress).steps[0].action_readiness;
- assert.equal(r.value,row.expected.readiness);assert.equal(r.political_power.cost,row.expected.cost);assert.equal(r.political_power.effective_cost,row.expected.effective);
- if(row.expected.readiness===null&&row.expected.effective===null)assert.equal(r.political_power.affordable,null);
-});
+const test=require('node:test'),assert=require('node:assert/strict'),contracts=require('../src/hoi4companion/web/contracts.js');
 test('native political costs reject duplicate identities and wrong currencies during projection',()=>{
  const cost={id:'free_trade',group:'trade_laws',currency:'political_power',base:150,effective:120,factor:.8,status:'calculated'};
  const sample={country:'NOR',country_overview:{country:'NOR',politics:{costs:{schema_version:1,scope:'qualified_native_purchase_targets',status:'observed',source:'native_political_purchase_formula',rows:[cost]}}}},raw={usable:true,sample};

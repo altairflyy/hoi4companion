@@ -7,6 +7,9 @@ use crate::{
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap, HashSet};
 type Result<T> = std::result::Result<T, String>;
+fn compose_position(local: [f64;16], parent: [f64;16]) -> [f64;16] {
+    std::array::from_fn(|i| (0..4).map(|k| local[(i/4)*4+k]*parent[k*4+i%4]).sum())
+}
 pub(crate) struct Sample<'a, M> {
     pub(crate) memory: &'a mut M,
     pub(crate) base: u64,
@@ -215,10 +218,28 @@ impl<'a, M: Memory> Sample<'a, M> {
         Ok(String::from_utf8(bytes[..bytes.len() - 1].to_vec()).unwrap())
     }
     pub(crate) fn matrix(&mut self, a: u64) -> Result<[f64; 16]> {
-        let bytes = self.read(a + 0x90, 64)?;
+        self.matrix_at(a,0x90)
+    }
+    fn matrix_at(&mut self,a:u64,offset:u64)->Result<[f64;16]> {
+        let bytes = self.read(a + offset, 64)?;
         Ok(std::array::from_fn(|i| {
             f32::from_le_bytes(bytes[i * 4..i * 4 + 4].try_into().unwrap()) as f64
         }))
+    }
+    fn item_matrix(&mut self, inner:u64, outer:u64)->Result<[f64;16]> {
+        self.typed(outer,"C2dPositionObject")?;
+        if self.u(inner+0x118)?!=outer {
+            return Err("Ancoraggio interno estraneo al widget".into());
+        }
+        let anchor=self.ptr(outer+0x118,"C2dPositionObject")?;
+        // The item's cached world matrix is temporarily rewritten by the game
+        // during dragging. Compose the authored local transforms with the
+        // shared container transform instead. All inputs join verify(); no
+        // transforms, screen positions or motion estimates survive this sample.
+        let inner_local=self.matrix_at(inner,0x50)?;
+        let outer_local=self.matrix_at(outer,0x50)?;
+        let parent=self.matrix(anchor)?;
+        Ok(compose_position(compose_position(inner_local,outer_local),parent))
     }
     pub(crate) fn clip(&mut self, c: u64) -> Result<[f64; 4]> {
         let b = self.read(c + self.offset("container_clip", 0x1594), 16)?;
@@ -378,7 +399,8 @@ impl<'a, M: Memory> Sample<'a, M> {
             c + self.offset("container_inner", 0x15F8),
             "C2dPositionObject",
         )?;
-        let matrix = self.matrix(parent)?;
+        let outer=self.ptr(c+self.offset("container_outer",0x15F0),"C2dPositionObject")?;
+        let matrix = self.item_matrix(parent,outer)?;
         let mut parts = BTreeMap::new();
         for button in self.array(c + self.offset("container_buttons", 0x1120), 64)? {
             self.typed(button, "CButtonStandard")?;
@@ -951,5 +973,43 @@ mod tests {
         assert_eq!(s.read(0x10000, 1).unwrap(), [8]);
         assert!(s.shown(0x10000).unwrap());
         assert!(s.verify().is_err());
+    }
+    #[test]
+    fn focus_composes_local_anchors_and_never_reads_the_transient_item_world_matrix() {
+        struct Positions { bytes:BTreeMap<u64,u8> }
+        impl Positions {
+            fn put(&mut self,a:u64,b:&[u8]){for(i,v)in b.iter().enumerate(){self.bytes.insert(a+i as u64,*v);}}
+            fn matrix(&mut self,a:u64,m:[f64;16]){self.put(a,&m.iter().flat_map(|v|(*v as f32).to_le_bytes()).collect::<Vec<_>>());}
+        }
+        impl Memory for Positions {
+            fn fixture_transport(&self)->bool{true}
+            fn read(&mut self,a:u64,n:usize)->Result<Vec<u8>>{Ok((0..n).map(|i|*self.bytes.get(&(a+i as u64)).unwrap_or(&0)).collect())}
+            fn class_name(&mut self,_:u64)->Result<String>{Ok(".?AVC2dPositionObject@@".into())}
+        }
+        let identity=||{let mut m=[0.;16];for i in [0,5,10,15]{m[i]=1.;}m};
+        let(mut local,mut anchor)=(identity(),identity());local[12]=192.;local[13]=-780.;
+        anchor[0]=0.7128446;anchor[5]=0.7128446;anchor[12]=-26.357769;anchor[13]=312.35776;
+        let mut memory=Positions{bytes:BTreeMap::new()};
+        for a in [0x10000u64,0x10400,0x10800]{memory.put(a,&0x140001000u64.to_le_bytes());}
+        memory.put(0x10118,&0x10400u64.to_le_bytes());memory.put(0x10518,&0x10800u64.to_le_bytes());
+        memory.matrix(0x10050,identity());memory.matrix(0x10450,local);memory.matrix(0x10890,anchor);
+        let profile=json!({});
+        for transient in [identity(),anchor,local] {
+            memory.matrix(0x10090,transient);memory.matrix(0x10490,transient);
+            let mut sample=Sample::new(&mut memory,0x140000000,&profile);
+            let matrix=sample.item_matrix(0x10000,0x10400).unwrap();
+            assert!((matrix[12]-110.5084).abs()<0.001);
+            assert!((matrix[13]+243.661).abs()<0.001);
+            assert!(!sample.witnesses.contains_key(&(0x10090,64)));
+            assert!(!sample.witnesses.contains_key(&(0x10490,64)));
+            assert!(sample.verify().is_ok());
+        }
+        let mut sample=Sample::new(&mut memory,0x140000000,&profile);
+        sample.item_matrix(0x10000,0x10400).unwrap();
+        sample.memory.put(0x108c0,&500f32.to_le_bytes());
+        assert!(sample.verify().is_err(),"a real parent pan still invalidates the sample");
+        sample.memory.put(0x10118,&0x10800u64.to_le_bytes());
+        let mut sample=Sample::new(sample.memory,0x140000000,&profile);
+        assert!(sample.item_matrix(0x10000,0x10400).is_err());
     }
 }

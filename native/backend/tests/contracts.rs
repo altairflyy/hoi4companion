@@ -53,6 +53,7 @@ fn effective_political_costs_preserve_thresholds_and_unknown_native_targets() {
             if expected.is_null() {assert!(value.is_null(),"{} {actual}",row["name"]);}
             else {assert!(value.is_number(),"{} {actual}",row["name"]);assert_eq!(value.as_f64(),expected.as_f64(),"{} {actual}",row["name"]);}
         }
+        if row["expected"]["readiness"].is_null() && row["expected"]["effective"].is_null() {assert!(readiness["political_power"]["affordable"].is_null(),"{} affordable",row["name"]);}
     }
 }
 #[test]
@@ -104,7 +105,16 @@ fn runtime_order_dependencies_conditions_campaigns_and_parallel_lanes() {
 #[test]
 fn construction_production_and_fortification_progress() {
     for fixture in ["construction-progress","construction-extended","production-progress","fortifications"] {
-        for row in cases(fixture) {let value=evaluate(&row);assert_eq!(value["steps"][0]["status"],row["expected"],"{fixture} {}",row["name"]);}
+        for row in cases(fixture) {
+            let value=evaluate(&row);let step=&value["steps"][0];
+            assert_eq!(step["status"],row["expected"],"{fixture} {}",row["name"]);
+            if let Some(completed)=row.get("completed") {assert_eq!(step["completion"]["value"],*completed,"{fixture} {} completion",row["name"]);}
+            if let Some(assigned)=row.get("assigned") {assert_eq!(step["production"]["assigned"],*assigned,"{fixture} {} assigned",row["name"]);}
+            if fixture=="fortifications" {
+                assert_eq!(step["fortifications"]["target_level"],1,"{}",row["name"]);
+                assert!(step.get("construction").is_none(),"{} must not expose generic construction",row["name"]);
+            }
+        }
     }
 }
 #[test]
@@ -112,6 +122,7 @@ fn project_start_political_sequence_and_resource_gates() {
     for row in cases("action-sequences") {
         let value=evaluate(&row);
         assert_eq!(json!(value["steps"].as_array().unwrap().iter().map(|r|r["status"].clone()).collect::<Vec<_>>()),row["statuses"],"{}",row["name"]);
+        assert_eq!(value["action_sequence"]["political"],row["political"],"{} political",row["name"]);
     }
 }
 #[test]

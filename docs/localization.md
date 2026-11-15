@@ -12,9 +12,10 @@ settings to English. Entity IDs, semantic status codes, authored guides, source
 quotations, and campaign progress are not translated or migrated.
 
 The shared `translations.json` uses English UI text as message keys and preserves
-Italian translations plus legacy diagnostic mappings. Python translates static
-HTML and selected diagnostic fields; JavaScript translates dynamic labels and
-templates. Parameters are inserted literally, without translating names or
+Italian translations plus legacy diagnostic mappings (the `legacy` section maps
+Italian text from older versions back to English). The Rust backend translates
+static HTML and selected diagnostic fields; JavaScript translates dynamic labels
+and templates; the HUD reads the same catalog. Parameters are inserted literally, without translating names or
 interpreting them as HTML. Catalogs are bundled, with no translation service or
 network dependency.
 
@@ -32,5 +33,5 @@ of every historical report or third-party source/comment.
 
 Add new UI messages in English and provide Italian entries in the shared catalog.
 Do not translate identifiers, parser keywords, localization lookup aliases, or
-evidence. Verify Python/JavaScript behavior and both interface languages when
+evidence. Verify backend, browser and HUD behavior and both interface languages when
 changing the catalog.

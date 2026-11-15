@@ -146,7 +146,7 @@ impl Capture {
             .unwrap_or_else(|e|e.into_inner());
         if state.closed {return Err(error("Capture window closed"));}
         if let Some(failure)=state.failure.take() {return Err(error(failure));}
-        let Some(pending)=state.pending.take() else {return Ok(None);};
+        let Some(pending)=state.pending.take() else{return Ok(None);};
         drop(state);
         let content=pending.frame.ContentSize()?;
         if content.Width!=self.size.Width || content.Height!=self.size.Height {
@@ -159,15 +159,15 @@ impl Capture {
         }
         let result=self.read_frame(&pending);
         let _=pending.frame.Close();
-        result.map(Some)
+        result
     }
 
-    fn read_frame(&mut self,pending:&Pending)->Result<Frame> {
+    fn read_frame(&mut self,pending:&Pending)->Result<Option<Frame>> {
         let access:IDirect3DDxgiInterfaceAccess=pending.frame.Surface()?.cast()?;
         let texture:ID3D11Texture2D=unsafe {access.GetInterface()?};
         let mut description=D3D11_TEXTURE2D_DESC::default();unsafe {texture.GetDesc(&mut description)};
         if description.Width<self.size.Width as u32 || description.Height<self.size.Height as u32 {
-            return Err(error("Capture surface is smaller than qualified content"));
+            return Ok(None);
         }
         if self.staging.is_none() {
             let description=D3D11_TEXTURE2D_DESC {Usage:D3D11_USAGE_STAGING,BindFlags:0,
@@ -182,14 +182,12 @@ impl Capture {
             GetClientRect(self.hwnd,&mut client)?;
             ClientToScreen(self.hwnd,&mut origin).ok()?;
         }
-        if bounds.right-bounds.left!=self.size.Width || bounds.bottom-bounds.top!=self.size.Height {
-            return Err(error("Capture/client geometry changed; wait for a fresh frame"));
-        }
         let x=origin.x-bounds.left;let y=origin.y-bounds.top;
         let width=client.right-client.left;let height=client.bottom-client.top;
-        if x<0||y<0||width<=0||height<=0||x+width>self.size.Width||y+height>self.size.Height {
-            return Err(error("Unqualified capture/client bounds"));
-        }
+        // DWM and WGC can publish a window transition in different frames.
+        // Discard that frame without terminating capture or accepting old bounds.
+        if client_crop([self.size.Width,self.size.Height],
+            [bounds.right-bounds.left,bounds.bottom-bounds.top],[x,y,width,height]).is_none(){return Ok(None);}
         let bytes=(width as usize).checked_mul(height as usize).and_then(|n|n.checked_mul(4))
             .filter(|n|*n<=128_000_000).ok_or_else(||error("Capture exceeds image budget"))?;
         unsafe {self.context.CopyResource(staging,&texture)};
@@ -205,8 +203,29 @@ impl Capture {
             unsafe {std::ptr::copy_nonoverlapping(source,bgra.as_mut_ptr().add(row*width as usize*4),width as usize*4)};
         }
         unsafe {self.context.Unmap(staging,0)};
-        Ok(Frame {width:width as u32,height:height as u32,bgra,client_x:origin.x,client_y:origin.y,
-            generation:pending.generation,captured_at:pending.at})
+        Ok(Some(Frame {width:width as u32,height:height as u32,bgra,client_x:origin.x,client_y:origin.y,
+            generation:pending.generation,captured_at:pending.at}))
+    }
+}
+
+fn client_crop(surface:[i32;2],window:[i32;2],client:[i32;4])->Option<[i32;4]> {
+    let [x,y,width,height]=client;
+    (surface==window && x>=0 && y>=0 && width>0 && height>0
+        && x.checked_add(width)?<=surface[0] && y.checked_add(height)?<=surface[1]).then_some(client)
+}
+
+#[cfg(test)]
+mod transition_tests {
+    use super::*;
+    #[test]
+    fn window_transitions_drop_only_unqualified_frames_and_accept_the_next_aligned_frame() {
+        let client=[5,10,90,80];
+        assert_eq!(client_crop([100,100],[100,100],client),Some(client));
+        assert_eq!(client_crop([100,100],[120,100],client),None);
+        for rect in [[-1,0,90,80],[0,0,0,80],[50,0,90,80],[i32::MAX,0,1,1]] {
+            assert_eq!(client_crop([100,100],[100,100],rect),None);
+        }
+        assert_eq!(client_crop([120,100],[120,100],client),Some(client));
     }
 }
 

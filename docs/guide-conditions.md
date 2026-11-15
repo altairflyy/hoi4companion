@@ -61,5 +61,5 @@ step key, timing and compiled predicate.
 
 Fixture tests cover selection/completion, thresholds, unknown/stale data,
 conjunctions, disjunctions, country/tree ambiguity, explicit-condition preservation,
-split-import adaptation, idempotence and Python/JavaScript runtime equivalence.
+split-import adaptation, idempotence and agreement with the Rust runtime.
 Archive validation is separate from real-session and visual HUD validation.

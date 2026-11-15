@@ -295,6 +295,27 @@ pub(crate) fn canonical(v: &Value) -> Value {
 mod foreign_coverage_tests {
     use super::*;
     #[test]
+    fn observation_scope_gate_matches_runtime_and_preserves_foreign_progress() {
+        let guide = crate::guide_schema::normalize(&json!({"id":"scope","applies_to":{"country":"FIN","tree_id":"finnish"},"tracks":{"operations":[{"key":"note","action":{"kind":"manual"}}]}})).unwrap();
+        let base = json!({"schema_version":1,"usable":true,"session_id":"one","facts":{
+            "country":{"status":"observed","source":"fixture","value":"FIN"},
+            "focus.tree":{"status":"observed","source":"fixture","value":"finnish"}}});
+        let record = json!({"schema_version":1,"guide_id":"scope","run_id":"run","checks":{},"started":{},"baselines":{}});
+        let mut cases = vec![base.clone()];
+        let mut other = base.clone();other["facts"]["country"]["value"]=json!("HUN");cases.push(other);
+        let mut other = base.clone();other["facts"]["focus.tree"]["value"]=json!("other");cases.push(other);
+        let mut missing = base.clone();missing["facts"]["country"]["status"]=json!("unknown");cases.push(missing);
+        let mut stale = base;stale["usable"]=json!(false);cases.push(stale);
+        for input in cases {
+            let state = state::normalize(&input);
+            let expected = crate::guide_runtime::evaluate(&guide,&input,&record).unwrap();
+            assert_eq!(mode(&guide,&state),expected["mode"].as_str().unwrap());
+            if mode(&guide,&state) != "live" {
+                assert_eq!(crate::guide_observe::observe(&guide,&input,&record,&json!({}),true).unwrap(),json!({"changed":false,"record":record}));
+            }
+        }
+    }
+    #[test]
     fn every_declared_relation_action_has_a_typed_directional_predicate() {
         let actions=crate::political_binding::foreign_tasks()["relation_actions"].as_object().unwrap();
         for (id, action) in actions {
@@ -323,12 +344,11 @@ pub(crate) fn foreign_token(key: &Value, node: &Value) -> String {
     }
     format!("foreign:{:x}", Sha256::digest(ascii.as_bytes()))
 }
-pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
-    let state = state::normalize(input);
-    let country = fact_value(&state, "country");
-    let tree = fact_value(&state, "focus.tree");
+pub(crate) fn mode(guide: &Value, state: &Value) -> &'static str {
+    let country = fact_value(state, "country");
+    let tree = fact_value(state, "focus.tree");
     let scope = &guide["applies_to"];
-    let mode = if state["usable"] != true {
+    if state["usable"] != true {
         "preview"
     } else if state::truth(&scope["country"])
         && country.is_some()
@@ -343,7 +363,11 @@ pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
         "preview"
     } else {
         "live"
-    };
+    }
+}
+pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
+    let state = state::normalize(input);
+    let mode = mode(guide, &state);
     let result = progress(guide, &state, record)?;
     let status = text(&result[0]);
     let baselines = if record.is_null() {

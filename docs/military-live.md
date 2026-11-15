@@ -49,7 +49,7 @@ and a timeline rewind cannot substitute for this transition. Named wars and
 extra prose qualifiers remain unresolved unless the guide declares a predicate.
 
 Synthetic fault tests cover scale, ownership, invalid values, signatures,
-transition membership, change witnesses and Python/JavaScript adapter parity.
+transition membership, change witnesses and Rust/JavaScript contract agreement.
 A real campaign comparison of experience and war state is still required.
 
 ## Runtime integration correction, 31 October 2026

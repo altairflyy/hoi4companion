@@ -69,7 +69,7 @@ is `not_applicable / production_superseded`, displayed as **Superseded**, with
 unknown historical completion and a separate `original_completion` observation.
 Partly replaced layouts monitor only their remaining targets. App summaries and
 HUD omit replaced goals; historical requested/assigned counts remain inspectable.
-The shared Python/JavaScript runtime uses the same rules. Qualified allocation
+The Rust guide runtime applies the same rules. Qualified allocation
 counts do not bypass a revision's conditions or dependencies.
 
 An abbreviated focus ending with an ellipsis resolves only to a unique focus
@@ -123,7 +123,7 @@ verification limits; they are not a claim that every check was rerun for this tr
 
 The adapter decodes the already acquired, qualified Paradox clock using Jomini's
 365-day calendar and year offset of 5000; it does not add memory reads. The
-calculated `campaign.date` fact is a numeric YYYYMMDD shared by Python and JavaScript.
+calculated `campaign.date` fact is a numeric YYYYMMDD shared by the Rust backend and the browser.
 SSE and the browser propagate day changes without making every hourly tick an update.
 `On TAG down/no later than MONTH YEAR` is an explicit alternative: an observed
 defeat or the deadline can admit the action. Month-only deadlines are certainly
@@ -215,7 +215,7 @@ once per snapshot. No matching cache survives a new sample, guide or campaign;
 an unavailable configuration still makes counts unknown. Per-step quantities,
 admission gates, explanations and replacement annotations remain independent.
 
-Revision identity uses canonical recipe maps in both Python and JavaScript.
+Revision identity uses canonical recipe maps in the Rust backend and the browser.
 Property order and display-name changes do not keep an obsolete recipe target
 active; different recipes and generic explicitly named variants stay distinct.
 This identity does not change persisted relative-baseline keys or infer that a

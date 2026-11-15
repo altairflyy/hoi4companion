@@ -214,7 +214,6 @@ impl Registry {
         let mut candidates = vec![];
         let allowed = [
             "CNationalFocusView",
-            "CCountryTechnologyView",
             "CCountryTechTreeView",
             "CEventWindow",
             "CNationalFocusTreeItem",
@@ -264,14 +263,17 @@ impl Registry {
             }
         }
         let mut bindings = json!({"views":{},"focus":{},"research":{},"events":[],"folders":{},"tabs_container":null,"production_owners":{},"production_access":[],"production_add":[],"production_pickers":[]});
-        for name in ["CNationalFocusView", "CCountryTechnologyView"] {
+        // The research panel is witnessed through CCountryTechTreeView below.
+        // CCountryTechnologyView is an unrelated screen: requiring it made
+        // both supported trees unavailable when that screen was absent.
+        for name in ["CNationalFocusView"] {
             let views: Vec<_> = owners
                 .iter()
                 .filter(|(_, kind)| *kind == name)
                 .map(|(a, _)| *a)
                 .collect();
             if views.len() != 1 {
-                return Err("Viste GUI mancanti o ambigue".into());
+                return Err(format!("Vista GUI {name} mancante o ambigua ({} candidati)", views.len()));
             }
             bindings["views"][name] = json!(views[0]);
         }

@@ -26,7 +26,7 @@ Unused progress fields are not added to the change watch.
 
 `country_overview.doctrines = {status: "observed", items: [{id: "…"}]}` is native
 selection membership, not availability, mastery level, or historical adoption.
-Python and JavaScript adapters publish the derived `doctrines.selected` fact
+The Rust backend publishes the derived `doctrines.selected` fact, and the browser contracts accept it,
 only for complete valid observations belonging to the selected country.
 Missing, partial, malformed and foreign observations remain unknown.
 
@@ -48,7 +48,7 @@ Evidence is retained locally in `.local/production-readiness-live.json`.
 
 Synthetic tests cover profile/signature rejection, ownership and mapping,
 container/type/token corruption, empty selections, duplicates, watch
-invalidation, Python/JavaScript contract parity and production/HUD projection.
+invalidation, Rust/JavaScript contract agreement and production/HUD projection.
 These tests are not visual proof of alignment with production widgets. This
 change does not qualify political power, doctrine availability/costs, historical
 adoptions before the observer began, or other executable versions.

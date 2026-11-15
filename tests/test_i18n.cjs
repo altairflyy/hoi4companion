@@ -22,12 +22,10 @@ test('language navigation writes only the UI preference and reloads the document
  assert.deepEqual(requests,[{url:'/api/config',ui_language:'italian'}]);assert.equal(reloaded,1);
 });
 
-test('locale changes preserve runtime targets, order, states and authored guide content',()=>{
- const runtime=require('../src/hoi4companion/web/guide-runtime.js');
- const guide={schema_version:1,id:'language-proof',tracks:{focus:[{key:'focus',action:{kind:'select_focus',entity:{kind:'focus',id:'GER_test'}},title:'Titolo originale',evidence:[]}]}};
- const state={schema_version:1,usable:true,facts:{'focus.completed':{status:'observed',value:[],source:'fixture'},'focus.active':{status:'observed',value:[],source:'fixture'}}};
- const before=JSON.stringify(guide);i18n.setLanguage('english');const en=runtime.evaluate(guide,state);
- i18n.setLanguage('italian');const it=runtime.evaluate(guide,state);i18n.setLanguage('english');
- assert.deepEqual(it,en);assert.equal(JSON.stringify(guide),before);assert.equal(en.steps[0].key,'focus');
- assert.equal(guide.tracks.focus[0].action.entity.id,'GER_test');
+test('locale changes preserve presented targets, order, states and authored guide content',()=>{
+ const model=require('../src/hoi4companion/web/guide-model.js'),{guide,state,evaluation}=require('./presentation-fixtures.cjs')('locale: authored focus');
+ const before=JSON.stringify(guide);i18n.setLanguage('english');const en=model.evaluate(guide,state,{evaluation});
+ i18n.setLanguage('italian');const it=model.evaluate(guide,state,{evaluation});i18n.setLanguage('english');
+ assert.deepEqual(it,en);assert.equal(JSON.stringify(guide),before);assert.equal(en.focus.rows[0].key,'focus');
+ assert.equal(en.focus.rows[0].target,'GER_test');assert.equal(en.focus.rows[0].title,'Titolo originale');
 });

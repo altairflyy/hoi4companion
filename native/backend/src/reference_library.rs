@@ -18,6 +18,9 @@ fn digest(data: &[u8]) -> String {
     format!("{:x}", Sha256::digest(data))
 }
 pub fn metadata(name: &str) -> Value {
+    if name.split('/').any(|p| regex(r"(?i)^MIOs?\b").is_match(p)) {
+        return json!({"category":"mios","tags":if name.to_lowercase().contains("situational"){vec!["situational"]}else{vec![]}});
+    }
     let parts = name.split('/').collect::<Vec<_>>();
     let parents = &parts[..parts.len().saturating_sub(1)];
     let patterns = [
@@ -95,10 +98,12 @@ fn plain(node: Option<&Value>) -> Value {
     Value::Object(result)
 }
 pub fn manifest(root: &Path) -> Value {
-    crate::guide_repository::json_file(&root.join("manifest.json"), 32 * 1024 * 1024)
+    let mut value=crate::guide_repository::json_file(&root.join("manifest.json"), 32 * 1024 * 1024)
         .ok()
         .filter(|v| v["schema_version"] == 1 && v["designs"].is_array() && v["images"].is_array())
-        .unwrap_or_else(|| json!({"schema_version":1,"designs":[],"images":[]}))
+        .unwrap_or_else(|| json!({"schema_version":1,"designs":[],"images":[]}));
+    for key in ["documents","mio_queues"] {if !value[key].is_array(){value[key]=json!([])}}
+    value
 }
 fn validate_image(raw: &[u8]) -> Result<()> {
     let format = image::guess_format(raw).map_err(|_| "Invalid reference image")?;
@@ -150,6 +155,8 @@ pub fn import(root: &Path, path: &Path) -> Result<Value> {
     let mut archive = word_sources::archive(std::fs::File::open(path).map_err(|e| e.to_string())?)?;
     let mut designs = Map::new();
     let mut images = Map::new();
+    let mut documents = Map::new();
+    let mut mio_queues = Map::new();
     let mut blobs = HashMap::new();
     let mut budget = 180_000_000u64;
     for i in 0..archive.len() {
@@ -169,14 +176,31 @@ pub fn import(root: &Path, path: &Path) -> Result<Value> {
             .and_then(|s| s.to_str())
             .unwrap_or("")
             .to_lowercase();
-        if !["txt", "png", "jpg", "jpeg"].contains(&suffix.as_str()) {
+        let advanced=crate::advanced_references::is_advanced(&name);
+        if !["txt", "png", "jpg", "jpeg"].contains(&suffix.as_str()) && !(advanced&&["docx","xlsx"].contains(&suffix.as_str())) {
             continue;
         }
+        // Bookmark state belongs to the author's campaign, never to this import.
+        if suffix=="txt"&&entry_path.file_name().and_then(|s|s.to_str())==Some("bookmark_playthrough.txt"){continue}
         budget = budget
             .checked_sub(size)
             .ok_or("Reference archive exceeds its decoded size limit")?;
         let raw = word_sources::read_entry(&mut archive, &name, 16_000_000)?;
-        if suffix == "txt" {
+        if entry_path.file_name().and_then(|s|s.to_str())==Some("mio_queues.txt"){
+            for mut row in crate::advanced_references::mio_queues(&raw)?{row["source_file"]=json!(name);mio_queues.insert(row["id"].as_str().unwrap().to_owned(),row);}
+        } else if ["docx","xlsx"].contains(&suffix.as_str()){
+            let mut row=if suffix=="docx"{crate::advanced_references::document(&name,&raw)?}else{crate::advanced_references::workbook(&name,&raw)?};
+            let id=row["id"].as_str().unwrap().to_owned();
+            row["filename"]=json!(entry_path.file_name().unwrap_or_default().to_string_lossy());
+            row["mime"]=json!(if suffix=="docx"{"application/vnd.openxmlformats-officedocument.wordprocessingml.document"}else{"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+            if suffix=="docx"{for image in crate::advanced_references::embedded_images(&raw)?{
+                budget=budget.checked_sub(image.len() as u64).ok_or("Reference archive exceeds its decoded size limit")?;
+                validate_image(&image)?;let image_id=digest(&image);let ordinal=row["images"].as_array().unwrap().len()+1;
+                let entry=json!({"id":image_id,"name":format!("{} · {ordinal}",row["name"].as_str().unwrap()),"category":"advanced","section":row["name"],"document_id":id,"tags":[],"mime":if image::guess_format(&image).ok()==Some(ImageFormat::Png){"image/png"}else{"image/jpeg"}});
+                images.insert(format!("{id}:{ordinal}"),entry);row["images"].as_array_mut().unwrap().push(json!(image_id));blobs.insert(image_id,image);
+            }}
+            blobs.insert(id.clone(),raw);documents.insert(id,row);
+        } else if suffix == "txt" {
             let node = serde_json::to_value(hoi4companion_parser::read_reviewed(&raw)?)
                 .map_err(|e| e.to_string())?;
             for (_, group) in script::entries(&node).filter(|(_, v)| v["entries"].is_array()) {
@@ -221,10 +245,10 @@ pub fn import(root: &Path, path: &Path) -> Result<Value> {
             blobs.insert(id, raw);
         }
     }
-    if designs.is_empty() && images.is_empty() {
+    if designs.is_empty() && images.is_empty() && documents.is_empty() && mio_queues.is_empty() {
         return Err("No equipment designs or reference images in this archive".into());
     }
-    let result = json!({"schema_version":1,"designs":designs.into_values().collect::<Vec<_>>(),"images":images.into_values().collect::<Vec<_>>()});
+    let result = json!({"schema_version":1,"designs":designs.into_values().collect::<Vec<_>>(),"images":images.into_values().collect::<Vec<_>>(),"documents":documents.into_values().collect::<Vec<_>>(),"mio_queues":mio_queues.into_values().collect::<Vec<_>>()});
     std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
     for (id, raw) in blobs {
         let path = root.join(id);
@@ -282,7 +306,8 @@ pub(crate) fn merge(root: &Path, staged: &Path) -> Result<Value> {
         let (bytes, _) = image(staged,id)?;
         if !root.join(id).exists() { atomic_write(&root.join(id), &bytes)?; }
     }
-    for kind in ["designs","images"] {
+    for row in incoming["documents"].as_array().into_iter().flatten(){let id=row["id"].as_str().ok_or("Invalid document identity")?;let (bytes,_)=document_file(staged,id)?;if !root.join(id).exists(){atomic_write(&root.join(id),&bytes)?}}
+    for kind in ["designs","images","documents","mio_queues"] {
         let rows = result[kind].as_array_mut().ok_or("Invalid reference library")?;
         for row in incoming[kind].as_array().into_iter().flatten() {
             if !rows.iter().any(|old| old == row) { rows.push(row.clone()); }
@@ -290,6 +315,14 @@ pub(crate) fn merge(root: &Path, staged: &Path) -> Result<Value> {
     }
     atomic_write(&root.join("manifest.json"), &serde_json::to_vec(&result).map_err(|e|e.to_string())?)?;
     Ok(result)
+}
+pub(crate) fn document_file(root:&Path,id:&str)->Result<(Vec<u8>,String)>{
+    if !regex(r"^[a-f0-9]{64}$").is_match(id){return Err("Invalid document identity".into())}
+    let data=manifest(root);let row=data["documents"].as_array().unwrap().iter().find(|r|r["id"]==id).ok_or("Reference document not found")?;
+    let path=root.join(id).canonicalize().map_err(|e|e.to_string())?;
+    if !path.starts_with(root.canonicalize().map_err(|e|e.to_string())?)||std::fs::metadata(&path).map_err(|e|e.to_string())?.len()>16_000_000{return Err("Invalid document path or size".into())}
+    let bytes=std::fs::read(path).map_err(|e|e.to_string())?;if digest(&bytes)!=id{return Err("Reference document checksum mismatch".into())}
+    Ok((bytes,row["mime"].as_str().unwrap_or("application/octet-stream").into()))
 }
 pub fn execute(op: &str, args: &Value) -> Result<Value> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -304,6 +337,7 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
     );
     match op {
         "reference_library_manifest" => Ok(manifest(root)),
+        "reference_library_mio_export" => crate::advanced_references::export_mios(manifest(root)["mio_queues"].as_array().unwrap(),args["existing"].as_str().map(str::as_bytes)),
         "reference_library_import" => import(
             root,
             Path::new(args["path"].as_str().ok_or("Missing reference archive")?),

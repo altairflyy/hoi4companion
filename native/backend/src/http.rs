@@ -381,7 +381,12 @@ impl Service {
         thread::Builder::new()
             .name("hoi4-native-events".into())
             .spawn(move || {
+                let mut mio_check=Instant::now()-Duration::from_secs(5);
                 while let Some(owner) = weak.upgrade() {
+                    if mio_check.elapsed()>=Duration::from_secs(5){
+                        let _=crate::mio_install::sync(&owner.references);
+                        mio_check=Instant::now();
+                    }
                     let mut clients = match owner.clients.lock() {
                         Ok(v) => v,
                         Err(_) => break,
@@ -425,6 +430,7 @@ impl Service {
         self.began.elapsed().as_secs_f64()
     }
     fn poll(&self) -> Result<Value> {
+        let poll_started = Instant::now();
         let mut reading = self
             .reading
             .lock()
@@ -459,6 +465,7 @@ impl Service {
         // Guide evaluation/persistence never needs the process-owner lock.
         // Native GUI observations must not queue behind that CPU/SQLite work.
         drop(provider);
+        let acquired = Instant::now();
         value["transport"] =
             json!({"kind":"change_events","memory_probe_seconds":0.25,"integrity_audit_seconds":5});
         let mut app = self
@@ -466,7 +473,13 @@ impl Service {
             .lock()
             .map_err(|_| "Application unavailable")?;
         app.accept(value)?;
+        let accepted = Instant::now();
         let mut packet = app.live_packet()?;
+        packet["pipeline_ms"] = json!({
+            "acquisition": acquired.duration_since(poll_started).as_secs_f64()*1000.,
+            "progress": accepted.duration_since(acquired).as_secs_f64()*1000.,
+            "packet": accepted.elapsed().as_secs_f64()*1000.
+        });
         packet["overlay"] = crate::hud_diagnostics::read_status(
             &self.hud_status_path, &packet["active_guide_id"], &packet["guide_server_id"],
         );
@@ -640,7 +653,7 @@ impl Service {
                     .template_mutation
                     .lock()
                     .map_err(|_| "Template import unavailable")?;
-                let result = crate::reference_library::import(
+                let mut result = crate::reference_library::import(
                     &self.references,
                     &request
                         .upload
@@ -649,6 +662,7 @@ impl Service {
                         .path,
                 )?;
                 self.refresh_guide_context(result.clone())?;
+                if !result["mio_queues"].as_array().unwrap().is_empty(){result["mio_install"]=self.install_mio_presets().unwrap_or_else(|error|json!({"status":"error","error":error}));}
                 Ok(result)
             }
             ("GET", "/api/reference-library") => {
@@ -658,7 +672,22 @@ impl Service {
                     .unwrap_or(Value::Null);
                 library["game_presets"] =
                     crate::reference_presets::inspect(docs.as_str(), &library["designs"]);
+                library["mio_install"]=crate::mio_install::status(&self.references);
+                let labels=self.catalog(|c|Ok(c.sources["labels"].clone())).unwrap_or(Value::Null);
+                for row in library["mio_queues"].as_array_mut().unwrap(){
+                    row["organization_name"]=labels[row["organization_id"].as_str().unwrap_or("")].clone();
+                    row["trait_labels"]=json!(row["traits"].as_array().unwrap().iter().map(|t|labels[t.as_str().unwrap_or("")].clone()).collect::<Vec<_>>());
+                }
                 Ok(library)
+            }
+            ("GET", "/api/reference-library/mio-export") => {
+                let library=crate::reference_library::manifest(&self.references);
+                let docs=self.catalog(|c|Ok(c.sources["settings"]["docs_dir"].clone()))?;
+                crate::advanced_references::export_from_documents(docs.as_str(),library["mio_queues"].as_array().unwrap())
+            }
+            ("POST", "/api/reference-library/mio-install") => {
+                request.json_fields(&[])?;
+                self.install_mio_presets()
             }
             ("POST", "/api/import/word") => {
                 let path = &request
@@ -734,6 +763,9 @@ impl Service {
                 Ok(result)
             }
             ("GET", "/api/guide") => self.app("app_guide", &json!({"guide_id":id})),
+            ("GET", "/api/guide/manifest") => {
+                self.app("app_manifest", &json!({"guide_id":id,"run_id":run}))
+            }
             ("GET", "/api/guide/progress") => {
                 self.app("app_progress", &json!({"guide_id":id,"run_id":run}))
             }
@@ -1898,6 +1930,13 @@ fn connection(service: &Service, mut socket: TcpStream, port: u16) {
                 let _ = response(&mut socket, 200, &mime, &bytes);
             }
             Err(error) => json_response(&mut socket, 404, &json!({"error":error})),
+        }
+        return;
+    }
+    if request.method=="GET"&&request.path=="/api/reference-library/document"{
+        match crate::reference_library::document_file(&service.references,request.query.get("id").map(String::as_str).unwrap_or("")){
+            Ok((bytes,mime))=>{let _=response(&mut socket,200,&mime,&bytes);}
+            Err(error)=>json_response(&mut socket,404,&json!({"error":error})),
         }
         return;
     }

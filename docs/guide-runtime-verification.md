@@ -1,6 +1,6 @@
 # Runtime verification boundaries
 
-Use deterministic fixtures to compare Python and JavaScript runtime outputs, including dependencies, unknown conditions, priorities, parallel research, and per-run starts. Preserve inputs and keep the runtime independent of DOM, clocks, native readers, and I/O.
+Use deterministic fixtures (`tests/fixtures/*.json`, run against the Rust backend by `native/backend/tests/contracts.rs`) to check runtime outputs, including dependencies, unknown conditions, priorities, parallel research, and per-run starts. Preserve inputs and keep the runtime independent of DOM, clocks, native readers, and I/O.
 
 Live qualification requires a valid campaign and corroborating observations; fixture success alone does not establish real-game integration. Report stale state, acquisition inconsistency, identity mismatch, and unsupported fields separately. Historical test counts describe their recorded revision, not every later checkout.
 

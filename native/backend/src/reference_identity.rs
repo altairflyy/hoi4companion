@@ -9,6 +9,7 @@ fn s(v: &Value) -> &str {
 fn arr(v: &Value) -> &[Value] {
     v.as_array().map(Vec::as_slice).unwrap_or(&[])
 }
+fn design_image(image:&Value)->bool{!matches!(image["category"].as_str(),Some("mios"|"advanced"))}
 pub fn name_key(value: &str) -> String {
     casefold(&nfkd(value))
         .chars()
@@ -149,6 +150,7 @@ pub fn bindings(guide: &Value, index: &Index, library: &Value) -> Result<Value, 
             }
             let candidates = images
                 .iter()
+                .filter(|image|design_image(image))
                 .filter(|image| keys.contains(&name_key(s(&image["name"]))))
                 .collect::<Vec<_>>();
             if candidates.len() == 1 {
@@ -207,6 +209,7 @@ pub fn attach_images(guide: &Value, library: &Value) -> Result<Value, String> {
             .join("\n");
         let found = images
             .iter()
+            .filter(|image|design_image(image))
             .filter(|image| {
                 let name = s(&image["name"]);
                 !name.is_empty()
@@ -227,6 +230,16 @@ pub fn attach_images(guide: &Value, library: &Value) -> Result<Value, String> {
         }
     }
     Ok(json!({"guide":guide,"changes":changed}))
+}
+#[cfg(test)]mod advanced_image_tests{
+    use super::*;
+    #[test]fn mio_and_tier_illustrations_never_bind_as_division_or_design_images(){
+        let guide=json!({"tracks":{"operations":[{"key":"x","action":{"kind":"manual","params":{"instructions":["Use Medium Tank and OFF"]}}}]}});
+        let refs=json!({"images":[{"id":"mio","name":"Medium Tank","category":"mios"},{"id":"tier","name":"OFF","category":"advanced"},{"id":"division","name":"OFF","category":"templates"}]});
+        let result=attach_images(&guide,&refs).unwrap();
+        assert_eq!(result["guide"]["tracks"]["operations"][0]["action"]["params"]["reference_images"],json!([{"id":"division","name":"OFF"}]));
+        assert!(design_image(&json!({"name":"Legacy image"})));assert!(!design_image(&refs["images"][0]));
+    }
 }
 pub fn execute(op: &str, args: &Value) -> Result<Value, String> {
     match op {

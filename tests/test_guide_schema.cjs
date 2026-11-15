@@ -3,6 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const contracts=require('../src/hoi4companion/web/contracts.js');
 const model=require('../src/hoi4companion/web/guide-model.js');
 const cases=require('./fixtures/guide-schema.json');
+const fixture=require('./presentation-fixtures.cjs');
 for(const example of cases)test('guide schema: '+example.name,()=>{
  const guide=example.raw_json?JSON.parse(example.raw_json):example.guide,before=JSON.stringify(guide);
  if(example.valid){const result=contracts.guide(guide);assert.deepEqual(result,example.normalized);assert.deepEqual(contracts.guide(result),result);}
@@ -16,8 +17,8 @@ test('large dependency chains and cycles are handled without recursion',()=>{
  rows[0].depends_on=['1999'];assert.throws(()=>contracts.guide(guide),/Cyclic/);
 });
 test('evidence and completion declarations survive evaluation without becoming observations',()=>{
- const guide={sources:[{id:'source',type:'manual'}],tracks:{research:[{key:'tech',kind:'technology',target:'t',completion:{op:'check',key:'done'},evidence:[{source_id:'source',basis:'explicit'}]}]}};
- const result=model.evaluate(guide,{usable:true,sample:{country:'GER',researched_technologies:[],research_slots:[]}},{checks:{done:true}});
+ const confirmed=fixture('schema: declared completion confirmed'),guide=confirmed.guide;
+ const result=model.evaluate(guide,confirmed.state,{progress:confirmed.progress,evaluation:confirmed.evaluation});
  const step=result.research.rows[0];
  assert.deepEqual(step.completion_condition,guide.tracks.research[0].completion);
  assert.equal(step.completion.value,true);
@@ -26,7 +27,8 @@ test('evidence and completion declarations survive evaluation without becoming o
  assert.equal(step.runtime_status,'completed');
  assert.equal(step.availability.status,'unknown');
  assert.deepEqual(step.evidence,guide.tracks.research[0].evidence);
- const noEvidence=model.evaluate(guide,{usable:true,sample:{country:'GER',researched_technologies:[],research_slots:[]}},{checks:{}}).research.rows[0];
+ const unconfirmed=fixture('schema: declared completion unconfirmed');
+ const noEvidence=model.evaluate(unconfirmed.guide,unconfirmed.state,{progress:unconfirmed.progress,evaluation:unconfirmed.evaluation}).research.rows[0];
  assert.equal(noEvidence.completion.status,'unknown');
  assert.equal(noEvidence.runtime_status,'unverifiable');
 });

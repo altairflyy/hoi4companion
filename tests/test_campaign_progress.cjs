@@ -1,16 +1,10 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const runtime=require('../src/hoi4companion/web/guide-runtime.js');
 const fixtures=JSON.parse(fs.readFileSync('tests/fixtures/campaign-progress.json','utf8'));
-for(const fixture of fixtures.cases)test('campaign contract: '+fixture.name,()=>{
- const state={...fixtures.state,sample:{...fixtures.state.sample,...fixture.sample}};
- const result=runtime.evaluate(fixtures.guide,state,fixtures.progress);
- assert.equal(result.progress_status,fixture.progress_status);assert.equal(result.steps[0].status,fixture.step_status);
-});
+const fixture=require('./presentation-fixtures.cjs');
 test('restored unidentified legacy progress cannot prove completions',()=>{
- const progress={...fixtures.progress,campaign_id:undefined,campaign_required:true};
- assert.equal(runtime.evaluate(fixtures.guide,fixtures.state,progress).progress_status,'campaign_unverified');
- const view=require('../src/hoi4companion/web/guide-model.js').evaluate(fixtures.guide,fixtures.state,progress);
+ const {guide,state,progress,evaluation}=fixture('campaign: restored unidentified progress');
+ const view=require('../src/hoi4companion/web/guide-model.js').evaluate(guide,state,{progress,evaluation});
  assert.equal(view.runtime.progress_status,'campaign_unverified');
 });
 test('shared browser session accepts server restart and never resets progress on its own',async()=>{

@@ -613,6 +613,7 @@ fn compile(
             }
         }
     }
+    let existing_decisions = crate::decision_admission::existing_ids(&guide);
     let promoted = operation_language::promote(&guide, index, library)?;
     guide = promoted["guide"].clone();
     for item in arr(&promoted["changes"]) {
@@ -630,6 +631,11 @@ fn compile(
     let bound = operation_binding::bind(&guide, index, library)?;
     guide = bound["guide"].clone();
     report["operations"] = bound["reports"].clone();
+    let decisions = crate::decision_admission::validate(&mut guide, &existing_decisions, index)?;
+    report["decision_validation"] = decisions["resolutions"].clone();
+    for field in ["errors", "warnings"] {
+        report[field].as_array_mut().unwrap().extend_from_slice(arr(&decisions[field]));
+    }
     for source in arr(sources) {
         report["warnings"]
             .as_array_mut()

@@ -58,6 +58,24 @@
     "dispersed": "dispersed industry"
   },
   "abbreviations": {
+    "general": {
+      "ASAP": "as soon as the requirements allow",
+      "PRIO": "highest priority",
+      "MIO": "military industrial organization",
+      "MIOs": "military industrial organizations",
+      "Collab": "prepare a collaboration government",
+      "PL Spirit": "Political Loyalty army spirit",
+      "LF Spirit": "Logistical Focus army spirit"
+    },
+    "resources": {
+      "PP": "political power",
+      "AE": "army experience",
+      "NE": "naval experience",
+      "CP": "command power"
+    },
+    "occupation": {
+      "LPF": "Local Police Force"
+    },
     "construction": {
       "INFRA": "infrastructure",
       "MIL": "military factory",
@@ -72,6 +90,8 @@
       "Inf Equip": "infantry equipment",
       "AA": "anti-air",
       "AT": "anti-tank",
+      "ASV": "assault engineer vehicle",
+      "SPG": "self-propelled artillery",
       "Art": "artillery"
     },
     "diplomacy": {
@@ -106,6 +126,8 @@
       "MRec": "motorized recon",
       "ARec": "armored recon",
       "AIRec": "airborne recon",
+      "Eng": "engineers",
+      "Log": "logistics",
       "A-Eng": "assault engineers"
     },
     "designs": {
@@ -162,6 +184,8 @@
     "up": "The next useful level of the technology branch, even on its first mention.",
     "on_focus": "On a focus names its completion; on picking a focus names its selection.",
     "production_order": "Listed production lines indicate priority; from indicates reassignment.",
+    "production_remaining": "ALL assigns all remaining and future military factories to this line; keep it last in priority.",
+    "division_suffixes": {"a":"artillery","s":"self-propelled artillery","t":"tanks"},
     "arrow": "The meaning of an arrow depends on its domain; do not infer a universal condition."
   },
   "entity_names": {
@@ -196,5 +220,5 @@
     "doctrines": "English doctrine names in ABBREVIATIONS & TOOLS, Part III; IDs resolved from installed common/doctrines. Short forms require a Land/Air/Naval Doc qualifier.",
     "political_traits": "English trait names and character instances from installed common/characters; no nation-specific aliases."
   },
-  "vocabulary_revision": 2
+  "vocabulary_revision": 3
 }

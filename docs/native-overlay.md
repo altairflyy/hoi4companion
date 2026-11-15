@@ -1,5 +1,26 @@
 # Native Windows HUD
 
+Campaign observations are applied once per qualified state and committed progress
+revision. Reading progress or an HUD projection reuses that binding; changes to
+the live state, selected guide, definitions, or campaign progress invalidate it.
+Guides outside the qualified country/tree scope retain their progress without
+running action observation; the scope gate is shared with runtime preparation.
+`/api/state.pipeline_ms` separates acquisition, progress observation, and packet
+preparation so delayed guide delivery can be distinguished from GUI rendering.
+Research discovery requires the actual `CCountryTechTreeView`, rather than the
+unrelated `CCountryTechnologyView`. The same identity, ownership, freshness,
+visibility and overlap checks still qualify every highlighted rectangle.
+Focus geometry composes the item's two local position matrices with the shared
+container's world transform. The item's own cached world matrices are not read:
+live dragging was observed to temporarily expose a different translation there.
+Parent links, types, local transforms and the shared transform are all revalidated
+before publishing. Native targeting uses no capture session, OCR, motion filter,
+retained transform or predicted position; the 750 ms deadline is unchanged.
+WGC frames whose surface/window/client bounds disagree during a transition are
+discarded. Capture failures clear geometric/OCR evidence and recreate capture
+with a bounded retry delay instead of terminating the HUD; native GUI observation
+remains independent of that retry. This never extends a highlight's lifetime.
+
 Production highlights use thin, unfilled borders so model names, icons and
 factory assignments remain readable. Pending captions use a compact side column
 outside the highlighted production controls; completed blue lines keep their
@@ -46,17 +67,16 @@ no game offsets, process-opening or writing APIs. Each sample supplies current
 expected bytes, including the existing visibility-bit masks. No coordinates or
 observed states are cached. Partial/unreadable ranges and malformed requests
 remain failures. GUI diagnostics include `verification_engine` and
-`verification_ms`. Build the DLL with `scripts/build-observer.ps1`.
+`verification_ms`. The observer crate (`native/observer`) is linked into the backend; `scripts/build-backend.ps1` builds it.
 
 The live change detector prepares an immutable comparison packet only after a
 fully qualified sample, then compares exactly the selected bytes twice in Rust.
 Unselected gaps are not evidence. New samples replace the packet and closing
 the process/session discards it. These are still external memory probes, not
-game-engine events. A source checkout without the DLL retains the original
-Python implementation; a present but invalid/failing DLL never silently falls
-back. Windows packages require and self-test the DLL.
+game-engine events. There is no alternative reader to fall back to: a failing
+observer comparison is reported as a failure, never replaced by another path.
 
-The external Rust host owns capture, OCR where needed, native controls, and Direct2D rendering. A Python bridge shares guide/runtime projections and qualified GUI geometry. The overlay performs no automatic clicks and does not write game memory or files.
+The external Rust host owns capture, OCR where needed, native controls, and Direct2D rendering. The Rust backend shares guide/runtime projections and qualified GUI geometry with it over local HTTP (`/api/overlay`). The overlay performs no automatic clicks and does not write game memory or files.
 
 Focuses, technologies, category navigation, supported events, political appointments/laws, and projects use the shared targeting pipeline. The exact target must match identity, role/category, guide, campaign, visible panel, and freshness. Access points precede entity selection. Animated research sprites and transient visibility need explicit handling without keeping stale borders indefinitely.
 

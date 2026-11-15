@@ -1,6 +1,11 @@
 //! Coherent application ownership, independent of HTTP, DOM and native reader.
 //! Definitions, observed state and per-campaign progression remain separate.
-use crate::{guide_runtime, guide_schema, progress_store::Runs, state};
+use crate::{
+    definition_archive::{self, Archive},
+    guide_runtime, guide_schema,
+    progress_store::Runs,
+    state,
+};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -89,6 +94,49 @@ fn manual_keys(guide: &Value) -> HashSet<String> {
     }
     keys
 }
+fn started_keys(guide: &Value) -> HashSet<String> {
+    rows(guide)
+        .filter(|s| {
+            ["manual", "special_project"].contains(&text(&s["action"]["kind"]))
+                && s["tracking"] != "reminder"
+        })
+        .map(|s| text(&s["key"]).to_owned())
+        .collect()
+}
+/// Archive that NEW runs of `id` are pinned to: the registry's contract-1
+/// definition compiled under contract 2 (decomposition), memoized by its
+/// runtime revision and catalog context.
+fn current_archive(
+    guides: &Map<String, Value>,
+    sources: &Map<String, Value>,
+    context: Option<&Arc<crate::runtime_context::Context>>,
+    memo: &mut HashMap<String, (Value, Archive)>,
+    id: &str,
+) -> Result<Option<Archive>> {
+    let Some(guide) = guides.get(id) else {
+        return Ok(None);
+    };
+    let seen_key = json!([guide["runtime_definition_revision"], context.map(|c| Arc::as_ptr(c) as usize)]);
+    if let Some((seen, archive)) = memo.get(id)
+        && *seen == seen_key
+    {
+        return Ok(Some(archive.clone()));
+    }
+    let compiled = match context {
+        Some(context) => context.decompose(guide)?,
+        None => {
+            // No catalog: only catalog-free timing rules can compile headers.
+            let compile = |text: &str| {
+                crate::timing_compiler::compile(&json!(text), None, &guide["applies_to"]["country"],
+                    &guide["applies_to"]["tree_id"], "", 0)
+            };
+            crate::decomposition::decompose(guide, &compile)?["guide"].clone()
+        }
+    };
+    let archive = definition_archive::build(id, &compiled, sources.get(id).unwrap_or(&Value::Null))?;
+    memo.insert(id.to_owned(), (seen_key, archive.clone()));
+    Ok(Some(archive))
+}
 fn campaign(state: &Value) -> Option<&str> {
     if state["usable"] != true {
         return None;
@@ -120,8 +168,12 @@ pub struct Application {
     active_revision: u64,
     revision: u64,
     observation_revision: u64,
-    bound_context: Option<(u64, u64, u64)>,
+    bound_context: Option<(u64, u64, u64, u64, u64)>,
     persistent: bool,
+    /// guide ID -> (runtime revision, archive of the current definition).
+    current_archives: HashMap<String, (Value, Archive)>,
+    /// Verified archived definitions by archive ID, ready for evaluation.
+    archived_guides: HashMap<String, Value>,
 }
 pub(crate) struct PreparedContext {
     generation: u64,
@@ -149,6 +201,8 @@ impl Application {
             observation_revision: 0,
             bound_context: None,
             persistent: path.is_some(),
+            current_archives: HashMap::new(),
+            archived_guides: HashMap::new(),
         };
         for guide in args["guides"].as_array().into_iter().flatten() {
             if result.guides.contains_key(text(&guide["id"])) {
@@ -325,15 +379,146 @@ impl Application {
         }
         Ok(id.into())
     }
+    /// Run operations that can write: every written run is bound atomically to
+    /// the definition the registry evaluates now (new runs) or, for legacy
+    /// runs, records it as first-observed evidence only.
+    fn runs_call(&mut self, op: &str, args: Value) -> Result<Value> {
+        let (guides, sources, memo, context) = (&self.guides, &self.sources, &mut self.current_archives, self.context.as_ref());
+        self.runs
+            .call_with(op, args, &mut |id| current_archive(guides, sources, context, memo, id))
+    }
+    fn current_definition_id(&mut self, id: &str) -> Result<Option<String>> {
+        Ok(current_archive(&self.guides, &self.sources, self.context.as_ref(), &mut self.current_archives, id)?
+            .map(|a| a.id))
+    }
+    /// The single source of the definition a run is evaluated, observed and
+    /// validated against. Pinned runs use only their verified archive, never
+    /// the current registry; a missing/corrupt/unsupported archive fails closed.
+    /// Legacy runs use the current definition only while the legacy compiler
+    /// contract applies, and report evidence of definition changes.
+    pub(crate) fn definition_for_run(&mut self, id: &str, run: &Value) -> Result<(Value, Value)> {
+        let reference = &run["definition_ref"];
+        let current = self.current_definition_id(id)?;
+        if reference["status"] == "pinned" {
+            let archive_id = text(&reference["id"]).to_owned();
+            let (guide, manifest, contract) = if let Some(entry) = self.archived_guides.get(&archive_id) {
+                (entry["guide"].clone(), entry["manifest"].clone(), entry["contract"].clone())
+            } else {
+                let payload = self.runs.archive(&archive_id).ok_or(
+                    "Archived guide definition unavailable: this checklist is unverifiable",
+                )?;
+                let envelope = definition_archive::open(&archive_id, &payload)?;
+                if envelope["guide_id"] != id {
+                    return Err("Archived guide definition belongs to another guide".into());
+                }
+                let guide = Self::revision(envelope["definition"].clone())?;
+                if self.archived_guides.len() >= 64 {
+                    self.archived_guides.clear();
+                }
+                let manifest = envelope["occurrence_manifest"].clone();
+                let contract = envelope["compiler_contract"].clone();
+                self.archived_guides.insert(
+                    archive_id.clone(),
+                    json!({"guide":guide,"manifest":manifest,"contract":contract}),
+                );
+                (guide, manifest, contract)
+            };
+            let info = json!({"status":"pinned","id":archive_id,"run_id":run["run_id"],
+                "compiler_contract":contract,
+                "current_definition_id":current,
+                "newer_definition_available":current.as_ref().is_some_and(|c| *c != archive_id),
+                "manifest":if manifest.is_null() {"unavailable"} else {"bound"},
+                "operations":manifest["operations"].as_array().map(Vec::len)});
+            return Ok((guide, info));
+        }
+        if definition_archive::REGISTRY_COMPILER_CONTRACT != definition_archive::LEGACY_COMPILER_CONTRACT {
+            return Err("Legacy checklist cannot be evaluated by this guide compiler: progress is unverifiable".into());
+        }
+        let guide = self.guides.get(id).cloned().ok_or("Guide not found")?;
+        // Detection only: undeclared saved keys and a changed current definition
+        // are reported; nothing is migrated, dropped or reassigned.
+        let undeclared = |field: &str, allowed: &HashSet<String>| {
+            let mut keys: Vec<_> = run[field]
+                .as_object()
+                .into_iter()
+                .flat_map(|m| m.keys())
+                .filter(|k| !allowed.contains(*k))
+                .cloned()
+                .collect();
+            keys.sort();
+            keys
+        };
+        let observed = reference["observed_definition_id"].as_str();
+        let info = json!({"status":"legacy_unresolved","run_id":run["run_id"],
+            "reason":reference["reason"].as_str().unwrap_or(hoi4companion_storage::progress::LEGACY_REASON),
+            "current_definition_id":current,"observed_definition_id":observed,
+            "changed_since_observed":observed.map(|o| current.as_deref() != Some(o)),
+            "undeclared_checks":undeclared("checks",&manual_keys(&guide)),
+            "undeclared_started":undeclared("started",&started_keys(&guide)),
+            // Legacy progress is keyed by positional step keys only; it is never
+            // bound to operation identities of any (current or future) manifest.
+            "manifest":"unbound","compiler_contract":definition_archive::REGISTRY_COMPILER_CONTRACT});
+        Ok((guide, info))
+    }
+    /// Occurrence manifest of the run's own definition, with inactive shadow
+    /// decomposition and, when a newer definition exists, the conservative
+    /// correspondence a future explicit upgrade would be limited to.
+    pub fn manifest(&mut self, id: Option<&str>, run: Option<&str>) -> Result<Value> {
+        let id = self.identity(id)?;
+        let progress = self.progress(Some(&id), run, None)?;
+        let (definition, info) = self.definition_for_run(&id, &progress)?;
+        let current = current_archive(&self.guides, &self.sources, self.context.as_ref(), &mut self.current_archives, &id)?;
+        let current_manifest = match &current {
+            Some(archive) => serde_json::from_str::<Value>(&archive.payload)
+                .map_err(|e| e.to_string())?["occurrence_manifest"]
+                .clone(),
+            None => Value::Null,
+        };
+        let manifest = if info["status"] == "pinned" {
+            self.archived_guides
+                .get(text(&info["id"]))
+                .map(|e| e["manifest"].clone())
+                .unwrap_or(Value::Null)
+        } else {
+            Value::Null
+        };
+        let shadow = if manifest.is_null() {
+            Value::Null
+        } else {
+            crate::occurrence_manifest::shadow(&definition, &manifest)?
+        };
+        let correspondence = if !manifest.is_null()
+            && !current_manifest.is_null()
+            && info["newer_definition_available"] == true
+        {
+            crate::occurrence_manifest::correspondence(&manifest, &current_manifest)
+        } else {
+            Value::Null
+        };
+        Ok(json!({"schema_version":1,"guide_id":id,"run_id":progress["run_id"],"definition":info,
+            "manifest":manifest,"shadow_decomposition":shadow,"correspondence_to_current":correspondence}))
+    }
     fn storage(&self) -> Value {
         json!({"status":if self.persistent{"persistent"}else{"memory"},"error":""})
     }
+    fn binding_context(&self) -> (u64, u64, u64, u64, u64) {
+        (self.active_revision, self.definition_generation, self.revision,
+            self.observation_revision, self.runs.generation)
+    }
     fn bind(&mut self) -> Result<()> {
+        // Reading progress/projections repeatedly must not observe the same
+        // campaign again. Every committed run mutation and qualified observation
+        // invalidates this stamp; failures never mark a binding as complete.
+        if self.bound_context == Some(self.binding_context()) {
+            return Ok(());
+        }
         let changed = if let Some(id) = campaign(&self.live) {
-            self.runs.call("bind_campaign",json!({"campaign_id":id,"country":self.live["sample"]["country"],"session_id":self.live["sample"]["session_id"],"tick":self.live["sample"]["native_tick"]}))?
+            let args = json!({"campaign_id":id,"country":self.live["sample"]["country"],"session_id":self.live["sample"]["session_id"],"tick":self.live["sample"]["native_tick"]});
+            self.runs_call("bind_campaign", args)?
         } else {
             let state = state::normalize(&self.live);
-            self.runs.call("bind",json!({"session_id":if self.live["usable"]==true {state["session_id"].clone()}else{Value::Null}}))?
+            let args = json!({"session_id":if self.live["usable"]==true {state["session_id"].clone()}else{Value::Null}});
+            self.runs_call("bind", args)?
         };
         if changed == true {
             self.revision += 1;
@@ -344,15 +529,29 @@ impl Application {
         if self.live["usable"] == true {
             let ids = self.runs.call("metadata", json!({}))?;
             for id in ids.as_object().into_iter().flat_map(|m| m.keys()) {
-                if let Some(guide) = self.guides.get(id)
-                    && self
-                        .runs
-                        .observe(guide, &self.live, self.active.as_ref() == Some(id))?
-                {
+                if !self.guides.contains_key(id) {
+                    continue;
+                }
+                // Observe against the run's own definition. An unverifiable
+                // run (missing/corrupt archive) is not observed at all.
+                let record = self.runs.call("get", json!({"guide_id":id}))?;
+                let Ok((guide, _)) = self.definition_for_run(id, &record) else {
+                    continue;
+                };
+                let active = self.active.as_ref() == Some(id);
+                let (guides, sources, memo, context) =
+                    (&self.guides, &self.sources, &mut self.current_archives, self.context.as_ref());
+                if self.runs.observe_with(
+                    &guide,
+                    &self.live,
+                    active,
+                    Some(&mut |g| current_archive(guides, sources, context, memo, g)),
+                )? {
                     self.revision += 1;
                 }
             }
         }
+        self.bound_context = Some(self.binding_context());
         Ok(())
     }
     pub fn accept(&mut self, value: Value) -> Result<Value> {
@@ -360,15 +559,11 @@ impl Application {
         // targets when only delivery timestamps and diagnostic counters changed.
         // All game data, identity, validity and unknown fields remain significant.
         let changed = !same_observation(&self.live, &value);
-        let context = (self.active_revision, self.definition_generation, self.revision);
         self.live = value;
-        if changed || self.bound_context != Some(context) {
-            if changed {
-                self.observation_revision = self.observation_revision.wrapping_add(1);
-            }
-            self.bind()?;
-            self.bound_context = Some((self.active_revision, self.definition_generation, self.revision));
+        if changed {
+            self.observation_revision = self.observation_revision.wrapping_add(1);
         }
+        self.bind()?;
         Ok(self.live.clone())
     }
     pub fn invalidate_observation(&mut self) {
@@ -445,8 +640,7 @@ impl Application {
         )
     }
     fn ensure(&mut self, id: &str) -> Result<()> {
-        self.runs
-            .call("ensure", json!({"guide_id":id,"checks":{}}))?;
+        self.runs_call("ensure", json!({"guide_id":id,"checks":{}}))?;
         self.bind()
     }
     fn guard(&self, update: &Value, current: &Value) -> Result<Value> {
@@ -472,7 +666,14 @@ impl Application {
         {
             return Err("Progress updated by another view: reload progress".into());
         }
-        for key in ["server_id", "expected_run_id", "expected_revision"] {
+        // Definition CAS: null means a legacy (unpinned) run.
+        if update
+            .get("expected_definition_id")
+            .is_some_and(|v| *v != current["definition_ref"]["id"])
+        {
+            return Err("Guide definition changed: reload progress".into());
+        }
+        for key in ["server_id", "expected_run_id", "expected_revision", "expected_definition_id"] {
             update.remove(key);
         }
         Ok(Value::Object(update))
@@ -490,13 +691,12 @@ impl Application {
             let update = self.guard(update, &current)?;
             let map = update.as_object().unwrap();
             if map.is_empty() {
-                self.runs.call(
+                self.runs_call(
                     "create",
                     json!({"guide_id":id,"session_id":current["session_id"]}),
                 )?;
             } else if map.len() == 1 && map.contains_key("run_id") {
-                self.runs
-                    .call("select", json!({"guide_id":id,"run_id":update["run_id"]}))?;
+                self.runs_call("select", json!({"guide_id":id,"run_id":update["run_id"]}))?;
             } else if map.contains_key("run_id")
                 && map
                     .keys()
@@ -507,7 +707,9 @@ impl Application {
                     return Err("Checklist belongs to an inactive run".into());
                 }
                 let checks = update.get("checks").unwrap_or(&current["checks"]);
-                let allowed = manual_keys(&self.guides[&id]);
+                // Keys are validated against the run's own definition.
+                let (definition, _) = self.definition_for_run(&id, &current)?;
+                let allowed = manual_keys(&definition);
                 if checks
                     .as_object()
                     .is_none_or(|m| m.keys().any(|k| !allowed.contains(k)))
@@ -515,23 +717,15 @@ impl Application {
                     return Err("Checks not declared by the guide".into());
                 }
                 let started = update.get("started").unwrap_or(&current["started"]);
-                let operations: HashSet<_> = rows(&self.guides[&id])
-                    .filter(|s| {
-                        ["manual", "special_project"].contains(&text(&s["action"]["kind"]))
-                            && s["tracking"] != "reminder"
-                    })
-                    .map(|s| text(&s["key"]))
-                    .collect();
+                let operations = started_keys(&definition);
                 if started
                     .as_object()
                     .is_none_or(|m| m.keys().any(|k| !operations.contains(k.as_str())))
                 {
                     return Err("Starts not declared by the guide".into());
                 }
-                self.runs.call(
-                    "update",
-                    json!({"guide_id":id,"checks":checks,"started":started}),
-                )?;
+                let args = json!({"guide_id":id,"checks":checks,"started":started});
+                self.runs_call("update", args)?;
             } else {
                 return Err("Unknown run operation".into());
             }
@@ -552,13 +746,13 @@ impl Application {
         } else {
             json!({"schema_version":1,"usable":false,"session_id":null,"facts":{}})
         };
-        let guide = self.project_definition(&id, &state, &progress)?;
+        let (definition, info) = self.definition_for_run(&id, &progress)?;
+        let guide = self.project_definition(&definition, &state, &progress)?;
         Ok(
-            json!({"schema_version":1,"engine":"rust-guide-core","server_id":self.server,"guide_id":id,"definition_revision":guide["runtime_definition_revision"],"guide":guide,"state":state,"progress":progress,"evaluation":guide_runtime::evaluate(&guide,&state,&progress)?}),
+            json!({"schema_version":1,"engine":"rust-guide-core","server_id":self.server,"guide_id":id,"definition_revision":guide["runtime_definition_revision"],"definition":info,"guide":guide,"state":state,"progress":progress,"evaluation":guide_runtime::evaluate(&guide,&state,&progress)?}),
         )
     }
-    fn project_definition(&self, id: &str, state: &Value, progress: &Value) -> Result<Value> {
-        let guide = &self.guides[id];
+    fn project_definition(&self, guide: &Value, state: &Value, progress: &Value) -> Result<Value> {
         if !rows(guide).any(|s| {
             s["relative_research"].is_object()
                 || s["relative_research_unresolved"] == true
@@ -594,7 +788,8 @@ impl Application {
     fn guide(&mut self, id: Option<&str>) -> Result<Value> {
         let id = self.identity(id)?;
         let progress = self.progress(Some(&id), None, None)?;
-        self.project_definition(&id, &self.live, &progress)
+        let (definition, _) = self.definition_for_run(&id, &progress)?;
+        self.project_definition(&definition, &self.live, &progress)
     }
     pub fn checks(&mut self, id: Option<&str>, update: Option<&Value>) -> Result<Value> {
         let id = self.identity(id)?;
@@ -602,7 +797,7 @@ impl Application {
         let current = self.runs.call("get", json!({"guide_id":id}))?;
         if let Some(update) = update {
             self.guard(&json!({"checks":{}}), &current)?;
-            let allowed = manual_keys(&self.guides[&id]);
+            let allowed = manual_keys(&self.definition_for_run(&id, &current)?.0);
             fn apply(current: &mut Value, update: &Value, allowed: &HashSet<String>) -> Result<()> {
                 if update.as_object().is_none_or(|m| m.len() != 2)
                     || update["key"].as_str().is_none()
@@ -634,7 +829,7 @@ impl Application {
             } else {
                 apply(&mut checks, update, &allowed)?;
             }
-            self.runs.call("update",json!({"guide_id":id,"checks":checks,"started":if *update==json!({"reset":true}){json!({})}else{current["started"].clone()}}))?;
+            self.runs_call("update",json!({"guide_id":id,"checks":checks,"started":if *update==json!({"reset":true}){json!({})}else{current["started"].clone()}}))?;
             self.revision += 1;
         }
         Ok(
@@ -655,6 +850,7 @@ impl Application {
         "app_checks"=>self.checks(args["guide_id"].as_str(),args.get("update")),
         "app_projection"=>self.projection(args["guide_id"].as_str(),args["live"].as_bool().unwrap_or(true)),
         "app_guide"=>self.guide(args["guide_id"].as_str()),
+        "app_manifest"=>self.manifest(args["guide_id"].as_str(),args["run_id"].as_str()),
         "app_source"=>{let id=self.identity(args["guide_id"].as_str())?;Ok(self.sources[&id].clone())},
         "app_definition"=>{let id=self.identity(args["guide_id"].as_str())?;Ok(self.guides[&id].clone())},
         "app_put_guide"=>self.put_guide(&args["guide"]),
@@ -709,6 +905,35 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+    #[test]
+    fn progress_reads_reuse_binding_but_run_guide_and_live_changes_invalidate_it() {
+        let make = |id: &str| json!({"id":id,"tracks":{"operations":[{"key":"note","action":{"kind":"manual"}}]}});
+        let mut app = Application::open(&json!({"guides":[make("one"),make("two")]})).unwrap();
+        let live = json!({"usable":false,"status":"disconnected","sample":null});
+        app.accept(live.clone()).unwrap();
+        app.progress(Some("one"),None,None).unwrap();
+        let bound = app.bound_context.unwrap();
+        for _ in 0..3 {
+            app.progress(Some("one"),None,None).unwrap();
+            app.accept(live.clone()).unwrap();
+            assert_eq!(app.bound_context,Some(bound));
+        }
+        app.runs.call("update",json!({"guide_id":"one","checks":{"operations:note":true}})).unwrap();
+        assert_ne!(app.binding_context(),bound);
+        app.accept(live.clone()).unwrap();
+        assert_eq!(app.bound_context,Some(app.binding_context()));
+        let bound = app.bound_context;
+        app.active(Some(&json!({"guide_id":"two"}))).unwrap();
+        app.accept(live.clone()).unwrap();
+        assert_ne!(app.bound_context,bound);
+        let bound = app.bound_context;
+        app.put_guide(&make("two")).unwrap();
+        app.accept(live.clone()).unwrap();
+        assert_ne!(app.bound_context,bound);
+        let bound = app.bound_context;
+        app.accept(json!({"usable":false,"status":"stale","sample":null})).unwrap();
+        assert_ne!(app.bound_context,bound);
+    }
     #[test]
     fn hud_identity_is_qualified_without_serializing_campaign_progress() {
         let mut app=Application::open(&json!({})).unwrap();

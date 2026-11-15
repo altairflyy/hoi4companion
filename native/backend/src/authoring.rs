@@ -610,6 +610,10 @@ fn step(step: &Value, index: usize) -> Result<(&'static str, Value)> {
                 &format!("{typ}_id"),
                 &format!("{typ}_name"),
             )?;
+            // The authored {id: ...} reference is explicit here, before its origin is lost.
+            if typ == "decision" && let Some(id) = params.get("decision_id").cloned() {
+                params.insert("decision_resolution".into(), json!({"schema_version":1,"id":id,"origin":"explicit_id","query":id}));
+            }
             if let Some(group) = step.get("group") {
                 params.insert("law_group".into(), json!(text(group, key, "group")?));
             }

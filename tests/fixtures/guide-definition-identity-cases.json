@@ -1,0 +1,20 @@
+{
+  "status": "proposed_technical_contract_not_enabled_not_human_gold",
+  "description": "Hand-authored occurrence identities and UTF-8 spans; not parser output or semantic gold.",
+  "source": {
+    "text": "When at war:\nRafforza la difesa ⚑\nRafforza la difesa ⚑\n",
+    "sha256": "840942142766b29761cb9d1557cbed9fb5d81602e5d672c52d8f44fce9d41d55"
+  },
+  "block_id": "block_aaaaaaaa",
+  "header": {
+    "id": "scope_aaaaaaaa",
+    "start_utf8": 0,
+    "end_utf8": 12,
+    "quote": "When at war:",
+    "condition": {"op": "fact", "key": "country.at_war", "test": "eq", "value": true}
+  },
+  "children": [
+    {"id": "step_11111111", "occurrence_id": "occurrence_11111111", "start_utf8": 13, "end_utf8": 35, "quote": "Rafforza la difesa ⚑", "scope_ids": ["scope_aaaaaaaa"]},
+    {"id": "step_22222222", "occurrence_id": "occurrence_22222222", "start_utf8": 36, "end_utf8": 58, "quote": "Rafforza la difesa ⚑", "scope_ids": ["scope_aaaaaaaa"]}
+  ]
+}

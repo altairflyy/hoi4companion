@@ -113,10 +113,38 @@ fn observations(v: &Value) -> Result<()> {
         Err("Osservazioni campagna non valide".into())
     }
 }
+/// Legacy reason for runs whose original definition was never archived.
+pub const LEGACY_REASON: &str = "original_definition_unavailable";
+fn pinned_ref(v: &Value) -> bool {
+    v.as_object().is_some_and(|m| m.len() == 3)
+        && v["status"] == "pinned"
+        && v["archive_format"] == 1
+        && v["id"].as_str().is_some_and(crate::definition_id)
+}
+/// Typed, immutable run-to-definition binding. Absent = legacy run that has
+/// not yet been written by a pinning-aware binary (still legacy_unresolved).
+fn definition_ref(v: Option<&Value>) -> Result<()> {
+    let Some(v) = v else { return Ok(()) };
+    let legacy = v.as_object().is_some_and(|m| {
+        m.keys().all(|k| ["status", "reason", "observed_definition_id"].contains(&k.as_str()))
+    }) && v["status"] == "legacy_unresolved"
+        && v["reason"].as_str().is_some_and(|s| !s.is_empty() && s.len() <= 128)
+        && (v.get("observed_definition_id").is_none()
+            || v["observed_definition_id"].as_str().is_some_and(crate::definition_id));
+    if legacy || pinned_ref(v) {
+        Ok(())
+    } else {
+        Err("Definizione della partita non valida".into())
+    }
+}
+fn legacy_marker(reason: &str) -> Value {
+    json!({"status":"legacy_unresolved","reason":reason})
+}
 fn validate_record(key: &str, row: &Value) -> Result<()> {
     if !row.is_object() || row["schema_version"].as_u64() != Some(1) || row["run_id"] != key {
         return Err("Identità avanzamento non valida".into());
     }
+    definition_ref(row.get("definition_ref"))?;
     identifier(&json!(key), "Partita", false, Some(160))?;
     identifier(&row["guide_id"], "Guida", false, Some(160))?;
     identifier(&row["session_id"], "Sessione", true, None)?;
@@ -363,7 +391,12 @@ impl State {
                             .collect(),
                     )
                 };
-                let row = self.new_run(guide, &Value::Null, checks, ids)?;
+                let imported = checks.as_object().is_some_and(|m| !m.is_empty());
+                let mut row = self.new_run(guide, &Value::Null, checks, ids)?;
+                if imported {
+                    // Checks from an older format never belong to today's definition.
+                    row["definition_ref"] = legacy_marker(LEGACY_REASON);
+                }
                 self.insert(row.clone());
                 Ok(row)
             }
@@ -510,7 +543,15 @@ impl State {
                                 history.entry(k.clone()).or_insert_with(|| v.clone());
                             }
                         }
+                        // A rewind continues the same playthrough: it keeps the
+                        // old run's definition (or its legacy status), never the
+                        // current one.
+                        let inherited = row
+                            .get("definition_ref")
+                            .cloned()
+                            .unwrap_or_else(|| legacy_marker(LEGACY_REASON));
                         row = self.new_run(&json!(g), session, json!({}), ids)?;
+                        row["definition_ref"] = inherited;
                         row["branch_reason"] = json!("timeline_rewind");
                         if !history.is_empty() {
                             row["research_history"] = Value::Object(history)
@@ -541,6 +582,7 @@ impl State {
                         "country",
                         "session_id",
                         "run_revision",
+                        "definition_ref",
                     ] {
                         if row.get(k) != old.get(k) {
                             return Err("Identità osservazione avanzamento non valida".into());
@@ -605,6 +647,44 @@ impl Store {
         if r.op == "load" {
             self.state = next;
             return Ok(json!({"changed":false,"value":value}));
+        }
+        // Bind every written run to a definition before commit. New runs take
+        // the caller's current definition (rewinds already inherited theirs);
+        // legacy runs only record which current definition was first observed,
+        // as evidence, never as their recovered original. A missing entry asks
+        // the caller; an explicit null leaves the run unbound. Callers that send
+        // no `definitions` object (older ABI users) keep the previous behavior.
+        let aware = r.args.get("definitions").is_some_and(Value::is_object);
+        for (key, row) in next.runs.iter_mut().filter(|_| aware) {
+            let old = self.state.runs.get(key);
+            if old == Some(&*row) {
+                continue;
+            }
+            let current = row.get("definition_ref");
+            let legacy_unobserved = current.is_some_and(|v| {
+                v["status"] == "legacy_unresolved" && v.get("observed_definition_id").is_none()
+            });
+            if current.is_some() && !legacy_unobserved {
+                continue;
+            }
+            let guide = string(&row["guide_id"]).to_owned();
+            let Some(supplied) = r.args.get("definitions").and_then(|d| d.get(&guide)) else {
+                return Ok(json!({"needs_definition":guide}));
+            };
+            if supplied.is_null() {
+                continue;
+            }
+            if !pinned_ref(supplied) {
+                return Err("Definizione corrente non valida".into());
+            }
+            if legacy_unobserved {
+                row["definition_ref"]["observed_definition_id"] = supplied["id"].clone();
+            } else if old.is_none() {
+                row["definition_ref"] = supplied.clone();
+            } else {
+                row["definition_ref"] = legacy_marker(LEGACY_REASON);
+                row["definition_ref"]["observed_definition_id"] = supplied["id"].clone();
+            }
         }
         let changed = next.runs != self.state.runs
             || next.active != self.state.active

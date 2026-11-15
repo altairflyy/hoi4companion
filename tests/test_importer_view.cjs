@@ -20,6 +20,8 @@ function harness(collectionFlow=false){
  const fetch=async(path,options)=>{
   const body=options?.body?(typeof options.body==='string'?JSON.parse(options.body):options.body):null;requests.push({path,body});
   if(path==='/api/import/templates'||path==='/api/reference-library')return {ok:true,json:async()=>references};
+  if(path==='/api/reference-library/mio-export')return {ok:true,json:async()=>({text:'version=0\n',filename:'mio_queues.txt',count:2,existing:1,added:1,renamed:0})};
+  if(path==='/api/reference-library/mio-install'){references.mio_install={status:'installed',count:2};return {ok:true,json:async()=>references.mio_install};}
   if(path==='/api/import/word'&&wordNetworkFailure){if(ArrayBuffer.isView(body))return {ok:false,status:404,json:async()=>({error:'Not found'})};throw new TypeError('Failed to fetch');}
   if(path==='/api/import/word')return {ok:true,json:async()=>({documents:wordDocuments,single_document:false})};
   if(path.startsWith('/api/import/word?'))return {ok:true,json:async()=>({sources:[source],document:{format:'hoi4-guide-authoring',authoring_schema_version:1,sources:[source],guide:{id:'opening',title:'Opening',steps:[]}},warnings:['Partial draft']})};
@@ -33,7 +35,7 @@ function harness(collectionFlow=false){
  const document={getElementById:get,createElement:tag=>new Node(tag),body:new Node('body')};
  if(collectionFlow)document.body.dataset={collectionFlow:'true'};
  runLocalized(fs.readFileSync('src/hoi4companion/web/importer.js','utf8'),{HoiImporter:model,document,fetch,
-  navigator:{clipboard:{async writeText(text){clipboard.push(text);}}},structuredClone,Blob,URL:{createObjectURL(blob){downloads.push(blob);return 'blob:fixture';},revokeObjectURL(){}},setTimeout:fn=>fn()});
+  navigator:{clipboard:{async writeText(text){clipboard.push(text);}}},structuredClone,Blob,URL:{createObjectURL(blob){downloads.push(blob);return 'blob:fixture';},revokeObjectURL(){}},clearTimeout(){},setTimeout:(fn,ms)=>ms===5000?1:fn()});
  return {get,requests,downloads,clipboard,source,report,catalog,document,setReferences:value=>references=value,setRelease:fn=>release=fn,setDocumentError:value=>documentError=value,setWordNetworkFailure:value=>wordNetworkFailure=value,setWordDocuments:value=>wordDocuments=value};
 }
 
@@ -62,6 +64,29 @@ test('reference gallery shows one category in a grid, supports search and opens 
  assert.equal(descendants(h.get('referenceImages')).filter(n=>n.tag==='img').length,1);
 });
 
+test('advanced references retain original rankings, ordered MIO traits and safe explicit export',async()=>{
+ const h=harness(true);await tick();const id='c'.repeat(64);
+ h.setReferences({designs:[],images:[],documents:[{id,name:'Company rankings',category:'companies',text:'<script>source, not executable</script>',tiers:[{title:'S Tier',entries:['Engineers']}],images:[],filename:'tier.docx'}],mio_queues:[{id:'m',name:'Infantry',organization_id:'FIN_test',organization_name:'Test MIO',traits:['first','second'],trait_labels:['First trait','Second trait']}]});
+ await h.get('showReferences').onclick();
+ assert.match(h.get('advancedDocuments').textContent,/S Tier.*Engineers/);
+ assert.match(h.get('advancedDocuments').textContent,/<script>source, not executable<\/script>/);
+ assert.match(h.get('mioQueues').textContent,/First trait.*Second trait/);
+ assert.equal(h.get('downloadMioQueues').disabled,false);assert.equal(h.downloads.length,0);
+ await h.get('downloadMioQueues').onclick();assert.equal(h.downloads.length,1);
+ assert.equal(await h.downloads[0].text(),'version=0\n');
+ assert.ok(h.requests.some(r=>r.path==='/api/reference-library/mio-export'));
+ assert.equal(h.requests.some(r=>r.path==='/api/import/install'),false);
+ h.get('advancedSearch').value='absent';h.get('advancedSearch').oninput();assert.equal(h.get('mioQueues').children.length,0);
+});
+
+test('MIO installation distinguishes deferred restart, installed files and errors without automatic writes on read',async()=>{
+ const h=harness(true);await tick();const data={designs:[],images:[],documents:[],mio_queues:[{name:'MIO',organization_id:'X',traits:['one']}]};
+ h.setReferences({...data,mio_install:{status:'waiting_for_game_exit',restart_required:true}});await h.get('showReferences').onclick();
+ assert.match(h.get('mioInstallStatus').textContent,/Riavvio|Restart/);assert.equal(h.get('installMioQueues').disabled,true);
+ assert.equal(h.requests.some(r=>r.path==='/api/reference-library/mio-install'),false);
+ h.setReferences({...data,mio_install:{status:'error',error:'Invalid format'}});await h.get('showReferences').onclick();assert.match(h.get('mioInstallStatus').textContent,/Invalid format/);assert.equal(h.get('installMioQueues').disabled,false);
+ await h.get('installMioQueues').onclick();assert.equal(h.requests.filter(r=>r.path==='/api/reference-library/mio-install').length,1);assert.match(h.get('mioInstallStatus').textContent,/2/);
+});
 test('saved equipment recipes show their real folder separately from campaign availability',async()=>{
  const h=harness();await tick();h.setReferences({designs:[
   {id:'tank',name:'Required tank',category:'land',equipment_id:'medium',modules:{gun:'howitzer'},upgrades:{armor:'4'}},

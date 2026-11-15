@@ -2,6 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const presentation=require('../src/hoi4companion/web/guide-presentation.js');
 const model=require('../src/hoi4companion/web/guide-model.js');
+const fixture=require('./presentation-fixtures.cjs');
 const step=(key,params={},extra={})=>({key,title:key,depends_on:[],action:{kind:'manual',params:{category:'construction',...params}},...extra});
 const guide=(steps,extra={})=>({schema_version:1,id:'chronology',tracks:{operations:steps},...extra});
 const keys=value=>value.operations.map(row=>row.key);
@@ -122,9 +123,9 @@ test('legacy runtime barriers are not rewritten by chronological presentation',(
 });
 
 test('presentation sorting is deterministic and does not change runtime priorities or authored data',()=>{
- const input=guide([step('late',{source_seconds:20},{priority:50}),step('early',{source_seconds:10})]);
- const before=JSON.stringify(input),runtime=model.evaluate(input).runtime;
- const first=presentation.evaluate(input),second=presentation.evaluate(input);
+ const {guide:input,progress,evaluation}=fixture('chronology: priority with source order');
+ const before=JSON.stringify(input),runtime=model.evaluate(input,null,{progress,evaluation}).runtime;
+ const first=presentation.evaluate(input,null,{progress},evaluation),second=presentation.evaluate(input,null,{progress},evaluation);
  assert.deepEqual(first,second);assert.deepEqual(first.model.runtime,runtime);assert.equal(JSON.stringify(input),before);
  assert.deepEqual(keys(first),['early','late']);assert.equal(first.model.runtime.tracks.operations.next,'late');
 });

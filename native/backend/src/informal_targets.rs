@@ -81,15 +81,20 @@ fn spirit(group: &str) -> Option<(&str, &str)> {
         _ => None,
     }
 }
+const NAMED_PATTERN: &str = r"(?i)^([^:\n&]+?)(?:\s*\(\s*(\d{1,6})\s*(PP|AE|NE|AFE)\s*\))?(?:\s*\(\s*((?:before|after|when|if|on)\s+[^()]+)\s*\))?\s*$";
+fn named_text(text: &str) -> String {
+    regex(r"(?i)^ASAP(?:\s*:\s*|\s+)").replace(text, "").trim().to_owned()
+}
+/// Reuse the existing literal-name grammar for import provenance, including cost suffixes.
+pub(crate) fn named_query(text: &str) -> Option<String> {
+    regex(NAMED_PATTERN).captures(&named_text(text)).map(|hit|hit[1].trim().to_owned())
+}
 pub fn named(text: &str, index: &Index, country: &Value) -> Result<Option<Value>> {
     if country.as_str().is_none_or(|s| s.is_empty()) {
         return Ok(None);
     }
-    let text = regex(r"(?i)^ASAP(?:\s*:\s*|\s+)")
-        .replace(text, "")
-        .trim()
-        .to_owned();
-    let Some(hit)=regex(r"(?i)^([^:\n&]+?)(?:\s*\(\s*(\d{1,6})\s*(PP|AE|NE|AFE)\s*\))?(?:\s*\(\s*((?:before|after|when|if|on)\s+[^()]+)\s*\))?\s*$").captures(&text)else{return Ok(None)};
+    let text = named_text(text);
+    let Some(hit)=regex(NAMED_PATTERN).captures(&text)else{return Ok(None)};
     let mut found = vec![];
     for kind in ["advisor", "idea", "decision"] {
         found.extend(index.matches(hit[1].trim(), &[kind], country, &Value::Null, false)?);

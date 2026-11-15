@@ -43,8 +43,8 @@ operative identities. The native `no_mission` state is never an active task.
 
 Complete observed empty lists prove absence. Unsupported/partial domains,
 malformed rows, duplicated identities, unknown mission types, stale samples and
-wrong-country samples remain unknown. Python and JavaScript enforce the same
-constraints. The generic legacy flattener does not bypass these adapters.
+wrong-country samples remain unknown. The Rust backend and the browser
+contracts enforce the same constraints. The generic legacy flattener does not bypass these adapters.
 
 ## Importing and campaign progress
 

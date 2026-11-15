@@ -1,13 +1,12 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const runtime=require('../src/hoi4companion/web/guide-runtime.js');
 const criteria=require('../src/hoi4companion/web/focus-criteria.js');
 const contracts=require('../src/hoi4companion/web/contracts.js');
 const presentation=require('../src/hoi4companion/web/guide-presentation.js');
+const fixture=require('./presentation-fixtures.cjs');
 const cases=require('./fixtures/focus-criteria.json');
-for(const item of cases)test('focus criteria runtime parity: '+item.name,()=>assert.deepEqual(runtime.evaluate(item.guide,item.state),item.expected));
 test('independent alternative is purple and the original focus remains waiting',()=>{
- const {guide,state}=cases[0],p=presentation.evaluate(guide,state);
+ const {guide,state,evaluation}=fixture('focus: independent alternative'),p=presentation.evaluate(guide,state,{},evaluation);
  assert.equal(p.lanes.focus.next.key,'main');
  assert.deepEqual(p.lanes.focus.markers.map(x=>[x.key,x.tone]),[['independent','alternative'],['main','waiting']]);
 });

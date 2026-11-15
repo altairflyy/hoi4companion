@@ -88,7 +88,41 @@
   const groups=m.referenceGroups(data);
   if(referenceCategory!=='all'&&!groups.some(group=>group.id===referenceCategory))referenceCategory=groups[0]?.id||'all';
   renderReferences();
+  renderAdvancedReferences();
  }
+ let mioRefresh=null;
+ function renderAdvancedReferences(){
+  const view=m.advancedReferences(referenceData,$('advancedSearch').value,$('advancedCategory').value||'all');
+  $('advancedStatus').textContent=HoiI18n.t('{0} advanced documents · {1} MIO presets',view.documents.length,view.mios.length);
+  $('downloadMioQueues').disabled=!(referenceData.mio_queues||[]).length;
+  const install=referenceData.mio_install||{},pending=['pending','waiting_for_game_exit'].includes(install.status);
+  $('installMioQueues').disabled=!(referenceData.mio_queues||[]).length||pending;
+  $('installMioQueues').hidden=pending||install.status==='installed'||!(referenceData.mio_queues||[]).length;
+  $('mioInstallStatus').textContent=install.status==='installed'?HoiI18n.t('MIO presets installed: {0}. Available on the next HOI4 launch. Existing presets were preserved.',install.count):pending?HoiI18n.t('Restart required: close HOI4. Companion will install the MIO presets automatically before the next launch.'):install.status==='error'?HoiI18n.t('MIO installation failed: {0}. Correct the problem and retry.',install.error):HoiI18n.t('MIO presets have not been installed in HOI4 yet.');
+  clearTimeout(mioRefresh);if(pending)mioRefresh=setTimeout(()=>request('/api/reference-library').then(referenceView).catch(e=>{$('mioInstallStatus').textContent=e.message;}),5000);
+  $('advancedDocuments').replaceChildren();$('mioQueues').replaceChildren();
+  for(const doc of view.documents){
+   const item=node('details');item.className='advanced-reference';item.id='advanced-'+doc.id;item.append(node('summary',doc.name));
+   if(/^[a-f0-9]{64}$/.test(doc.id)){const original=node('a',HoiI18n.t('Download original document'));original.href='/api/reference-library/document?id='+encodeURIComponent(doc.id);original.download=doc.filename||doc.name;item.append(original);}
+   if(doc.cached_values_only)item.append(node('p',HoiI18n.t('Spreadsheet cached values only; formulas are not recalculated.')));
+   for(const tier of doc.tiers||[]){item.append(node('h4',tier.title));const entries=node('ul');for(const text of tier.entries||[])entries.append(node('li',text));item.append(entries);}
+   const source=node('details');source.append(node('summary',HoiI18n.t('Original text and tables')));const text=node('pre',doc.text||'');text.className='advanced-reference-text';source.append(text);item.append(source);
+   for(const id of doc.images||[]){const a=node('a'),image=node('img');a.href='/api/reference-library/image?id='+encodeURIComponent(id);a.target='_blank';a.rel='noopener';image.src=a.href;image.alt=doc.name;image.loading='lazy';image.decoding='async';image.style.maxWidth='100%';a.append(image);item.append(a);}
+   $('advancedDocuments').append(item);
+  }
+  for(const preset of view.mios){const item=node('details');item.className='advanced-reference';
+   item.append(node('summary',preset.name+' · '+(preset.organization_name||preset.organization_id)+' · '+preset.traits.length));
+   item.append(node('p',HoiI18n.t('Saved priority order; trait availability and execution in this campaign are not verified.')));
+   const order=node('ol');preset.traits.forEach((id,i)=>{const li=node('li',preset.trait_labels?.[i]||id);li.title=id;order.append(li);});item.append(order);$('mioQueues').append(item);
+  }
+ }
+ $('advancedSearch').oninput=renderAdvancedReferences;$('advancedCategory').onchange=renderAdvancedReferences;
+ $('installMioQueues').onclick=()=>run(async()=>{await request('/api/reference-library/mio-install',{});referenceView(await request('/api/reference-library'));});
+ $('downloadMioQueues').onclick=()=>run(async()=>{
+  const result=await request('/api/reference-library/mio-export');
+  const url=URL.createObjectURL(new Blob([result.text],{type:'text/plain;charset=utf-8'}));const a=node('a');a.href=url;a.download=result.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  $('mioExportStatus').textContent=HoiI18n.t('{0} presets exported · {1} existing retained · {2} added · {3} renamed to avoid conflicts.',result.count,result.existing,result.added,result.renamed);
+ });
  function renderReferences(){
   const available=m.referenceGroups(referenceData),filtered=m.referenceGroups(referenceData,$('referenceSearch').value);
   $('referenceCategories').replaceChildren();
@@ -373,6 +407,8 @@
   for(const scope of [...new Set(catalog.entities.map(item=>item.scope).filter(Boolean))].sort()){const option=node('option',scope);option.value=scope;$('treeScope').append(option);}
   rebuildSections();
  }catch(e){initialization=null;error(e);throw e;}finally{controls();}})();return initialization;}
- globalThis.hoiImportEditor={initialize,async review(value){await initialize();sources=value.sources||[];writeGuide(value.guide||value.draft);sourceList();showReport(value);controls();$('previewHeading').scrollIntoView({block:'start'});}};
+ async function refreshReferences(){referenceView(await request('/api/reference-library'));$('referenceGallery').open=true;}
+ globalThis.hoiImportEditor={initialize,refreshReferences,async review(value){await initialize();sources=value.sources||[];writeGuide(value.guide||value.draft);sourceList();showReport(value);controls();$('previewHeading').scrollIntoView({block:'start'});}};
+ if(/^#advanced-[a-f0-9]{64}$/.test(globalThis.location?.hash||''))refreshReferences().then(()=>{const target=document.getElementById(location.hash.slice(1));if(target){target.open=true;target.scrollIntoView({block:'start'});}}).catch(error);
  if(!document.body.dataset?.collectionFlow)initialize().catch(()=>{});
 })();

@@ -9,6 +9,26 @@ from the supplied membership archive's ABBREVIATIONS & TOOLS document. Its
 entries are grouped by domain because, for example, MIL can mean a building or
 a production assignment. It does not change the original archive or guides.
 
+Action cards use the same vocabulary to show readable instructions, not only a
+glossary below the original shorthand. `action-reading.js` compiles it once per
+guide. LAW separates occupation law from the garrison template; army, naval and
+production clauses distinguish divisions, ships and equipment. Costs such as
+`150PP` and `20AE`, combat widths, template suffixes (`OFFa/s/t`) and numbered
+aircraft design codes are explained in place. Original codes remain next to
+template names so reference previews still work. English and Italian UI copy
+share the same definitions.
+
+`Build INFRAs + MILs` alternates the two buildings in each indicated region;
+`Build INFRAs, then MILs` handles all infrastructure before factories. Production
+`ALL` explains the remaining/future capacity convention and priority. These
+are reading aids, not new runtime criteria or inferred completion.
+
+Exact bound entity names and quoted text are preserved. A shortened name such
+as `Ratsu…` remains qualified as a garrison-template reference; the reader does
+not invent its full identity. Ambiguous abbreviations such as unqualified `SD`
+remain unchanged with an explanation. “Original action and references” keeps
+the original instructions available even when no source quotation was attached.
+
 An UP refers to the next useful technology on the specified branch, including
 its first mention; the user's explicit convention takes precedence over the
 source document's usual convention that the first level is written out. An

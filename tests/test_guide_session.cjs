@@ -77,6 +77,29 @@ test('creating a new run never publishes the old run evaluation with new progres
  assert.equal(packets,2);assert.equal(page.api.value.error,'');
 });
 
+test('live events keep the shared packet unless they can change its evaluation',async()=>{
+ const page=await openGuidePage({shared:'first',presentationEvaluate:(guide,state,progress,evaluation)=>({shared:!!evaluation}),fetchOverride:async(url)=>{
+  if(url==='/api/guides'||url==='/api/guide/active')return;
+  if(url.startsWith('/api/guide/projection'))return {ok:true,json:async()=>nativePacket('first')};
+  return {ok:true,json:async()=>url.startsWith('/api/guide/progress')?nativeProgress('first'):nativeDefinition('first')};
+ }});
+ const settle=async()=>{for(let i=0;i<4;i++)await new Promise(setImmediate);};
+ // The handler publishes synchronously, before the replacement packet is requested.
+ const kept=async(value,message)=>{page.emit(value);assert.equal(page.api.value.view.shared,true,message);await settle();assert.equal(page.api.value.view.shared,true);};
+ const dropped=async(value,message)=>{page.emit(value);assert.equal(page.api.value.view.shared,false,message);await settle();assert.equal(page.api.value.view.shared,true);};
+ assert.equal(page.api.value.view.shared,true);
+ await kept({usable:false,metrics:{transport_only:1}},'transport-only event while not usable');
+ await kept({usable:false},'still not usable');
+ await dropped({usable:true,session_id:'s1',sample:{session_id:'s1',country:'GER'}},'usable flip');
+ await kept({usable:true,session_id:'s1',sample:{session_id:'s1',country:'GER'},metrics:{n:2}},'same session and country');
+ await dropped({usable:true,session_id:'s1',sample:{session_id:'s1',country:'ITA'}},'country change');
+ await dropped({usable:true,session_id:'s2',sample:{session_id:'s2',country:'ITA'}},'session change');
+ await dropped({usable:false},'usable to unusable');
+ await kept({usable:false,guide_server_id:'core'},'same server');
+ page.emit({usable:false,guide_server_id:'restarted'});assert.equal(page.api.value.view.shared,false,'server change');
+ await page.api.select('first',false);await settle();assert.equal(page.api.value.view.shared,false,'packet from the old server is rejected');
+});
+
 test('the server can withhold a saved run while the live campaign is unverified',async()=>{
  const page=await openGuidePage({shared:'first',fetchOverride:async(url)=>{
   if(url==='/api/guides'||url==='/api/guide/active')return;
@@ -85,6 +108,23 @@ test('the server can withhold a saved run while the live campaign is unverified'
  }});
  assert.equal(page.api.value.error,'');assert.equal(page.api.value.state.from_shared,'first');
  assert.equal(page.api.value.progress.run_id,'run-first');
+});
+
+test('an evaluation bound to another run or archived definition is rejected and writes carry the definition',async()=>{
+ const pin='gd1_'+'a'.repeat(64),settle=async()=>{for(let i=0;i<4;i++)await new Promise(setImmediate);};let posted=null;
+ for(const [definition,valid] of [[{status:'pinned',id:pin,run_id:'run-first'},true],[{status:'pinned',id:'gd1_'+'b'.repeat(64),run_id:'run-first'},false],
+  [{status:'pinned',id:pin,run_id:'run-other'},false],[{status:'legacy_unresolved',run_id:'run-first'},true]]){
+  const page=await openGuidePage({shared:'first',fetchOverride:async(url,options)=>{
+   if(url==='/api/guides'||url==='/api/guide/active')return;
+   const progress={...nativeProgress('first'),definition_ref:{status:'pinned',id:pin,archive_format:1},run_revision:3};
+   if(url.startsWith('/api/guide/projection')){const p=nativePacket('first');p.progress=progress;p.definition=definition;return {ok:true,json:async()=>p};}
+   if(options&&url.startsWith('/api/guide/progress'))posted=JSON.parse(options.body);
+   return {ok:true,json:async()=>url.startsWith('/api/guide/progress')?progress:nativeDefinition('first')};
+  }});
+  await settle();
+  assert.equal(page.api.value.state?.from_shared==='first',valid,JSON.stringify(definition));
+  if(valid&&definition.status==='pinned'){await page.api.confirm('build',true).catch(()=>{});assert.equal(posted.expected_definition_id,pin);}
+ }
 });
 
 test('late recovery from a failed write cannot replace progress after selecting another guide',async()=>{
@@ -167,36 +207,11 @@ test('editing split legacy confirmations preserves sibling activities and rolls 
  await window.hoiGuide.start('build',true);
  assert.deepEqual(JSON.parse(JSON.stringify(saved.started)),{build:true});
  assert.equal(saved.checks.build,false);
- assert.equal(window.hoiGuide.value.view.operations.find(r=>r.key==='build').runtime_status,'active');
  reject=true;await assert.rejects(window.hoiGuide.confirm('train',false),/Changed run/);
  assert.equal(window.hoiGuide.value.progress.checks.train,true);
  assert.equal(window.hoiGuide.value.pending,0);assert.match(window.hoiGuide.value.error,/Conferma non salvata/);
  await assert.rejects(window.hoiGuide.start('build',false),/Changed run/);
  assert.equal(window.hoiGuide.value.progress.started.build,true);
-});
-
-test('server baseline events reach the shared presentation without a manual start or extra request',async()=>{
- const example=require('./fixtures/construction-progress.json')[0],definition=example.guide;
- let subscriber;const requests=[],window={hoiLive:{enabled:true,subscribe(fn){subscriber=fn;}}};
- const saved={...example.progress,baselines:{},revision:0};
- const context={window,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{href:'http://localhost/walkthrough',search:''},HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js'),fetch:async(url,options)=>{if(url==='/api/guide/active')return {ok:true,json:async()=>options?{guide_id:JSON.parse(options.body).guide_id,revision:1}:{}};
-  requests.push(url);return {ok:true,json:async()=>url==='/api/guides'?{guides:[definition]}:url.startsWith('/api/guide/progress')?saved:definition};
- }};
- runLocalized(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await new Promise(setImmediate);
- const before=requests.length;
- subscriber({...example.state,guide_revision:1,guide_runs:{build:{schema_version:1,guide_id:'build',run_id:'r',session_id:'session'}},guide_baselines:{build:example.progress.baselines}});
- assert.equal(window.hoiGuide.value.view.operations[0].construction.target,7);
- assert.equal(window.hoiGuide.value.view.operations[0].runtime_status,'ready');
- const queued=structuredClone(example.state);queued.facts['construction.queued'].value=['state:77:arms_factory'];
- subscriber({...queued,guide_revision:1,guide_baselines:{build:example.progress.baselines}});
- assert.equal(window.hoiGuide.value.view.operations[0].runtime_status,'active');
- const complete=structuredClone(example.state);complete.facts['country.states.items.77.military_factories'].value=7;
- subscriber({...complete,guide_revision:1,guide_baselines:{build:example.progress.baselines}});
- assert.equal(window.hoiGuide.value.view.operations[0].runtime_status,'completed');
- assert.equal(requests.length,before);
- subscriber({...complete,guide_revision:2,guide_runs:{build:{schema_version:1,guide_id:'build',run_id:'new',session_id:'session'}},guide_baselines:{build:{}}});
- assert.equal(window.hoiGuide.value.view.operations[0].construction.target,null);
- assert.equal(window.hoiGuide.value.view.operations[0].runtime_status,'unverifiable');
 });
 
 function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}
@@ -215,7 +230,6 @@ test('relative bindings refresh the shared guide and are cleared on a new run',a
  saved={...saved,revision:1,research_bindings:{r:'b'}};
  subscriber({...live,guide_revision:1,guide_runs:{relative:saved}});await new Promise(setImmediate);
  assert.equal(window.hoiGuide.value.guide.tracks.research[0].action.entity.id,'b');
- assert.equal(window.hoiGuide.value.view.model.research.next.target,'b');
  saved={schema_version:1,guide_id:'relative',run_id:'new',session_id:'s',checks:{},started:{},revision:2};
  subscriber({...live,guide_revision:2,guide_runs:{relative:saved}});await new Promise(setImmediate);
  assert.deepEqual(window.hoiGuide.value.progress.research_bindings,undefined);

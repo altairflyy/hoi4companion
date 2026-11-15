@@ -6,7 +6,7 @@ scripted triggers are expanded once at catalog refresh, with depth/work bounds.
 Guide files and the AI prompt need no new fields. `focus_criteria` v1 is enriched
 locally; it is not a guessed live fact supplied by the guide author.
 
-The shared Python/JavaScript runtime evaluates explicit numeric comparisons,
+The Rust guide runtime evaluates explicit numeric comparisons,
 boolean combinations, simple conditional blocks, DLC constants and qualified
 membership (focuses, technologies and ideas). In particular `has_war_support >
 0.84` uses a strict boundary: exactly 84% does not satisfy it. The native metric is

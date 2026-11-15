@@ -79,7 +79,7 @@ Later levels wait for lower levels in the same progression. This wait does not
 hide independent technology families that can use other free slots. An unbound
 `UP` whose entire chain is observed complete is not applicable (no further
 upgrade exists), not a newly confirmed historical action. Missing or stale
-research evidence remains unknown. Python, JavaScript and HUD projection share
+research evidence remains unknown. The Rust runtime, the browser and the HUD projection share
 the selected runtime technology ID, including while a guide view is cached.
 # DLC availability in guide lists
 

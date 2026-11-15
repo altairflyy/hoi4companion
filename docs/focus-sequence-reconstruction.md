@@ -66,4 +66,4 @@ corrections remain locked and do not rewrite the original guide or campaign.
 The runtime and HUD receive only the ordinary validated focus IDs. They continue
 to use qualified live facts for selection/completion. Reconstruction is identity
 evidence only. Installed guide files and campaign progress are never rewritten by
-previewing a source sequence. Python and JavaScript validate the same metadata.
+previewing a source sequence. The Rust backend and the browser validate the same metadata.

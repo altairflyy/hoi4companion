@@ -156,6 +156,7 @@ pub fn enrich(args: &Value) -> Result<Value> {
         folders: &args["folders"],
         continuous: &args["continuous"],
         glossary_entries,
+        vocabulary: args.get("vocabulary").unwrap_or_else(|| crate::import_catalog::language()),
     })
 }
 struct View<'a> {
@@ -166,16 +167,19 @@ struct View<'a> {
     folders: &'a Value,
     continuous: &'a Value,
     glossary_entries: &'a [Glossary],
+    vocabulary: &'a Value,
 }
 pub struct Presentation {
     source: std::sync::Arc<Value>,
     glossary: Vec<Glossary>,
+    vocabulary: Value,
 }
 impl Presentation {
     pub fn new(source: std::sync::Arc<Value>, vocabulary: &Value) -> Self {
         Self {
             source,
             glossary: glossary_items(vocabulary),
+            vocabulary: vocabulary.clone(),
         }
     }
     pub fn enrich(&self, guide: &Value) -> Result<Value> {
@@ -188,6 +192,7 @@ impl Presentation {
             folders: &source["technologies"]["folders"],
             continuous: &source["continuous_focuses"],
             glossary_entries: &self.glossary,
+            vocabulary: &self.vocabulary,
         })?;
         guide["catalog_country"] = json!(
             source["settings"]["country"]
@@ -208,8 +213,12 @@ fn enrich_view(view: View<'_>) -> Result<Value> {
         folders,
         continuous,
         glossary_entries,
+        vocabulary,
     } = view;
     let mut guide = guide_schema::normalize(guide)?;
+    // Display vocabulary travels once per guide, never in live facts or actions.
+    guide["action_language"] = json!({"schema_version":1,
+        "abbreviations":vocabulary["abbreviations"],"conventions":vocabulary["conventions"]});
     let tree_default = guide["tree_id"].as_str().map(str::to_owned);
     let country = guide["country"].as_str().unwrap_or("").to_owned();
     let mut warnings = guide["association_warnings"]
@@ -467,4 +476,26 @@ pub fn project_costs(mut guide: Value, catalog: &Value) -> Result<Value> {
         }
     }
     Ok(guide)
+}
+
+#[cfg(test)]
+mod reading_tests {
+    use super::*;
+    #[test]
+    fn reading_vocabulary_is_display_metadata_not_an_action_rewrite() {
+        let guide=json!({"id":"reading","tracks":{"operations":[{"key":"law",
+            "action":{"kind":"manual","params":{"instructions":["LAW: LPF + CAV (150PP)"]}},
+            "completion":{"op":"check","key":"done"}}]}});
+        let input=json!({"guide":guide,"trees":{},"technologies":{},"labels":{},"folders":{},"continuous":{}});
+        let enriched=enrich(&input).unwrap();
+        assert_eq!(input["guide"],guide);
+        assert_eq!(enriched["action_language"]["schema_version"],1);
+        assert_eq!(enriched["action_language"]["abbreviations"]["occupation"]["LPF"],"Local Police Force");
+        assert_eq!(enriched["tracks"]["operations"][0]["action"],guide["tracks"]["operations"][0]["action"]);
+        let presentation=Presentation::new(std::sync::Arc::new(json!({"trees":{},"technologies":{},"labels":{},"operation_entities":[]})),crate::import_catalog::language());
+        let presented=presentation.enrich(&guide).unwrap();
+        assert_eq!(presented["action_language"],enriched["action_language"]);
+        let mut custom=input;custom["vocabulary"]=json!({"abbreviations":{"occupation":{"CUSTOM":"Custom law"}},"conventions":{}});
+        assert_eq!(enrich(&custom).unwrap()["action_language"]["abbreviations"]["occupation"]["CUSTOM"],"Custom law");
+    }
 }

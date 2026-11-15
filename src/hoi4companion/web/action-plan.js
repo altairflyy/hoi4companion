@@ -1,6 +1,7 @@
 'use strict';
 // Operational copy from bound data. No new completion, strategy or HUD decisions.
 ((root)=>{
+ const reading=typeof module!=='undefined'&&module.exports?require('./action-reading.js'):root.HoiActionReading;
  const t=(text,...args)=>root.HoiI18n?root.HoiI18n.t(text,...args):text.replace(/\{(\d+)\}/g,(_,i)=>String(args[i]));
  const label=(p,...keys)=>keys.map(k=>p[k]).find(v=>typeof v==='string'&&v.trim())||null;
  function category(row){
@@ -48,7 +49,9 @@
   }else if(p.operation_id==='create_intelligence_agency'){
    access=t('Open Intelligence and create the agency.');instructions.push(access);
   }
-  if(!instructions.length)instructions.push(...(Array.isArray(p.instructions)?p.instructions:[]).filter(s=>typeof s==='string'&&s.trim()));
+  const source=(Array.isArray(p.instructions)?p.instructions:[]).filter(s=>typeof s==='string'&&s.trim());
+  const readings=context.reader?source.map(s=>context.reader.read(s,row)):[];
+  if(!instructions.length)instructions.push(...(context.reader?readings.map(r=>r.text):source));
   // Instructions are source copy unless a supported structured field replaces
   // them. The source quote is always retained separately by the caller.
   const readiness=row.action_readiness,resourcesReady=readiness?.resources_available===true&&!readiness.blocked?.length&&
@@ -75,7 +78,10 @@
    t('Execution cannot be verified automatically from the available data.');
   const title=row.tracking!=='reminder'&&p.category==='production'?t('Set up production'):row.tracking!=='reminder'&&p.category==='construction'?instructions[0]:
    target&&['politics','event','projects'].includes(panel)?(panel==='politics'&&!label(p,'law_name','person_name','idea_name','trait_name')?(row.name||row.title||target):target):p.operation_id==='create_intelligence_agency'?t('Create intelligence agency'):null;
-  return {title,instructions,access,target,monitoring,hud:{panel,status,message}};
+  const displayTitle=context.reader?.read(title||row.name||row.title||'',row).text||title;
+  return {title:displayTitle,instructions,access,target,monitoring,hud:{panel,status,message},
+   glossary:[...new Map(readings.flatMap(r=>r.terms).map(term=>[term.code,term])).values()],
+   reading_notes:[...new Set(readings.flatMap(r=>r.notes))]};
  }
  function blocks(rows){
   const result=[];
@@ -101,5 +107,5 @@
   const next=actions.find(row=>row.event_observation?.visible===true&&!['completed','not_applicable'].includes(row.runtime_status))||eligible.find(row=>!['dependency_unknown','phase_condition_unknown','condition_unknown','live_state_unavailable'].includes(row.runtime_reason))||eligible[0]||null;
   return {next,active:actions.filter(r=>r.runtime_status==='active'),waiting:actions.filter(r=>r.key!==next?.key&&['waiting','unverifiable'].includes(r.runtime_status)).slice(0,3)};
  }
- const api={describe,blocks,category,compact};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiActionPlan=api;
+ const api={describe,blocks,category,compact,createReader:language=>reading.create(language)};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiActionPlan=api;
 })(typeof window!=='undefined'?window:globalThis);

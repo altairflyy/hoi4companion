@@ -1,9 +1,9 @@
 'use strict';
-// Presentation adapter: all decisions belong to the pure, shared runtime.
+// Presentation adapter: every decision comes from the Rust evaluation supplied
+// by the backend. Without one, steps stay unverifiable; nothing is recomputed here.
 ((root)=>{
  const common=typeof module!=='undefined'&&module.exports;
  const c=common?require('./contracts.js'):root.HoiContracts;
- const runtime=common?require('./guide-runtime.js'):root.HoiGuideRuntime;
  const settled=row=>row.runtime_status==='completed'||['skip_condition_true','research_line_complete'].includes(row.runtime_reason);
  function sharedResult(guide,state,progress,value){
   const rows=Object.entries(guide.tracks).flatMap(([track,steps])=>steps.map(step=>({track,step}))),keys=new Set(rows.map(({step})=>step.key));
@@ -20,8 +20,8 @@
  function evaluate(input,value,local={}){
   const guide=c.guide(input),state=c.state(value);
   const progress=local.progress||{schema_version:1,guide_id:guide.id||'',run_id:local.run_id||'legacy',session_id:local.session_id||null,checks:local.checks||{},started:local.started||{},baselines:local.baselines||{},research_bindings:local.research_bindings||{},research_options:local.research_options||{},campaign_conditions:local.campaign_conditions||{},...(local.campaign_id?{campaign_id:local.campaign_id,country:local.country}:{}),...(local.campaign_required?{campaign_required:true}:{})};
-  const authoritative=guide.runtime_engine==='rust-guide-core',missingShared=authoritative&&!local.evaluation;
-  const result=authoritative?sharedResult(guide,state,progress,local.evaluation):runtime.evaluate(guide,state,progress),byKey=new Map(result.steps.map(row=>[row.key,row]));
+  const missingShared=!local.evaluation;
+  const result=sharedResult(guide,state,progress,local.evaluation),byKey=new Map(result.steps.map(row=>[row.key,row]));
   function row(step,index){
    const decision=byKey.get(step.key),kind=step.action.kind;
    let status;

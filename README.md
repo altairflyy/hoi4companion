@@ -49,8 +49,8 @@
 - Reconstructs focus and research trees from your installed game and active mods,
   using the Rust/Jomini parser, game layouts, sprites, and localization.
 - Imports ZIP collections of Word country guides, equipment designs and visual
-  references once. Preparation resumes after restart, a single review adds ready
-  content to the local library, and matching guides are suggested for a qualified
+  references once. Validation and saving run automatically and resume after restart;
+  only unresolved items need correction. Matching guides are suggested for a qualified
   live country/tree. Missing DLCs make guides unavailable rather than import errors.
 - Imports guides produced by an external AI from videos or web sources. The
   application exports the instructions and thematic ID catalogs, resolves names,
@@ -93,14 +93,18 @@ Version 0.2.0 marks the transition to a **100% standalone native Rust architectu
 3. Launch **`HOI4 Companion.exe`**. The native build runs a Rust backend and HUD;
    it does not require an installed Python interpreter.
 4. Check the detected game installation and HOI4 documents directory in the app.
-5. Open **Import guide** and choose your guide/template ZIPs together. The app
-   prepares all country guides and reference assets in the background.
-6. Review the collection summary, then choose **Add all ready guides and templates**.
-   Correct unresolved guides when needed; missing-DLC guides remain gray. The saved
-   library is available after restart without uploading the ZIPs again. Single Word,
+5. Open **Import guide** and choose your country-guide, template and Advanced Guide ZIPs. The app
+   validates and saves valid contents automatically, showing progress for each archive.
+6. Correct only items shown under **Needs attention**; no second import click is required.
+   Missing-DLC guides remain gray. **Saved guides** and **Templates and references**
+   are separate views, available after restart without uploading the ZIPs again. Single Word,
    JSON and external AI tools remain under **Other import tools**.
 7. Load the matching campaign in HOI4. Bring the game to the foreground for HUD
    highlights. The guide still works as a reference when live data is unavailable.
+
+Advanced Guides are retained as a separate, searchable reference library: MIO priority queues, tier lists, doctrine and production recommendations, original documents, illustrations and spreadsheet cached values. They do not become automatic campaign steps. Relevant operational cards link to these references.
+
+During ZIP import, Companion automatically installs MIO presets in the configured HOI4 documents folder, merging existing presets and retaining a content-addressed backup beside the original file. While HOI4 is running, a visible waiting status defers installation until the game closes. Keep Companion open, or reopen it before launching HOI4. Presets load on the next game launch; installation is file evidence, not proof of availability or trait purchases in a campaign. The reference library offers a retry if installation fails and **Export MIO presets for HOI4** for manual transfer. Malformed existing files are left untouched and reported.
 
 English is the default **interface language**. Use the **Interface language**
 selector in the navigation bar to choose Italian. This preference is separate

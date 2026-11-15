@@ -191,7 +191,7 @@ fn paragraph(node: Node) -> String {
     result.trim().into()
 }
 type Groups = Vec<Vec<Vec<String>>>;
-fn content(data: &[u8]) -> Result<(String, Groups, usize)> {
+pub(crate) fn content(data: &[u8]) -> Result<(String, Groups, usize)> {
     let mut archive = archive(Cursor::new(data))?;
     if !archive.file_names().any(|s| s.as_deref().unwrap_or("") == "word/document.xml") {
         return Err("Contenuto Word mancante o duplicato".into());

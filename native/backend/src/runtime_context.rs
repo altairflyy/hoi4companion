@@ -67,11 +67,27 @@ impl Context {
         Ok(result)
     }
     pub fn present(&self, guide: &Value) -> Result<Value, String> {
-        self.presentation.enrich(guide)
+        let mut value=self.presentation.enrich(guide)?;
+        value["advanced_references"]=json!(self.library["documents"].as_array().into_iter().flatten().map(|d|json!({"id":d["id"],"name":d["name"],"category":d["category"]})).collect::<Vec<_>>());
+        Ok(value)
     }
     pub fn prepare_presented(&self,guide:&Value)->Result<Value,String>{
         let build=||self.present(&self.prepare(guide)?);
         if let Some(cache)=&self.prepared_cache{cache.resolve(guide,build)}else{build()}
+    }
+    /// Contract-2 compile of an already prepared+presented (contract-1) guide:
+    /// headers use promote's catalog condition compiler; new children are
+    /// presented with the same catalog. A guide without containers is unchanged.
+    pub fn decompose(&self, guide: &Value) -> Result<Value, String> {
+        let compile = |text: &str| crate::operation_language::compile_condition(guide, &self.index, text);
+        // Catalog focuses of the guide's own tree add grounded candidates.
+        let extra = crate::entity_resolution::catalog_candidates(self.index.rows(), guide);
+        let result = crate::decomposition::decompose_with(guide, &compile, &extra)?;
+        if result["report"].as_array().is_some_and(|r| r.iter().any(|e| e["status"] == "decomposed")) {
+            self.present(&result["guide"])
+        } else {
+            Ok(result["guide"].clone())
+        }
     }
     pub fn compare(&self, guide: &Value) -> Result<Value, String> {
         let prepared = self.prepare(guide)?;

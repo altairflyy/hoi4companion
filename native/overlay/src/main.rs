@@ -252,6 +252,7 @@ fn run(options:Options)->Result<(),String> {
     let mut native_frames=0u64;
     let mut native_unchanged_since=Instant::now();
     let mut ocr_ms=0.;let mut matching_ms=0.;
+    let mut capture_retry_at=Instant::now();
     while !renderer.should_exit() {
         let wake_revision=renderer.wake_revision();
         let mut refresh=false;
@@ -349,9 +350,28 @@ fn run(options:Options)->Result<(),String> {
             std::thread::sleep(Duration::from_millis(16).saturating_sub(started.elapsed()));
             continue;
         }
-        if capture.is_none(){capture=Some(Capture::new(view.hwnd).map_err(|e|e.to_string())?);}
+        if capture.is_none() && Instant::now()<capture_retry_at {
+            renderer.wait_idle(wake_revision,Duration::from_millis(50));continue;
+        }
+        let captured=(||{
+            if capture.is_none(){capture=Some(Capture::new(view.hwnd)?);}
+            capture.as_mut().unwrap().wait_latest(Duration::from_millis(100))
+        })();
+        let frame=match captured {
+            Ok(Some(frame))=>frame,
+            Ok(None)=>continue,
+            Err(error)=>{
+                renderer.hide();capture=None;last_scene=None;cached_ocr=None;last_matches.clear();last_version=None;
+                if let Some(worker)=visual.as_mut(){worker.invalidate();}
+                capture_retry_at=Instant::now()+Duration::from_millis(500);
+                let message=format!("Capture unavailable; retrying: {error}");
+                renderer.set_status(&message);
+                save_status(&options.status,&idle_status(&snapshot,&message,"capture_retry",
+                    [renderer.overlay_window(),renderer.control_window()],renderer.foreground_events()));
+                last_status=Instant::now();continue;
+            }
+        };
         let source=capture.as_mut().ok_or("Capture not initialized")?;
-        let Some(frame)=source.wait_latest(Duration::from_millis(100)).map_err(|e|e.to_string())? else{continue;};
         if !aligned(&frame,&view)||game_view().as_ref()!=Some(&view){renderer.hide();continue;}
         total_frames+=1;
         let frame_generation=frame.generation;

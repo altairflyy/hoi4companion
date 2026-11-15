@@ -1,0 +1,13 @@
+{
+  "source_id": "fixture-source-1",
+  "parent_key": "word-0001",
+  "old_text": "Create agency\nUnrecognized instruction",
+  "inserted_text": "Create agency\nAnother unrecognized instruction\nUnrecognized instruction",
+  "reordered_text": "Create agency\nAnother unrecognized instruction\nUnrecognized instruction",
+  "old_child_key": "word-0001--operation-2",
+  "old_child_text": "Unrecognized instruction",
+  "replacement_child_text": "Another unrecognized instruction",
+  "campaign_a": "hoi4:11111111-1111-4111-8111-111111111111:00000001",
+  "campaign_b": "hoi4:22222222-2222-4222-8222-222222222222:00000002",
+  "reorder_before_text": "Create agency\nUnrecognized instruction\nAnother unrecognized instruction"
+}

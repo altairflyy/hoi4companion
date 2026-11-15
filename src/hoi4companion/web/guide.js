@@ -2,7 +2,7 @@
 (()=>{
  const $=id=>document.getElementById(id),el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
  const categories={all:HoiI18n.t("All"),construction:HoiI18n.t("Factories and infrastructure"),production:HoiI18n.t("Production"),projects:HoiI18n.t("Special projects"),politics:HoiI18n.t("Politics and laws"),characters:HoiI18n.t("Characters"),army:HoiI18n.t("Armed forces"),templates:HoiI18n.t("Templates and vehicles"),checkpoints:HoiI18n.t("Events and conditions")};
- let value=null,filter='all',undo=null,lastGuide=null,dependencyRows=new Map(),unplacedOperations=new Set();
+ let value=null,filter='all',undo=null,lastGuide=null,dependencyRows=new Map(),unplacedOperations=new Set(),actionReader=null;
  const cardCache=new Map(),blockCache=new Map();let filterKey='',summaryKey='';
  function sync(parent,nodes){
   if(!parent.childNodes||!parent.insertBefore){parent.replaceChildren(...nodes);return;}
@@ -118,7 +118,7 @@
   cardCache.set(key,{signature,node});return node;
  }
  function card(row,highlight=false){const node=el('article','operation-card'+(row.tracking==='reminder'?' reminder':'')+(row.event_observation?.visible?' event-visible':'')+(highlight?' highlighted':'')+(row.runtime_status==='completed'?' completed':'')+(row.runtime_status==='active'?' in-progress':''));node.id=(highlight?'next-operation-':'operation-')+row.key;node.dataset.step=row.key;
-  const operational=HoiActionPlan.describe(row,{usable:value.view.mode==='live',guide_id:value.guide.id,expected_guide_id:value.guide.id,overlay:value.state?.overlay,political_key:value.view.model.runtime.action_sequence?.political});
+  const operational=HoiActionPlan.describe(row,{reader:actionReader,usable:value.view.mode==='live',guide_id:value.guide.id,expected_guide_id:value.guide.id,overlay:value.state?.overlay,political_key:value.view.model.runtime.action_sequence?.political});
   const hint=row.action.params?.category_hint;
   const label=(categories[row.category]||HoiI18n.t("INSTRUCTION"))+(hint&&hint!==row.category?' · '+hint:'');
   const top=el('div','operation-top');top.append(el('span','eyebrow',label),el('span','badge',badge(row)));node.append(top);
@@ -130,11 +130,18 @@
   if(operational.access)node.append(el('p','operation-access',operational.access));
   if(operational.instructions.length){const list=el('ol','operation-instructions');for(const line of operational.instructions)for(const part of line.split('\n').filter(s=>s.trim()))list.append(referenceText('li','',part.replace(/^\s*[-•]\s*/,''),row));node.append(list);}
   const related=guideReferences?.related(row,[operational.title||name(row),...operational.instructions,row.timing]);if(related)node.append(related);
+  const sourceText=(row.instructions||[]).join(' '),topics=new Set();
+  if(/\bMIOs?\b/i.test(sourceText))topics.add('mios');
+  if(row.category==='production')topics.add('production');if(row.category==='projects')topics.add('projects');
+  if(/\b(?:support|regimental) compan|\b(?:Eng|Log|Hos|Rec)\b/.test(sourceText))topics.add('companies');
+  if(/\b(?:doctrines?|spirits?)\b/i.test(sourceText))topics.add('doctrines');
+  const references=(value.guide.advanced_references||[]).filter(d=>topics.has(d.category)&&/^[a-f0-9]{64}$/.test(d.id));
+  if(references.length){const details=el('details','operation-advanced-references');details.append(el('summary','',HoiI18n.t('Advanced guide references')));for(const ref of references){const a=el('a','',ref.name);a.href='/importer#advanced-'+ref.id;details.append(a,el('br'));}node.append(details);}
   if(row.tracking!=='reminder')node.append(el('p','operation-monitoring',operational.monitoring),el('p','operation-hud operation-hud-'+operational.hud.status,operational.hud.message));
-  if(row.operational_glossary?.length){const glossary=el('dl','operation-glossary');for(const term of row.operational_glossary)glossary.append(el('dt','',term.code),el('dd','',HoiI18n.t(term.meaning)));node.append(glossary);}
-  if(row.evidence?.some(e=>e.quote)){
+  for(const note of operational.reading_notes)node.append(el('p','operation-copy',note));
+  if(row.evidence?.some(e=>e.quote)||row.instructions?.length){
    const original=el('details','operation-original');original.append(el('summary','',HoiI18n.t('Original action and references')));
-   for(const quote of new Set(row.evidence.map(e=>e.quote).filter(Boolean)))original.append(referenceText('blockquote','',quote,row));node.append(original);
+   for(const quote of new Set([...(row.instructions||[]),...(row.evidence||[]).map(e=>e.quote)].filter(Boolean)))original.append(referenceText('blockquote','',quote,row));node.append(original);
   }
   const refs=[row.action.params?.design_reference,...(row.action.params?.production_targets||[]).map(p=>p.design_reference)].filter(Boolean);
   for(const ref of row.action.params?.reference_images||[]){const details=el('details','design-reference'),image=el('img');details.append(el('summary','',HoiI18n.t('Design reference')+' · '+ref.name));image.src='/api/reference-library/image?id='+encodeURIComponent(ref.id);image.alt=ref.name;image.loading='lazy';image.style.maxWidth='100%';details.append(image);node.append(details);}
@@ -225,7 +232,7 @@
   if(ordering.conflict_count)orderNotes.push(HoiI18n.t("{0} temporal conflicts: declared dependencies take precedence over campaign dates, then source times. Review the source references.",ordering.conflict_count));
   $('operationOrderNotice').textContent=orderNotes.join(' ');$('operationOrderNotice').hidden=!orderNotes.length;
   dependencyRows=new Map(Object.values(view.model.tracks).flatMap(t=>t.rows).map(row=>[row.key,row]));
-  if(lastGuide!==guide){cardCache.clear();blockCache.clear();filterKey='';summaryKey='';guideReferences?.setGuide(guide);if(lastGuide){for(const pending of frameCache.values())pending.then(url=>URL.revokeObjectURL(url)).catch(()=>{});frameCache.clear();mediaReferences.clear();if(lastGuide.id!==guide.id){expandedFrames.clear();expandedDependencies.clear();}if($('sourceMediaDialog').open)$('sourceMediaDialog').close();}visualReferenceSteps=new Set((guide.source_inventory?.items||[]).filter(item=>!item.excluded_reason&&Number.isFinite(item.timestamp_seconds)).flatMap(item=>item.step_keys||[]));lastGuide=guide;filter='all';const heading=HoiGuidePresentation.heading(guide.title);$('guideTitle').textContent=heading.title;$('guideTitle').title=guide.title;$('guideMetadata').textContent=heading.details;$('guideMetadata').hidden=!heading.details;$('subtitle').textContent=guide.subtitle;
+  if(lastGuide!==guide){actionReader=guide.action_language?HoiActionPlan.createReader(guide.action_language):null;cardCache.clear();blockCache.clear();filterKey='';summaryKey='';guideReferences?.setGuide(guide);if(lastGuide){for(const pending of frameCache.values())pending.then(url=>URL.revokeObjectURL(url)).catch(()=>{});frameCache.clear();mediaReferences.clear();if(lastGuide.id!==guide.id){expandedFrames.clear();expandedDependencies.clear();}if($('sourceMediaDialog').open)$('sourceMediaDialog').close();}visualReferenceSteps=new Set((guide.source_inventory?.items||[]).filter(item=>!item.excluded_reason&&Number.isFinite(item.timestamp_seconds)).flatMap(item=>item.step_keys||[]));lastGuide=guide;filter='all';const heading=HoiGuidePresentation.heading(guide.title);$('guideTitle').textContent=heading.title;$('guideTitle').title=guide.title;$('guideMetadata').textContent=heading.details;$('guideMetadata').hidden=!heading.details;$('subtitle').textContent=guide.subtitle;
    if(location.hash?.startsWith('#operation-')){$('operationsPlan').open=true;$('hideDone').checked=false;}
    $('guideSelect').replaceChildren();for(const item of value.catalog){const option=el('option','',HoiGuidePresentation.heading(item.title).title);option.title=item.title;option.value=item.id;option.selected=item.id===guide.id;if(typeof HoiGuideAvailability!=='undefined')HoiGuideAvailability.decorate(option,item.compatibility,HoiI18n.t);$('guideSelect').append(option);}
    const href=sourceLink();$('sourceLink').hidden=!href;if(href)$('sourceLink').href=href;$('sourceBasis').textContent=[guide.source?.author,guide.source?.published,guide.source?.basis].filter(Boolean).join(' · ');
