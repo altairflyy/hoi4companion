@@ -171,7 +171,7 @@ fn pinned_runs_keep_operation_identities_across_restart_and_reimport() {
         app.progress(Some("identity"), None, Some(&json!({"run_id":run["run_id"],"checks":{"word-0002":true}}))).unwrap();
         first = app.manifest(Some("identity"), None).unwrap();
         assert_eq!(first["definition"]["manifest"], "bound");
-        assert_eq!(first["definition"]["compiler_contract"], 3);
+        assert_eq!(first["definition"]["compiler_contract"], hoi4companion_backend::definition_archive::COMPILER_CONTRACT);
         // Contract 2: the container became two line children; nothing left to shadow.
         assert_eq!(first["definition"]["operations"], 3);
         assert_eq!(first["shadow_decomposition"]["container_count"], 0);

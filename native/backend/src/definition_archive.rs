@@ -30,7 +30,7 @@ pub const LEGACY_COMPILER_CONTRACT: u64 = 1;
 pub const REGISTRY_COMPILER_CONTRACT: u64 = 1;
 /// Evaluation rule contract supported by this `guide-core` build.
 pub const EVALUATOR_CONTRACT: u64 = 1;
-const SUPPORTED_COMPILER: &[u64] = &[1, 2, 3];
+const SUPPORTED_COMPILER: &[u64] = &[1, 2, 3, 4];
 const SUPPORTED_EVALUATOR: &[u64] = &[1];
 
 pub(crate) fn sorted(v: &Value) -> Value {

@@ -1437,6 +1437,7 @@
     "garrison template: {0}": "modello della guarnigione: {0}",
     "The template name is shortened in the source. Check the template reference; no exact identity is inferred.": "Il nome del modello è abbreviato nella fonte. Consulta il riferimento al modello; l’identità esatta non viene dedotta.",
     "Ambiguous abbreviation {0}: {1}. Check the original reference.": "Abbreviazione ambigua {0}: {1}. Consulta il riferimento originale.",
+    "Possible meaning of {0}: {1}. Check the original reference.": "Possibile significato di {0}: {1}. Consulta il riferimento originale.",
     "Military production": "Produzione militare",
     "Naval production": "Produzione navale",
     "Army": "Esercito",

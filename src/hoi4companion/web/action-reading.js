@@ -37,7 +37,7 @@
      .replace(/\bOn\s+free\s+CIV\b/gi,t('When civilian factories become available'));
     if(/^(?:MIL|NAV|PRODUCTION)\s*:|\b(?:produce|production)\b/i.test(line))domain='production';
     else if(/^(?:BUILD|CONSTRUCT)\b/i.test(line))domain='construction';
-    else if(/^LAW\s*:/i.test(line))domain='occupation';
+    else if(/^LAW\s*:|\boccupation\b/i.test(line))domain='occupation';
     else if(/^(?:ARMY|NAVY|AIR FORCE)\s*:|\b(?:recruit|divisions?|battalions?|armies|garrison|template|train|exercise|bring|convert|duplicate|replace|swap|send|change|VOL)\b|\b\d+w\b/i.test(line))domain='divisions';
     if(/^NAVY\s*:/i.test(line))domain='naval';
     if(/^AIR FORCE\s*:/i.test(line))domain='designs';
@@ -78,7 +78,11 @@
      if(!scoped.length&&/^mil$/i.test(code))scoped=options.filter(o=>o.domain==='production');
      if(!scoped.length&&options.every(o=>o.domain==='production')&&/equip/i.test(code))scoped=options;
      if(!scoped.length){
-      if(new Set(options.map(o=>o.meaning)).size>1)notes.add(t('Ambiguous abbreviation {0}: {1}. Check the original reference.',code,[...new Set(options.map(o=>t(o.meaning)))].join(' / ')));
+      const known=[...new Set(options.map(o=>o.meaning))];
+      if(known.length>1)notes.add(t('Ambiguous abbreviation {0}: {1}. Check the original reference.',code,known.map(m=>t(m)).join(' / ')));
+      // One known meaning in another domain: shown as a possible reading in the
+      // glossary notes, never substituted into the instruction.
+      else if(known.length===1)notes.add(t('Possible meaning of {0}: {1}. Check the original reference.',code,t(known[0])));
       return code;
      }
      const meanings=[...new Set(scoped.map(o=>o.meaning))];if(meanings.length!==1)return code;

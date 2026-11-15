@@ -419,6 +419,11 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
         );
     }
     match op {
+        "catalog_runtime_guide_new" => crate::runtime_context::Context::new(
+            &mut owner,
+            args.get("library").cloned().unwrap_or(Value::Null),
+        )?
+        .compile_new(&args["guide"]),
         "catalog_runtime_guide" => crate::runtime_context::Context::new(
             &mut owner,
             args.get("library").cloned().unwrap_or(Value::Null),

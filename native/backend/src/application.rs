@@ -103,12 +103,14 @@ fn started_keys(guide: &Value) -> HashSet<String> {
         .map(|s| text(&s["key"]).to_owned())
         .collect()
 }
-/// Archive that NEW runs of `id` are pinned to: the registry's contract-1
-/// definition compiled under contract 2 (decomposition), memoized by its
-/// runtime revision and catalog context.
+/// Archive that NEW runs of `id` are pinned to: the current compiler contract
+/// (`Context::compile_new` from the associated source when a catalog is
+/// loaded, else decomposition of the registry definition), memoized by the
+/// registry revision and catalog context. The contract-1 registry is unchanged.
 fn current_archive(
     guides: &Map<String, Value>,
     sources: &Map<String, Value>,
+    associations: Option<&PathBuf>,
     context: Option<&Arc<crate::runtime_context::Context>>,
     memo: &mut HashMap<String, (Value, Archive)>,
     id: &str,
@@ -122,9 +124,18 @@ fn current_archive(
     {
         return Ok(Some(archive.clone()));
     }
-    let compiled = match context {
-        Some(context) => context.decompose(guide)?,
-        None => {
+    let compiled = match (context, sources.get(id)) {
+        (Some(context), Some(source)) => {
+            let input = match associations {
+                Some(directory) => crate::guide_repository::apply(
+                    source,
+                    &crate::guide_repository::associations(id, directory)?,
+                )?,
+                None => source.clone(),
+            };
+            context.compile_new(&input)?
+        }
+        _ => {
             // No catalog: only catalog-free timing rules can compile headers.
             let compile = |text: &str| {
                 crate::timing_compiler::compile(&json!(text), None, &guide["applies_to"]["country"],
@@ -383,12 +394,12 @@ impl Application {
     /// the definition the registry evaluates now (new runs) or, for legacy
     /// runs, records it as first-observed evidence only.
     fn runs_call(&mut self, op: &str, args: Value) -> Result<Value> {
-        let (guides, sources, memo, context) = (&self.guides, &self.sources, &mut self.current_archives, self.context.as_ref());
+        let (guides, sources, memo, context, associations) = (&self.guides, &self.sources, &mut self.current_archives, self.context.as_ref(), self.association_directory.as_ref());
         self.runs
-            .call_with(op, args, &mut |id| current_archive(guides, sources, context, memo, id))
+            .call_with(op, args, &mut |id| current_archive(guides, sources, associations, context, memo, id))
     }
     fn current_definition_id(&mut self, id: &str) -> Result<Option<String>> {
-        Ok(current_archive(&self.guides, &self.sources, self.context.as_ref(), &mut self.current_archives, id)?
+        Ok(current_archive(&self.guides, &self.sources, self.association_directory.as_ref(), self.context.as_ref(), &mut self.current_archives, id)?
             .map(|a| a.id))
     }
     /// The single source of the definition a run is evaluated, observed and
@@ -467,7 +478,7 @@ impl Application {
         let id = self.identity(id)?;
         let progress = self.progress(Some(&id), run, None)?;
         let (definition, info) = self.definition_for_run(&id, &progress)?;
-        let current = current_archive(&self.guides, &self.sources, self.context.as_ref(), &mut self.current_archives, &id)?;
+        let current = current_archive(&self.guides, &self.sources, self.association_directory.as_ref(), self.context.as_ref(), &mut self.current_archives, &id)?;
         let current_manifest = match &current {
             Some(archive) => serde_json::from_str::<Value>(&archive.payload)
                 .map_err(|e| e.to_string())?["occurrence_manifest"]
@@ -539,13 +550,13 @@ impl Application {
                     continue;
                 };
                 let active = self.active.as_ref() == Some(id);
-                let (guides, sources, memo, context) =
-                    (&self.guides, &self.sources, &mut self.current_archives, self.context.as_ref());
+                let (guides, sources, memo, context, associations) =
+                    (&self.guides, &self.sources, &mut self.current_archives, self.context.as_ref(), self.association_directory.as_ref());
                 if self.runs.observe_with(
                     &guide,
                     &self.live,
                     active,
-                    Some(&mut |g| current_archive(guides, sources, context, memo, g)),
+                    Some(&mut |g| current_archive(guides, sources, associations, context, memo, g)),
                 )? {
                     self.revision += 1;
                 }

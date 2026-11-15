@@ -73,3 +73,15 @@ test('all web entry points load reading rules before the operational view',()=>{
   assert.ok(html.indexOf('src="/action-reading.js"')>=0);assert.ok(html.indexOf('src="/action-reading.js"')<html.indexOf('src="/action-plan.js"'));
  }
 });
+
+test('occupation wording selects the occupation vocabulary and unexplained codes stay visible',()=>{
+ // "LPF + CAV Occupation Law" (no LAW: prefix) is explained, not left raw.
+ const law=reader.read('LPF + CAV Occupation Law',row('checkpoints',['LPF + CAV Occupation Law']));
+ assert.match(law.text,/Local Police Force \(LPF\)/);
+ assert.deepEqual(law.terms.map(t=>t.code),['LPF','CAV']);
+ // A code known only in another domain is offered as a possible meaning,
+ // never substituted into the instruction.
+ const elsewhere=reader.read('Setup LPF later',row('checkpoints',['Setup LPF later']));
+ assert.equal(elsewhere.text,'Setup LPF later');
+ assert.match(elsewhere.notes[0],/Possible meaning of LPF: Local Police Force/);
+});

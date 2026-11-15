@@ -71,11 +71,11 @@ pub fn line_matches(hay: &str, needle: &str) -> Vec<usize> {
 }
 /// Base Word key without promotion suffixes, and the direct parent key.
 fn lineage(key: &str) -> (String, Option<String>, &'static str) {
-    let base = regex(r"(?:--(?:operation|note|line)-\d+)+$").replace(key, "").to_string();
+    let base = regex(r"(?:--(?:operation|note|line|seq)-\d+)+$").replace(key, "").to_string();
     if base == key {
         return (base, None, "step");
     }
-    let parent = regex(r"--(?:operation|note|line)-\d+$").replace(key, "").to_string();
+    let parent = regex(r"--(?:operation|note|line|seq)-\d+$").replace(key, "").to_string();
     let role = if regex(r"--note-\d+$").is_match(key) { "note" } else { "child" };
     (base, Some(parent), role)
 }

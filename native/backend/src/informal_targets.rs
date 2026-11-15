@@ -6,6 +6,39 @@ use crate::{
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 type Result<T> = std::result::Result<T, String>;
+
+thread_local! {
+    /// Compiler contract 4 only: also read `name:qty name:qty` pairs that share
+    /// one comma-separated part (a missing comma). Off for the contract-1
+    /// registry so legacy checklists keep their exact meaning.
+    static SPLIT_PAIRS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+/// Run `f` with contract-4 production parsing enabled on this thread.
+pub(crate) fn with_contract4_parsing<T>(f: impl FnOnce() -> T) -> T {
+    struct Reset(bool);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            SPLIT_PAIRS.with(|c| c.set(self.0));
+        }
+    }
+    let _reset = Reset(SPLIT_PAIRS.with(|c| c.replace(true)));
+    f()
+}
+/// "I-16:5 Truck:4" -> ["I-16:5", "Truck:4"]; anything else unchanged.
+fn split_pairs(part: &str) -> Vec<String> {
+    if !SPLIT_PAIRS.with(|c| c.get()) {
+        return vec![part.to_owned()];
+    }
+    let pair = regex(r"(?i)[^\s:,][^:,]*?\s*:\s*(?:\d{1,6}(?:\s*(?:->|→)\s*\d{1,6})?|ALL|rest)\b");
+    let found: Vec<_> = pair.find_iter(part).collect();
+    let covered: usize = found.iter().map(|m| m.as_str().len()).sum();
+    // Only when the part is exactly a run of pairs separated by whitespace.
+    if found.len() > 1 && part.split_whitespace().collect::<String>().len() == found.iter().map(|m| m.as_str().split_whitespace().collect::<String>().len()).sum::<usize>() && covered <= part.len() {
+        found.iter().map(|m| m.as_str().trim().to_owned()).collect()
+    } else {
+        vec![part.to_owned()]
+    }
+}
 pub fn sequence(text: &str, index: &Index, country: &Value) -> Result<Option<Value>> {
     let separator = regex(r"(?i)\s*(,?\s+then\s+|\s+&\s+)\s*");
     let mut parts = vec![];
@@ -235,7 +268,12 @@ pub fn production(
     let mut original = vec![];
     let mut notes = vec![];
     let mut priorities = HashMap::new();
-    for part in body.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+    for part in body
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .flat_map(split_pairs)
+    {
         let mut part = part.to_owned();
         if let Some(note) = regex(r"(?i)^(.*?)\s*(\((?:add\s+)?MIOs?\))$").captures(&part) {
             notes.push(note[2].to_owned());
@@ -397,4 +435,20 @@ pub fn production(
     Ok(Some(
         json!({"params":{"category":"production","production_targets":targets},"remainder":if remainder.is_empty(){Value::Null}else{json!(format!("{prefix}: {}",remainder.join(", ")))}}),
     ))
+}
+
+#[cfg(test)]
+mod contract4_tests {
+    use super::*;
+    #[test]
+    fn missing_comma_pairs_split_only_under_contract_4() {
+        assert_eq!(split_pairs("I-16:5 Truck:4"), vec!["I-16:5 Truck:4"], "contract 1 unchanged");
+        with_contract4_parsing(|| {
+            assert_eq!(split_pairs("I-16:5 Truck:4"), vec!["I-16:5", "Truck:4"]);
+            assert_eq!(split_pairs("Inf Equip:ALL"), vec!["Inf Equip:ALL"]);
+            assert_eq!(split_pairs("Sup Equip:"), vec!["Sup Equip:"], "no quantity: never invented");
+            assert_eq!(split_pairs("Art:2 (add MIOs)"), vec!["Art:2 (add MIOs)"]);
+        });
+        assert_eq!(split_pairs("I-16:5 Truck:4").len(), 1, "flag scoped to the closure");
+    }
 }

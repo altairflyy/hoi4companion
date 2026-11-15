@@ -27,7 +27,7 @@ use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
 type Result<T> = std::result::Result<T, String>;
 
-pub const CONTRACT: u64 = 3;
+pub const CONTRACT: u64 = 4;
 /// Same strings as `operation_language::promote` (pinned by a test).
 const LINE_BREAK: &str = r"\r\n|[\n\r\x0B\x0C\x1C-\x1E\u0085\u2028\u2029]";
 const BULLET: &str = r"^\s*[-•]\s*";
@@ -55,6 +55,113 @@ fn rows_mut(guide: &mut Value) -> Result<Vec<&mut Vec<Value>>> {
 fn is_container(row: &Value) -> bool {
     crate::occurrence_manifest::is_container(row)
         && !row["action"]["params"].get("production_residual_for").is_some_and(crate::state::truth)
+}
+/// Contract 4: a single-line manual reminder (an unrecognized instruction or a
+/// promote residual such as "Production: Sup Equip:") is read with the same
+/// line rules, so it becomes manually trackable unless it is advice or a
+/// header. Auxiliary vocabulary notes (`--note-N`) stay reminders.
+fn is_single_reminder(row: &Value) -> bool {
+    let instructions = row["action"]["params"]["instructions"].as_array();
+    row["tracking"] == "reminder"
+        && row["action"]["kind"] == "manual"
+        && instructions.is_some_and(|a| a.len() == 1 && a[0].as_str().is_some_and(|t| !t.trim().is_empty() && !t.contains('\n')))
+        && !regex(r"--note-\d+$").is_match(text(&row["key"]))
+        && !row["action"]["params"].get("production_residual_for").is_some_and(crate::state::truth)
+}
+/// "Lead: A, then B" -> [("Lead: A", "Lead: A"), ("Lead: B", "B")]: an explicit
+/// sequence with a comma/semicolon before "then". Returns (title, exact source
+/// text) pairs; the lead is carried into later titles only. Each part needs
+/// >= 3 words, otherwise a verb may be elided ("Justify X, then Y") and the
+/// line stays whole.
+pub fn sequence_parts(line: &str) -> Vec<(String, String)> {
+    let whole = vec![(line.to_owned(), line.to_owned())];
+    let (lead, body) = match line.split_once(": ") {
+        Some((lead, body)) if lead.len() <= 30 && !lead.chars().any(|c| c.is_ascii_digit()) && !lead.contains(',') => (Some(lead.trim()), body),
+        _ => (None, line),
+    };
+    let parts: Vec<&str> = regex(r"(?i)\s*[,;]\s*then\s+").split(body).map(str::trim).collect();
+    if parts.len() < 2 || parts.iter().any(|p| entity_resolution::words(p).len() < 3) {
+        return whole;
+    }
+    parts
+        .into_iter()
+        .enumerate()
+        .map(|(i, p)| match lead {
+            Some(l) if i == 0 => (format!("{l}: {p}"), format!("{l}: {p}")),
+            Some(l) => (format!("{l}: {p}"), p.to_owned()),
+            None => (p.to_owned(), p.to_owned()),
+        })
+        .collect()
+}
+/// Contract 4 re-reads production residuals, which can bind targets the main
+/// production step of the same Word row already monitors. Drop a step whose
+/// every target duplicates an earlier step of the same row (nothing depends on
+/// it); its unparsed remainder lives in its own child step and is kept.
+pub fn drop_duplicate_production(guide: &mut Value) -> Result<()> {
+    let referenced = dependencies(guide);
+    let signature = |t: &Value| json!([t["equipment_name"], t["production_selector"], t["requested_factories"], t["quantity_mode"]]).to_string();
+    let mut seen: HashMap<String, HashSet<String>> = HashMap::new();
+    for lane in rows_mut(guide)? {
+        lane.retain(|row| {
+            let Some(targets) = row["action"]["params"]["production_targets"].as_array().filter(|t| !t.is_empty()) else { return true };
+            let base = regex(r"(?:--(?:operation|note|line|seq)-\d+)+$").replace(text(&row["key"]), "").to_string();
+            let sigs: Vec<String> = targets.iter().map(signature).collect();
+            let known = seen.entry(base).or_default();
+            if sigs.iter().all(|s| known.contains(s)) && !referenced.contains(text(&row["key"])) {
+                return false;
+            }
+            known.extend(sigs);
+            true
+        });
+    }
+    Ok(())
+}
+/// Withdraw decision bindings the catalog proves impossible for the guide's
+/// country (e.g. a weak "Mobilize The…" bound to a German decision in a
+/// Soviet guide). The step keeps its text as a manually tracked instruction
+/// with the reason; no replacement is guessed. Conditional steps (a timing or
+/// `when` may describe another future actor) are left untouched.
+pub fn withdraw_incompatible_decisions(guide: &mut Value, index: &crate::import_catalog::Index) -> Result<()> {
+    let country = guide["applies_to"]["country"].as_str().map(str::to_owned);
+    let mut catalog: HashMap<String, Vec<Value>> = HashMap::new();
+    for entry in index.rows().iter().filter(|e| e["kind"] == "decision") {
+        catalog.entry(text(&entry["id"]).to_owned()).or_default().push(entry["country_condition"].clone());
+    }
+    for lane in rows_mut(guide)? {
+        for row in lane.iter_mut() {
+            let Some(id) = row["action"]["params"]["decision_id"].as_str().map(str::to_owned) else { continue };
+            let conditional = row.get("when").is_some() || row["action"]["params"]["timing"].is_string();
+            if conditional {
+                continue;
+            }
+            let owned = catalog.get(&id).and_then(|conditions| {
+                crate::decision_admission::ownership(&crate::recipient::combine("any", conditions.clone()), country.as_deref(), None, 0)
+            });
+            // Weak foreign binding: the author's text is truncated (the ID came
+            // from an incomplete-name guess), the ID carries another country's
+            // tag, and the catalog cannot prove the decision is available here.
+            // Exact-name foreign decisions (legitimate controls) are untouched.
+            let truncated = row["action"]["params"]["instructions"][0].as_str().is_some_and(|t| t.trim_end().ends_with('…') || t.trim_end().ends_with("..."));
+            let prefix = id.split('_').next().unwrap_or("");
+            let foreign = prefix.len() == 3 && prefix.chars().all(|c| c.is_ascii_uppercase()) && country.as_deref().is_some_and(|c| c != prefix);
+            let reason = match owned {
+                Some(false) => "decision_country_incompatible",
+                None if truncated && foreign => "weak_foreign_decision_binding",
+                _ => continue,
+            };
+            let name = row["action"]["params"]["decision_name"].clone();
+            let params = row["action"]["params"].as_object_mut().ok_or("Invalid step parameters")?;
+            params.retain(|k, _| !k.starts_with("decision"));
+            params.insert("binding_withdrawn".into(), json!({"kind":"decision","id":id,"name":name,"reason":reason}));
+            let map = row.as_object_mut().ok_or("Invalid guide step")?;
+            for field in ["completion", "started_when", "name", "entity", "verification"] {
+                if field == "name" || field == "entity" || field == "verification" || map.get(field).is_some_and(|v| v.to_string().contains(&id)) {
+                    map.remove(field);
+                }
+            }
+        }
+    }
+    Ok(())
 }
 fn dependencies(guide: &Value) -> HashSet<String> {
     guide["tracks"]
@@ -142,13 +249,19 @@ pub fn decompose_with(
         let original = std::mem::take(lane);
         for row in original {
             let key = text(&row["key"]).to_owned();
-            if !is_container(&row) || referenced.contains(&key) {
+            let single = !is_container(&row) && is_single_reminder(&row);
+            if !(is_container(&row) || single) || referenced.contains(&key) {
                 lane.push(row);
                 continue;
             }
             let children = split(&id, &row, &mut triggers)?;
             let child_keys: Vec<String> = children.iter().map(|c| text(&c["key"]).to_owned()).collect();
             let actionable = children.iter().filter(|c| c.get("tracking").is_none()).count();
+            // A single line that stays one advice/header reminder is unchanged.
+            if single && actionable == 0 && children.len() <= 1 {
+                lane.push(row);
+                continue;
+            }
             if children.is_empty()
                 || children.len() > 512
                 || child_keys.iter().any(|k| keys.contains(k))
@@ -329,7 +442,31 @@ fn split(guide_id: &str, row: &Value, triggers: &mut Triggers<'_>) -> Result<Vec
             item["action"]["params"]["decomposition"] = json!({"contract":CONTRACT,"parent_key":key,
                 "line":n + 1,"status":class,"timing":timing,"lead":lead,"context":context,
                 "condition_status":condition_status,"trigger":trigger,"headers":headers});
-            children.push(item);
+            // Explicit sequence inside the line ("A, then B"): ordered parts,
+            // each depending on the previous one, each keeping the full line.
+            let parts = sequence_parts(&line);
+            if parts.len() == 1 {
+                children.push(item);
+                continue;
+            }
+            let base = text(&item["key"]).to_owned();
+            for (m, (part_title, part)) in parts.iter().enumerate() {
+                let mut piece = item.clone();
+                let piece_key = format!("{base}--seq-{}", m + 1);
+                piece["key"] = json!(piece_key);
+                piece["title"] = json!(match &lead { Some(head) => format!("{head}: {part_title}"), None => part_title.clone() });
+                piece["action"]["params"]["instructions"] = json!([part]);
+                // Reminders cannot be dependencies (schema): only actionable parts chain.
+                if m > 0 && class != "advice" {
+                    let mut deps = piece["depends_on"].as_array().cloned().unwrap_or_default();
+                    deps.push(json!(format!("{base}--seq-{m}")));
+                    piece["depends_on"] = json!(deps);
+                }
+                let context = format!("{} ({}/{})", line, m + 1, parts.len());
+                piece["note"] = json!(match piece["note"].as_str() { Some(n) if !n.is_empty() => format!("{n}\n{context}"), _ => context });
+                piece["action"]["params"]["decomposition"]["sequence"] = json!({"part":m + 1,"of":parts.len(),"line_text":line});
+                children.push(piece);
+            }
         }
     }
     Ok(children)
@@ -429,8 +566,63 @@ mod tests {
         let mut implicit = guide(json!([container("Do A\nDo B")]));
         implicit["dependency_policy"] = json!("sequential");
         assert_eq!(decompose(&implicit, &unknown).unwrap()["guide"], implicit);
+        // Contract 4: a single instruction line becomes manually trackable...
         let (single, _) = run(json!([container("Only one line")]));
-        assert_eq!(single[0]["key"], "word-0007");
+        assert_eq!(single[0]["key"], "word-0007--line-1");
+        assert!(single[0].get("tracking").is_none());
+        // ...but advice, a bare header and auxiliary notes stay reminders, unchanged.
+        for (key, text) in [("word-0007", "(If reloading: skip)"), ("word-0007", "Production:"), ("word-0007--note-1", "Fix trade")] {
+            let mut row = container(text);
+            row["key"] = json!(key);
+            let (kept, _) = run(json!([row.clone()]));
+            assert_eq!(kept[0], row, "{text}");
+        }
+    }
+
+    #[test]
+    fn explicit_sequences_split_into_ordered_parts_keeping_the_line() {
+        // The Soviet guide's step 1, verbatim.
+        let line = "Build: INFRA+Land Facility in Moscow, then INFRA+MILs in: Moscow, Kharkov, Krasnodar, Odessa, Vinnytsia, Minsk";
+        let (rows, _) = run(json!([container(line)]));
+        let titles: Vec<_> = rows.iter().map(|r| r["title"].as_str().unwrap()).collect();
+        assert_eq!(titles, ["Build: INFRA+Land Facility in Moscow", "Build: INFRA+MILs in: Moscow, Kharkov, Krasnodar, Odessa, Vinnytsia, Minsk"]);
+        assert_eq!(rows[1]["depends_on"], json!(["word-0007--line-1--seq-1"]), "second part follows the first");
+        assert_eq!(rows[1]["action"]["params"]["instructions"][0], "INFRA+MILs in: Moscow, Kharkov, Krasnodar, Odessa, Vinnytsia, Minsk");
+        assert!(rows[0]["note"].as_str().unwrap().contains(line), "full original line kept");
+        // An elided verb is not split.
+        assert_eq!(sequence_parts("Justify Gibraltar, then DEI, cancel Gibraltar").len(), 1);
+    }
+
+    #[test]
+    fn catalog_contradicted_decisions_are_withdrawn_not_replaced() {
+        let index = crate::import_catalog::Index::new(&json!({"entries":[
+            {"kind":"decision","id":"GER_mobilize_the_selbschutz","name":"Mobilize the Selbstschutz","country_condition":{"op":"tag","value":"GER"}},
+            {"kind":"decision","id":"SOV_ok","name":"Soviet decision","country_condition":{"op":"tag","value":"SOV"}}]})).unwrap();
+        let step = |key: &str, id: &str| json!({"key":key,"kind":"gate","name":"Mobilize the Selbstschutz","title":"Mobilize The…",
+            "action":{"kind":"manual","params":{"instructions":["Mobilize The…"],"decision_id":id,"decision_name":"x"}},
+            "completion":{"op":"fact","key":"decisions.executed","test":"contains","value":id},
+            "started_when":{"op":"fact","key":"decisions.active","test":"contains","value":id}});
+        let mut g = json!({"id":"g","applies_to":{"country":"SOV"},"tracks":{"operations":[step("word-0008","GER_mobilize_the_selbschutz"),step("word-0009","SOV_ok")]}});
+        withdraw_incompatible_decisions(&mut g, &index).unwrap();
+        let (bad, ok) = (&g["tracks"]["operations"][0], &g["tracks"]["operations"][1]);
+        assert!(bad["action"]["params"].get("decision_id").is_none());
+        assert_eq!(bad["action"]["params"]["binding_withdrawn"]["reason"], "decision_country_incompatible");
+        assert!(bad.get("completion").is_none() && bad.get("started_when").is_none() && bad.get("name").is_none());
+        assert_eq!(bad["action"]["params"]["instructions"][0], "Mobilize The…");
+        assert_eq!(ok["action"]["params"]["decision_id"], "SOV_ok", "compatible binding untouched");
+        // Unprovable ownership (complex condition): only a truncated, foreign-tag
+        // match is withdrawn; an exact-name foreign decision is a legitimate control.
+        let index = crate::import_catalog::Index::new(&json!({"entries":[
+            {"kind":"decision","id":"GER_mobilize_x","name":"Mobilize X","country_condition":{"op":"unknown"}},
+            {"kind":"decision","id":"NOR_repair_mines","name":"Repair Mines","country_condition":{"op":"unknown"}}]})).unwrap();
+        let mut weak = step("word-0008", "GER_mobilize_x");
+        let mut exact = step("word-0010", "NOR_repair_mines");
+        exact["action"]["params"]["instructions"] = json!(["Repair Swedish mines"]);
+        weak["key"] = json!("word-0008");
+        let mut g = json!({"id":"g","applies_to":{"country":"SOV"},"tracks":{"operations":[weak, exact]}});
+        withdraw_incompatible_decisions(&mut g, &index).unwrap();
+        assert_eq!(g["tracks"]["operations"][0]["action"]["params"]["binding_withdrawn"]["reason"], "weak_foreign_decision_binding");
+        assert_eq!(g["tracks"]["operations"][1]["action"]["params"]["decision_id"], "NOR_repair_mines");
     }
 
     fn focus(key: &str, title: &str, id: &str) -> Value {

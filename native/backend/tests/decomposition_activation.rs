@@ -105,11 +105,15 @@ fn installed_corpus_decomposes_with_preserved_text_and_valid_definitions() {
         request(0, "guide_normalize", json!({"guide":decomposed})).unwrap();
         let manifest = occurrence_manifest::build(decomposed).unwrap();
         occurrence_manifest::validate(&manifest, decomposed).unwrap();
-        let containers: BTreeMap<String, String> = guide["tracks"].as_object().unwrap().values()
-            .flat_map(|v| v.as_array().unwrap()).filter(|r| occurrence_manifest::is_container(r))
-            .map(|r| (r["key"].as_str().unwrap().to_owned(), r["action"]["params"]["instructions"][0].as_str().unwrap().to_owned()))
+        // Every source instruction (multiline containers and, since contract 4,
+        // single-line reminders) by key, to check preserved text.
+        let originals: BTreeMap<String, String> = guide["tracks"].as_object().unwrap().values()
+            .flat_map(|v| v.as_array().unwrap())
+            .filter_map(|r| Some((r["key"].as_str()?.to_owned(), r["action"]["params"]["instructions"][0].as_str()?.to_owned())))
             .collect();
-        bump("containers", containers.len());
+        let containers = guide["tracks"].as_object().unwrap().values().flat_map(|v| v.as_array().unwrap())
+            .filter(|r| occurrence_manifest::is_container(r)).count();
+        bump("containers", containers);
         for e in out["report"].as_array().unwrap() {
             bump(&format!("container_{}", e["status"].as_str().unwrap()), 1);
         }
@@ -129,14 +133,15 @@ fn installed_corpus_decomposes_with_preserved_text_and_valid_definitions() {
                 assert!(row.get("when").is_some(), "timing-scoped child has a condition");
             }
             // Original text preserved on its source line.
-            let block = &containers[d["parent_key"].as_str().unwrap()];
+            let block = &originals[d["parent_key"].as_str().unwrap()];
             let line = block.split('\n').nth(d["line"].as_u64().unwrap() as usize - 1).unwrap();
             assert!(line.contains(row["action"]["params"]["instructions"][0].as_str().unwrap()));
         }
     }
     eprintln!("installed corpus contract-2: {totals:#?}");
     let get = |k: &str| totals.get(k).copied().unwrap_or(0);
-    assert_eq!(get("containers"), get("container_decomposed") + get("container_kept"));
+    // Contract 4 also reports single-line reminders it converts.
+    assert!(get("container_decomposed") + get("container_kept") >= get("containers"));
     assert!(get("children") > get("containers"));
 }
 
@@ -203,7 +208,7 @@ fn activation_protects_legacy_and_contract1_runs_and_never_transfers_parent_prog
     // New checklist: contract 2, children only, no inherited progress.
     let fresh = app.progress(Some("identity"), None, Some(&json!({}))).unwrap();
     let packet = app.projection(Some("identity"), false).unwrap();
-    assert_eq!(packet["definition"]["compiler_contract"], 3);
+    assert_eq!(packet["definition"]["compiler_contract"], definition_archive::COMPILER_CONTRACT);
     assert_eq!(steps(&packet), ["word-0001--line-2", "word-0001--line-3"]);
     assert_eq!(packet["progress"]["checks"], json!({}), "parent progress never transferred");
     let train = &packet["guide"]["tracks"]["operations"][0];

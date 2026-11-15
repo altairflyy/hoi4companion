@@ -514,3 +514,74 @@ Validation (2026-11-15):
   unit suites `entity_resolution` 7 and `decomposition` +3)
 - JS: 436 passed / 1 optional skipped against the rebuilt host
 - `presentation_fixtures` unchanged
+
+## Implemented: compiler contract 4, user-review fixes (2026-11-16)
+
+Driven by a review of "RUSSIA (Communist) Reverse Barbarossa". The rules are
+generic; new checklists only.
+
+- **New-checklist compile path** (`Context::compile_new`, used by
+  `Application::current_archive`):
+  - fresh contract-4 preparation from the associated source (uncached), then
+    presentation;
+  - duplicate production removal, catalog-contradicted decision withdrawal and
+    decomposition, then presentation again.
+  - The contract-1 registry, and therefore legacy runs, is unchanged.
+  - Test hook: `catalog_runtime_guide_new`.
+- **Production pairs** (`informal_targets::with_contract4_parsing`, contract 4
+  only): `name:qty name:qty` written without a comma ("I-16:5 Truck:4") is read
+  as two targets. An empty quantity ("Sup Equip:") is never invented; it becomes
+  a manually tracked line. A re-read residual step whose targets duplicate its
+  row's main production step is dropped (`drop_duplicate_production`).
+- **Single-line memos** (`is_single_reminder`): unrecognized one-line reminders
+  and promote residuals go through the line rules. Actionable lines become
+  manually tracked; advice, bare headers and `--note-N` vocabulary notes stay
+  memos.
+- **Explicit sequences** (`sequence_parts`): "Lead: A, then B" (also `; then`)
+  becomes ordered parts `--seq-N`:
+  - each part depends on the previous one (actionable parts only; reminders
+    cannot be dependencies);
+  - each part keeps the full original line in its note;
+  - the lead is carried into later titles;
+  - parts under 3 words are not split, because a verb may be elided
+    ("Justify X, then Y").
+- **Decision withdrawal** (`withdraw_incompatible_decisions`):
+  - a decision binding is removed when the catalog proves it unavailable to the
+    country;
+  - it is also removed when the author's text is truncated, the ID carries
+    another country's tag, and ownership cannot be proven;
+  - the step keeps its text as a manual instruction with
+    `binding_withdrawn.reason`, and no replacement is guessed;
+  - exact-name foreign decisions (legitimate controls) are untouched.
+
+**Real catalog, all 50 installed guides** (opt-in
+`tests/real_catalog_contract.rs`, `HOI4_REAL_CATALOG=1`, read-only game
+files), contract 1 -> contract 4:
+- memo-only reminders 2,304 -> 150; steps 6,996 -> 8,236;
+- live production targets 385 -> 400;
+- 269 live trigger conditions;
+- 3 withdrawn decisions: exactly the three historical bad bindings (SOV/ENG
+  "Mobilize The…" / "We shall…");
+- steps with automatic completion/start 865 -> 863 (the withdrawn ones).
+
+The Soviet guide:
+- step 1 splits into "Build: INFRA+Land Facility in Moscow" -> "Build:
+  INFRA+MILs in: Moscow, Kharkov, …";
+- step 2 monitors I-16:5, Truck:4, artillery:2, anti-air:2, Train:1, infantry
+  ALL, with "Sup Equip" as a manual line;
+- "Mobilize The…" is withdrawn from `GER_mobilize_the_selbschutz`;
+- the advisors (Kalinin, Timoshenko) stay live-tracked via
+  `politics.advisors`, and the HUD already targets `advisor_id` steps.
+
+**Still not monitorable:**
+- occupation laws ("LPF + CAV Occupation Law"): no live fact; the glossary
+  already explains LPF/CAV; now manually tracked;
+- construction orders ("Build: INFRA+MILs in …");
+- navy/army housekeeping;
+- war/country-state triggers.
+
+Validation (2026-11-16):
+- backend lib: 136 passed / 2 ignored
+- integration via harness: 87 passed
+- JS: 436 passed / 1 optional skipped against the rebuilt host
+- `presentation_fixtures` unchanged
