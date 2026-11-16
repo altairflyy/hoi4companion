@@ -184,6 +184,12 @@ pub struct StepCard {
     pub guide_id: String,
     /// The step accepts a manual confirmation (as the suite's checkbox).
     pub checkable: bool,
+    /// Design/template reference images, as on the walkthrough page; each is
+    /// drawn once its picture is decoded, with its name above it.
+    pub images: Vec<crate::card_images::CardImage>,
+    /// The guide's current production plan, one localized line per product:
+    /// target and live requested/assigned factories.
+    pub production: String,
 }
 /// Card frame on the right edge, below the game's top bar and theater selector.
 fn card_origin(width:f32,height:f32,scale:f32)->(f32,f32,f32) {
@@ -578,20 +584,43 @@ impl Graphics {
                     blocks.push((text.clone(),format,tone));
                 }
             }
-            let mut notice_rect=None;
-            if let Some(notice)=notice {blocks.push((notice.text.clone(),2,3));}
-            let notice_index=notice.map(|_|blocks.len()-1);
-            for (index,(text,format,tone)) in blocks.into_iter().enumerate() {
+            // One wrapped text block at `y`; None when empty or out of room.
+            let block=|this:&Self,text:&str,format:usize,tone:u8,y:&mut f32,lines:&mut Vec<(Vec<u16>,usize,D2D_RECT_F,u8)>|
+                ->windows::core::Result<Option<D2D_RECT_F>> {
                 let text:String=text.chars().filter(|c|*c=='\n'||!c.is_control()).collect();
-                if text.trim().is_empty() {continue;}
+                if text.trim().is_empty() {return Ok(None);}
                 let wide:Vec<u16>=text.encode_utf16().collect();
-                let available=(limit-y).max(0.0);
-                if available<8.0*scale {break;}
-                let used=self.measure(&wide,format,inner,available)?.1.min(available);
-                let rect=D2D_RECT_F {left:pad,top:y,right:pad+inner,bottom:y+used};
-                if Some(index)==notice_index {notice_rect=Some(rect);}
-                lines.push((wide,format,rect,tone));y+=used+8.0*scale;
+                let available=(limit-*y).max(0.0);
+                if available<8.0*scale {return Ok(None);}
+                let used=this.measure(&wide,format,inner,available)?.1.min(available);
+                let rect=D2D_RECT_F {left:pad,top:*y,right:pad+inner,bottom:*y+used};
+                lines.push((wide,format,rect,tone));*y+=used+8.0*scale;
+                Ok(Some(rect))
+            };
+            for (text,format,tone) in blocks {block(self,&text,format,tone,&mut y,&mut lines)?;}
+            if !collapsed && !card.production.trim().is_empty()
+                && block(self,&crate::i18n::text("Production"),0,0,&mut y,&mut lines)?.is_some() {
+                block(self,&card.production,2,1,&mut y,&mut lines)?;
             }
+            // Reference pictures (as on the walkthrough page) under the text,
+            // each with its name. Until a picture is decoded, or if it fails,
+            // only the name is shown; a picture that does not fit is left out.
+            let mut pictures:Vec<(std::sync::Arc<crate::card_images::Thumb>,D2D_RECT_F)>=Vec::new();
+            if !collapsed {
+                for image in &card.images {
+                    let label=crate::i18n::text("Design reference");
+                    let label=if image.name.is_empty() {label} else {format!("{label} · {}",image.name)};
+                    if block(self,&label,2,2,&mut y,&mut lines)?.is_none() {break;}
+                    let Some(thumb)=image.thumb.as_ref() else {continue;};
+                    let (tw,th)=(thumb.width as f32,thumb.height as f32);
+                    let (mut w,cap)=(inner.min(tw*scale),(max_height/3.0).max(60.0*scale));
+                    let mut h=w*th/tw;
+                    if h>cap {h=cap;w=h*tw/th;}
+                    if y+h>limit {continue;}
+                    pictures.push((thumb.clone(),D2D_RECT_F {left:pad,top:y,right:pad+w,bottom:y+h}));y+=h+8.0*scale;
+                }
+            }
+            let notice_rect=match notice {Some(notice)=>block(self,&notice.text,2,3,&mut y,&mut lines)?,None=>None};
             if let (Some(rect),Some(notice))=(notice_rect,notice) && notice.undo.is_some() && y+row<=limit {
                 let label=crate::i18n::text("Undo");
                 let wide:Vec<u16>=label.encode_utf16().collect();
@@ -601,11 +630,23 @@ impl Graphics {
             let height=(y-8.0*scale+10.0*scale).min(max_height).max(top+row+10.0*scale).ceil();
             let width=width.ceil();
             self.size(width as u32,height as u32)?;
+            // A picture whose bitmap cannot be created is skipped, never the card.
+            let bitmaps:Vec<(ID2D1Bitmap1,D2D_RECT_F)>=pictures.iter().filter_map(|(thumb,rect)|{
+                let properties=D2D1_BITMAP_PROPERTIES1 {pixelFormat:D2D1_PIXEL_FORMAT {
+                    format:DXGI_FORMAT_B8G8R8A8_UNORM,alphaMode:D2D1_ALPHA_MODE_PREMULTIPLIED},
+                    dpiX:96.0,dpiY:96.0,bitmapOptions:D2D1_BITMAP_OPTIONS_NONE,..Default::default()};
+                self.context.CreateBitmap(D2D_SIZE_U {width:thumb.width,height:thumb.height},
+                    Some(thumb.bgra.as_ptr().cast()),thumb.width*4,&properties).ok().map(|bitmap|(bitmap,*rect))
+            }).collect();
             let formats=&self.card_formats.as_ref().unwrap().1;
             self.context.BeginDraw();self.context.Clear(Some(&D2D1_COLOR_F {r:0.0,g:0.0,b:0.0,a:0.0}));
             let panel=D2D1_ROUNDED_RECT {rect:D2D_RECT_F {left:0.5,top:0.5,right:width-0.5,bottom:height-0.5},radiusX:6.0*scale,radiusY:6.0*scale};
             self.context.FillRoundedRectangle(&panel,&self.paint.card_bg);
             self.context.DrawRoundedRectangle(&panel,&self.paint.card_border,1.0*scale,None);
+            for (bitmap,rect) in &bitmaps {
+                self.context.DrawBitmap(bitmap,Some(rect),1.0,D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC,None,None);
+                self.context.DrawRectangle(rect,&self.paint.card_border,1.0*scale,None);
+            }
             for (text,format,rect,tone) in &lines {
                 let brush=match tone {0=>&self.paint.strokes[0],1=>&self.paint.text,2=>&self.paint.muted,_=>&self.paint.strokes[2]};
                 self.context.DrawText(text,&formats[*format],rect,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);

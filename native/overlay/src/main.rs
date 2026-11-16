@@ -12,6 +12,7 @@ mod wake;
 mod visual_worker;
 mod stability;
 mod card;
+mod card_images;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
@@ -141,11 +142,16 @@ fn production_caption(row:&Value,title:&str)->String {
         let names=row["production_add_names"].as_array().map(|items|items.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ")).unwrap_or_else(||title.into());
         return i18n::format("Add production: {0}",&[&names]);
     }
+    let line=production_line(row,title);
+    if row["navigation_stage"]=="equipment" {i18n::format("Select product: {0}",&[&line])}else{line}
+}
+/// "Product · target · requested / assigned", with the met target and line
+/// priority: the production caption and the card's production list alike.
+fn production_line(row:&Value,title:&str)->String {
     let goal=if row["quantity_mode"]=="remaining" {i18n::text("ALL remaining factories")}
         else {row["quantity"].as_u64().map(|n|i18n::format("Target {0}",&[&n.to_string()])).unwrap_or_else(||i18n::text("Target unverified"))};
     let count=|key:&str|row[key].as_u64().map(|n|n.to_string()).unwrap_or_else(||"?".into());
     let mut caption=i18n::format("{0} · {1} · requested {2} / assigned {3}",&[title,&goal,&count("requested"),&count("assigned")]);
-    if row["navigation_stage"]=="equipment" {caption=i18n::format("Select product: {0}",&[&caption]);}
     if row["goal_satisfied"]==true {caption.push_str(" · ");caption.push_str(&i18n::text("Target met"));}
     if let Some(priority)=row["production_priority"].as_str(){caption.push_str(" · ");caption.push_str(&i18n::text(if priority=="first"{"Top priority"}else{"Last line"}));}
     caption
@@ -187,13 +193,26 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
     let key=card["key"].as_str().unwrap_or("").to_owned();
     let guide_id=snapshot["guide_id"].as_str().unwrap_or("").to_owned();
     let checkable=card["checkable"]==true&&!key.is_empty()&&!guide_id.is_empty();
-    Some(StepCard {header,heading:heading.trim().to_owned(),note,body,badge,key,guide_id,checkable})
+    let images=card["images"].as_array().into_iter().flatten().filter_map(|image|{
+        let id=image["id"].as_str().map(str::trim).filter(|s|!s.is_empty())?.to_owned();
+        Some(card_images::CardImage {id,name:text(&image["name"]),thumb:None})
+    }).take(card_images::CARD_IMAGES).collect();
+    // The guide's current production plan (backend `card_production`).
+    let production=card["production"].as_array().into_iter().flatten()
+        .map(|row|{let title=row["title"].as_str().map(str::trim).filter(|s|!s.is_empty()).unwrap_or("?");
+            format!("{} {}",if row["goal_satisfied"]==true {"✓"}else{"•"},production_line(row,title))})
+        .collect::<Vec<_>>().join("
+");
+    Some(StepCard {header,heading:heading.trim().to_owned(),note,body,badge,key,guide_id,checkable,images,production})
 }
 /// The card for this sample: the backend's current card, or the last one kept
-/// briefly while the delivery is unknown (see the stability module).
-fn current_card(hold:&mut CardHold,snapshot:&Value,now:Instant)->Option<StepCard> {
+/// briefly while the delivery is unknown (see the stability module), with
+/// the reference pictures decoded so far.
+fn current_card(hold:&mut CardHold,images:&mut card_images::Cache,snapshot:&Value,now:Instant)->Option<StepCard> {
     let known=stability::delivery_known(snapshot).then(||step_card(snapshot));
-    hold.observe(&snapshot["guide_id"],known,now)
+    let mut card=hold.observe(&snapshot["guide_id"],known,now)?;
+    images.attach(&mut card.images);
+    Some(card)
 }
 /// Identity that verified highlight samples must share to be held together.
 fn mark_context(snapshot:&Value,version:u64,view:&TargetWindow)->Value {
@@ -309,6 +328,7 @@ fn run(options:Options)->Result<(),String> {
     let mut ocr_ms=0.;let mut matching_ms=0.;
     let mut capture_retry_at=Instant::now();
     let mut mark_hold=MarkHold::default();let mut card_hold=CardHold::default();
+    let mut card_images=card_images::Cache::new(options.port);
     while !renderer.should_exit() {
         let wake_revision=renderer.wake_revision();
         let mut refresh=false;
@@ -349,7 +369,7 @@ fn run(options:Options)->Result<(),String> {
                     let observation=if stability::delivery_known(&snapshot){Observation::Verified(Vec::new(),now)}else{Observation::Unverified};
                     let (rows,witnessed)=mark_hold.observe(mark_context(&snapshot,snapshot["version"].as_u64().unwrap_or(0),view),observation,now);
                     last_matches=rows;
-                    let card=current_card(&mut card_hold,&snapshot,now);
+                    let card=current_card(&mut card_hold,&mut card_images,&snapshot,now);
                     present(&renderer,view,marks(&last_matches,view.width,view.height),witnessed,card)?;
                 }
                 None=>{
@@ -396,7 +416,7 @@ fn run(options:Options)->Result<(),String> {
             let (rows,witnessed)=mark_hold.observe(mark_context(&snapshot,version,&view),observation,now);
             if rows!=last_matches {native_unchanged_since=now;}
             last_matches=rows;
-            let card=current_card(&mut card_hold,&snapshot,now);
+            let card=current_card(&mut card_hold,&mut card_images,&snapshot,now);
             present(&renderer,&view,marks(&last_matches,view.width,view.height),witnessed,card)?;
             native_frames+=1;
             if last_status.elapsed()>Duration::from_millis(500){
@@ -445,7 +465,7 @@ fn run(options:Options)->Result<(),String> {
             Err(error)=>{
                 capture=None;last_scene=None;cached_ocr=None;last_matches.clear();last_version=None;mark_hold.clear();
                 // Capture evidence is gone; the guide card does not depend on it.
-                present(&renderer,&view,Vec::new(),None,current_card(&mut card_hold,&snapshot,Instant::now()))?;
+                present(&renderer,&view,Vec::new(),None,current_card(&mut card_hold,&mut card_images,&snapshot,Instant::now()))?;
                 if let Some(worker)=visual.as_mut(){worker.invalidate();}
                 capture_retry_at=Instant::now()+Duration::from_millis(500);
                 let message=format!("Capture unavailable; retrying: {error}");
@@ -498,7 +518,7 @@ fn run(options:Options)->Result<(),String> {
         if game_view().as_ref()!=Some(&view){continue;}
         let highlights=marks(&last_matches,view.width,view.height);
         if changed||last_draw.elapsed()>Duration::from_millis(250)||highlights.is_empty(){
-            present(&renderer,&view,highlights,Some(verified_at),current_card(&mut card_hold,&snapshot,Instant::now()))?;
+            present(&renderer,&view,highlights,Some(verified_at),current_card(&mut card_hold,&mut card_images,&snapshot,Instant::now()))?;
             last_draw=Instant::now();
         }
         if last_status.elapsed()>Duration::from_millis(500){
@@ -615,6 +635,18 @@ mod tests {
         assert!(card.checkable);assert_eq!((card.key.as_str(),card.guide_id.as_str()),("word-0008","sov"));
         manual["guide_id"]=Value::Null;
         assert!(!step_card(&manual).unwrap().checkable,"never without the guide identity");
+        assert!(card.images.is_empty());
+        assert!(card.production.is_empty());
+        manual["step_card"]["production"]=json!([
+            {"title":"F1ca","quantity":15,"quantity_mode":"total","requested":10,"assigned":8,"goal_satisfied":false},
+            {"title":"Infantry Equipment","quantity":null,"quantity_mode":"remaining","requested":4,"assigned":null,"goal_satisfied":true,"production_priority":"last"}]);
+        assert_eq!(step_card(&manual).unwrap().production,
+            "• F1ca · Target 15 · requested 10 / assigned 8
+✓ Infantry Equipment · ALL remaining factories · requested 4 / assigned ? · Target met · Last line");
+        manual["step_card"]["images"]=json!([{"id":"aa","name":" F1ca "},{"id":"","name":"blank"},{"name":"no id"},{"id":"bb"},{"id":"cc"},{"id":"dd"}]);
+        let images=step_card(&manual).unwrap().images;
+        assert_eq!(images.iter().map(|i|(i.id.as_str(),i.name.as_str())).collect::<Vec<_>>(),[("aa","F1ca"),("bb",""),("cc","")]);
+        assert!(images.iter().all(|i|i.thumb.is_none()),"pictures come from the image cache only");
     }
     #[test]
     fn done_feedback_offers_undo_only_after_a_confirmed_check() {

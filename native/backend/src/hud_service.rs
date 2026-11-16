@@ -53,12 +53,16 @@ impl Hud {
             self.key = key;
         }
         let usable = error.is_empty() && proposed.as_array().is_some_and(|p| !p.is_empty());
+        let production = card_production(&proposed);
         self.snapshot = json!({"version":self.version,"proposed":if usable{proposed}else{json!([])},"usable":usable,"title":guide["title"],"error":if error.is_empty() && !usable{"Nessuna indicazione live attuale"}else{error},"age_ms":0,"guide_id":packet["guide_id"],"guide_server_id":packet["server_id"],"source_generation":generation,"idle_explanation":null});
         if error.is_empty() && !usable {
             self.snapshot["idle_explanation"] = notice(runtime);
         }
         // Shown by the HUD whether or not a control can be highlighted.
         self.snapshot["step_card"] = if error.is_empty() { step_card(guide, runtime) } else { Value::Null };
+        if !self.snapshot["step_card"].is_null() {
+            self.snapshot["step_card"]["production"] = production;
+        }
         Ok(self.snapshot.clone())
     }
     pub(crate) fn unavailable(&mut self, error: &str) -> Value {
@@ -112,7 +116,49 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
     // of this very step; observed steps complete from the game alone.
     let checkable = status != "completed" && crate::application::manual_keys(guide).contains(key);
     json!({"key":key,"track":track,"index":index,"total":total,"heading":heading,"abbreviation":abbreviation,
-        "body":body,"status":status,"event_answer":resolved.is_some(),"checkable":checkable})
+        "body":body,"status":status,"event_answer":resolved.is_some(),"checkable":checkable,"images":card_images(params)})
+}
+/// Most production lines the HUD card lists.
+const CARD_PRODUCTION: usize = 8;
+/// The guide's current production plan for the card, so the player sees how
+/// many factories to assign without opening the production panel: the HUD's
+/// own production proposals (`hud_production::proposals`, admitted from the
+/// Rust evaluation), in guide order, with the live requested/assigned counts.
+/// Same field names as the proposals, so the HUD words both alike.
+fn card_production(proposed: &Value) -> Value {
+    let fields = ["key", "guide_step", "title", "quantity", "quantity_mode", "requested", "assigned", "goal_satisfied", "production_priority"];
+    Value::Array(
+        crate::hud_geometry::rows(proposed)
+            .iter()
+            .filter(|row| row["panel"] == "production")
+            .take(CARD_PRODUCTION)
+            .map(|row| fields.iter().map(|f| ((*f).to_owned(), row[*f].clone())).collect())
+            .collect(),
+    )
+}
+/// Most images the HUD card shows for one step.
+const CARD_IMAGES: usize = 3;
+/// The reference-library images the walkthrough shows for this step (web
+/// `guide.js`): the step's reference images, then its design references and
+/// those of its production targets. Deduplicated by id and capped; the HUD
+/// fetches each one from `/api/reference-library/image`.
+fn card_images(params: &Value) -> Value {
+    let designs = std::iter::once(&params["design_reference"])
+        .chain(params["production_targets"].as_array().into_iter().flatten().map(|t| &t["design_reference"]))
+        .map(|d| (&d["image_id"], &d["name"]));
+    let references = params["reference_images"].as_array().into_iter().flatten().map(|r| (&r["id"], &r["name"]));
+    let mut images: Vec<Value> = Vec::new();
+    for (id, name) in references.chain(designs) {
+        let Some(id) = id.as_str().map(str::trim).filter(|s| !s.is_empty()) else { continue };
+        if images.iter().any(|i| i["id"] == id) {
+            continue;
+        }
+        images.push(json!({"id":id,"name":name.as_str().map(str::trim).unwrap_or("")}));
+        if images.len() == CARD_IMAGES {
+            break;
+        }
+    }
+    Value::Array(images)
 }
 fn notice(runtime: &Value) -> Value {
     let capacity = &runtime["parallel"]["research"]["capacity"];
@@ -186,6 +232,29 @@ mod tests {
         gated["tracks"]["operations"][2]["kind"] = json!("gate");
         assert_eq!(step_card(&gated, &runtime)["checkable"], true);
         assert!(step_card(&guide, &json!({"tracks":{"operations":{"next":null}}})).is_null());
+        assert_eq!(card["images"], json!([]));
+    }
+    #[test]
+    fn step_card_lists_the_walkthrough_reference_images_once() {
+        let guide = json!({"tracks":{"operations":[{"key":"word-0001","title":"Change I-16 to F1ca","action":{"kind":"manual","params":{
+            "reference_images":[{"id":"aa","name":"F1ca"},{"id":" ","name":"blank"}],
+            "design_reference":{"name":"F1ca","image_id":"aa","modules":{}},
+            "production_targets":[{"design_reference":{"name":"Tank","image_id":"bb"}},{"design_reference":{"name":"No image"}},
+                {"design_reference":{"name":"C","image_id":"cc"}},{"design_reference":{"name":"D","image_id":"dd"}}]}}}]}});
+        let runtime = json!({"tracks":{"operations":{"next":"word-0001"}},"steps":[]});
+        assert_eq!(step_card(&guide, &runtime)["images"], json!([{"id":"aa","name":"F1ca"},{"id":"bb","name":"Tank"},{"id":"cc","name":"C"}]));
+    }
+    #[test]
+    fn card_lists_the_production_proposals_only() {
+        let proposed = json!([
+            {"key":"p1.target-1","panel":"production","guide_step":"p1","title":"F1ca","quantity":15,"quantity_mode":"total","requested":10,"assigned":8,"goal_satisfied":false,"production_priority":null,"rect":[1,2,3,4]},
+            {"key":"f1","panel":"focus","title":"Five-Year Plan"},
+            {"key":"p2","panel":"production","guide_step":"p2","title":"Infantry Equipment","quantity":null,"quantity_mode":"remaining","requested":null,"assigned":null,"goal_satisfied":null,"production_priority":"last"}]);
+        let rows = card_production(&proposed);
+        assert_eq!(rows.as_array().unwrap().len(), 2);
+        assert_eq!(rows[0], json!({"key":"p1.target-1","guide_step":"p1","title":"F1ca","quantity":15,"quantity_mode":"total","requested":10,"assigned":8,"goal_satisfied":false,"production_priority":null}));
+        assert_eq!(rows[1]["quantity_mode"], "remaining");
+        assert_eq!(card_production(&json!([])), json!([]));
     }
     #[test]
     fn errors_never_keep_usable_targets_or_previous_identity() {
