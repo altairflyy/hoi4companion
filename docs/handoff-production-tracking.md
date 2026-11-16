@@ -1,5 +1,5 @@
 # Handoff: production step tracking (I-16 not detected)
-Updated: 2026-11-16 ~17:10. Branch `guide-identity-decomposition` (HEAD 1435c86). The fix below is uncommitted.
+Updated: 2026-11-16 17:20. Branch `guide-identity-decomposition`. Fix committed (ca95ba6), app rebuilt and restarted.
 Read `CLAUDE.md` and `docs/AGENT_HANDOFF.md` first. Rust is the only evaluator, and unknown never means complete.
 
 ## User report
@@ -29,6 +29,11 @@ into production, but the step does not read it. The user also wants better contr
 - Docs: `docs/production-guide-monitoring.md#national-model-names-and-unmatched-targets-2026-11-16`.
 - Do not mix these changes up with the other uncommitted work in the same tree: the HUD template images
   (`native/overlay/*`, `card_images.rs`, `hud_service.rs`, `web/guide.js`, `docs/native-overlay.md`).
+
+## Deployed and verified live (2026-11-16 17:20)
+- Rebuilt `_native` backend and overlay (17:16), restarted. Live projection: the I-16 selector is now the `small_plane_airframe` family plus names; target 2 lists `small_plane_airframe_1/I-16`, requested 15. `npm test` 437 pass / 1 skipped against the new binary.
+- Step `word-0002` is still `active`: I-16 15 != 5 (hypothesis 1) and infantry remaining target 23 vs requested 150 with empty reason (hypothesis 2). Next actions 1-2 below are done.
+- Walkthrough (7e9ab59): no "I issued the order" button; one "Completato" checkbox per manual step; "New checklist" moved to the saved-checklists section.
 
 ## Hypotheses (not verified) — why tracking can still look broken after deploying
 1. **Exact equality**: completion is `all` of `guide.production.word-0002.target-N.requested` `eq` N. Live I-16 has
