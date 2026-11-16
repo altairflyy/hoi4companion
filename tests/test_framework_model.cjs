@@ -6,13 +6,6 @@ const wireExamples=require('./fixtures/framework-state.json');
 const fixture=require('./presentation-fixtures.cjs');
 function present(name){const {guide,state,progress,evaluation}=fixture(name);return planning.evaluate(guide,state,{progress,evaluation});}
 const observed=v=>({status:'observed',value:v,source:'process_memory'});
-test('conditions propagate unknown, including negation; zero and false are facts',()=>{
- const state={schema_version:1,usable:true,facts:{zero:observed(0),no:observed(false)}};
- assert.equal(contracts.condition({op:'fact',key:'zero',test:'eq',value:0},state,{}),true);
- assert.equal(contracts.condition({op:'not',arg:{op:'fact',key:'missing',test:'eq',value:true}},state,{}),null);
- assert.equal(contracts.condition({op:'any',args:[{op:'check',key:'yes'},{op:'fact',key:'missing',test:'eq',value:true}]},state,{yes:true}),true);
- assert.equal(contracts.condition({op:'check',key:'no'},state,{no:'yes'}),null);
-});
 test('multiple declarative priorities work for another country without special cases',()=>{
  const result=present('framework: declarative priorities');
  assert.equal(result.focus.next.key,'c');

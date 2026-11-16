@@ -214,22 +214,6 @@
   return result;
  }
  function fact(state,key){const f=state?.schema_version===VERSION&&state?.usable===true?state.facts?.[key]:null;return f&&['observed','calculated'].includes(f.status)&&typeof f.source==='string'&&f.source&&f.value!==null&&f.value!==undefined&&validType(key,f.value)&&(key!=='politics.costs'||f.status==='calculated'&&f.source==='native_political_purchase_formula')&&(!logisticsKey(key)||f.status==='calculated'&&f.source==='native_logistics_ui_formula')&&!(typeof f.value==='number'&&!Number.isFinite(f.value))?f:unknown(f?.status==='unknown'&&f.value===null&&f.source===''&&typeof f.reason==='string'?f.reason:undefined);}
- function condition(node,s,checks={},depth=0){
-  if(!node||depth>16||typeof node!=='object')return null;
-  if(node.op==='all'||node.op==='any'){
-   if(!Array.isArray(node.args)||!node.args.length||node.args.length>64)return null;
-   const values=node.args.map(x=>condition(x,s,checks,depth+1));
-   return node.op==='all'?(values.includes(false)?false:values.includes(null)?null:true):(values.includes(true)?true:values.includes(null)?null:false);
-  }
-  if(node.op==='not'){const v=condition(node.arg,s,checks,depth+1);return v===null?null:!v;}
-  if(node.op==='check')return Object.hasOwn(checks,node.key)&&typeof checks[node.key]==='boolean'?checks[node.key]:null;
-  if(node.op!=='fact')return null;
-  const f=fact(s,node.key);if(f.status==='unknown')return null;
-  if(node.test==='contains')return Array.isArray(f.value)?f.value.includes(node.value):null;
-  if(node.test==='eq')return ['number','string','boolean'].includes(typeof node.value)&&typeof f.value===typeof node.value?f.value===node.value:null;
-  if(node.test==='gte')return typeof f.value==='number'&&Number.isFinite(f.value)&&typeof node.value==='number'&&Number.isFinite(node.value)?f.value>=node.value:null;
-  return null;
- }
  const record=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
  const textLength=x=>[...x].length;
  const jsonNumber=x=>typeof x==='number'&&Number.isFinite(x)&&(!Number.isInteger(x)||Number.isSafeInteger(x));
@@ -404,6 +388,6 @@
   if(node?.arg)checkKeys(node.arg,result);
   return [...result];
  }
- const api={VERSION,state,fact,condition,guide,checkKeys,decisionToken,validLogistics};
+ const api={VERSION,state,fact,guide,checkKeys,decisionToken,validLogistics};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiContracts=api;
 })(typeof window!=='undefined'?window:globalThis);

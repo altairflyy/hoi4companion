@@ -116,7 +116,6 @@ export type GuideProjection = {
 };
 export function state(value: unknown): LiveState;
 export function fact(state: LiveState, key: string): Fact;
-export function condition(node: Condition, state: LiveState, checks?: Record<string, boolean>): boolean|null;
 export function guide(value: unknown): Guide;
 export function checkKeys(node?: Condition): string[];
 export const VERSION: 1;

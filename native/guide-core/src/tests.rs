@@ -54,6 +54,18 @@ fn negation_and_boolean_numeric_types_preserve_unknown() {
     );
 }
 #[test]
+fn zero_and_false_are_observed_facts_not_unknown() {
+    let facts = state(json!({"zero":observed(json!(0)),"no":observed(json!(false))}));
+    for (key, value) in [("zero", json!(0)), ("no", json!(false))] {
+        let c: Condition =
+            serde_json::from_value(json!({"op":"fact","key":key,"test":"eq","value":value}))
+                .unwrap();
+        assert_eq!(c.evaluate(&facts, &BTreeMap::new()), Some(true));
+    }
+    let c: Condition = serde_json::from_value(json!({"op":"check","key":"absent"})).unwrap();
+    assert_eq!(c.evaluate(&facts, &BTreeMap::new()), None);
+}
+#[test]
 fn conditional_groups_have_three_valued_short_circuit_semantics() {
     for (op, known, wanted) in [
         ("all", false, Some(false)),
