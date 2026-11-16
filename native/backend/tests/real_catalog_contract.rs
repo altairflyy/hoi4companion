@@ -71,8 +71,19 @@ fn real_catalog_contract_comparison() {
             assert!(mobilize["action"]["params"]["decision_id"].is_null());
             assert_eq!(mobilize["action"]["params"]["event_option_id"], "bftb_turkey.4.a");
         }
+        // Author abbreviations of event answers (cut mid-word, accents, notes,
+        // answer before an action, after a timing lead-in) reach the real answer.
+        for (country, line, option) in [("GER", "A New Bismarck…", "wuw_GER_civil_war.3.a"), ("AUS", "Osterr…", "AUS_political_events.1.b"),
+            ("SOV", "No Deal…(50PP)", "germany.11.b"), ("SPR", "Which By God…: CW setup*,spy Madrid", "lar_spain.2.c"),
+            ("SWE", "On event, wait 10 days, then: Clearly The Opposition…", "AAT_Sweden.1.c")] {
+            if guide["applies_to"]["country"] == country {
+                for s in a.iter().filter(|s| s["action"]["params"]["instructions"][0] == line) {
+                    assert_eq!(s["action"]["params"]["event_option_id"], option, "{country} {line}");
+                }
+            }
+        }
         for s in a.iter().filter(|s| !s["action"]["params"]["reference_resolution"].is_null()) {
-            eprintln!("GROUNDED {} {} -> {} «{}»", guide["applies_to"]["country"].as_str().unwrap_or(""), s["action"]["params"]["instructions"][0], s["action"]["params"]["reference_resolution"]["option_id"], s["action"]["params"]["reference_resolution"]["option_text"].as_str().unwrap_or(""));
+            eprintln!("GROUNDED {} {} -> {} «{}» basis={} also={}", guide["applies_to"]["country"].as_str().unwrap_or(""), s["action"]["params"]["instructions"][0], s["action"]["params"]["reference_resolution"]["option_id"], s["action"]["params"]["reference_resolution"]["option_text"].as_str().unwrap_or(""), s["action"]["params"]["reference_resolution"]["basis"], s["action"]["params"]["reference_resolution"]["also"]);
         }
         let targets = |v: &[Value]| v.iter().map(|s| s["action"]["params"]["production_targets"].as_array().map_or(0, Vec::len)).sum::<usize>();
         *totals.entry("production_targets_contract1").or_default() += targets(&a);
@@ -165,5 +176,68 @@ fn reference_probe() {
                 full.map(|r| r.to_string().chars().take(400).collect::<String>()).unwrap_or_default(),
                 parent.map(|r| r.to_string().chars().take(400).collect::<String>()).unwrap_or_default());
         }
+    }
+}
+
+/// Opt-in survey of every author reference that could be an event answer:
+/// how each compiled step carries it and whether it is bound live.
+#[test]
+fn event_reference_survey() {
+    if std::env::var("HOI4_REAL_CATALOG").as_deref() != Ok("1") {
+        return eprintln!("event reference survey skipped (set HOI4_REAL_CATALOG=1)");
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let data = root.join(".local");
+    let settings: Value = serde_json::from_slice(&std::fs::read(data.join("settings.json")).unwrap()).unwrap();
+    let guides = request(0, "guide_repository", json!({"directories":[data.join("guides")],"association_directory":data.join("guide-associations")})).unwrap();
+    let library = request(0, "reference_library_manifest", json!({"root":data.join("reference-library")})).unwrap();
+    let catalog = Catalog(request(0, "catalog_open", json!({"settings":settings,"vocabulary_path":root.join("src/hoi4companion/guide_language.json")})).unwrap().as_u64().unwrap());
+    let mut buckets: BTreeMap<String, usize> = BTreeMap::new();
+    let only = std::env::var("HOI4_SURVEY_COUNTRY").ok();
+    for guide in guides["guides"].as_array().unwrap() {
+        let country = guide["applies_to"]["country"].as_str().unwrap_or("?").to_owned();
+        let compiled = request(0, "catalog_runtime_guide", json!({"handle":catalog.0,"guide":guide,"library":library})).unwrap()["definition"].clone();
+        for s in steps(&compiled) {
+            let p = &s["action"]["params"];
+            let text = p["instructions"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" ⏎ ")).unwrap_or_default();
+            if !(text.contains('…') || text.contains("...")) {
+                continue;
+            }
+            let state = if p["event_option_id"].is_string() { if p["reference_resolution"].is_object() { "event_grounded" } else { "event_bound" } }
+                else if p["reference_candidates"].is_object() { "candidates" }
+                else if ["decision_id", "advisor_id", "law_id", "idea_id", "operation_id"].iter().any(|k| p[*k].is_string()) || s["action"]["entity"]["id"].is_string() { "other_bound" }
+                else { "unbound" };
+            *buckets.entry(state.into()).or_default() += 1;
+            if only.as_deref().is_none_or(|c| c == country) && state != "event_bound" && state != "other_bound" {
+                eprintln!("EVREF {country} {} [{state}] kind={} | {} | cand={}", s["key"], s["action"]["kind"], text.chars().take(140).collect::<String>(),
+                    p["reference_candidates"]["candidates"].as_array().map(|c| c.iter().take(3).map(|x| format!("{}:{}", x["kind"].as_str().unwrap_or(""), x["id"].as_str().unwrap_or(""))).collect::<Vec<_>>().join(",")).unwrap_or_default());
+            }
+        }
+    }
+    eprintln!("event reference survey: {buckets:#?}");
+}
+
+#[test]
+fn event_reference_probe() {
+    if std::env::var("HOI4_REAL_CATALOG").as_deref() != Ok("1") {
+        return;
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let data = root.join(".local");
+    let settings: Value = serde_json::from_slice(&std::fs::read(data.join("settings.json")).unwrap()).unwrap();
+    let catalog = Catalog(request(0, "catalog_open", json!({"settings":settings,"vocabulary_path":root.join("src/hoi4companion/guide_language.json")})).unwrap().as_u64().unwrap());
+    let entities = request(0, "catalog_entities", json!({"handle":catalog.0})).unwrap();
+    let rows = entities["entries"].as_array().unwrap();
+    for (text, country) in [("Hang them…", "GER"), ("Perhaps They…", "GER"), ("We have no need…", "GER"), ("A New Bismarck…", "GER"), ("No Deal…", "SOV"),
+        ("Which By God…", "SPR"), ("They can not…", "HUN"), ("McArthur and...", "USA"), ("Absolutely Not…", "AUS"), ("We cannot…", "ENG"), ("We shall…", "ENG"),
+        ("Refuse to scrap…", "USA"), ("They will not…", "GER"), ("We will acc…", "SOV"), ("Clearly The Opposition…", "SWE"), ("All Of Czechoslovakia…", "GER"), ("Osterr…", "AUS")] {
+        let q = text.trim_end_matches('…').trim_end_matches("...").to_lowercase();
+        let named: Vec<String> = rows.iter().filter(|r| ["event_option", "event"].contains(&r["kind"].as_str().unwrap_or(""))
+            && r["name"].as_str().is_some_and(|n| n.to_lowercase().starts_with(&q)))
+            .take(4).map(|r| format!("{}:{}«{}» own={} recv={}", r["kind"].as_str().unwrap_or(""), r["id"].as_str().unwrap_or(""), r["name"].as_str().unwrap_or(""),
+                r["country_condition"].to_string().chars().take(60).collect::<String>(), r["receivers"])).collect();
+        let found = request(0, "catalog_reference_candidates", json!({"handle":catalog.0,"text":text,"country":country,"scope":null})).unwrap();
+        eprintln!("PROBE2 {country} {text:?} name-prefix={named:?} | candidates={}", found.as_array().unwrap().iter().take(4)
+            .map(|c| format!("{}:{}({})", c["kind"].as_str().unwrap_or(""), c["id"].as_str().unwrap_or(""), c["compatible"])).collect::<Vec<_>>().join(" "));
     }
 }

@@ -181,6 +181,7 @@
   // real candidates when no single nation-compatible meaning exists.
   const ref=row.action?.params||{},kindLabel=k=>HoiI18n.t(({event_option:'event answer',event:'event',decision:'decision',focus:'focus',law:'law',idea:'national spirit',technology:'technology'})[k]||k);
   if(ref.reference_resolution)node.append(el('p','operation-copy',HoiI18n.t("Recognized: event answer “{0}” ({1}).",ref.reference_resolution.option_text||ref.reference_resolution.option_id,ref.reference_resolution.event_id)));
+  for(const more of Array.isArray(ref.reference_resolution?.also)?ref.reference_resolution.also:[])node.append(el('p','operation-copy',HoiI18n.t("Also recognized: “{0}” → event answer “{1}” ({2}).",more.text||'',more.option_text||more.option_id,more.event_id)));
   if(ref.binding_withdrawn)node.append(el('p','operation-copy',HoiI18n.t("Link removed: {0} ({1}) is not compatible with this nation. Track it manually.",ref.binding_withdrawn.name||ref.binding_withdrawn.id,ref.binding_withdrawn.id)));
   if(Array.isArray(ref.reference_candidates?.candidates)&&ref.reference_candidates.candidates.length)node.append(el('p','operation-copy',HoiI18n.t(ref.reference_candidates.status==='no_compatible_candidate'?"No match for this nation. Similar names in the game: {0}":"Possible references: {0}",ref.reference_candidates.candidates.map(c=>`${c.name||c.id} (${kindLabel(c.kind)})`).join(' · '))));
   // Items listed without a quantity stay in this step; never a completion target.

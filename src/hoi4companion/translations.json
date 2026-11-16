@@ -1547,7 +1547,8 @@
     "Step unchecked again.": "Passo di nuovo da fare.",
     "Not changed: {0}": "Nessuna modifica: {0}",
     "Show/hide step card (Ctrl+Alt+H)": "Mostra/nascondi scheda passo (Ctrl+Alt+H)",
-    "HOI4 Companion · Step card": "HOI4 Companion · Scheda passo"
+    "HOI4 Companion · Step card": "HOI4 Companion · Scheda passo",
+    "Also recognized: “{0}” → event answer “{1}” ({2}).": "Riconosciuto anche: “{0}” → risposta all’evento “{1}” ({2})."
   },
   "legacy": {
     "Contesto GUI della produzione non qualificato: ": "Production GUI context is not qualified: ",

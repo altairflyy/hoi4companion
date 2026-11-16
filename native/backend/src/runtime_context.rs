@@ -83,8 +83,11 @@ impl Context {
         let prepared = runtime_definition::prepare(source, &self.index, &self.source["continuous_focuses"], &self.library)?;
         let mut presented = self.present(&prepared)?;
         crate::decomposition::withdraw_incompatible_decisions(&mut presented, &self.index)?;
+        // Children split from multi-line blocks carry their own event answers.
+        let mut decomposed = self.decompose(&presented)?;
+        crate::reference_candidates::ground_references(&mut decomposed, &self.index)?;
         // Present again so withdrawn bindings and new children get fresh names.
-        self.present(&self.decompose(&presented)?)
+        self.present(&decomposed)
     }
     /// Contract-2 compile of an already prepared+presented (contract-1) guide:
     /// headers use promote's catalog condition compiler; new children are
