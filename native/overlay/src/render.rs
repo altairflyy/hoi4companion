@@ -78,12 +78,13 @@ fn overlaps(a:[f32;4],b:[f32;4],gap:f32)->bool {
 /// Place captions outside all highlighted controls. Production uses a compact
 /// side column, rather than covering the previous line's name/factory counters.
 /// When no safe space remains, keep the border and omit its caption.
-fn caption_layout(frame:&OverlayFrame,scale:f32)->Vec<Option<[f32;4]>> {
+fn caption_layout(frame:&OverlayFrame,scale:f32)->Vec<Option<[f32;4]>> {caption_layout_avoiding(frame,scale,&[])}
+fn caption_layout_avoiding(frame:&OverlayFrame,scale:f32,avoid:&[[f32;4]])->Vec<Option<[f32;4]>> {
     let width=frame.target.width as f32;let height=frame.target.height as f32;
     let gap=6.0*scale;
     let production_right=frame.marks.iter().filter(|m|m.panel=="production")
         .map(|m|m.rect[2]).fold(0.0_f32,f32::max);
-    let mut placed=Vec::new();let mut result=Vec::new();
+    let mut placed:Vec<[f32;4]>=avoid.to_vec();let mut result=Vec::new();
     for mark in &frame.marks {
         let production=mark.panel=="production";
         if mark.caption.is_empty() || production&&mark.active {result.push(None);continue;}
@@ -128,8 +129,27 @@ fn caption_layout(frame:&OverlayFrame,scale:f32)->Vec<Option<[f32;4]>> {
 pub struct OverlayFrame {
     pub target: TargetWindow,
     pub marks: Vec<Highlight>,
+    /// The guide step to do now, shown as a panel on the right of the game
+    /// window (under the theater bar), with or without highlighted controls.
+    pub card: Option<StepCard>,
     pub observed_at: Instant,
     pub valid_for: Duration,
+}
+
+/// Already localized card text; guide text stays as authored.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct StepCard {
+    pub header: String,
+    pub heading: String,
+    pub note: String,
+    pub body: String,
+    pub badge: String,
+}
+/// Card frame on the right edge, below the game's top bar and theater selector.
+fn card_origin(width:f32,height:f32,scale:f32)->(f32,f32,f32) {
+    let card_width=(360.0*scale).min(width*0.42);
+    let top=(height*0.13).max(96.0*scale).min(height*0.5);
+    (width-card_width-16.0*scale,top,card_width)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -167,7 +187,7 @@ impl Shared {
         // change: keep the existing composition surface until geometry, content
         // or target identity changes. UI status/guide refreshes use the same rule.
         let changed=self.desired.as_ref().is_none_or(|previous|
-            previous.target!=frame.target || previous.marks!=frame.marks);
+            previous.target!=frame.target || previous.marks!=frame.marks || previous.card!=frame.card);
         self.desired=Some(frame);
         if changed {self.revision=self.revision.wrapping_add(1);}
     }
@@ -264,7 +284,8 @@ impl Drop for Renderer {fn drop(&mut self) {self.shutdown();}}
 fn validate_frame(frame:&OverlayFrame)->Result<(),String> {
     if frame.target.hwnd==0 || frame.target.pid==0 || frame.target.width==0 || frame.target.height==0
         || frame.target.width>16384 || frame.target.height>16384 || frame.marks.len()>MAX_MARKS
-        || frame.valid_for.is_zero() || frame.valid_for>Duration::from_secs(2) {
+        || frame.valid_for.is_zero() || frame.valid_for>Duration::from_secs(2)
+        || frame.card.as_ref().is_some_and(|c|[&c.header,&c.heading,&c.note,&c.body,&c.badge].iter().any(|t|t.chars().count()>2000)) {
         return Err("Invalid overlay frame bounds or lifetime".into());
     }
     for mark in &frame.marks {
@@ -348,6 +369,10 @@ struct Paint {
     fills:[ID2D1SolidColorBrush;3],
     shadow:ID2D1SolidColorBrush,
     label_bg:ID2D1SolidColorBrush,
+    card_bg:ID2D1SolidColorBrush,
+    card_border:ID2D1SolidColorBrush,
+    text:ID2D1SolidColorBrush,
+    muted:ID2D1SolidColorBrush,
 }
 impl Paint {
     unsafe fn new(context:&ID2D1DeviceContext)->windows::core::Result<Self> {
@@ -359,7 +384,11 @@ impl Paint {
             let fill=|i:usize|context.CreateSolidColorBrush(&D2D1_COLOR_F {a:0.09,..colors[i]},None);
             Ok(Self {strokes:[stroke(0)?,stroke(1)?,stroke(2)?],fills:[fill(0)?,fill(1)?,fill(2)?],
                 shadow:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.01,g:0.02,b:0.03,a:0.85},None)?,
-                label_bg:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.035,g:0.055,b:0.075,a:0.82},None)?})
+                label_bg:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.035,g:0.055,b:0.075,a:0.82},None)?,
+                card_bg:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.035,g:0.055,b:0.075,a:0.88},None)?,
+                card_border:context.CreateSolidColorBrush(&D2D1_COLOR_F {a:0.55,..colors[0]},None)?,
+                text:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.86,g:0.89,b:0.91,a:1.0},None)?,
+                muted:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.62,g:0.69,b:0.73,a:1.0},None)?})
         }
     }
 }
@@ -373,6 +402,7 @@ struct Graphics {
     write: IDWriteFactory,
     paint: Paint,
     formats: Option<(f32,IDWriteTextFormat,IDWriteTextFormat)>,
+    card_formats: Option<(f32,[IDWriteTextFormat;4])>,
     bitmap: Option<ID2D1Bitmap1>,
     size:(u32,u32),
 }
@@ -403,7 +433,7 @@ impl Graphics {
             visual.SetContent(&swap)?;target.SetRoot(&visual)?;composition.Commit()?;
             let write:IDWriteFactory=DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
             let paint=Paint::new(&context)?;
-            Ok(Self {context,swap,_composition:composition,_target:target,_visual:visual,write,paint,formats:None,bitmap:None,size:(0,0)})
+            Ok(Self {context,swap,_composition:composition,_target:target,_visual:visual,write,paint,formats:None,card_formats:None,bitmap:None,size:(0,0)})
         }
     }
     unsafe fn size(&mut self,width:u32,height:u32)->windows::core::Result<()> {
@@ -418,6 +448,33 @@ impl Graphics {
                 ..Default::default()};
             let bitmap=self.context.CreateBitmapFromDxgiSurface(&surface,Some(&properties))?;
             self.context.SetTarget(&bitmap);self.bitmap=Some(bitmap);self.size=(width,height);Ok(())
+        }
+    }
+    /// Card panel rectangle and its measured text blocks (text, format index,
+    /// rectangle, tone: 0 accent, 1 text, 2 muted, 3 choice). Text that does
+    /// not fit above the window's bottom edge is clipped.
+    unsafe fn card_layout(&self,card:&StepCard,frame:&OverlayFrame,scale:f32)
+        ->windows::core::Result<([f32;4],Vec<(Vec<u16>,usize,D2D_RECT_F,u8)>)> {
+        unsafe {
+            let (width,height)=(frame.target.width as f32,frame.target.height as f32);
+            let (left,top,card_width)=card_origin(width,height,scale);
+            let pad=14.0*scale;let inner=(card_width-2.0*pad).max(40.0);
+            let formats=&self.card_formats.as_ref().unwrap().1;
+            let mut lines=Vec::new();let mut y=top+12.0*scale;
+            let bottom_limit=height-16.0*scale;
+            for (text,format,tone) in [(&card.header,0usize,0u8),(&card.heading,1,1),(&card.note,2,2),(&card.body,3,1),(&card.badge,2,3)] {
+                let text:String=text.chars().filter(|c|*c=='\n'||!c.is_control()).collect();
+                if text.trim().is_empty() {continue;}
+                let wide:Vec<u16>=text.encode_utf16().collect();
+                let available=(bottom_limit-12.0*scale-y).max(0.0);
+                if available<8.0*scale {break;}
+                let layout=self.write.CreateTextLayout(&wide,&formats[format],inner,available)?;
+                let mut metrics=DWRITE_TEXT_METRICS::default();layout.GetMetrics(&mut metrics)?;
+                let used=metrics.height.min(available);
+                lines.push((wide,format,D2D_RECT_F {left:left+pad,top:y,right:left+pad+inner,bottom:y+used},tone));y+=used+8.0*scale;
+            }
+            let bottom=(y-8.0*scale+12.0*scale).min(bottom_limit).max(top+24.0*scale);
+            Ok(([left,top,left+card_width,bottom],lines))
         }
     }
     unsafe fn draw(&mut self,frame:&OverlayFrame)->windows::core::Result<()> {
@@ -435,10 +492,30 @@ impl Graphics {
             compact.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
             self.formats=Some((scale,format,compact));
             }
+            if self.card_formats.as_ref().is_none_or(|(previous,_)|*previous!=scale) {
+                let make=|size:f32,weight:DWRITE_FONT_WEIGHT|self.write.CreateTextFormat(w!("Segoe UI"),None,weight,
+                    DWRITE_FONT_STYLE_NORMAL,DWRITE_FONT_STRETCH_NORMAL,size*scale,w!("it-IT"));
+                let formats=[make(11.0,DWRITE_FONT_WEIGHT_SEMI_BOLD)?,make(16.0,DWRITE_FONT_WEIGHT_SEMI_BOLD)?,
+                    make(12.0,DWRITE_FONT_WEIGHT_NORMAL)?,make(13.0,DWRITE_FONT_WEIGHT_NORMAL)?];
+                for format in &formats {format.SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP)?;}
+                self.card_formats=Some((scale,formats));
+            }
+            let card=match frame.card.as_ref() {Some(card)=>Some(self.card_layout(card,frame,scale)?),None=>None};
+            let avoid:Vec<[f32;4]>=card.iter().map(|c|c.0).collect();
             let (_,format,compact)=self.formats.as_ref().unwrap();
-            let captions=caption_layout(frame,scale);
+            let captions=caption_layout_avoiding(frame,scale,&avoid);
             self.context.BeginDraw();self.context.Clear(Some(&D2D1_COLOR_F {r:0.0,g:0.0,b:0.0,a:0.0}));
             let result={
+                if let Some(([left,top,right,bottom],lines))=card.as_ref() {
+                    let panel=D2D1_ROUNDED_RECT {rect:D2D_RECT_F {left:*left,top:*top,right:*right,bottom:*bottom},radiusX:6.0*scale,radiusY:6.0*scale};
+                    self.context.FillRoundedRectangle(&panel,&self.paint.card_bg);
+                    self.context.DrawRoundedRectangle(&panel,&self.paint.card_border,1.0*scale,None);
+                    let card_formats=&self.card_formats.as_ref().unwrap().1;
+                    for (text,format,rect,tone) in lines {
+                        let brush=match tone {0=>&self.paint.strokes[0],1=>&self.paint.text,2=>&self.paint.muted,_=>&self.paint.strokes[2]};
+                        self.context.DrawText(text,&card_formats[*format],rect,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
+                    }
+                }
                 for (index,mark) in frame.marks.iter().enumerate() {
                     let tone=if mark.choice {2}else if mark.active && mark.panel!="event" {1}else{0};
                     let stroke=&self.paint.strokes[tone];let fill=&self.paint.fills[tone];
@@ -518,7 +595,7 @@ impl Ui {
             }
             let Some(frame)=frame else {self.hide();return;};
             if self.paused.load(Ordering::Acquire) || frame.observed_at.elapsed()>frame.valid_for
-                || frame.marks.is_empty() || !target_matches(&frame.target) {
+                || frame.marks.is_empty()&&frame.card.is_none() || !target_matches(&frame.target) {
                 self.hide();return;
             }
             if redraw || revision!=self.last_revision || !self.visible {
@@ -707,7 +784,7 @@ mod tests {
     }
     fn frame()->OverlayFrame {OverlayFrame {target:TargetWindow {hwnd:1,pid:1,x:0,y:0,width:800,height:600},
         marks:vec![Highlight {rect:[10.0,20.0,80.0,60.0],caption:"Ricerca".into(),active:false,choice:false,panel:"research".into()}],
-        observed_at:Instant::now(),valid_for:Duration::from_secs(1)}}
+        card:None,observed_at:Instant::now(),valid_for:Duration::from_secs(1)}}
     #[test]
     fn nonfinite_out_of_bounds_and_excessive_lifetimes_are_rejected() {
         assert!(validate_frame(&frame()).is_ok());
@@ -752,6 +829,21 @@ mod tests {
                 assert!(layout[..i].iter().flatten().all(|other|!overlaps(r,*other,0.0)));
             }
         }
+    }
+    #[test]
+    fn step_card_sits_right_under_the_top_bar_and_captions_avoid_it() {
+        for (w,h,scale) in [(1920.0,1080.0,1.0),(2560.0,1440.0,1.5),(1280.0,720.0,1.0)] {
+            let (left,top,width)=card_origin(w,h,scale);
+            assert!(left>w/2.0,"right half");assert!((left+width-(w-16.0*scale)).abs()<0.01);
+            assert!(top>=96.0*scale&&top<h/2.0,"below the top bar and theater selector");
+        }
+        let mut f=frame();f.marks[0].rect=[560.0,100.0,700.0,140.0];
+        let avoid=[[420.0,40.0,790.0,400.0]];
+        let placed=caption_layout_avoiding(&f,1.0,&avoid)[0];
+        assert!(placed.is_none_or(|r|!overlaps(r,avoid[0],0.0)));
+        let mut card=frame();card.marks.clear();card.card=Some(StepCard {heading:"Build".into(),..Default::default()});
+        assert!(validate_frame(&card).is_ok());
+        card.card.as_mut().unwrap().body="x".repeat(2001);assert!(validate_frame(&card).is_err());
     }
     #[test]
     fn completed_production_keeps_border_without_caption_and_narrow_view_never_covers_controls() {

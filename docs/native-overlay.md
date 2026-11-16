@@ -87,3 +87,6 @@ Build with scripts/build-overlay.ps1. English is the default HUD control languag
 Detailed historical implementation notes and recorded evidence are preserved in the
 [Italian reference](it/native-overlay.md). Those records retain their original dates and
 verification limits; they are not a claim that every check was rerun for this translation.
+
+## Current step card (2026-11-16)
+While HOI4 is in the foreground and the selected guide applies to the observed game, the HUD shows the guide step to do now in a panel on the right edge of the game window, under the top bar and theater selector (`card_origin` in `native/overlay/src/render.rs`). It appears with or without highlighted controls. The backend adds `step_card` to the HUD snapshot (`hud_service::step_card`): the first not-yet-done step of the main `operations` track (else of any track), as chosen by the Rust evaluation, with its numbering (reminders not counted), the author's text, and a recognized event answer shown first with the author's shorthand under it. Captions of highlighted controls are placed outside the card. Mockup: Claude Design canvas "HUD step card". The card is display-only: it never clicks and never changes the evaluation.

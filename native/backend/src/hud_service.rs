@@ -57,6 +57,8 @@ impl Hud {
         if error.is_empty() && !usable {
             self.snapshot["idle_explanation"] = notice(runtime);
         }
+        // Shown by the HUD whether or not a control can be highlighted.
+        self.snapshot["step_card"] = if error.is_empty() { step_card(guide, runtime) } else { Value::Null };
         Ok(self.snapshot.clone())
     }
     pub(crate) fn unavailable(&mut self, error: &str) -> Value {
@@ -68,6 +70,46 @@ impl Hud {
         self.snapshot = json!({"version":self.version,"proposed":[],"usable":false,"title":"","error":error,"age_ms":null,"guide_id":null,"guide_server_id":null,"idle_explanation":null});
         self.snapshot.clone()
     }
+}
+/// The guide step the player should do now, as authored, for the HUD card:
+/// the first not-yet-done step of the main (operations) track, else of any
+/// track. Text is the author's (plus a recognized full name); status comes
+/// from the Rust evaluation only.
+fn step_card(guide: &Value, runtime: &Value) -> Value {
+    let tracks = &runtime["tracks"];
+    let names: Vec<&str> = std::iter::once("operations")
+        .chain(tracks.as_object().into_iter().flat_map(|m| m.keys().map(String::as_str)).filter(|k| *k != "operations"))
+        .collect();
+    let Some((track, key)) = names
+        .iter()
+        .find_map(|t| tracks[*t]["next"].as_str().map(|k| (*t, k)))
+    else {
+        return Value::Null;
+    };
+    let rows = guide["tracks"][track].as_array().cloned().unwrap_or_default();
+    let Some(position) = rows.iter().position(|r| r["key"] == key) else {
+        return Value::Null;
+    };
+    let step = &rows[position];
+    let params = &step["action"]["params"];
+    let clean = |v: &Value| v.as_str().map(|s| s.trim().to_owned()).filter(|s| !s.is_empty());
+    let instructions: Vec<String> = params["instructions"].as_array().into_iter().flatten().filter_map(clean).collect();
+    let resolved = clean(&params["reference_resolution"]["option_text"]).or_else(|| clean(&params["event_option_name"]));
+    let title = clean(&step["title"]).or_else(|| instructions.first().cloned()).unwrap_or_else(|| key.to_owned());
+    let heading = resolved.clone().map(|r| format!("«{r}»")).unwrap_or_else(|| title.clone());
+    let abbreviation = resolved.as_ref().and_then(|_| instructions.first().cloned().or_else(|| Some(title.clone())));
+    let mut body: Vec<String> = instructions
+        .iter()
+        .filter(|l| Some(*l) != abbreviation.as_ref() && **l != heading && **l != title)
+        .cloned()
+        .collect();
+    let mut length = 0;
+    body.retain(|l| { length += l.chars().count(); length <= 900 });
+    let status = crate::hud_geometry::rows(&runtime["steps"]).into_iter().find(|r| r["key"] == key).map(|r| r["status"].clone()).unwrap_or(Value::Null);
+    let total = rows.iter().filter(|r| r["tracking"] != "reminder").count();
+    let index = rows[..=position].iter().filter(|r| r["tracking"] != "reminder").count();
+    json!({"key":key,"track":track,"index":index,"total":total,"heading":heading,"abbreviation":abbreviation,
+        "body":body,"status":status,"event_answer":resolved.is_some()})
 }
 fn notice(runtime: &Value) -> Value {
     let capacity = &runtime["parallel"]["research"]["capacity"];
@@ -121,6 +163,23 @@ fn notice(runtime: &Value) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn step_card_is_the_next_operation_with_its_recognized_answer() {
+        let guide = json!({"tracks":{"operations":[
+            {"key":"word-0001","title":"Done","action":{"kind":"manual","params":{"instructions":["Done"]}}},
+            {"key":"word-0002","tracking":"reminder","title":"Memo","action":{"kind":"manual"}},
+            {"key":"word-0003","title":"Mobilize The…","action":{"kind":"manual","params":{
+                "instructions":["Mobilize The…","Queue civilian factories"],
+                "reference_resolution":{"option_text":"Mobilize the Armed Forces immediately!"}}}}]}});
+        let runtime = json!({"tracks":{"operations":{"next":"word-0003"}},"steps":[{"key":"word-0003","status":"ready"}]});
+        let card = step_card(&guide, &runtime);
+        assert_eq!(card["heading"], "«Mobilize the Armed Forces immediately!»");
+        assert_eq!(card["abbreviation"], "Mobilize The…");
+        assert_eq!(card["body"], json!(["Queue civilian factories"]));
+        assert_eq!((card["index"].clone(), card["total"].clone()), (json!(2), json!(2)), "reminders are not numbered");
+        assert_eq!(card["status"], "ready");
+        assert!(step_card(&guide, &json!({"tracks":{"operations":{"next":null}}})).is_null());
+    }
     #[test]
     fn errors_never_keep_usable_targets_or_previous_identity() {
         let mut hud = Hud::default();

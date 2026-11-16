@@ -23,7 +23,7 @@ use windows::Win32::System::Threading::{CreateMutexW,OpenProcess,QueryFullProces
 use windows::Win32::UI::HiDpi::{SetProcessDpiAwarenessContext,DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2};
 use windows::Win32::UI::WindowsAndMessaging::{GetClientRect,GetForegroundWindow,GetWindowThreadProcessId,IsIconic,IsWindowVisible};
 use capture::{Capture,Frame};
-use render::{Renderer,TargetWindow,Highlight,OverlayFrame,ControlAction};
+use render::{Renderer,TargetWindow,Highlight,OverlayFrame,ControlAction,StepCard};
 
 struct Options {
     ui_language:String, port:u16, guide:String, start:bool, proof:Option<PathBuf>,
@@ -163,6 +163,26 @@ fn marks(rows:&[Value],width:u32,height:u32)->Vec<Highlight> {
              active:if panel=="production"{row["goal_satisfied"]==true&&row["navigation_stage"]=="line"}else{row["status"]=="active"&&panel!="event"},panel})
     }).take(64).collect()
 }
+/// The step to do now (backend `step_card`), localized labels around the
+/// author's text. None when the guide does not apply to the observed game.
+fn step_card(snapshot:&Value)->Option<StepCard> {
+    let card=&snapshot["step_card"];
+    let heading=card["heading"].as_str().filter(|s|!s.trim().is_empty())?;
+    let text=|v:&Value|v.as_str().unwrap_or("").trim().to_owned();
+    let mut header=match (card["index"].as_u64(),card["total"].as_u64()) {
+        (Some(i),Some(t)) if t>0=>i18n::format("Step {0} of {1}",&[&i.to_string(),&t.to_string()]),
+        _=>String::new(),
+    };
+    let title=text(&snapshot["title"]);
+    if !title.is_empty() {header=if header.is_empty(){title}else{format!("{header} · {title}")};}
+    let note=card["abbreviation"].as_str().filter(|s|!s.trim().is_empty())
+        .map(|a|i18n::format("In the guide: “{0}”",&[a.trim()])).unwrap_or_default();
+    let body=card["body"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::trim)
+        .filter(|l|!l.is_empty()).collect::<Vec<_>>().join("
+");
+    let badge=if card["event_answer"]==true {i18n::text("Event answer recognized: the button is highlighted when the event appears.")}else{String::new()};
+    Some(StepCard {header,heading:heading.trim().to_owned(),note,body,badge})
+}
 fn guides(snapshot:&Value)->Vec<(String,String)> {
     snapshot["guides"].as_array().into_iter().flatten().filter_map(|g|
         Some((g["id"].as_str()?.to_owned(),g["title"].as_str()?.to_owned()))).collect()
@@ -278,7 +298,12 @@ fn run(options:Options)->Result<(),String> {
         renderer.set_guides(guides(&snapshot),snapshot["guide_id"].as_str().unwrap_or(""));
         if renderer.is_paused()||current.is_none()||snapshot["usable"]!=true {
             if let Some(worker)=visual.as_mut(){worker.invalidate();}
-            renderer.hide();capture=None;target=None;last_scene=None;last_matches.clear();cached_ocr=None;
+            let card=if renderer.is_paused(){None}else{current.as_ref().and_then(|_|step_card(&snapshot))};
+            match (card,current.as_ref()) {
+                (Some(card),Some(view))=>{renderer.show(OverlayFrame {target:view.clone(),marks:Vec::new(),card:Some(card),observed_at:Instant::now(),valid_for:Duration::from_millis(750)})?;},
+                _=>renderer.hide(),
+            }
+            capture=None;target=None;last_scene=None;last_matches.clear();cached_ocr=None;
             let nation_unknown=snapshot["guide_filter"]["status"]=="unavailable";
             let message=if renderer.is_paused(){"Overlay paused"}else if nation_unknown{"Waiting for a validated game nation to list compatible guides"}else if current.is_none(){"Switch to HOI4 to show highlights"}
                 else{snapshot["idle_explanation"]["message"].as_str().or_else(||snapshot["error"].as_str().filter(|s|!s.is_empty())).unwrap_or("No current guide recommendation")};
@@ -314,8 +339,9 @@ fn run(options:Options)->Result<(),String> {
             }else{Vec::new()};
             if previous_matches!=last_matches {native_unchanged_since=Instant::now();}
             let highlights=marks(&last_matches,view.width,view.height);
-            if highlights.is_empty(){renderer.hide();}
-            else{renderer.show(OverlayFrame {target:view.clone(),marks:highlights,observed_at:native_observed.unwrap(),valid_for:Duration::from_millis(750)})?;}
+            let card=step_card(&snapshot);
+            if highlights.is_empty()&&card.is_none(){renderer.hide();}
+            else{renderer.show(OverlayFrame {target:view.clone(),observed_at:if highlights.is_empty(){Instant::now()}else{native_observed.unwrap()},marks:highlights,card,valid_for:Duration::from_millis(750)})?;}
             native_frames+=1;
             if last_status.elapsed()>Duration::from_millis(500){
                 let ms=geometry["geometry_ms"].as_f64().unwrap_or(0.);
@@ -411,9 +437,10 @@ fn run(options:Options)->Result<(),String> {
         }
         if game_view().as_ref()!=Some(&view){renderer.hide();continue;}
         let highlights=marks(&last_matches,view.width,view.height);
-        if highlights.is_empty(){renderer.hide();}
-        else if changed||last_draw.elapsed()>Duration::from_millis(250){
-            renderer.show(OverlayFrame {target:view.clone(),marks:highlights,observed_at:verified_at,valid_for:Duration::from_millis(750)})?;
+        let card=step_card(&snapshot);
+        if highlights.is_empty()&&card.is_none(){renderer.hide();}
+        else if changed||last_draw.elapsed()>Duration::from_millis(250)||highlights.is_empty(){
+            renderer.show(OverlayFrame {target:view.clone(),observed_at:if highlights.is_empty(){Instant::now()}else{verified_at},marks:highlights,card,valid_for:Duration::from_millis(750)})?;
             last_draw=Instant::now();
         }
         if last_status.elapsed()>Duration::from_millis(500){
@@ -512,6 +539,18 @@ mod tests {
         let result=marks(&rows,500,400);
         assert_eq!(result.len(),2);
         assert!(result.iter().all(|mark|mark.choice&&!mark.active));
+    }
+    #[test]
+    fn step_card_keeps_author_text_and_shows_recognized_answer_first() {
+        let snapshot=json!({"title":"USSR","step_card":{"index":8,"total":42,"heading":"«Mobilize the Armed Forces immediately!»",
+            "abbreviation":"Mobilize The…","body":["Queue civilian factories"],"event_answer":true}});
+        let card=step_card(&snapshot).unwrap();
+        assert_eq!(card.header,"Step 8 of 42 · USSR");
+        assert_eq!(card.heading,"«Mobilize the Armed Forces immediately!»");
+        assert_eq!(card.note,"In the guide: “Mobilize The…”");
+        assert_eq!(card.body,"Queue civilian factories");
+        assert!(!card.badge.is_empty());
+        assert!(step_card(&json!({"step_card":null})).is_none());
     }
     #[test]
     fn explanations_separate_unknown_evidence_from_visible_marks_and_errors() {

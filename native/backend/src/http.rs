@@ -999,6 +999,7 @@ impl Service {
             if !crate::hud_geometry::rows(&eligible["guides"]).iter().any(|g|g["id"] == result["guide_id"]) {
                 result["usable"] = json!(false);
                 result["proposed"] = json!([]);
+                result["step_card"] = Value::Null;
             }
         }
         if kind != "geometry" && kind != "observe" {
