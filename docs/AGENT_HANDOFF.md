@@ -1,5 +1,16 @@
 # Shared agent handoff
-Updated: 2026-11-15. Repository-relative paths throughout; replace stale state, do not append session histories.
+Updated: 2026-11-16. Current live-building/marker status supersedes older milestone deployment notes below.
+
+## Current live construction and map markers
+- DONE 2026-11-16 23:00 (a53908d, Claude): HUD stale intervals fixed. Cause (traced backend + cdb thread dump): the read loop held the application lock while `bind_campaign` pinned up to 44 new checklists to cold current definitions (`compile_new`, ~3 min). Now `Service::compile_definitions` compiles them off the lock (active guide first), `bind` defers while cold (progress unverified meanwhile), and failed compiles are memoized. Temporary HOI4_TRACE_HUD trace removed. Live after rebuild: 4-min HUD series, all fresh deliveries (age 0.2-1.7 s), ROM guides `live accepted`. The HUD reports "Campaign is not valid" only because the active guide is SOV while the game is ROM. Tests: backend all pass (lib 158), overlay 50, npm 439 (one restart-timing flake in test_native_service on the first run, passed on rerun). Marker visuals in gameplay (pan/zoom) still not verified.
+- Current HUD selects first authored incomplete step, including active/unverifiable; live SOV step2 (INFRA+MILs in six states) remains active. First Moscow INFRA+Land Facility compound is complete. It no longer skips to Navy step4.
+- Construction parser binds catalog IDs/scopes for fully understood compounds; queued_or_built accepts exact native queue membership or observed built level per target. Unspecified fixed caps use catalog maximum; single-level facilities use1. Shared-slot factory effective maximum remains unqualified.
+- Map: effective map/buildings.txt supplies state anchors; qualified camera projects12px markers using IDs, independent of display names. Only current card targets, observed ownership/country/session, exact PE hash and matching viewport admit points. No OCR/capture fallback for map proposals. See [native overlay](native-overlay.md#construction-map-markers-2026-11-16).
+- Qualification: read-only external probe of HOI4PID64832/SHA709f916afbebcfe64a26678702691aeb40945d206074c2a80de8e9d601fce148 matched39 native VictoryPoint icons within0.499px (including native alignment);8 airbases corroborate. Unit stacks not qualified. No game input/injection/write/capture.
+- Verification on final source: backend158pass/2ignored; contracts10; guide_evaluation44; overlay50; JSsession/native-tooling22; native-service1; HUD-demand HTTP1. New demand test fails as expected on the pre-lease release and passes on candidate. Cache regression and both HTTP suites pass on final candidate. Visual gameplay, pan/zoom/resize transitions pending.
+- Projection fixes already installed: removed browser artificial5s abort and delivery-starvation race; lightweight foreign scope rejection and immutable scope cache. JSsession20 passed. Startup/cold APIs can still take seconds; warm HUD snapshot was1ms/stateage179–733ms.
+- User authorizes closing/installing/restarting Companion+HUD automatically. Never close/foreground/interact with HOI4. No commit/push.
+
 
 ## Objective and progress
 - Priority: understand the installed same-author guides using the existing Rust architecture, not build a universal language interpreter.
