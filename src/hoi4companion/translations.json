@@ -845,6 +845,8 @@
     "Target": "Obiettivo",
     "Requested live": "Richieste live",
     "Available live": "Disponibili live",
+    "Quantity not given in the guide": "Quantità non indicata nella guida",
+    "Also listed without a quantity: {0}. Check them in the game.": "Elencati anche senza quantità: {0}. Verificali nel gioco.",
     "requested factories": "fabbriche richieste",
     "assigned factories": "fabbriche assegnate",
     "Initially assigned: ": "Assegnate inizialmente: ",

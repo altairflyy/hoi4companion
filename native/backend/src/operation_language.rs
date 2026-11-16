@@ -358,13 +358,18 @@ pub fn promote(guide: &Value, index: &Index, library: &Value) -> Result<Value> {
                     let old = arr(&row["action"]["params"]["production_targets"]);
                     let new = arr(&parsed["params"]["production_targets"]);
                     let signatures = new.iter().map(production_signature).collect::<Vec<_>>();
-                    if new.len() > old.len()
-                        && old
-                            .iter()
-                            .all(|p| signatures.contains(&production_signature(p)))
-                    {
+                    let covered = old
+                        .iter()
+                        .all(|p| signatures.contains(&production_signature(p)));
+                    if new.len() > old.len() && covered {
                         row["action"]["params"]["production_targets"] = json!(new);
                         changes.push(change(&row, json!([row["key"]]), 0, false));
+                    }
+                    // Contract-4 parsing only: unquantified lines of the same
+                    // production instruction stay in this step.
+                    if covered && parsed["params"]["production_unquantified"].is_array() {
+                        row["action"]["params"]["production_unquantified"] =
+                            parsed["params"]["production_unquantified"].clone();
                     }
                 }
             }

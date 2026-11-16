@@ -327,12 +327,51 @@ pub fn production(
         }
     }
     let mut parsed = vec![];
+    // Contract 4: the author aggregates items sharing a quantity ("Sup Equip:,
+    // I-16:5" = both at 5), also with a trailing colon on the earlier items,
+    // which takes the next explicit quantity like "Art, AA:2". Only a "Name:"
+    // with no later quantity at all stays in the same production step as an
+    // unquantified line (shown, never part of completion). Nothing invented.
+    let mut unquantified = vec![];
+    let mut consumed = HashSet::new();
+    let contract4 = SPLIT_PAIRS.with(|c| c.get());
     for (i, part) in parts.iter().enumerate() {
         let part = shared
             .get(&i)
-            .map(|q| format!("{part}:{q}"))
+            .map(|q| {
+                let name = if contract4 { part.trim_end().trim_end_matches(':').trim_end() } else { part.as_str() };
+                format!("{name}:{q}")
+            })
             .unwrap_or_else(|| part.clone());
         let Some(entry) = item.captures(&part) else {
+            if SPLIT_PAIRS.with(|c| c.get())
+                && let Some(bare) = regex(r"^\s*([^:\d][^:]*?)\s*:\s*$").captures(&parts[i])
+            {
+                let query = bare[1].trim();
+                let name = aliases.get(&query.to_lowercase()).map(String::as_str).unwrap_or(query);
+                let mut probe = json!({"equipment_name":name,"category":"production","requested_factories":1});
+                if let Some(category) = category {
+                    probe["production_category"] = json!(category);
+                }
+                let bound = production_binding::bind(
+                    &json!({"key":"probe","action":{"kind":"manual","params":probe}}),
+                    index,
+                    country,
+                    library,
+                    declared,
+                )?;
+                if bound["reason"] == "production_live_assignment" {
+                    let mut line = bound["step"]["action"]["params"].clone();
+                    if let Some(map) = line.as_object_mut() {
+                        map.remove("requested_factories");
+                        map.remove("category");
+                    }
+                    line["source_text"] = json!(original[i]);
+                    line["quantity"] = json!("unspecified");
+                    unquantified.push(line);
+                    consumed.insert(i);
+                }
+            }
             parsed.push(None);
             continue;
         };
@@ -425,6 +464,7 @@ pub fn production(
             {
                 targets.push(params)
             }
+            _ if consumed.contains(&i) => {}
             _ => remainder.push(original[i].clone()),
         }
     }
@@ -432,8 +472,12 @@ pub fn production(
     if targets.is_empty() || targets.len() > 64 {
         return Ok(None);
     }
+    let mut params = json!({"category":"production","production_targets":targets});
+    if !unquantified.is_empty() {
+        params["production_unquantified"] = json!(unquantified);
+    }
     Ok(Some(
-        json!({"params":{"category":"production","production_targets":targets},"remainder":if remainder.is_empty(){Value::Null}else{json!(format!("{prefix}: {}",remainder.join(", ")))}}),
+        json!({"params":params,"remainder":if remainder.is_empty(){Value::Null}else{json!(format!("{prefix}: {}",remainder.join(", ")))}}),
     ))
 }
 
