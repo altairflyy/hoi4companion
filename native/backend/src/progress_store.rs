@@ -91,6 +91,19 @@ impl Runs {
     pub fn archive(&self, id: &str) -> Option<Arc<str>> {
         self.archives.get(id).cloned()
     }
+    /// Re-pin the active run of `guide` to `archive`, with progress already
+    /// translated to that definition; the archive is published in the same
+    /// SQLite transaction.
+    pub fn upgrade(&mut self, guide: &str, run_id: &Value, archive: &Archive, checks: Value, started: Value) -> Result<Value> {
+        self.archives
+            .entry(archive.id.clone())
+            .or_insert_with(|| Arc::from(archive.payload.as_str()));
+        self.transact(
+            "upgrade",
+            json!({"guide_id":guide,"run_id":run_id,"definition":definition_archive::pin(&archive.id),"checks":checks,"started":started}),
+            None,
+        )
+    }
     /// Definition-unaware call (older ABI/test callers): runs stay unbound.
     pub fn call(&mut self, op: &str, args: Value) -> Result<Value> {
         self.transact(op, args, None)

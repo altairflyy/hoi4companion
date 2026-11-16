@@ -190,3 +190,55 @@ fn corrupt_archive_and_stale_writer_fail_closed_without_partial_state() {
     let write = json!({"run_id":current["run_id"],"checks":{KEY:true}});
     assert!(app.progress(Some("identity"), None, Some(&write)).is_err(), "no writes against an unverifiable definition");
 }
+
+#[test]
+fn updating_the_guide_moves_open_checklists_onto_the_new_definition() {
+    let temp = Temp::new();
+    let manual = |key: &str, title: &str| json!({"key":key,"title":title,"action":{"kind":"manual"},"completion":{"op":"check","key":key}});
+    let open_with = |steps: Value| {
+        Application::open(&json!({"path":temp.db(),"upgrade_without_catalog":true,
+            "guides":[{"id":"identity","dependency_policy":"explicit","tracks":{"operations":steps}}]})).unwrap()
+    };
+    let reworded = "word-0002--operation-1";
+    let mut app = open_with(json!([manual(KEY, "Keep"), manual(reworded, "Old wording")]));
+    let current = app.progress(Some("identity"), None, None).unwrap();
+    let old = app.progress(Some("identity"), None, Some(&json!({"run_id":current["run_id"],
+        "expected_run_id":current["run_id"],"checks":{KEY:true,reworded:true}}))).unwrap();
+    assert_eq!(old["definition_ref"]["status"], "pinned");
+    drop(app);
+    let updated = json!([manual(KEY, "Keep"), manual(reworded, "New wording"), manual("word-0003", "Added")]);
+    for _restart in 0..2 {
+        let mut app = open_with(updated.clone());
+        let packet = app.projection(Some("identity"), false).unwrap();
+        assert_eq!(packet["definition"]["status"], "pinned");
+        assert_eq!(packet["definition"]["newer_definition_available"], false);
+        assert_ne!(packet["definition"]["id"], old["definition_ref"]["id"]);
+        assert_eq!(packet["progress"]["run_id"], old["run_id"], "same checklist, not a new one");
+        assert_eq!(packet["guide"]["tracks"]["operations"][1]["title"], "New wording");
+        // Same instruction keeps its confirmation; changed wording is not assumed done.
+        assert_eq!(packet["progress"]["checks"], json!({KEY:true}));
+        let previous = &packet["progress"]["previous_definitions"];
+        assert_eq!(previous.as_array().unwrap().len(), 1);
+        assert_eq!(previous[0]["definition_ref"], old["definition_ref"]);
+        assert_eq!(previous[0]["checks"], json!({KEY:true,reworded:true}));
+    }
+    assert_eq!(temp.load()["definitions"].as_object().unwrap().len(), 2, "old archive kept");
+}
+
+#[test]
+fn legacy_checklists_also_move_onto_the_current_definition() {
+    let temp = Temp::new();
+    let path = temp.db();
+    storage(json!({"schema_version":1,"op":"init","path":path})).unwrap();
+    let legacy = json!({"schema_version":1,"runs":{"old-run":{"schema_version":1,"guide_id":"identity",
+        "run_id":"old-run","session_id":null,"checks":{KEY:true,"word-0001--note-9":true},
+        "started":{},"run_revision":4}},"active":{"identity":"old-run"},"campaign_active":{}});
+    storage(json!({"schema_version":1,"op":"save","path":path,"expected_revision":0,"payload":legacy.to_string()})).unwrap();
+    let mut app = Application::open(&json!({"path":path,"upgrade_without_catalog":true,"guides":[guide("Current meaning")]})).unwrap();
+    let packet = app.projection(Some("identity"), false).unwrap();
+    assert_eq!(packet["definition"]["status"], "pinned");
+    assert_eq!(packet["progress"]["run_id"], "old-run");
+    assert_eq!(packet["progress"]["checks"], json!({KEY:true}), "undeclared historical key not carried");
+    assert_eq!(packet["progress"]["previous_definitions"][0]["checks"], legacy["runs"]["old-run"]["checks"]);
+    assert!(temp.files().contains(&"progress.sqlite3.v1-backup-r1.sqlite3".to_owned()));
+}

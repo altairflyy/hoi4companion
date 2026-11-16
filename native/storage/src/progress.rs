@@ -450,6 +450,39 @@ impl State {
                 self.insert(row.clone());
                 Ok(row)
             }
+            // Moves the active run onto the current guide definition with its
+            // progress already translated by the caller. The previous binding
+            // and progress stay in the row (last 8) so nothing is lost.
+            "upgrade" => {
+                if !pinned_ref(&args["definition"]) {
+                    return Err("Definizione corrente non valida".into());
+                }
+                checks(&args["checks"])?;
+                checks(&args["started"])?;
+                let mut row = self.get(guide, None)?;
+                if row["run_id"] != args["run_id"] {
+                    return Err("Partita della guida non trovata".into());
+                }
+                if row["definition_ref"] == args["definition"] {
+                    return Ok(row);
+                }
+                let mut previous = row
+                    .get("previous_definitions")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                previous.push(json!({"definition_ref":row.get("definition_ref").cloned().unwrap_or_else(|| legacy_marker(LEGACY_REASON)),
+                    "checks":row["checks"],"started":row["started"]}));
+                if previous.len() > 8 {
+                    previous.drain(..previous.len() - 8);
+                }
+                row["previous_definitions"] = Value::Array(previous);
+                row["definition_ref"] = args["definition"].clone();
+                row["checks"] = args["checks"].clone();
+                row["started"] = args["started"].clone();
+                self.insert(row.clone());
+                Ok(row)
+            }
             "bind" => {
                 if session.is_null() {
                     return Ok(json!(false));
@@ -601,7 +634,7 @@ fn metadata(row: &Value) -> Value {
         row.as_object()
             .expect("validated run")
             .iter()
-            .filter(|(k, _)| !["checks", "started", "baselines"].contains(&k.as_str()))
+            .filter(|(k, _)| !["checks", "started", "baselines", "previous_definitions"].contains(&k.as_str()))
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect(),
     )

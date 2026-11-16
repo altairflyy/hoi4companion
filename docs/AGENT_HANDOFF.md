@@ -16,7 +16,7 @@ Updated: 2026-11-15. Repository-relative paths throughout; replace stale state, 
 - Rust guide-core evaluates guides; backend exposes evaluations; JS presents them; separate Rust HUD consumes the active guide.
 - Game access stays read-only; unknown observations never imply completion. No Python or new AI integration.
 - Preserve source text, order, trigger scope, provenance and existing guide/campaign/run progress.
-- User decisions: (A) legacy runs stay `legacy_unresolved`, evaluated against the contract-1 registry while `REGISTRY_COMPILER_CONTRACT == LEGACY_COMPILER_CONTRACT` (both 1); never auto-transfer progress. (B) pinned runs strictly immutable; no automatic upgrade/adoption.
+- User decision 2026-11-16 (replaces earlier A/B "pinned runs immutable, never auto-transfer"): updating the app updates open checklists. The active run (pinned or legacy) is re-pinned to the current definition (`Application::upgrade_run`, storage op `upgrade`); manual checks/starts move only to the same key+text, the same text in the same Word block, or the children of a confirmed whole block (`run_upgrade.rs`); the row keeps the last 8 `previous_definitions` (ref+checks+started), whose archives stay referenced/loaded. Waits for the catalog context (`upgrade_without_catalog` open arg for tests). No "Nuova checklist" needed.
 - Milestone 3 decisions (autonomous, documented): contract 2 = contract-1 compile + `decomposition::decompose` (no new parser; promote already tries every command family, so containers = blocks with zero recognized lines). Unrecognized lines become manual gates (user-confirmed), advice stays reminder, headers become conditions (promote's compiler or unknown placeholder) or title lead-ins. Prohibitions ("do not", "ignore") stay trackable: never downgrade an action.
 - Milestone 4 decisions: recognition (span match against grounded candidates, no reliance on "On"/"After") is separate from intent (trigger position + closed-class leftover words). A trigger compiles only if fully understood and its fact is persistently observable (focus, research); everything else stays unknown with a stated reason. Ambiguity is kept visible.
 
@@ -30,6 +30,7 @@ Updated: 2026-11-15. Repository-relative paths throughout; replace stale state, 
 - `application.rs`: `current_archive` compiles contract 2 for NEW runs; registry stays contract 1; `definition_for_run`, packet `definition.{compiler_contract,manifest,operations}`, `app_manifest`, `expected_definition_id` CAS. `http.rs`: `GET /api/guide/manifest`. Web: `guide-session.js` packet/pin check.
 
 ## Milestone 5 validation (2026-11-16)
+- Automatic checklist upgrade: tests `native/backend/tests/definition_pinning.rs` (6, incl. pinned and legacy upgrade), lib 138, harness all pass, npm 437/1 skipped (one restart-timing flake in test_native_service passed on rerun).
 - Backend lib 136 passed / 2 ignored; harness integration 87 passed incl. opt-in real-catalog comparison (`HOI4_REAL_CATALOG=1`, `tests/real_catalog_contract.rs`); `npm test` vs rebuilt host 436 passed / 1 skipped. Changed: `application.rs`, `catalog_generation.rs` (+`catalog_runtime_guide_new`), `decomposition.rs`, `definition_archive.rs`, `informal_targets.rs` (contract-4-scoped pair split), `occurrence_manifest.rs`, `runtime_context.rs`, tests. Not committed.
 - Web reader (`src/hoi4companion/web/action-reading.js`): "occupation" wording selects the occupation vocabulary (LPF + CAV now explained); a code whose only meaning is in another domain adds a "Possible meaning" glossary note instead of staying unexplained. Test: `tests/test_action_reading.cjs` (11 pass); full `npm test` 437 passed / 1 skipped against the fresh `.local/rust-backend-target/release/hoi4-backend.exe` (2026-11-16 00:36).
 - Production shared quantities (contract 4): items written "Name:" before an explicit quantity share it ("Sup Equip:, I-16:5" = both 5), like "Art, AA:2"; a "Name:" with no later quantity stays in the same step as `production_unquantified` (shown in the production table, never a completion target). Real catalog SOV step 2: one step, 7 targets. Production targets total 385 -> 401.
@@ -57,14 +58,14 @@ Updated: 2026-11-15. Repository-relative paths throughout; replace stale state, 
 
 ## Migration behaviour and rollback
 - First write by the new binary on a v1 DB: backup next to the DB, then v2; old binaries refuse v2. Rollback = stop app, restore the backup (loses later progress).
-- Existing user runs are legacy: they keep contract-1 behaviour. Decomposed children appear only on NEW checklists ("new run"), never on existing ones.
+- Existing runs move onto the current definition automatically when opened (see user decision above).
 - The running user app (old code at `.local/rust-backend-target/release/hoi4-backend.exe`) keeps the live DB at v1 until restarted on a rebuilt backend.
 
 ## Remaining limitations / risks
 - Contract 3 gaps: event/decision/country-war triggers, composite and/or conditions (withheld), dates/deadlines, acronyms, learned corpus abbreviations, references inside action text, header-with-action lacking an inner `: `. Resolution precision reviewed manually on the installed corpus only (no human gold IDs).
 - Unsupported patterns (details in design §): header conditions without catalog rule (unknown placeholder -> child waits); intra-line sequences/alternatives/parallel actions, quantities, deadlines, shorthand stay text-only (manual, no automatic verification); nested headers; leads without bullets apply until next header.
 - Containers referenced by dependencies, non-`explicit` guides and contract-1 recognized+residual blocks are not decomposed.
-- Pinned runs keep archived display language; fixes reach only new checklists. Archives never garbage-collected. ~14% of operations without exact span (derived/unlocated).
+- Unmatched confirmations (changed wording) are not carried; they remain in `previous_definitions`. Archives never garbage-collected. ~14% of operations without exact span (derived/unlocated).
 - `Context::decompose` re-presents the guide (as research projection already does); presentation idempotence assumed, covered only by tests.
 
 ## Exact next actions

@@ -585,3 +585,11 @@ Validation (2026-11-16):
 - integration via harness: 87 passed
 - JS: 436 passed / 1 optional skipped against the rebuilt host
 - `presentation_fixtures` unchanged
+
+## Implemented: automatic checklist upgrade (2026-11-16)
+User decision: updating the app must update open checklists; a "new checklist" is no longer needed to see guide fixes. This replaces the earlier rule that pinned runs never move.
+- When a guide's active run is read (`ensure`) or observed live, `Application::upgrade_run` re-pins it (pinned or legacy) to the current archive through storage op `upgrade`, in one SQLite transaction that also publishes the archive.
+- Progress translation (`native/backend/src/run_upgrade.rs`) is conservative: a confirmation/start moves only to (1) the same key with the same instruction text, (2) the single step of the same Word block with the same text, or (3) every checkable part of a confirmed whole block that is now decomposed. Changed wording is not assumed done.
+- The run row keeps the last 8 `previous_definitions` (`definition_ref`, `checks`, `started`); their archives stay referenced (`referenced_definitions`), so earlier progress keeps its meaning and can be restored.
+- The upgrade waits for the game catalog context, so a run is not moved twice during startup (catalog-free, then catalog compile). Inactive guides move when opened.
+- Tests: `native/backend/tests/definition_pinning.rs` (`updating_the_guide_moves_open_checklists_onto_the_new_definition`, `legacy_checklists_also_move_onto_the_current_definition`), `run_upgrade` unit test.

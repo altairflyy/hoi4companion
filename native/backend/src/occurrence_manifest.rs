@@ -70,7 +70,7 @@ pub fn line_matches(hay: &str, needle: &str) -> Vec<usize> {
         .collect()
 }
 /// Base Word key without promotion suffixes, and the direct parent key.
-fn lineage(key: &str) -> (String, Option<String>, &'static str) {
+pub(crate) fn lineage(key: &str) -> (String, Option<String>, &'static str) {
     let base = regex(r"(?:--(?:operation|note|line|seq)-\d+)+$").replace(key, "").to_string();
     if base == key {
         return (base, None, "step");
@@ -79,7 +79,7 @@ fn lineage(key: &str) -> (String, Option<String>, &'static str) {
     let role = if regex(r"--note-\d+$").is_match(key) { "note" } else { "child" };
     (base, Some(parent), role)
 }
-fn instruction(step: &Value) -> Option<&str> {
+pub(crate) fn instruction(step: &Value) -> Option<&str> {
     step["action"]["params"]["instructions"][0]
         .as_str()
         .or_else(|| step["action"]["instructions"][0].as_str())

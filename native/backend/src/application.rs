@@ -183,6 +183,9 @@ pub struct Application {
     persistent: bool,
     /// guide ID -> (runtime revision, archive of the current definition).
     current_archives: HashMap<String, (Value, Archive)>,
+    /// Move checklists onto the current definition only once the game catalog
+    /// is applied (default), so startup never moves a run twice.
+    upgrade_awaits_catalog: bool,
     /// Verified archived definitions by archive ID, ready for evaluation.
     archived_guides: HashMap<String, Value>,
 }
@@ -213,6 +216,7 @@ impl Application {
             bound_context: None,
             persistent: path.is_some(),
             current_archives: HashMap::new(),
+            upgrade_awaits_catalog: args["upgrade_without_catalog"] != true,
             archived_guides: HashMap::new(),
         };
         for guide in args["guides"].as_array().into_iter().flatten() {
@@ -402,6 +406,41 @@ impl Application {
         Ok(current_archive(&self.guides, &self.sources, self.association_directory.as_ref(), self.context.as_ref(), &mut self.current_archives, id)?
             .map(|a| a.id))
     }
+    /// Updating the app updates open checklists: the active run of `id` is
+    /// moved onto the current definition, carrying its manual progress where
+    /// the new definition holds the same instruction (`run_upgrade`). Waits for
+    /// the game catalog when the guide has a source, so a run is not moved
+    /// twice (catalog-free, then catalog) during startup.
+    fn upgrade_run(&mut self, id: &str) -> Result<()> {
+        if self.upgrade_awaits_catalog && self.context.is_none() && self.sources.contains_key(id) {
+            return Ok(());
+        }
+        let Some(archive) = self.current_definition_archive(id)? else {
+            return Ok(());
+        };
+        let run = self.runs.call("get", json!({"guide_id":id}))?;
+        let reference = &run["definition_ref"];
+        if reference["status"] == "pinned" && reference["id"] == archive.id.as_str() {
+            return Ok(());
+        }
+        let old = self.definition_for_run(id, &run).ok().map(|(guide, _)| guide);
+        let envelope = definition_archive::open(&archive.id, &archive.payload)?;
+        let new = Self::revision(envelope["definition"].clone())?;
+        let (checks, started, _) = crate::run_upgrade::translate(
+            old.as_ref(),
+            &new,
+            &run["checks"],
+            &run["started"],
+            &manual_keys(&new),
+            &started_keys(&new),
+        );
+        self.runs.upgrade(id, &run["run_id"], &archive, checks, started)?;
+        self.revision += 1;
+        Ok(())
+    }
+    fn current_definition_archive(&mut self, id: &str) -> Result<Option<Archive>> {
+        current_archive(&self.guides, &self.sources, self.association_directory.as_ref(), self.context.as_ref(), &mut self.current_archives, id)
+    }
     /// The single source of the definition a run is evaluated, observed and
     /// validated against. Pinned runs use only their verified archive, never
     /// the current registry; a missing/corrupt/unsupported archive fails closed.
@@ -543,6 +582,12 @@ impl Application {
                 if !self.guides.contains_key(id) {
                     continue;
                 }
+                // Other guides move onto their current definition when opened.
+                if self.active.as_deref() == Some(id.as_str())
+                    && let Err(error) = self.upgrade_run(id)
+                {
+                    eprintln!("Checklist update to the current guide failed for {id}: {error}");
+                }
                 // Observe against the run's own definition. An unverifiable
                 // run (missing/corrupt archive) is not observed at all.
                 let record = self.runs.call("get", json!({"guide_id":id}))?;
@@ -652,6 +697,9 @@ impl Application {
     }
     fn ensure(&mut self, id: &str) -> Result<()> {
         self.runs_call("ensure", json!({"guide_id":id,"checks":{}}))?;
+        if let Err(error) = self.upgrade_run(id) {
+            eprintln!("Checklist update to the current guide failed for {id}: {error}");
+        }
         self.bind()
     }
     fn guard(&self, update: &Value, current: &Value) -> Result<Value> {

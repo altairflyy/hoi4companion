@@ -101,6 +101,7 @@ mod research_import;
 mod research_projection;
 mod research_start;
 mod runtime_context;
+mod run_upgrade;
 mod runtime_definition;
 mod script_analysis_service;
 mod script_document;

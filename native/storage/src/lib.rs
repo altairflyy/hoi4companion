@@ -31,7 +31,15 @@ pub fn referenced_definitions(payload: &Value) -> Vec<String> {
         .into_iter()
         .flat_map(|m| m.values())
         .flat_map(|row| {
+            // Definitions a run was moved away from stay referenced, so its
+            // previous progress keeps its meaning.
+            let previous = row["previous_definitions"].as_array().into_iter().flatten().flat_map(|p| {
+                [&p["definition_ref"]["id"], &p["definition_ref"]["observed_definition_id"]]
+            });
             [&row["definition_ref"]["id"], &row["definition_ref"]["observed_definition_id"]]
+                .into_iter()
+                .chain(previous)
+                .collect::<Vec<_>>()
         })
         .filter_map(|v| v.as_str().map(str::to_owned))
         .collect();
