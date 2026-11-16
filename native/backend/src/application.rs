@@ -65,7 +65,7 @@ fn check_keys(node: &Value, keys: &mut HashSet<String>) {
         check_keys(&node["arg"], keys);
     }
 }
-fn manual_keys(guide: &Value) -> HashSet<String> {
+pub(crate) fn manual_keys(guide: &Value) -> HashSet<String> {
     let mut keys = HashSet::new();
     for row in rows(guide) {
         if ["gate", "project"].contains(&text(&row["kind"])) && row["tracking"] != "reminder" {

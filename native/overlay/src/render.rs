@@ -20,7 +20,7 @@ use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::DirectWrite::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
 use windows::Win32::Graphics::Dxgi::*;
-use windows::Win32::Graphics::Gdi::{BitBlt, ClientToScreen, CreateCompatibleDC, CreateDIBSection,
+use windows::Win32::Graphics::Gdi::{BitBlt, ClientToScreen, ScreenToClient, CreateCompatibleDC, CreateDIBSection,
     CreateFontIndirectW, DeleteDC, DeleteObject, GetDC, GetSysColorBrush, ReleaseDC, SelectObject,
     BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CAPTUREBLT, COLOR_WINDOW, DIB_RGB_COLORS, HFONT, LOGFONTW, SRCCOPY};
 use windows::Win32::Graphics::Dwm::DwmFlush;
@@ -29,8 +29,10 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::HiDpi::{GetDpiForWindow, SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2};
 use windows::Win32::UI::Accessibility::{HWINEVENTHOOK,SetWinEventHook,UnhookWinEvent};
 use windows::Win32::UI::WindowsAndMessaging::*;
+use windows::Win32::UI::Input::KeyboardAndMouse::{RegisterHotKey,UnregisterHotKey,SetCapture,ReleaseCapture,MOD_CONTROL,MOD_ALT,MOD_NOREPEAT};
 use windows::Win32::UI::Shell::{Shell_NotifyIconW,NOTIFYICONDATAW,NIF_MESSAGE,NIF_ICON,NIF_TIP,NIM_ADD,NIM_DELETE};
 use crate::wake::Wake;
+use crate::card::{self,Button,Notice,Prefs};
 
 thread_local! {static FOREGROUND_WAKE:std::cell::RefCell<Option<Arc<Wake>>>=const {std::cell::RefCell::new(None)};}
 unsafe extern "system" fn foreground_changed(_hook:HWINEVENTHOOK,_event:u32,_window:HWND,
@@ -50,6 +52,8 @@ const PAUSE: usize = 201;
 const QUIT: usize = 202;
 const GUIDES: usize = 203;
 const REFRESH: usize = 204;
+const CARD_TOGGLE: usize = 205;
+const CARD_HOTKEY: i32 = 1;
 const MAX_MARKS: usize = 64;
 /// Compositor fade when the layer appears; never applied on disappearance.
 const FADE_IN: Duration = Duration::from_millis(90);
@@ -175,6 +179,11 @@ pub struct StepCard {
     pub note: String,
     pub body: String,
     pub badge: String,
+    /// Step identity for the "Done" button; empty when unknown.
+    pub key: String,
+    pub guide_id: String,
+    /// The step accepts a manual confirmation (as the suite's checkbox).
+    pub checkable: bool,
 }
 /// Card frame on the right edge, below the game's top bar and theater selector.
 fn card_origin(width:f32,height:f32,scale:f32)->(f32,f32,f32) {
@@ -188,6 +197,8 @@ pub enum ControlAction {
     SelectGuide(String),
     RefreshGuides,
     OpenSuite,
+    /// "Done" or "Undo" on the step card: a manual confirmation of that step.
+    Check {guide_id:String,key:String,checked:bool},
 }
 
 #[derive(Default)]
@@ -201,6 +212,8 @@ struct Shared {
     revision: u64,
     foreground_events:bool,
     tray_controls:bool,
+    /// Result of the last "Done" click, shown on the card.
+    notice:Option<Notice>,
 }
 
 impl Shared {
@@ -243,7 +256,7 @@ fn hwnd(value: isize) -> HWND { HWND(value as *mut core::ffi::c_void) }
 fn wide(text: &str) -> Vec<u16> { text.encode_utf16().chain(Some(0)).collect() }
 
 impl Renderer {
-    pub fn new(discreet:bool) -> Result<Self, String> {
+    pub fn new(discreet:bool,prefs_path:std::path::PathBuf) -> Result<Self, String> {
         let shared=Arc::new(Mutex::new(Shared { excluded:true, ..Shared::default() }));
         let paused=Arc::new(AtomicBool::new(false));
         let exit=Arc::new(AtomicBool::new(false));
@@ -252,7 +265,7 @@ impl Renderer {
         let (s,p,e)=(shared.clone(),paused.clone(),exit.clone());
         let events=wake.clone();
         let thread=thread::Builder::new().name("overlay-window".into()).spawn(move || {
-            let result=unsafe { run(s,p,e.clone(),events,discreet,&ready) };
+            let result=unsafe { run(s,p,e.clone(),events,discreet,prefs_path,&ready) };
             if let Err(error)=result { let _=ready.send(Err(error)); }
             e.store(true,Ordering::Release);
         }).map_err(|e|e.to_string())?;
@@ -282,6 +295,10 @@ impl Renderer {
     pub fn set_guides(&self,guides:Vec<(String,String)>,selected_id:&str) {
         let changed=self.shared.lock().map(|mut s|s.set_guides(guides,selected_id)).unwrap_or(false);
         if changed {self.update();}
+    }
+    pub fn set_notice(&self,notice:Option<Notice>) {
+        if let Ok(mut s)=self.shared.lock() {s.notice=notice;}
+        self.update();
     }
     pub fn take_action(&self)->Option<ControlAction> {
         self.shared.lock().ok()?.actions.pop_front()
@@ -436,7 +453,7 @@ struct Graphics {
     write: IDWriteFactory,
     paint: Paint,
     formats: Option<(f32,IDWriteTextFormat,IDWriteTextFormat)>,
-    card_formats: Option<(f32,[IDWriteTextFormat;4])>,
+    card_formats: Option<(f32,[IDWriteTextFormat;5])>,
     bitmap: Option<ID2D1Bitmap1>,
     size:(u32,u32),
 }
@@ -502,34 +519,114 @@ impl Graphics {
             self.context.SetTarget(&bitmap);self.bitmap=Some(bitmap);self.size=(width,height);Ok(())
         }
     }
-    /// Card panel rectangle and its measured text blocks (text, format index,
-    /// rectangle, tone: 0 accent, 1 text, 2 muted, 3 choice). Text that does
-    /// not fit above the window's bottom edge is clipped.
-    unsafe fn card_layout(&self,card:&StepCard,frame:&OverlayFrame,scale:f32)
-        ->windows::core::Result<([f32;4],Vec<(Vec<u16>,usize,D2D_RECT_F,u8)>)> {
+    unsafe fn ensure_card_formats(&mut self,scale:f32)->windows::core::Result<()> {
         unsafe {
-            let (width,height)=(frame.target.width as f32,frame.target.height as f32);
-            let (left,top,card_width)=card_origin(width,height,scale);
-            let pad=14.0*scale;let inner=(card_width-2.0*pad).max(40.0);
-            let formats=&self.card_formats.as_ref().unwrap().1;
-            let mut lines=Vec::new();let mut y=top+12.0*scale;
-            let bottom_limit=height-16.0*scale;
-            for (text,format,tone) in [(&card.header,0usize,0u8),(&card.heading,1,1),(&card.note,2,2),(&card.body,3,1),(&card.badge,2,3)] {
+            if self.card_formats.as_ref().is_some_and(|(previous,_)|*previous==scale) {return Ok(());}
+            let make=|size:f32,weight:DWRITE_FONT_WEIGHT|self.write.CreateTextFormat(w!("Segoe UI"),None,weight,
+                DWRITE_FONT_STYLE_NORMAL,DWRITE_FONT_STRETCH_NORMAL,size*scale,w!("it-IT"));
+            let formats=[make(11.0,DWRITE_FONT_WEIGHT_SEMI_BOLD)?,make(16.0,DWRITE_FONT_WEIGHT_SEMI_BOLD)?,
+                make(12.0,DWRITE_FONT_WEIGHT_NORMAL)?,make(13.0,DWRITE_FONT_WEIGHT_NORMAL)?,make(12.0,DWRITE_FONT_WEIGHT_SEMI_BOLD)?];
+            for format in &formats[..4] {format.SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP)?;}
+            formats[4].SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP)?;
+            formats[4].SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER)?;
+            formats[4].SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
+            self.card_formats=Some((scale,formats));Ok(())
+        }
+    }
+    unsafe fn measure(&self,text:&[u16],format:usize,width:f32,height:f32)->windows::core::Result<(f32,f32)> {
+        unsafe {
+            let layout=self.write.CreateTextLayout(text,&self.card_formats.as_ref().unwrap().1[format],width.max(1.0),height.max(1.0))?;
+            let mut metrics=DWRITE_TEXT_METRICS::default();layout.GetMetrics(&mut metrics)?;
+            Ok((metrics.widthIncludingTrailingWhitespace,metrics.height))
+        }
+    }
+    /// Draw the step card into this (card-sized) surface. Returns the card's
+    /// size and its header buttons in card coordinates. Text that does not fit
+    /// in `max_height` is clipped.
+    unsafe fn draw_card(&mut self,card:&StepCard,collapsed:bool,notice:Option<&Notice>,width:f32,max_height:f32,scale:f32)
+        ->windows::core::Result<((f32,f32),Vec<(Button,[f32;4])>)> {
+        unsafe {
+            self.ensure_card_formats(scale)?;
+            let pad=14.0*scale;let inner=(width-2.0*pad).max(40.0);let row=24.0*scale;let gap=6.0*scale;
+            // Header buttons, right to left: hide, collapse, done.
+            let mut buttons:Vec<(Button,String,[f32;4])>=Vec::new();
+            let mut right=width-pad+4.0*scale;
+            let mut push=|button:Button,label:String,w:f32,right:&mut f32,top:f32|{
+                buttons.push((button,label,[*right-w,top,*right,top+row]));*right-=w+gap;
+            };
+            let top=10.0*scale;
+            push(Button::Hide,"×".into(),row,&mut right,top);
+            push(Button::Collapse,if collapsed {"+".into()}else{"–".into()},row,&mut right,top);
+            if card.checkable && !card.key.is_empty() {
+                let label=format!("✓ {}",crate::i18n::text("Mark done"));
+                let wide:Vec<u16>=label.encode_utf16().collect();
+                let w=self.measure(&wide,4,400.0*scale,row)?.0+18.0*scale;
+                push(Button::Done,label,w,&mut right,top);
+            }
+            let mut lines:Vec<(Vec<u16>,usize,D2D_RECT_F,u8)>=Vec::new();
+            let header:Vec<u16>=card.header.chars().filter(|c|!c.is_control()).collect::<String>().encode_utf16().collect();
+            let header_width=(right+gap-8.0*scale-pad).max(40.0*scale);
+            let header_height=if header.is_empty() {row} else {self.measure(&header,0,header_width,max_height)?.1.max(row)};
+            if !header.is_empty() {
+                lines.push((header,0,D2D_RECT_F {left:pad,top,right:pad+header_width,bottom:top+header_height},0));
+            }
+            let mut y=top+header_height+8.0*scale;
+            let limit=max_height-10.0*scale;
+            let mut blocks:Vec<(String,usize,u8)>=Vec::new();
+            if !collapsed {
+                for (text,format,tone) in [(&card.heading,1usize,1u8),(&card.note,2,2),(&card.body,3,1),(&card.badge,2,3)] {
+                    blocks.push((text.clone(),format,tone));
+                }
+            }
+            let mut notice_rect=None;
+            if let Some(notice)=notice {blocks.push((notice.text.clone(),2,3));}
+            let notice_index=notice.map(|_|blocks.len()-1);
+            for (index,(text,format,tone)) in blocks.into_iter().enumerate() {
                 let text:String=text.chars().filter(|c|*c=='\n'||!c.is_control()).collect();
                 if text.trim().is_empty() {continue;}
                 let wide:Vec<u16>=text.encode_utf16().collect();
-                let available=(bottom_limit-12.0*scale-y).max(0.0);
+                let available=(limit-y).max(0.0);
                 if available<8.0*scale {break;}
-                let layout=self.write.CreateTextLayout(&wide,&formats[format],inner,available)?;
-                let mut metrics=DWRITE_TEXT_METRICS::default();layout.GetMetrics(&mut metrics)?;
-                let used=metrics.height.min(available);
-                lines.push((wide,format,D2D_RECT_F {left:left+pad,top:y,right:left+pad+inner,bottom:y+used},tone));y+=used+8.0*scale;
+                let used=self.measure(&wide,format,inner,available)?.1.min(available);
+                let rect=D2D_RECT_F {left:pad,top:y,right:pad+inner,bottom:y+used};
+                if Some(index)==notice_index {notice_rect=Some(rect);}
+                lines.push((wide,format,rect,tone));y+=used+8.0*scale;
             }
-            let bottom=(y-8.0*scale+12.0*scale).min(bottom_limit).max(top+24.0*scale);
-            Ok(([left,top,left+card_width,bottom],lines))
+            if let (Some(rect),Some(notice))=(notice_rect,notice) && notice.undo.is_some() && y+row<=limit {
+                let label=crate::i18n::text("Undo");
+                let wide:Vec<u16>=label.encode_utf16().collect();
+                let w=self.measure(&wide,4,400.0*scale,row)?.0+18.0*scale;
+                buttons.push((Button::Undo,label,[rect.left,y,rect.left+w,y+row]));y+=row+8.0*scale;
+            }
+            let height=(y-8.0*scale+10.0*scale).min(max_height).max(top+row+10.0*scale).ceil();
+            let width=width.ceil();
+            self.size(width as u32,height as u32)?;
+            let formats=&self.card_formats.as_ref().unwrap().1;
+            self.context.BeginDraw();self.context.Clear(Some(&D2D1_COLOR_F {r:0.0,g:0.0,b:0.0,a:0.0}));
+            let panel=D2D1_ROUNDED_RECT {rect:D2D_RECT_F {left:0.5,top:0.5,right:width-0.5,bottom:height-0.5},radiusX:6.0*scale,radiusY:6.0*scale};
+            self.context.FillRoundedRectangle(&panel,&self.paint.card_bg);
+            self.context.DrawRoundedRectangle(&panel,&self.paint.card_border,1.0*scale,None);
+            for (text,format,rect,tone) in &lines {
+                let brush=match tone {0=>&self.paint.strokes[0],1=>&self.paint.text,2=>&self.paint.muted,_=>&self.paint.strokes[2]};
+                self.context.DrawText(text,&formats[*format],rect,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
+            }
+            for (button,label,[left,top,right,bottom]) in &buttons {
+                let rect=D2D_RECT_F {left:*left,top:*top,right:*right,bottom:*bottom};
+                let shape=D2D1_ROUNDED_RECT {rect,radiusX:4.0*scale,radiusY:4.0*scale};
+                self.context.FillRoundedRectangle(&shape,&self.paint.label_bg);
+                let border=if matches!(button,Button::Done|Button::Undo) {&self.paint.strokes[1]}else{&self.paint.muted};
+                self.context.DrawRoundedRectangle(&shape,border,1.0*scale,None);
+                let text:Vec<u16>=label.encode_utf16().collect();
+                let brush=if matches!(button,Button::Done|Button::Undo) {&self.paint.strokes[1]}else{&self.paint.text};
+                self.context.DrawText(&text,&formats[4],&rect,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
+            }
+            self.context.EndDraw(None,None)?;self.swap.Present(0,DXGI_PRESENT(0)).ok()?;
+            Ok(((width,height),buttons.into_iter().map(|(b,_,r)|(b,r)).collect()))
         }
     }
-    unsafe fn draw(&mut self,frame:&OverlayFrame)->windows::core::Result<()> {
+    /// Highlights only; the card has its own window. `avoid` is the card's
+    /// rectangle in client coordinates, kept free of captions.
+    unsafe fn draw(&mut self,frame:&OverlayFrame,avoid:&[[f32;4]])->windows::core::Result<()> {
         unsafe {
             self.size(frame.target.width,frame.target.height)?;
             let scale=(GetDpiForWindow(hwnd(frame.target.hwnd)) as f32/96.0).clamp(1.0,3.0);
@@ -544,32 +641,12 @@ impl Graphics {
             compact.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
             self.formats=Some((scale,format,compact));
             }
-            if self.card_formats.as_ref().is_none_or(|(previous,_)|*previous!=scale) {
-                let make=|size:f32,weight:DWRITE_FONT_WEIGHT|self.write.CreateTextFormat(w!("Segoe UI"),None,weight,
-                    DWRITE_FONT_STYLE_NORMAL,DWRITE_FONT_STRETCH_NORMAL,size*scale,w!("it-IT"));
-                let formats=[make(11.0,DWRITE_FONT_WEIGHT_SEMI_BOLD)?,make(16.0,DWRITE_FONT_WEIGHT_SEMI_BOLD)?,
-                    make(12.0,DWRITE_FONT_WEIGHT_NORMAL)?,make(13.0,DWRITE_FONT_WEIGHT_NORMAL)?];
-                for format in &formats {format.SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP)?;}
-                self.card_formats=Some((scale,formats));
-            }
-            let card=match frame.card.as_ref() {Some(card)=>Some(self.card_layout(card,frame,scale)?),None=>None};
-            let avoid:Vec<[f32;4]>=card.iter().map(|c|c.0).collect();
             let (_,format,compact)=self.formats.as_ref().unwrap();
-            let slots=caption_slots(frame,scale,&avoid,&self.caption_sides);
+            let slots=caption_slots(frame,scale,avoid,&self.caption_sides);
             self.caption_sides=frame.marks.iter().zip(&slots).filter_map(|(mark,slot)|slot.map(|(i,_)|(caption_key(mark),i))).collect();
             let captions:Vec<Option<[f32;4]>>=slots.into_iter().map(|slot|slot.map(|(_,rect)|rect)).collect();
             self.context.BeginDraw();self.context.Clear(Some(&D2D1_COLOR_F {r:0.0,g:0.0,b:0.0,a:0.0}));
             let result={
-                if let Some(([left,top,right,bottom],lines))=card.as_ref() {
-                    let panel=D2D1_ROUNDED_RECT {rect:D2D_RECT_F {left:*left,top:*top,right:*right,bottom:*bottom},radiusX:6.0*scale,radiusY:6.0*scale};
-                    self.context.FillRoundedRectangle(&panel,&self.paint.card_bg);
-                    self.context.DrawRoundedRectangle(&panel,&self.paint.card_border,1.0*scale,None);
-                    let card_formats=&self.card_formats.as_ref().unwrap().1;
-                    for (text,format,rect,tone) in lines {
-                        let brush=match tone {0=>&self.paint.strokes[0],1=>&self.paint.text,2=>&self.paint.muted,_=>&self.paint.strokes[2]};
-                        self.context.DrawText(text,&card_formats[*format],rect,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
-                    }
-                }
                 for (index,mark) in frame.marks.iter().enumerate() {
                     let tone=if mark.choice {2}else if mark.active && mark.panel!="event" {1}else{0};
                     let stroke=&self.paint.strokes[tone];let fill=&self.paint.fills[tone];
@@ -599,6 +676,9 @@ impl Graphics {
 
 struct Ui {
     overlay:HWND,
+    /// The step card's own window: it takes clicks (buttons, drag) but never
+    /// activates, so HOI4 keeps the foreground and receives no input from it.
+    card:HWND,
     status:HWND,
     pause:HWND,
     combo:HWND,
@@ -606,20 +686,45 @@ struct Ui {
     paused:Arc<AtomicBool>,
     exit:Arc<AtomicBool>,
     graphics:Option<Graphics>,
+    card_graphics:Option<Graphics>,
     last_revision:u64,
     last_guides:Vec<(String,String)>,
     last_selected:String,
     last_status:String,
     excluded:bool,
     visible:bool,
-    /// Layers (highlights, card) present in the last drawn surface.
-    drawn:(bool,bool),
+    /// Card rectangle the highlights were last drawn around.
+    drawn_avoid:Option<[f32;4]>,
     /// Last window placement, so SetWindowPos runs only when it changes.
     placed:Option<[i32;4]>,
     topmost_at:Instant,
+    card_visible:bool,
+    card_placed:Option<[i32;4]>,
+    /// Content last drawn on the card; a redraw happens only when it changes.
+    card_state:Option<CardState>,
+    card_size:(f32,f32),
+    card_buttons:Vec<(Button,[f32;4])>,
+    /// Card rectangle in the game's client coordinates, while shown.
+    card_rect:Option<[f32;4]>,
+    card_target:Option<TargetWindow>,
+    card_content:Option<StepCard>,
+    notice:Option<Notice>,
+    prefs:Prefs,
+    prefs_path:std::path::PathBuf,
+    drag:Option<Drag>,
+    pressed:Option<Button>,
     _font:HFONT,
     last_paused:bool,
     wake:Arc<Wake>,
+}
+
+#[derive(Clone,PartialEq)]
+struct CardState {card:StepCard,collapsed:bool,notice:Option<(String,bool)>,scale:u32,client:(u32,u32)}
+/// A drag of the card: cursor offset inside the card when the button went down.
+struct Drag {grab:(i32,i32),moved:bool}
+
+fn window_scale(target:&TargetWindow)->f32 {
+    unsafe {(GetDpiForWindow(hwnd(target.hwnd)) as f32/96.0).clamp(1.0,3.0)}
 }
 
 impl Ui {
@@ -628,7 +733,9 @@ impl Ui {
             let Ok(shared)=self.shared.lock() else {self.hide();return;};
             let frame=shared.desired.clone();let revision=shared.revision;
             let guides=shared.guides.clone();let selected=shared.selected.clone();let status=shared.status.clone();let excluded=shared.excluded;
+            let notice=shared.notice.clone().filter(|n|n.live(Instant::now()));
             drop(shared);
+            self.notice=notice;
             let paused=self.paused.load(Ordering::Acquire);
             if paused!=self.last_paused {
                 let _=SetWindowTextW(self.pause,PCWSTR(wide(&crate::i18n::text(if paused {"Resume"}else{"Pause"})).as_ptr()));self.last_paused=paused;
@@ -647,7 +754,8 @@ impl Ui {
                 self.last_guides=guides;self.last_selected=selected;
             }
             if self.excluded!=excluded {
-                if SetWindowDisplayAffinity(self.overlay,if excluded {WDA_EXCLUDEFROMCAPTURE}else{WDA_NONE}).is_err() {
+                let affinity=if excluded {WDA_EXCLUDEFROMCAPTURE}else{WDA_NONE};
+                if SetWindowDisplayAffinity(self.overlay,affinity).is_err() || SetWindowDisplayAffinity(self.card,affinity).is_err() {
                     self.hide();self.exit.store(true,Ordering::Release);PostQuitMessage(1);return;
                 }
                 self.excluded=excluded;
@@ -656,52 +764,180 @@ impl Ui {
             if self.paused.load(Ordering::Acquire) || !target_matches(&frame.target) {self.hide();return;}
             // Each layer has its own lifetime: expired highlights leave the card.
             let Some(shown)=visible_frame(&frame,Instant::now()) else {self.hide();return;};
-            let layers=(!shown.marks.is_empty(),shown.card.is_some());
-            if redraw || revision!=self.last_revision || !self.visible || layers!=self.drawn {
-                match self.present(&frame,shown) {
-                    Ok(Some(drawn))=>{self.drawn=drawn;self.last_revision=revision;}
-                    Ok(None)=>{self.hide();}
+            // The card first: its rectangle is the area captions must avoid.
+            let avoid=self.update_card(&frame.target,shown.card.as_ref());
+            if shown.marks.is_empty() {self.hide_overlay();}
+            else if redraw || revision!=self.last_revision || !self.visible || avoid!=self.drawn_avoid {
+                match self.present(&frame,&shown,avoid) {
+                    Ok(true)=>{self.drawn_avoid=avoid;self.last_revision=revision;}
+                    Ok(false)=>{self.hide_overlay();}
                     Err(error)=>{
-                        self.hide();let message=wide(&crate::i18n::format("Rendering suspended: {0}",&[&error.to_string()]));
+                        self.hide_overlay();let message=wide(&crate::i18n::format("Rendering suspended: {0}",&[&error.to_string()]));
                         let _=SetWindowTextW(self.status,PCWSTR(message.as_ptr()));
                     }
                 }
             }else if self.topmost_at.elapsed()>=TOPMOST_REFRESH {
                 let _=SetWindowPos(self.overlay,Some(HWND_TOPMOST),0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+                self.raise_card();
                 self.topmost_at=Instant::now();
             }
         }
     }
-    /// Draw and show one frame. The window is moved only when the game's client
-    /// area moved and shown only when it was hidden: no hide/show churn.
-    /// Returns the layers actually on screen, or None if nothing may stay.
-    unsafe fn present(&mut self,frame:&OverlayFrame,mut shown:OverlayFrame)->windows::core::Result<Option<(bool,bool)>> {
+    /// Keep the card above the click-through highlight layer.
+    unsafe fn raise_card(&self) {
+        unsafe {if self.card_visible {let _=SetWindowPos(self.card,Some(HWND_TOPMOST),0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);}}
+    }
+    /// Show, redraw or move the card window. Returns its rectangle in client
+    /// coordinates, or None when no card is shown.
+    unsafe fn update_card(&mut self,target:&TargetWindow,card:Option<&StepCard>)->Option<[f32;4]> {
+        unsafe {
+            self.card_content=card.cloned();
+            self.card_target=Some(target.clone());
+            let Some(card)=card.filter(|_|!self.prefs.hidden) else {self.hide_card();return None;};
+            // While the player drags it, the card follows the cursor only.
+            if self.drag.is_some() {return self.card_rect;}
+            let scale=window_scale(target);
+            let client=(target.width as f32,target.height as f32);
+            let (default_x,default_y,width)=card_origin(client.0,client.1,scale);
+            let state=CardState {card:card.clone(),collapsed:self.prefs.collapsed,
+                notice:self.notice.as_ref().map(|n|(n.text.clone(),n.undo.is_some())),scale:scale.to_bits(),client:(target.width,target.height)};
+            if self.card_state.as_ref()!=Some(&state) || !self.card_visible {
+                let max_height=(client.1*0.8).max(80.0*scale).min(client.1);
+                let graphics=self.card_graphics.as_mut().unwrap();
+                match graphics.draw_card(card,self.prefs.collapsed,self.notice.as_ref(),width,max_height,scale) {
+                    Ok((size,buttons))=>{self.card_size=size;self.card_buttons=buttons;self.card_state=Some(state);}
+                    Err(error)=>{
+                        self.hide_card();let message=wide(&crate::i18n::format("Rendering suspended: {0}",&[&error.to_string()]));
+                        let _=SetWindowTextW(self.status,PCWSTR(message.as_ptr()));return None;
+                    }
+                }
+            }
+            let rect=card::place(&self.prefs,(default_x,default_y),self.card_size,client);
+            let screen=[target.x+rect[0] as i32,target.y+rect[1] as i32,(rect[2]-rect[0]).ceil() as i32,(rect[3]-rect[1]).ceil() as i32];
+            if !self.card_visible || self.card_placed!=Some(screen) {
+                if SetWindowPos(self.card,Some(HWND_TOPMOST),screen[0],screen[1],screen[2],screen[3],SWP_NOACTIVATE).is_err() {
+                    self.hide_card();return None;
+                }
+                self.card_placed=Some(screen);
+            }
+            if !self.card_visible {
+                self.card_graphics.as_ref().unwrap().fade_in();
+                let _=ShowWindow(self.card,SW_SHOWNOACTIVATE);self.card_visible=true;
+            }
+            self.card_rect=Some(rect);
+            Some(rect)
+        }
+    }
+    /// Draw and show the highlights. The window is moved only when the game's
+    /// client area moved and shown only when it was hidden: no hide/show churn.
+    /// Returns false if nothing may stay on screen.
+    unsafe fn present(&mut self,frame:&OverlayFrame,shown:&OverlayFrame,avoid:Option<[f32;4]>)->windows::core::Result<bool> {
         unsafe {
             let target=&frame.target;
             let placement=[target.x,target.y,target.width as i32,target.height as i32];
             if !self.visible || self.placed!=Some(placement) {
                 SetWindowPos(self.overlay,Some(HWND_TOPMOST),target.x,target.y,target.width as i32,target.height as i32,SWP_NOACTIVATE)?;
                 self.placed=Some(placement);self.topmost_at=Instant::now();
+                self.raise_card();
             }
+            let mut marks=shown.clone();marks.card=None;
+            let avoid:Vec<[f32;4]>=avoid.into_iter().collect();
             let graphics=self.graphics.as_mut().unwrap();
-            graphics.draw(&shown)?;
-            if !target_matches(target) {return Ok(None);}
+            graphics.draw(&marks,&avoid)?;
+            if !target_matches(target) {return Ok(false);}
             // A highlight that expired while drawing is removed at once.
-            match visible_frame(frame,Instant::now()) {
-                None=>return Ok(None),
-                Some(again) if again.marks.is_empty()&&!shown.marks.is_empty() || again.card.is_none()&&shown.card.is_some()=>{
-                    graphics.draw(&again)?;shown=again;
-                }
-                Some(_)=>{}
-            }
+            if visible_frame(frame,Instant::now()).is_none_or(|again|again.marks.is_empty()) {return Ok(false);}
             if !self.visible {
                 graphics.fade_in();
                 let _=ShowWindow(self.overlay,SW_SHOWNOACTIVATE);self.visible=true;
             }
-            Ok(Some((!shown.marks.is_empty(),shown.card.is_some())))
+            Ok(true)
         }
     }
-    unsafe fn hide(&mut self) {unsafe {if self.visible {let _=ShowWindow(self.overlay,SW_HIDE);} self.visible=false;self.drawn=(false,false);}}
+    unsafe fn hide_overlay(&mut self) {unsafe {if self.visible {let _=ShowWindow(self.overlay,SW_HIDE);} self.visible=false;self.drawn_avoid=None;}}
+    unsafe fn hide_card(&mut self) {
+        unsafe {
+            if self.card_visible {let _=ShowWindow(self.card,SW_HIDE);}
+            self.card_visible=false;self.card_rect=None;self.pressed=None;
+            if self.drag.take().is_some() {let _=ReleaseCapture();}
+        }
+    }
+    unsafe fn hide(&mut self) {unsafe {self.hide_overlay();self.hide_card();}}
+    fn save_prefs(&self) {self.prefs.save(&self.prefs_path);}
+    unsafe fn toggle_card(&mut self) {
+        unsafe {self.prefs.hidden=!self.prefs.hidden;self.save_prefs();self.card_state=None;self.update(true);}
+    }
+    /// Cursor position in card coordinates.
+    unsafe fn card_point(&self)->Option<(f32,f32)> {
+        unsafe {
+            let mut point=POINT::default();
+            if GetCursorPos(&mut point).is_err() || !ScreenToClient(self.card,&mut point).as_bool() {return None;}
+            Some((point.x as f32,point.y as f32))
+        }
+    }
+    unsafe fn card_button_down(&mut self) {
+        unsafe {
+            let Some((x,y))=self.card_point() else {return;};
+            if let Some(button)=card::hit(&self.card_buttons,x,y) {self.pressed=Some(button);}
+            else {self.drag=Some(Drag {grab:(x as i32,y as i32),moved:false});}
+            SetCapture(self.card);
+        }
+    }
+    unsafe fn card_mouse_move(&mut self) {
+        unsafe {
+            let (Some(drag),Some(target))=(self.drag.as_mut(),self.card_target.as_ref()) else {return;};
+            let mut cursor=POINT::default();if GetCursorPos(&mut cursor).is_err() {return;}
+            let (width,height)=self.card_size;
+            let client=(target.width as f32,target.height as f32);
+            let left=((cursor.x-drag.grab.0-target.x) as f32).clamp(0.0,(client.0-width).max(0.0));
+            let top=((cursor.y-drag.grab.1-target.y) as f32).clamp(0.0,(client.1-height).max(0.0));
+            let screen=[target.x+left as i32,target.y+top as i32];
+            if self.card_placed.is_some_and(|p|p[0]==screen[0]&&p[1]==screen[1]) {return;}
+            drag.moved=true;
+            let _=SetWindowPos(self.card,None,screen[0],screen[1],0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+            if let Some(placed)=self.card_placed.as_mut() {placed[0]=screen[0];placed[1]=screen[1];}
+            self.card_rect=Some([left,top,left+width,top+height]);
+        }
+    }
+    /// End of a drag: remember the place and redraw the highlights around it.
+    unsafe fn end_drag(&mut self) {
+        unsafe {
+            let Some(drag)=self.drag.take() else {return;};
+            if drag.moved && let (Some(rect),Some(target))=(self.card_rect,self.card_target.as_ref()) {
+                self.prefs.position=card::position_of(rect[0],rect[1],(target.width as f32,target.height as f32));
+                self.save_prefs();
+            }
+            self.update(true);
+        }
+    }
+    unsafe fn card_button_up(&mut self) {
+        unsafe {
+            let pressed=self.pressed.take();
+            let _=ReleaseCapture();
+            if self.drag.is_some() {self.end_drag();return;}
+            let Some(pressed)=pressed else {return;};
+            let Some((x,y))=self.card_point() else {return;};
+            if card::hit(&self.card_buttons,x,y)!=Some(pressed) {return;}
+            match pressed {
+                Button::Hide=>{self.prefs.hidden=true;self.save_prefs();self.hide_card();self.update(true);}
+                Button::Collapse=>{self.prefs.collapsed=!self.prefs.collapsed;self.save_prefs();self.card_state=None;self.update(true);}
+                Button::Done=>{
+                    if let Some(card)=self.card_content.as_ref().filter(|c|c.checkable&&!c.key.is_empty())
+                        && let Ok(mut s)=self.shared.lock() && s.actions.len()<32 {
+                        s.actions.push_back(ControlAction::Check {guide_id:card.guide_id.clone(),key:card.key.clone(),checked:true});
+                    }
+                    self.wake.notify();
+                }
+                Button::Undo=>{
+                    if let Some((guide_id,key))=self.notice.as_ref().and_then(|n|n.undo.clone())
+                        && let Ok(mut s)=self.shared.lock() && s.actions.len()<32 {
+                        s.actions.push_back(ControlAction::Check {guide_id,key,checked:false});
+                    }
+                    self.wake.notify();
+                }
+            }
+        }
+    }
     unsafe fn command(&mut self,id:usize,notification:u16) {
         unsafe {
             match id {
@@ -712,6 +948,7 @@ impl Ui {
                 }
                 QUIT=>{self.exit.store(true,Ordering::Release);PostQuitMessage(0);}
                 REFRESH=>{if let Ok(mut s)=self.shared.lock() && s.actions.len()<32 {s.actions.push_back(ControlAction::RefreshGuides);}}
+                CARD_TOGGLE=>self.toggle_card(),
                 GUIDES if notification==CBN_SELCHANGE as u16=>{
                     let index=SendMessageW(self.combo,CB_GETCURSEL,None,None).0;
                     if index>=0 && let Some((id,_))=self.last_guides.get(index as usize) {
@@ -739,6 +976,7 @@ unsafe extern "system" fn window_proc(window:HWND,message:u32,wparam:WPARAM,lpar
                 // The visual revision decides whether presenting is necessary.
                 UPDATE=>{ui.update(false);return LRESULT(0);}
                 WM_TIMER=>{ui.update(false);return LRESULT(0);}
+                WM_HOTKEY if wparam.0==CARD_HOTKEY as usize=>{ui.toggle_card();return LRESULT(0);}
                 TRAY=>{
                     if lparam.0 as u32==WM_LBUTTONUP {
                         if let Ok(mut s)=ui.shared.lock() && s.actions.len()<32 && !s.actions.contains(&ControlAction::OpenSuite){s.actions.push_back(ControlAction::OpenSuite);}
@@ -749,8 +987,17 @@ unsafe extern "system" fn window_proc(window:HWND,message:u32,wparam:WPARAM,lpar
                 STOP|WM_CLOSE=>{ui.exit.store(true,Ordering::Release);PostQuitMessage(0);return LRESULT(0);}
                 WM_COMMAND=>{ui.command(wparam.0&0xffff,(wparam.0>>16) as u16);return LRESULT(0);}
                 WM_NCHITTEST if window==ui.overlay=>return LRESULT(HTTRANSPARENT as isize),
-                WM_MOUSEACTIVATE if window==ui.overlay=>return LRESULT(MA_NOACTIVATE as isize),
-                WM_ERASEBKGND if window==ui.overlay=>return LRESULT(1),
+                WM_MOUSEACTIVATE if window==ui.overlay||window==ui.card=>return LRESULT(MA_NOACTIVATE as isize),
+                WM_ERASEBKGND if window==ui.overlay||window==ui.card=>return LRESULT(1),
+                WM_SETCURSOR if window==ui.card=>{
+                    let over=ui.card_point().and_then(|(x,y)|card::hit(&ui.card_buttons,x,y));
+                    let _=SetCursor(LoadCursorW(None,if over.is_some() {IDC_HAND}else{IDC_SIZEALL}).ok());
+                    return LRESULT(1);
+                }
+                WM_LBUTTONDOWN if window==ui.card=>{ui.card_button_down();return LRESULT(0);}
+                WM_MOUSEMOVE if window==ui.card=>{ui.card_mouse_move();return LRESULT(0);}
+                WM_LBUTTONUP if window==ui.card=>{ui.card_button_up();return LRESULT(0);}
+                WM_CAPTURECHANGED if window==ui.card=>{ui.pressed=None;ui.end_drag();return LRESULT(0);}
                 _=>{}
             }
         }
@@ -759,7 +1006,7 @@ unsafe extern "system" fn window_proc(window:HWND,message:u32,wparam:WPARAM,lpar
 }
 
 unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBool>,
-    wake:Arc<Wake>,discreet:bool,
+    wake:Arc<Wake>,discreet:bool,prefs_path:std::path::PathBuf,
               ready:&mpsc::SyncSender<Result<(isize,isize),String>>)->Result<(),String> {
     unsafe {
         CoInitializeEx(None,COINIT_APARTMENTTHREADED).ok().map_err(|e|e.to_string())?;
@@ -771,6 +1018,8 @@ unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBo
         if RegisterClassW(&class)==0 {return Err(windows::core::Error::from_win32().to_string());}
         let overlay=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TRANSPARENT|WS_EX_LAYERED|WS_EX_NOACTIVATE|WS_EX_NOREDIRECTIONBITMAP,
             class.lpszClassName,PCWSTR(wide(&crate::i18n::text("HOI4 Companion · Highlights")).as_ptr()),WS_POPUP,0,0,1,1,None,None,Some(instance),None).map_err(|e|e.to_string())?;
+        let card_window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW|WS_EX_NOREDIRECTIONBITMAP,
+            class.lpszClassName,PCWSTR(wide(&crate::i18n::text("HOI4 Companion · Step card")).as_ptr()),WS_POPUP,0,0,1,1,None,None,Some(instance),None).map_err(|e|e.to_string())?;
         let control=CreateWindowExW(WINDOW_EX_STYLE(0),class.lpszClassName,PCWSTR(wide(&crate::i18n::text("HOI4 Companion · Native overlay")).as_ptr()),
             WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,530,220,None,None,Some(instance),None).map_err(|e|e.to_string())?;
         let scale=(GetDpiForWindow(control) as f32/96.0).clamp(1.0,3.0);
@@ -789,14 +1038,23 @@ unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBo
         let status=child(w!("STATIC"),PCWSTR(wide(&crate::i18n::text("Waiting for the game and guide…")).as_ptr()),WINDOW_STYLE(0),16,58,486,58,0).map_err(|e|e.to_string())?;
         let pause=child(w!("BUTTON"),PCWSTR(wide(&crate::i18n::text("Pause")).as_ptr()),WS_TABSTOP,16,126,120,32,PAUSE).map_err(|e|e.to_string())?;
         child(w!("BUTTON"),PCWSTR(wide(&crate::i18n::text("Close overlay")).as_ptr()),WS_TABSTOP,146,126,140,32,QUIT).map_err(|e|e.to_string())?;
+        child(w!("BUTTON"),PCWSTR(wide(&crate::i18n::text("Show/hide step card (Ctrl+Alt+H)")).as_ptr()),WS_TABSTOP,296,126,206,32,CARD_TOGGLE).map_err(|e|e.to_string())?;
         SetWindowDisplayAffinity(overlay,WDA_EXCLUDEFROMCAPTURE).map_err(|e|e.to_string())?;
+        SetWindowDisplayAffinity(card_window,WDA_EXCLUDEFROMCAPTURE).map_err(|e|e.to_string())?;
         let graphics=Graphics::new(overlay).map_err(|e|e.to_string())?;
-        let mut ui=Box::new(Ui {overlay,status,pause,combo,shared,paused,exit,
-            graphics:Some(graphics),last_revision:u64::MAX,last_guides:Vec::new(),last_selected:String::new(),
-            last_status:String::new(),excluded:true,visible:false,drawn:(false,false),placed:None,topmost_at:Instant::now(),_font:font,last_paused:false,wake:wake.clone()});
+        let card_graphics=Graphics::new(card_window).map_err(|e|e.to_string())?;
+        let prefs=Prefs::load(&prefs_path);
+        let mut ui=Box::new(Ui {overlay,card:card_window,status,pause,combo,shared,paused,exit,
+            graphics:Some(graphics),card_graphics:Some(card_graphics),last_revision:u64::MAX,last_guides:Vec::new(),last_selected:String::new(),
+            last_status:String::new(),excluded:true,visible:false,drawn_avoid:None,placed:None,topmost_at:Instant::now(),
+            card_visible:false,card_placed:None,card_state:None,card_size:(0.0,0.0),card_buttons:Vec::new(),card_rect:None,
+            card_target:None,card_content:None,notice:None,prefs,prefs_path,drag:None,pressed:None,
+            _font:font,last_paused:false,wake:wake.clone()});
         let pointer=(&mut *ui) as *mut Ui as isize;
-        SetWindowLongPtrW(overlay,GWLP_USERDATA,pointer);SetWindowLongPtrW(control,GWLP_USERDATA,pointer);
+        SetWindowLongPtrW(overlay,GWLP_USERDATA,pointer);SetWindowLongPtrW(control,GWLP_USERDATA,pointer);SetWindowLongPtrW(card_window,GWLP_USERDATA,pointer);
         SetTimer(Some(control),1,50,None);
+        // A global shortcut owned by the HUD; it sends nothing to the game.
+        let hotkey=RegisterHotKey(Some(control),CARD_HOTKEY,MOD_CONTROL|MOD_ALT|MOD_NOREPEAT,0x48).is_ok();
         FOREGROUND_WAKE.with(|slot|*slot.borrow_mut()=Some(wake));
         let foreground=ForegroundEvents(SetWinEventHook(EVENT_SYSTEM_FOREGROUND,EVENT_SYSTEM_FOREGROUND,None,
             Some(foreground_changed),0,0,WINEVENT_OUTOFCONTEXT));
@@ -819,10 +1077,11 @@ unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBo
             }
         }
         if tray_added {let _=Shell_NotifyIconW(NIM_DELETE,&tray);}
+        if hotkey {let _=UnregisterHotKey(Some(control),CARD_HOTKEY);}
         ui.hide();KillTimer(Some(control),1).ok();
-        SetWindowLongPtrW(overlay,GWLP_USERDATA,0);SetWindowLongPtrW(control,GWLP_USERDATA,0);
-        let _=DestroyWindow(overlay);let _=DestroyWindow(control);
-        ui.graphics=None;
+        SetWindowLongPtrW(overlay,GWLP_USERDATA,0);SetWindowLongPtrW(control,GWLP_USERDATA,0);SetWindowLongPtrW(card_window,GWLP_USERDATA,0);
+        let _=DestroyWindow(overlay);let _=DestroyWindow(card_window);let _=DestroyWindow(control);
+        ui.graphics=None;ui.card_graphics=None;
         let _=DeleteObject(font.into());
         UnregisterClassW(class.lpszClassName,Some(instance)).ok();
         Ok(())

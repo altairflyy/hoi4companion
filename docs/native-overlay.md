@@ -100,3 +100,11 @@ Rules now (`native/overlay/src/stability.rs`, `render.rs`):
 - Window: hidden only when nothing may be drawn (paused, HOI4 not in the foreground or moved, no layer alive). `SetWindowPos` runs only when the client area moves or the window was hidden; topmost is re-asserted once per second. Transitional WGC frames publish nothing instead of hiding. Only a guide selection still hides immediately.
 - Captions keep the side they used in the previous frame while it stays free; otherwise first fit as before.
 - Appearance: a 90 ms compositor fade-in when the layer becomes visible. Disappearance stays instantaneous.
+
+## Step card controls (2026-11-16)
+The step card now has its own window (`card` in `native/overlay/src/render.rs`, logic in `card.rs`). It takes clicks but never activates: HOI4 keeps the foreground and receives no input from the HUD. The highlight layer stays click-through.
+- Move: drag the card anywhere except its buttons. It stays inside the game's client area; the place is saved as fractions of the client area in `overlay-card.json` next to the status file (`.local/`), so it survives restarts and resolution changes.
+- `–`/`+` collapses the card to its header line; `×` hides it. `Ctrl+Alt+H` (a HUD-owned global hotkey) or the control panel's "Show/hide step card" button shows it again. Both choices are saved.
+- `✓ Mark done` appears only when the backend marks the card `checkable`: the step takes a manual confirmation (`application::manual_keys`, the same rule as the suite's checkbox) and is not completed. The HUD sends overlay kind `check` (`guide_id`, `key`, `checked`); the backend checks the key only if it is the current card's checkable step in a current delivery (`hud_check_allowed` in `http.rs`), then writes it through `app_checks`. A stale card is refused ("The current step changed"). The card shows the result for 8 s with an `Undo` button, which unchecks that manual confirmation. Observed steps (focus, research, ...) still complete from the game only.
+- Captions of highlighted controls avoid the card wherever it is placed.
+- A lost backend connection is now reported as unknown delivery (`live_delivery_fresh: false`, `connection_lost: true`) so the card is kept briefly; the guide list is still cleared on a lost connection.

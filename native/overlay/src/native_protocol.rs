@@ -260,7 +260,7 @@ impl Drop for Client {
     }
 }
 fn unavailable(last: &Value, input: &Value, error: &str) -> Value {
-    json!({"schema_version":1,"kind":input["kind"],"token":input["token"],"ok":true,"version":last["version"],"guide_id":last["guide_id"],"guide_server_id":last["guide_server_id"],"title":last["title"],"guides":[],"guide_filter":{"status":"unavailable","country":null},"usable":false,"proposed":[],"matches":[],"native_available":false,"suspend_visual":true,"error":error,"age_ms":null,"view":input["view"]})
+    json!({"schema_version":1,"kind":input["kind"],"token":input["token"],"ok":true,"version":last["version"],"guide_id":last["guide_id"],"guide_server_id":last["guide_server_id"],"title":last["title"],"guides":[],"guide_filter":{"status":"unavailable","country":null},"usable":false,"proposed":[],"matches":[],"native_available":false,"suspend_visual":true,"error":error,"age_ms":null,"view":input["view"],"live_delivery_fresh":false,"connection_lost":true})
 }
 #[cfg(test)]
 mod tests {
@@ -275,6 +275,8 @@ mod tests {
         assert_eq!(response["guide_id"],"hungary");
         assert_eq!(response["usable"],false);
         assert_eq!(response["matches"],json!([]));
+        assert_eq!(response["live_delivery_fresh"],false,"a lost connection is unknown, not an empty guide");
+        assert_eq!(response["connection_lost"],true);
     }
     #[test]
     fn folder_ids_cannot_escape_local_query_parameters() {

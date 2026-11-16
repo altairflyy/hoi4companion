@@ -20,6 +20,12 @@ type Result<T> = std::result::Result<T, String>;
 fn recent_delivery(age: Option<Duration>) -> bool {
     age.is_some_and(|age| age < Duration::from_secs(2))
 }
+/// Whether the HUD may mark `key` done: it must be the checkable step of
+/// the card in a current delivery for the same guide.
+fn hud_check_allowed(current:&Value,guide:&str,key:&str)->bool{
+    current["live_delivery_fresh"]!=false&&current["guide_id"]==guide
+        &&current["step_card"]["key"]==key&&current["step_card"]["checkable"]==true
+}
 fn current_hud_delivery(delivery:Option<&(u64,Instant,Value)>,epoch:u64)->Option<Value>{
     let (published,observed,value)=delivery?;
     if *published!=epoch||!recent_delivery(Some(observed.elapsed())){return None;}
@@ -960,6 +966,8 @@ impl Service {
             "view",
             "version",
             "refresh_guides",
+            "key",
+            "checked",
         ])?;
         if input["schema_version"] != 1 || input["token"].as_u64().is_none() {
             return Err("Versione o token overlay non supportati".into());
@@ -982,6 +990,24 @@ impl Service {
             }
             self.app("app_active", &json!({"update":{"guide_id":guide}}))?;
             self.invalidate()?;
+        } else if kind == "check" {
+            // The HUD card's "Done" button: a manual confirmation, exactly as
+            // the suite's checkbox. Checking is accepted only for the step the
+            // card shows right now; undo only clears a manual confirmation.
+            let guide = input["guide_id"].as_str().ok_or("Guida non installata")?;
+            let key = input["key"].as_str().ok_or("Missing step")?;
+            let checked = input["checked"].as_bool().ok_or("Missing check value")?;
+            if checked {
+                let current = self.overlay_latest()?;
+                if !hud_check_allowed(&current, guide, key) {
+                    return Err("The current step changed: nothing was marked done".into());
+                }
+            }
+            self.app("app_checks", &json!({"guide_id":guide,"update":{"key":key,"checked":checked}}))?;
+            self.invalidate()?;
+            result["key"] = json!(key);
+            result["checked"] = json!(checked);
+            return Ok(result);
         } else if !["snapshot", "observe", "geometry"].contains(&kind) {
             return Err("Richiesta overlay non supportata".into());
         }
@@ -2058,6 +2084,18 @@ pub fn serve(config: Value, port: u16, ready: Option<PathBuf>) -> Result<()> {
 #[cfg(test)]
 mod accept_tests {
     use super::*;
+    #[test]
+    fn hud_marks_done_only_the_checkable_step_of_a_current_card(){
+        let current=json!({"guide_id":"sov","step_card":{"key":"word-0008","checkable":true}});
+        assert!(hud_check_allowed(&current,"sov","word-0008"));
+        assert!(!hud_check_allowed(&current,"sov","word-0009"),"a stale card never checks the next step");
+        assert!(!hud_check_allowed(&current,"ger","word-0008"));
+        let mut observed=current.clone();observed["step_card"]["checkable"]=json!(false);
+        assert!(!hud_check_allowed(&observed,"sov","word-0008"));
+        let mut unknown=current.clone();unknown["live_delivery_fresh"]=json!(false);
+        assert!(!hud_check_allowed(&unknown,"sov","word-0008"));
+        assert!(!hud_check_allowed(&json!({"guide_id":"sov","step_card":null}),"sov","word-0008"));
+    }
     #[test]
     fn published_hud_rejects_mutations_and_stale_identity_without_waiting_for_application(){
         let current=(7,Instant::now(),json!({"guide_id":"hun","observer_session_id":"one","usable":true}));

@@ -108,8 +108,11 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
     let status = crate::hud_geometry::rows(&runtime["steps"]).into_iter().find(|r| r["key"] == key).map(|r| r["status"].clone()).unwrap_or(Value::Null);
     let total = rows.iter().filter(|r| r["tracking"] != "reminder").count();
     let index = rows[..=position].iter().filter(|r| r["tracking"] != "reminder").count();
+    // The HUD offers "Done" only where the suite offers a manual confirmation
+    // of this very step; observed steps complete from the game alone.
+    let checkable = status != "completed" && crate::application::manual_keys(guide).contains(key);
     json!({"key":key,"track":track,"index":index,"total":total,"heading":heading,"abbreviation":abbreviation,
-        "body":body,"status":status,"event_answer":resolved.is_some()})
+        "body":body,"status":status,"event_answer":resolved.is_some(),"checkable":checkable})
 }
 fn notice(runtime: &Value) -> Value {
     let capacity = &runtime["parallel"]["research"]["capacity"];
@@ -178,6 +181,10 @@ mod tests {
         assert_eq!(card["body"], json!(["Queue civilian factories"]));
         assert_eq!((card["index"].clone(), card["total"].clone()), (json!(2), json!(2)), "reminders are not numbered");
         assert_eq!(card["status"], "ready");
+        assert_eq!(card["checkable"], false, "a step without a manual confirmation is never checked from the HUD");
+        let mut gated = guide.clone();
+        gated["tracks"]["operations"][2]["kind"] = json!("gate");
+        assert_eq!(step_card(&gated, &runtime)["checkable"], true);
         assert!(step_card(&guide, &json!({"tracks":{"operations":{"next":null}}})).is_null());
     }
     #[test]

@@ -1540,7 +1540,14 @@
     "MIO presets are installed automatically during ZIP import, preserving existing presets with a backup. Keep Companion open when closing HOI4 to finish a pending installation, or reopen Companion before launching the game. Presets load on the next game launch. Export remains available for manual transfer. No traits are unlocked or purchased.": "I preset MIO vengono installati automaticamente durante l’importazione dello ZIP, conservando quelli esistenti con un backup. Lascia Companion aperto alla chiusura di HOI4 per completare un’installazione in attesa, oppure riapri Companion prima del gioco. I preset vengono caricati al prossimo avvio del gioco. L’esportazione resta disponibile. Nessun tratto viene sbloccato o acquistato.",
     "Step {0} of {1}": "Passo {0} di {1}",
     "In the guide: “{0}”": "Nella guida: “{0}”",
-    "Event answer recognized: the button is highlighted when the event appears.": "Risposta all’evento riconosciuta: il pulsante viene evidenziato quando compare l’evento."
+    "Event answer recognized: the button is highlighted when the event appears.": "Risposta all’evento riconosciuta: il pulsante viene evidenziato quando compare l’evento.",
+    "Undo": "Annulla",
+    "Mark done": "Fatto",
+    "Step marked done in the checklist.": "Passo segnato come fatto nella checklist.",
+    "Step unchecked again.": "Passo di nuovo da fare.",
+    "Not changed: {0}": "Nessuna modifica: {0}",
+    "Show/hide step card (Ctrl+Alt+H)": "Mostra/nascondi scheda passo (Ctrl+Alt+H)",
+    "HOI4 Companion · Step card": "HOI4 Companion · Scheda passo"
   },
   "legacy": {
     "Contesto GUI della produzione non qualificato: ": "Production GUI context is not qualified: ",

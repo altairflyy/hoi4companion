@@ -11,6 +11,7 @@ mod evidence;
 mod wake;
 mod visual_worker;
 mod stability;
+mod card;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
@@ -183,7 +184,10 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
         .filter(|l|!l.is_empty()).collect::<Vec<_>>().join("
 ");
     let badge=if card["event_answer"]==true {i18n::text("Event answer recognized: the button is highlighted when the event appears.")}else{String::new()};
-    Some(StepCard {header,heading:heading.trim().to_owned(),note,body,badge})
+    let key=card["key"].as_str().unwrap_or("").to_owned();
+    let guide_id=snapshot["guide_id"].as_str().unwrap_or("").to_owned();
+    let checkable=card["checkable"]==true&&!key.is_empty()&&!guide_id.is_empty();
+    Some(StepCard {header,heading:heading.trim().to_owned(),note,body,badge,key,guide_id,checkable})
 }
 /// The card for this sample: the backend's current card, or the last one kept
 /// briefly while the delivery is unknown (see the stability module).
@@ -202,6 +206,17 @@ fn present(renderer:&Renderer,view:&TargetWindow,marks:Vec<Highlight>,witnessed:
     let now=Instant::now();
     let observed_at=witnessed.filter(|_|!marks.is_empty()).unwrap_or(now);
     renderer.show(OverlayFrame {target:view.clone(),marks,card,observed_at,valid_for:Duration::from_millis(750),card_observed_at:now})
+}
+/// Card feedback for a "Done"/"Undo" request. The backend answers with the
+/// key it changed; anything else is shown as the reason nothing changed.
+fn check_notice(response:&Value,guide_id:&str,key:&str,checked:bool)->card::Notice {
+    let done=response["key"]==key&&response["checked"]==checked;
+    let text=match (done,checked) {
+        (true,true)=>i18n::text("Step marked done in the checklist."),
+        (true,false)=>i18n::text("Step unchecked again."),
+        _=>i18n::format("Not changed: {0}",&[response["error"].as_str().filter(|s|!s.is_empty()).unwrap_or("?")]),
+    };
+    card::Notice {text,undo:(done&&checked).then(||(guide_id.to_owned(),key.to_owned())),at:Instant::now()}
 }
 fn guides(snapshot:&Value)->Vec<(String,String)> {
     snapshot["guides"].as_array().into_iter().flatten().filter_map(|g|
@@ -280,7 +295,7 @@ fn run(options:Options)->Result<(),String> {
     if options.ocr_image.is_some(){return benchmark(&options);}
     let Some(_instance)=singleton()? else {return Ok(());};
     unsafe {let _=SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);}
-    let mut renderer=Renderer::new(options.discreet)?;renderer.set_paused(!options.start);
+    let mut renderer=Renderer::new(options.discreet,card::Prefs::path(&options.status))?;renderer.set_paused(!options.start);
     let mut bridge=protocol::Bridge::new(options.port)?;
     let mut visual:Option<visual_worker::VisualWorker>=None;
     let mut capture:Option<Capture>=None;let mut target:Option<TargetWindow>=None;
@@ -304,6 +319,10 @@ fn run(options:Options)->Result<(),String> {
                     let _=bridge.request(json!({"kind":"select","guide_id":id}),&[])?;
                 },
                 ControlAction::RefreshGuides=>refresh=true,
+                ControlAction::Check{guide_id,key,checked}=>{
+                    let response=bridge.request(json!({"kind":"check","guide_id":guide_id,"key":key,"checked":checked}),&[])?;
+                    renderer.set_notice(Some(check_notice(&response,&guide_id,&key,checked)));
+                },
                 ControlAction::OpenSuite=>{
                     // Start/reuse only our launcher, never issue game input.
                     if let Ok(exe)=std::env::current_exe() && let Some(native)=exe.parent().and_then(|p|p.parent()) {
@@ -319,7 +338,7 @@ fn run(options:Options)->Result<(),String> {
             bridge.request(json!({"kind":"observe","view":view_json(view),"refresh_guides":refresh}),&[])?
         }else{bridge.snapshot(refresh)?};
         // An unknown delivery has no guide list: keep the shown one meanwhile.
-        if stability::delivery_known(&snapshot) {renderer.set_guides(guides(&snapshot),snapshot["guide_id"].as_str().unwrap_or(""));}
+        if stability::delivery_known(&snapshot)||snapshot["connection_lost"]==true {renderer.set_guides(guides(&snapshot),snapshot["guide_id"].as_str().unwrap_or(""));}
         if renderer.is_paused()||current.is_none()||snapshot["usable"]!=true {
             if let Some(worker)=visual.as_mut(){worker.invalidate();}
             match current.as_ref().filter(|_|!renderer.is_paused()) {
@@ -590,6 +609,21 @@ mod tests {
         assert_eq!(card.body,"Queue civilian factories");
         assert!(!card.badge.is_empty());
         assert!(step_card(&json!({"step_card":null})).is_none());
+        assert!(!card.checkable,"no Done button unless the backend says the step takes a manual confirmation");
+        let mut manual=snapshot.clone();manual["guide_id"]=json!("sov");manual["step_card"]["key"]=json!("word-0008");manual["step_card"]["checkable"]=json!(true);
+        let card=step_card(&manual).unwrap();
+        assert!(card.checkable);assert_eq!((card.key.as_str(),card.guide_id.as_str()),("word-0008","sov"));
+        manual["guide_id"]=Value::Null;
+        assert!(!step_card(&manual).unwrap().checkable,"never without the guide identity");
+    }
+    #[test]
+    fn done_feedback_offers_undo_only_after_a_confirmed_check() {
+        let ok=check_notice(&json!({"key":"k","checked":true}),"g","k",true);
+        assert_eq!(ok.undo,Some(("g".into(),"k".into())));
+        let refused=check_notice(&json!({"error":"The current step changed: nothing was marked done"}),"g","k",true);
+        assert!(refused.undo.is_none());assert!(refused.text.contains("current step changed"));
+        let undone=check_notice(&json!({"key":"k","checked":false}),"g","k",false);
+        assert!(undone.undo.is_none());
     }
     #[test]
     fn explanations_separate_unknown_evidence_from_visible_marks_and_errors() {
