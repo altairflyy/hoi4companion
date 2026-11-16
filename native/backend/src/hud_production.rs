@@ -86,7 +86,7 @@ pub fn proposals(
         let comparison = if p["quantity_mode"] == "additional" {
             "gte"
         } else {
-            p["assignment_test"].as_str().unwrap_or("eq")
+            p["assignment_test"].as_str().unwrap_or("gte")
         };
         let mut satisfied = if numeric {
             json!(if comparison == "eq" {

@@ -15,7 +15,11 @@ Requested counts can exceed currently assigned factories. Capacity growth
 recalculates the target; a line requesting extra capacity can remain satisfied.
 This observes the allocation, not an unobserved automatic-assignment setting.
 Missing capacity, incomplete/foreign/stale production data, or ambiguous lines
-cannot prove completion. Numeric instructions retain their exact requested totals.
+cannot prove completion. Numeric instructions retain their requested totals as a
+minimum (2026-11-16, user decision): "I-16: 5" is met by 5 or more requested
+factories, because later guide steps often raise the same line. A guide that needs
+the exact count sets `assignment_test: "eq"`. Relative (`additional`) and
+`remaining` targets were already minimums.
 
 Explicit military line priorities use `production_priority:"first"/"last"`.
 Qualifying the requested counts and the observed line order is necessary for

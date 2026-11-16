@@ -384,13 +384,15 @@ fn run(
     if relative && target == 0 {
         return Ok("production_target_missing");
     }
+    // A factory count is a minimum unless the guide asks for exactly that many
+    // (`assignment_test: eq`): a later step may raise the same line on purpose.
     let test = if relative {
         json!("gte")
     } else {
         params
             .get("assignment_test")
             .cloned()
-            .unwrap_or(json!("eq"))
+            .unwrap_or(json!("gte"))
     };
     if !["eq", "gte"].contains(&s(&test)) {
         return Ok("production_target_invalid");

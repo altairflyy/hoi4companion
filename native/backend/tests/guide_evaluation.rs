@@ -727,6 +727,27 @@ fn national_fighter_name_matches_the_designer_line_of_that_name() {
 }
 
 #[test]
+fn factory_counts_are_a_minimum_unless_the_guide_asks_for_exactly() {
+    let step = bind_fighter("I-16", "SOV")["step"].clone();
+    assert_eq!(step["completion"]["test"], "gte");
+    let status = |step: &Value, requested: u64| {
+        let mut lines = soviet_lines("I-16");
+        lines[1]["requested_factories"] = json!(requested);
+        let state = production_details(lines, step.clone())[0].clone();
+        let guide = json!({"id":"min","dependency_policy":"explicit","tracks":{"operations":[step]}});
+        eval0(&guide, &state)["steps"][0]["status"].as_str().unwrap().to_owned()
+    };
+    // A later guide step raises the I-16 line to 15 on purpose: 5 is reached.
+    assert_eq!(status(&step, 15), "completed");
+    assert_eq!(status(&step, 5), "completed");
+    assert_ne!(status(&step, 4), "completed");
+    let mut exact = step.clone();
+    exact["action"]["params"]["assignment_test"] = json!("eq");
+    exact["completion"]["test"] = json!("eq");
+    assert_ne!(status(&exact, 15), "completed");
+}
+
+#[test]
 fn generic_or_foreign_fighter_names_keep_the_exact_equipment() {
     let generic = bind_fighter("Fighter I", "SOV");
     assert_eq!(generic["step"]["action"]["params"]["production_selector"]["variant_names"], json!([]));
