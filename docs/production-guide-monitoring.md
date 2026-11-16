@@ -221,3 +221,29 @@ active; different recipes and generic explicitly named variants stay distinct.
 This identity does not change persisted relative-baseline keys or infer that a
 superseded allocation was ever completed. Tests cover reordered recipes, changed
 samples, unavailable evidence and cross-runtime parity without opening HOI4.
+
+## National model names and unmatched targets (2026-11-16)
+
+A guide target written with a nation's model name ("I-16" in a Soviet guide)
+resolves through the country localisation to a legacy equipment row
+(`fighter_equipment_1`). With the designer (By Blood Alone, No Step Back) the
+game produces that model as a design of the same name on the family's chassis
+(`small_plane_airframe_1`, name `I-16`), so the old selector matched nothing and
+the step stayed silently at zero. `production_binding::national_model` now binds
+such a name to the family archetype's `equipment_ids`, filtered by
+`variant_names` = the written name, the nation's aliases for that model and the
+legacy id (a line without a design reports its equipment id as its name). Only a
+name in the country's own aliases does this; generic names ("Fighter I") and
+other nations' model names keep the exact equipment. Another design on the same
+chassis (for example "I-153") does not count.
+
+When a target matches no observed line, `production_context` sets the detail's
+`reason` and `near_lines` (at most 8, each with `why`):
+`line_missing`, `design_name_mismatch` (same equipment, other name),
+`category_mismatch`, `equipment_mismatch` (same name, other equipment). Design
+recipes keep reporting through `design_check`. The guide card
+(`action-plan.js` `observations`, shown by `guide.js`) prints one status line per
+target from these fields: detected with count/target, or why it is not
+detected. JS never matches lines itself. Tests:
+`native/backend/tests/guide_evaluation.rs` (`national_fighter_name_*`,
+`unmatched_production_targets_state_why`), `tests/test_action_plan.cjs`.

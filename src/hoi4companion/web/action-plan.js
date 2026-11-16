@@ -13,7 +13,7 @@
   return p.category||(row.action?.kind==='special_project'?'projects':'checkpoints');
  }
  function describe(row,context={}){
-  const p=row.action?.params||{},instructions=[];let panel=null,access=null,target=null,bound=false;
+  const p=row.action?.params||{},instructions=[],observations=[];let panel=null,access=null,target=null,bound=false;
   if(p.category==='production'&&row.tracking!=='reminder'){
    panel='production';access=t('Open Production, then the equipment category.');
    const source=Array.isArray(p.production_targets)?p.production_targets:[p],lines=source.filter(x=>x&&typeof x==='object'&&!Array.isArray(x));
@@ -27,6 +27,25 @@
      t('{0}: the guide does not specify a verifiable factory quota.',product));
    }
    target=instructions.join(' ');
+   // Live status per target, read from the Rust evaluation (reason and near
+   // lines); an unmatched target says why instead of staying silently at zero.
+   const layout=Array.isArray(row.production?.layout)?row.production.layout:row.production?[row.production]:[];
+   lines.forEach((line,i)=>{const d=layout[i];if(!d||typeof d!=='object'||d.superseded_by?.length)return;
+    const product=label(line,'variant_name','equipment_name','equipment_id')||t('Equipment specified by the guide');
+    const near=(Array.isArray(d.near_lines)?d.near_lines:[]).filter(n=>n.why===d.reason);
+    const names=[...new Set(near.map(n=>n.name||n.equipment))].join(', ');
+    const count=d.basis==='assigned'?d.assigned:d.requested;
+    const text=d.reason==='production_unavailable'?t('{0}: live production lines cannot be verified now.',product):
+     d.reason==='line_missing'||d.reason==='remaining_line_missing'?t('{0}: not detected — no matching production line is observed.',product):
+     d.reason==='design_name_mismatch'?t('{0}: not detected — the line with this equipment has another name ({1}).',product,names):
+     d.reason==='category_mismatch'?t('{0}: not detected — the equipment is in another production category ({1}).',product,[...new Set(near.map(n=>n.category))].join(', ')):
+     d.reason==='equipment_mismatch'?t('{0}: not detected — a line with this name uses other equipment ({1}).',product,[...new Set(near.map(n=>n.equipment))].join(', ')):
+     d.reason==='remaining_line_not_last'?t('{0}: detected, but it is not the last military line.',product):
+     d.reason==='remaining_capacity_unknown'?t('{0}: total military factories cannot be verified now.',product):
+     d.reason==='remaining_line_ambiguous'?t('{0}: more than one matching line is observed.',product):
+     d.reason==='baseline_missing'||d.design_check?null:
+     Array.isArray(d.lines)&&d.lines.length&&Number.isInteger(count)?t('{0}: detected · {1} of {2} factories.',product,count,d.target??'—'):null;
+    if(text)observations.push(text);});
   }else if(p.category==='construction'&&row.tracking!=='reminder'){
    access=t('Open Construction and select the indicated region.');
    const building=label(p,'building_name','building_id')||t('Building specified by the guide');
@@ -79,7 +98,7 @@
   const title=row.tracking!=='reminder'&&p.category==='production'?t('Set up production'):row.tracking!=='reminder'&&p.category==='construction'?instructions[0]:
    target&&['politics','event','projects'].includes(panel)?(panel==='politics'&&!label(p,'law_name','person_name','idea_name','trait_name')?(row.name||row.title||target):target):p.operation_id==='create_intelligence_agency'?t('Create intelligence agency'):null;
   const displayTitle=context.reader?.read(title||row.name||row.title||'',row).text||title;
-  return {title:displayTitle,instructions,access,target,monitoring,hud:{panel,status,message},
+  return {title:displayTitle,instructions,observations,access,target,monitoring,hud:{panel,status,message},
    glossary:[...new Map(readings.flatMap(r=>r.terms).map(term=>[term.code,term])).values()],
    reading_notes:[...new Set(readings.flatMap(r=>r.notes))]};
  }

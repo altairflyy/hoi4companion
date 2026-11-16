@@ -40,6 +40,66 @@ fn owned(node: &Value, prefix: &str) -> bool {
         && !arr(&node["args"]).is_empty()
         && arr(&node["args"]).iter().all(|n| owned(n, prefix))
 }
+/// A national model name ("I-16" for SOV) names a legacy equipment row
+/// (`fighter_equipment_1`) through the country's localisation, but with the
+/// designer the game produces it as a design of that name on the family's
+/// chassis (`small_plane_airframe_1`). Such a target selects the whole family
+/// filtered by the model's names; the legacy id stays a name because lines
+/// without a design report their equipment id as name. A generic name
+/// ("Fighter I") is not a model name and keeps the exact equipment.
+fn national_model(
+    index: &Index,
+    equipment: &Value,
+    query: &str,
+    country: &Value,
+) -> Result<Option<(Value, Value)>, String> {
+    let key = reference_identity::name_key(query);
+    let national = |names: &Value| {
+        arr(names)
+            .iter()
+            .any(|n| reference_identity::name_key(s(n)) == key)
+    };
+    let aliases = &equipment["country_aliases"];
+    let names = match country.as_str() {
+        Some(tag) if national(&aliases[tag]) => aliases[tag].clone(),
+        Some(_) => return Ok(None),
+        None => {
+            let hits = aliases
+                .as_object()
+                .into_iter()
+                .flatten()
+                .filter(|(_, v)| national(v))
+                .flat_map(|(_, v)| arr(v).iter().cloned())
+                .collect::<Vec<_>>();
+            if hits.is_empty() {
+                return Ok(None);
+            }
+            json!(hits)
+        }
+    };
+    let family = s(&equipment["family_id"]);
+    if family.is_empty() || truth(&equipment["is_archetype"]) {
+        return Ok(None);
+    }
+    let root = index
+        .entries(json!({"op":"matches","query":family,"kinds":["equipment"],"explicit":true}))?
+        .into_iter()
+        .find(|e| e["id"] == family && truth(&e["is_archetype"]));
+    let Some(root) = root else { return Ok(None) };
+    let own = equipment
+        .get("equipment_ids")
+        .cloned()
+        .unwrap_or(json!([equipment["id"]]));
+    let ids = arr(&root["equipment_ids"]);
+    if !arr(&own).iter().all(|id| ids.contains(id)) || ids.len() <= arr(&own).len() {
+        return Ok(None);
+    }
+    let mut variants = BTreeSet::from([query.trim().to_owned()]);
+    variants.extend(arr(&names).iter().map(|n| s(n).to_owned()));
+    variants.extend(arr(&own).iter().map(|n| s(n).to_owned()));
+    variants.retain(|n| !n.is_empty() && !n.contains(';'));
+    Ok(Some((json!(ids), json!(variants))))
+}
 fn run(
     step: &mut Value,
     params: &mut Value,
@@ -214,13 +274,15 @@ fn run(
             return Ok("production_equipment_ambiguous");
         }
         let equipment = &matches[0];
-        (
-            equipment
-                .get("equipment_ids")
-                .cloned()
-                .unwrap_or(json!([equipment["id"]])),
-            json!([]),
-        )
+        national_model(index, equipment, &query, country)?.unwrap_or_else(|| {
+            (
+                equipment
+                    .get("equipment_ids")
+                    .cloned()
+                    .unwrap_or(json!([equipment["id"]])),
+                json!([]),
+            )
+        })
     };
     if let Some(variant) = params.get("variant_name").filter(|v| !v.is_null()) {
         let Some(variant) = variant

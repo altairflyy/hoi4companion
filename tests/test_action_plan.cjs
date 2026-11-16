@@ -81,3 +81,23 @@ test('legacy descriptive parameters cannot crash the plan or qualify an empty pr
  const info=plan.describe(row('old',{category:'production',production_targets:[null],instructions:42}));
  assert.equal(info.hud.status,'unresolved');assert.deepEqual(info.instructions,[]);
 });
+
+test('production targets show the Rust match status and why an unmatched target is not detected',()=>{
+ const sel={production_selector:{equipment_ids:['x'],variant_names:[],category:null}};
+ const r=row('p',{category:'production',production_targets:[
+  {equipment_name:'support equipment',requested_factories:5,...sel},
+  {equipment_name:'I-16',requested_factories:5,...sel},
+  {equipment_name:'Truck',requested_factories:4,...sel},
+  {equipment_name:'infantry equipment',quantity_mode:'remaining',...sel}]},
+  {production:{layout:[
+   {basis:'requested',requested:5,assigned:5,target:5,lines:[{id:'1'}],reason:''},
+   {basis:'requested',requested:0,assigned:0,target:5,lines:[],reason:'design_name_mismatch',near_lines:[{line_id:'2',name:'I-153',equipment:'small_plane_airframe_1',category:'military',why:'design_name_mismatch'}]},
+   {basis:'requested',requested:0,assigned:0,target:4,lines:[],reason:'line_missing',near_lines:[]},
+   {basis:'remaining',requested:150,assigned:33,target:23,lines:[{id:'7'}],reason:'remaining_line_not_last'}]}});
+ assert.deepEqual(plan.describe(r).observations,[
+  'support equipment: detected · 5 of 5 factories.',
+  'I-16: not detected — the line with this equipment has another name (I-153).',
+  'Truck: not detected — no matching production line is observed.',
+  'infantry equipment: detected, but it is not the last military line.']);
+ assert.deepEqual(plan.describe(row('q',{category:'production',equipment_name:'Tank',requested_factories:2,...sel})).observations,[]);
+});

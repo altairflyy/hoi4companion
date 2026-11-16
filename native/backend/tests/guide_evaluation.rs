@@ -673,3 +673,81 @@ fn unknown_designs_cannot_satisfy_remaining_allocation_or_priority() {
     assert!(result[0]["facts"]["guide.production.tank.remaining_allocated"]["value"].is_null());
     assert!(result[0]["facts"]["guide.production.tank.priority_satisfied"]["value"].is_null());
 }
+
+// ---- national aircraft model names (designer chassis)
+
+/// Catalog rows as the real catalog exports them (trimmed aliases).
+fn fighter_catalog() -> Value {
+    json!({"entries":[
+        {"name":"Fighter","aliases":["small plane airframe","Fighters"],"kind":"equipment","id":"small_plane_airframe","family_id":"small_plane_airframe","production_ui_category":"interface_category_air","equipment_ids":["fighter_equipment_0","fighter_equipment_1","fighter_equipment_2","fighter_equipment_3","small_plane_airframe_0","small_plane_airframe_1","small_plane_airframe_2","small_plane_airframe_3","small_plane_airframe_4","small_plane_airframe_5"],"is_archetype":true,"country_aliases":{}},
+        {"name":"Basic Small Airframe","aliases":["Fighter I","small plane airframe 1"],"kind":"equipment","id":"small_plane_airframe_1","family_id":"small_plane_airframe","production_ui_category":"interface_category_air","equipment_ids":["small_plane_airframe_1"],"is_archetype":false,"country_aliases":{}},
+        {"name":"Fighter I","aliases":["Polikarpov I-16","Messerschmitt Bf 109","Fighter I","fighter equipment 1"],"kind":"equipment","id":"fighter_equipment_1","family_id":"small_plane_airframe","production_ui_category":"interface_category_air","equipment_ids":["fighter_equipment_1"],"is_archetype":false,"country_aliases":{"GER":["Messerschmitt Bf 109","Bf 109"],"SOV":["Polikarpov I-16","I-16"]}},
+        {"name":"Infantry Equipment I","aliases":["Infantry Equipment"],"kind":"equipment","id":"infantry_equipment_1","family_id":"infantry_equipment","equipment_ids":["infantry_equipment_1"],"is_archetype":false,"country_aliases":{}}]})
+}
+fn bind_fighter(name: &str, country: &str) -> Value {
+    let mut args = fighter_catalog();
+    args["step"] = json!({"key":"word-0002.target-2","action":{"kind":"manual","params":{"category":"production","equipment_name":name,"requested_factories":5}}});
+    args["country"] = json!(country);
+    args["library"] = json!({});
+    args["declared"] = json!({});
+    request(0, "import_bind_production", args).unwrap()
+}
+/// Lines exactly as the live observer reported them for a Soviet game (By
+/// Blood Alone designer): the I-16 is a design on `small_plane_airframe_1`.
+fn soviet_lines(i16_name: &str) -> Value {
+    json!([
+        {"id":"1","equipment":"support_equipment_1","name":"support_equipment_1","category":"military","requested_factories":5,"assigned_factories":5,"active_factories":5,"damaged_factories":0,"output_per_day":8.5,"design":{"status":"observed","modules":{},"upgrades":{}}},
+        {"id":"2","equipment":"small_plane_airframe_1","name":i16_name,"category":"military","requested_factories":5,"assigned_factories":5,"active_factories":5,"damaged_factories":0,"output_per_day":1.15,"design":{"status":"observed","modules":{"fixed_main_weapon_slot":"aircraft_cannon_1_2x","fixed_auxiliary_weapon_slot_1":"aircraft_cannon_1_2x","engine_type_slot":"engine_2_1x"},"upgrades":{}}},
+        {"id":"7","equipment":"infantry_equipment_1","name":"infantry_equipment_1","category":"military","requested_factories":150,"assigned_factories":33,"active_factories":33,"damaged_factories":0,"output_per_day":276.9,"design":{"status":"observed","modules":{},"upgrades":{}}}])
+}
+
+#[test]
+fn national_fighter_name_matches_the_designer_line_of_that_name() {
+    let bound = bind_fighter("I-16", "SOV");
+    assert_eq!(bound["reason"], "production_live_assignment");
+    let step = bound["step"].clone();
+    let selector = &step["action"]["params"]["production_selector"];
+    assert!(selector["equipment_ids"].as_array().unwrap().contains(&json!("small_plane_airframe_1")));
+    assert!(selector["equipment_ids"].as_array().unwrap().contains(&json!("fighter_equipment_1")));
+    assert_eq!(selector["variant_names"], json!(["I-16", "Polikarpov I-16", "fighter_equipment_1"]));
+    let result = production_details(soviet_lines("I-16"), step.clone());
+    let detail = &result[1]["word-0002.target-2"];
+    assert_eq!(detail["requested"], 5);
+    assert_eq!(detail["lines"][0]["id"], "2");
+    assert_eq!(detail["reason"], "");
+    assert_eq!(result[0]["facts"]["guide.production.word-0002.target-2.requested"]["value"], 5);
+    // Legacy (no designer) line of the same equipment still matches by its id name.
+    let legacy = json!([{"id":"9","equipment":"fighter_equipment_1","name":"fighter_equipment_1","category":"military","requested_factories":5,"assigned_factories":5,"active_factories":5,"damaged_factories":0}]);
+    assert_eq!(production_details(legacy, step.clone())[1]["word-0002.target-2"]["requested"], 5);
+    // Another fighter design on the same chassis is not the I-16.
+    let other = production_details(soviet_lines("I-153"), step)[1]["word-0002.target-2"].clone();
+    assert_eq!(other["requested"], 0);
+    assert_eq!(other["reason"], "design_name_mismatch");
+    assert_eq!(other["near_lines"], json!([{"line_id":"2","name":"I-153","equipment":"small_plane_airframe_1","category":"military","why":"design_name_mismatch"}]));
+}
+
+#[test]
+fn generic_or_foreign_fighter_names_keep_the_exact_equipment() {
+    let generic = bind_fighter("Fighter I", "SOV");
+    assert_eq!(generic["step"]["action"]["params"]["production_selector"]["variant_names"], json!([]));
+    let foreign = bind_fighter("Bf 109", "SOV");
+    let ids = &foreign["step"]["action"]["params"]["production_selector"]["equipment_ids"];
+    assert!(ids.is_null() || *ids == json!(["fighter_equipment_1"]), "{foreign}");
+}
+
+#[test]
+fn unmatched_production_targets_state_why() {
+    let bound = bind_fighter("I-16", "SOV")["step"].clone();
+    let lines = json!([soviet_lines("I-16")[0].clone()]);
+    let detail = production_details(lines, bound)[1]["word-0002.target-2"].clone();
+    assert_eq!(detail["reason"], "line_missing");
+    assert_eq!(detail["near_lines"], json!([]));
+    // Equipment present on a naval line: the category is what differs.
+    let mut step = tank_step();
+    step["action"]["params"].as_object_mut().unwrap().remove("design_reference");
+    step["action"]["params"]["production_selector"]["variant_names"] = json!([]);
+    let mut naval = production_line("one", None);
+    naval["category"] = json!("naval");
+    let detail = production_details(json!([naval]), step)[1]["tank"].clone();
+    assert_eq!(detail["reason"], "category_mismatch");
+}

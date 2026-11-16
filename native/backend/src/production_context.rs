@@ -278,6 +278,40 @@ fn matching(selector: Option<&Value>, lines: &[Value], known: bool) -> Matches {
         check: Some(json!({"status":status,"candidates":comparisons})),
     }
 }
+/// Why a selector matched no observed line, so an unmatched target explains
+/// itself instead of staying silently at zero. Lines sharing the target's
+/// equipment, or carrying one of its names, are reported as near misses with
+/// the field that differs. Only called on a known, complete line list.
+fn unmatched(selector: &Value, lines: &[Value]) -> (&'static str, Value) {
+    let ids = selector["equipment_ids"].as_array().unwrap();
+    let names = selector["variant_names"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| hoi4companion_catalog_core::production_name(text(v)))
+        .collect::<HashSet<_>>();
+    let mut near = vec![];
+    let mut found = BTreeSet::new();
+    for row in lines {
+        let equipment = ids.contains(&row["equipment"]);
+        let named = names.contains(&hoi4companion_catalog_core::production_name(text(&row["name"])));
+        let category = selector["category"].is_null() || selector["category"] == row["category"];
+        let why = match (equipment, named, category) {
+            (true, _, false) => "category_mismatch",
+            (true, false, true) if !names.is_empty() => "design_name_mismatch",
+            (false, true, _) => "equipment_mismatch",
+            _ => continue,
+        };
+        found.insert(why);
+        near.push(json!({"line_id":row["id"],"name":row["name"],"equipment":row["equipment"],"category":row["category"],"why":why}));
+    }
+    near.truncate(8);
+    let reason = ["category_mismatch", "design_name_mismatch", "equipment_mismatch"]
+        .into_iter()
+        .find(|r| found.contains(r))
+        .unwrap_or("line_missing");
+    (reason, json!(near))
+}
 fn project(guide: &Value, state: &Value, baselines: &Value) -> (Value, usize) {
     let mut state = state.clone();
     let mut details = json!({});
@@ -584,15 +618,25 @@ fn project(guide: &Value, state: &Value, baselines: &Value) -> (Value, usize) {
         } else {
             "assigned"
         });
+        let missing = (!remaining && assigned.is_some() && matched.indices.is_empty())
+            .then_some(selector)
+            .flatten()
+            .filter(|_| matched.check.is_none())
+            .map(|selector| unmatched(selector, lines));
         detail["reason"] = json!(if remaining {
             reason
         } else if assigned.is_none() {
             "production_unavailable"
         } else if relative && !valid {
             "baseline_missing"
+        } else if let Some((why, _)) = &missing {
+            why
         } else {
             ""
         });
+        if let Some((_, near)) = missing {
+            detail["near_lines"] = near;
+        }
         if !priority.is_empty() {
             detail["priority"] = json!(priority);
             detail["priority_satisfied"] = json!(priority_value)

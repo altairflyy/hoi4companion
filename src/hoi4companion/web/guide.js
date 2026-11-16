@@ -133,6 +133,7 @@
   if(row.game_date)node.append(el('p','operation-timing',HoiI18n.t("Date shown in the guide: ")+row.game_date+HoiI18n.t(" · chronological reference, not an automatic deadline")));
   if(operational.access)node.append(el('p','operation-access',operational.access));
   if(operational.instructions.length){const list=el('ol','operation-instructions');for(const line of operational.instructions)for(const part of line.split('\n').filter(s=>s.trim()))list.append(referenceText('li','',part.replace(/^\s*[-•]\s*/,''),row));node.append(list);}
+  if(operational.observations?.length){const list=el('ul','operation-observations production-status');for(const text of operational.observations)list.append(el('li','',text));node.append(list);}
   const related=guideReferences?.related(row,[operational.title||name(row),...operational.instructions,row.timing]);if(related)node.append(related);
   const sourceText=(row.instructions||[]).join(' '),topics=new Set();
   if(/\bMIOs?\b/i.test(sourceText))topics.add('mios');
