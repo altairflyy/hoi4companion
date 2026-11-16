@@ -30,13 +30,33 @@ impl Hud {
             self.event_plan = hud_events::plan(guide, index)?;
             self.event_key = event_key;
         }
-        let proposed = hud_targets::targets(guide, runtime, index, state, false, &self.event_plan)?;
+        let mut proposed = hud_targets::targets(guide, runtime, index, state, false, &self.event_plan)?;
+        let card = step_card(guide,runtime);
+        let context=&runtime["action_context"];
+        if runtime["mode"]=="live" && state["usable"]==true && runtime["guide_id"]==guide["id"]
+            && state["sample"]["country"]==runtime["country"]
+            && (context["session_id"].is_null()||context["session_id"]==state["sample"]["session_id"])
+            && (context["campaign_id"].is_null()||context["campaign_id"]==state["sample"]["campaign_identity"]["id"]) {
+            let step=guide["tracks"].as_object().into_iter().flat_map(|m|m.values()).flat_map(crate::hud_geometry::rows).find(|r|r["key"]==card["key"]);
+            let mut seen=std::collections::HashSet::new();
+            if let Some(step)=step {
+                for target in crate::hud_geometry::rows(&step["action"]["params"]["construction_targets"]) {
+                    let Some(id)=target["state_id"].as_u64().filter(|id|seen.insert(*id)) else {continue};
+                    let overview=&state["sample"]["country_overview"];
+                    if overview["country"]!=runtime["country"] || overview["states"]["status"]!="observed"
+                        || !crate::hud_geometry::rows(&overview["states"]["items"]).iter().any(|r|r["id"]==id&&(r["owned"]==true||r["controlled"]==true)) {continue;}
+                    let entries=index.rows().iter().filter(|r|r["kind"]=="state"&&r["id"]==id.to_string()).collect::<Vec<_>>();
+                    if entries.len()!=1 || !entries[0]["geography"]["map_anchor"].is_array() {continue;}
+                    let entry=entries[0];
+                    proposed.as_array_mut().ok_or("Invalid HUD proposals")?.push(json!({"key":format!("{}:state:{id}",card["key"].as_str().unwrap_or("")),"guide_step":card["key"],"panel":"construction_map","identity":id.to_string(),"state_id":id,"title":entry.get("localized_name").unwrap_or(&entry["name"]),"world_point":entry["geography"]["map_anchor"],"country":runtime["country"],"status":"ready"}));
+                }
+            }
+        }
         let error = if runtime["mode"] == "live" {
             ""
         } else {
             "Partita non valida per questa guida: evidenziazioni sospese"
         };
-        let context = &runtime["action_context"];
         let key = json!([
             generation,
             packet["server_id"],
@@ -59,7 +79,7 @@ impl Hud {
             self.snapshot["idle_explanation"] = notice(runtime);
         }
         // Shown by the HUD whether or not a control can be highlighted.
-        self.snapshot["step_card"] = if error.is_empty() { step_card(guide, runtime) } else { Value::Null };
+        self.snapshot["step_card"] = if error.is_empty() { card } else { Value::Null };
         if !self.snapshot["step_card"].is_null() {
             self.snapshot["step_card"]["production"] = production;
         }
@@ -81,12 +101,17 @@ impl Hud {
 /// from the Rust evaluation only.
 fn step_card(guide: &Value, runtime: &Value) -> Value {
     let tracks = &runtime["tracks"];
+    let statuses: std::collections::HashMap<_, _> = crate::hud_geometry::rows(&runtime["steps"])
+        .iter().filter_map(|r| r["key"].as_str().map(|k| (k, &r["status"]))).collect();
     let names: Vec<&str> = std::iter::once("operations")
         .chain(tracks.as_object().into_iter().flat_map(|m| m.keys().map(String::as_str)).filter(|k| *k != "operations"))
         .collect();
     let Some((track, key)) = names
         .iter()
-        .find_map(|t| tracks[*t]["next"].as_str().map(|k| (*t, k)))
+        .find_map(|t| crate::hud_geometry::rows(&guide["tracks"][*t]).iter()
+            .find(|r| r["tracking"] != "reminder" && !statuses.get(r["key"].as_str().unwrap_or(""))
+                .is_some_and(|s| **s == "completed" || **s == "not_applicable"))
+            .and_then(|r| r["key"].as_str()).map(|k| (*t,k)))
     else {
         return Value::Null;
     };
@@ -213,6 +238,19 @@ fn notice(runtime: &Value) -> Value {
 mod tests {
     use super::*;
     #[test]
+    fn construction_markers_use_current_step_state_ids_and_reject_foreign_state() {
+        let index=Index::new(&json!({"entries":[{"kind":"state","id":"219","name":"Moscow","localized_name":"Mosca","geography":{"map_anchor":[3428.,10.4,1630.]}}]})).unwrap();
+        let guide=json!({"id":"map-test","tracks":{"operations":[{"key":"build","title":"Any translated title","action":{"kind":"manual","params":{"category":"construction","construction_targets":[{"state_id":219},{"state_id":219}]}}}]}});
+        let runtime=json!({"guide_id":"map-test","mode":"live","country":"SOV","tracks":{"operations":{"next":"build"}},"steps":[{"key":"build","status":"active"}]});
+        let mut packet=json!({"guide_id":"map-test","guide":guide,"evaluation":runtime,"state":{"usable":true,"sample":{"country":"SOV","country_overview":{"country":"SOV","states":{"status":"observed","items":[{"id":219,"owned":true,"controlled":true}]}}}}});
+        let mut hud=Hud::default();
+        let result=hud.project(&packet,&index,1).unwrap();
+        let markers=crate::hud_geometry::rows(&result["proposed"]).iter().filter(|p|p["panel"]=="construction_map").collect::<Vec<_>>();
+        assert_eq!(markers.len(),1);assert_eq!(markers[0]["state_id"],219);assert_eq!(markers[0]["title"],"Mosca");
+        packet["state"]["sample"]["country"]=json!("GER");
+        assert!(crate::hud_geometry::rows(&hud.project(&packet,&index,1).unwrap()["proposed"]).iter().all(|p|p["panel"]!="construction_map"));
+    }
+    #[test]
     fn step_card_is_the_next_operation_with_its_recognized_answer() {
         let guide = json!({"tracks":{"operations":[
             {"key":"word-0001","title":"Done","action":{"kind":"manual","params":{"instructions":["Done"]}}},
@@ -220,7 +258,7 @@ mod tests {
             {"key":"word-0003","title":"Mobilize The…","action":{"kind":"manual","params":{
                 "instructions":["Mobilize The…","Queue civilian factories"],
                 "reference_resolution":{"option_text":"Mobilize the Armed Forces immediately!"}}}}]}});
-        let runtime = json!({"tracks":{"operations":{"next":"word-0003"}},"steps":[{"key":"word-0003","status":"ready"}]});
+        let runtime = json!({"tracks":{"operations":{"next":"word-0003"}},"steps":[{"key":"word-0001","status":"completed"},{"key":"word-0003","status":"ready"}]});
         let card = step_card(&guide, &runtime);
         assert_eq!(card["heading"], "«Mobilize the Armed Forces immediately!»");
         assert_eq!(card["abbreviation"], "Mobilize The…");
@@ -231,8 +269,27 @@ mod tests {
         let mut gated = guide.clone();
         gated["tracks"]["operations"][2]["kind"] = json!("gate");
         assert_eq!(step_card(&gated, &runtime)["checkable"], true);
-        assert!(step_card(&guide, &json!({"tracks":{"operations":{"next":null}}})).is_null());
+        assert!(step_card(&guide, &json!({"tracks":{"operations":{"next":null}},"steps":[{"key":"word-0001","status":"completed"},{"key":"word-0003","status":"completed"}]})).is_null());
         assert_eq!(card["images"], json!([]));
+    }
+    #[test]
+    fn step_card_keeps_the_first_incomplete_operation_even_when_next_skips_it() {
+        let guide=json!({"tracks":{"operations":[
+            {"key":"one","title":"Finished construction"},
+            {"key":"two","title":"Construction in progress"},
+            {"key":"three","title":"Production in progress"},
+            {"key":"four","title":"Next order"}
+        ]}});
+        let mut runtime=json!({"tracks":{"operations":{"next":"four"}},"steps":[
+            {"key":"one","status":"completed"},{"key":"two","status":"active"},
+            {"key":"three","status":"active"},{"key":"four","status":"ready"}
+        ]});
+        let card=step_card(&guide,&runtime);
+        assert_eq!(card["key"],"two");assert_eq!(card["index"],2);assert_eq!(card["status"],"active");
+        runtime["steps"][1]["status"]=json!("completed");
+        assert_eq!(step_card(&guide,&runtime)["key"],"three");
+        runtime["steps"][1]["status"]=json!("unverifiable");
+        assert_eq!(step_card(&guide,&runtime)["key"],"two");
     }
     #[test]
     fn step_card_lists_the_walkthrough_reference_images_once() {

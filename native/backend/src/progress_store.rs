@@ -214,8 +214,21 @@ impl Runs {
         allow_research: bool,
         provider: Option<&mut Provider<'_>>,
     ) -> Result<bool> {
+        // Scope needs only nation/tree, not tens of thousands of provincial
+        // facts. The admitted observation is still normalized in full below.
+        let scope_input = if state.get("facts").is_some() {
+            json!({"schema_version":state["schema_version"],"usable":state["usable"],"session_id":state["session_id"],"facts":{"country":state["facts"]["country"],"focus.tree":state["facts"]["focus.tree"]}})
+        } else {
+            json!({"usable":state["usable"],"source":state["source"],"sample":{"country":state["sample"]["country"],"focus_tree_id":state["sample"]["focus_tree_id"]}})
+        };
+        let normalized = crate::state::normalize(&scope_input);
+        // Foreign/unqualified guides cannot record an observation. Apply the
+        // existing admission rule before cloning campaign records and history.
+        if crate::guide_prepare::mode(guide, &normalized) != "live" {
+            return Ok(false);
+        }
         let record = self.call("get", json!({"guide_id":guide["id"],"include_decision_history":true}))?;
-        let records = self.call("records", json!({}))?;
+        let records = if allow_research { self.call("records", json!({}))? } else { json!({}) };
         let result = crate::guide_observe::observe(
             guide,
             state,

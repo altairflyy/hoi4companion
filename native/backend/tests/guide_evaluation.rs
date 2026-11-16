@@ -31,6 +31,19 @@ fn normalized_state(wire: &Value) -> Value {
     request(0, "state_normalize", json!({"value":wire})).unwrap()
 }
 
+#[test]
+fn region_ownership_and_control_require_matching_country_and_boolean_values() {
+    let mut wire = json!({"usable":true,"sample":{"country":"SOV","country_overview":{"country":"SOV","states":{"status":"observed","items":[{"id":219,"owned":true,"controlled":false,"infrastructure":5}]}}}});
+    let s = normalized_state(&wire);
+    assert_eq!(s["facts"]["country.states.items.219.owned"]["value"], true);
+    assert_eq!(s["facts"]["country.states.items.219.controlled"]["value"], false);
+    wire["sample"]["country_overview"]["country"] = json!("GER");
+    assert_ne!(normalized_state(&wire)["facts"]["country.states.items.219.owned"]["status"], "calculated");
+    wire["sample"]["country_overview"]["country"] = json!("SOV");
+    wire["sample"]["country_overview"]["states"]["items"][0]["owned"] = json!("true");
+    assert_ne!(normalized_state(&wire)["facts"]["country.states.items.219.owned"]["status"], "calculated");
+}
+
 // ---- runtime core
 
 #[test]

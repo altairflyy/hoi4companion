@@ -50,7 +50,11 @@ pub fn compare(game: &Game, packet: &watch::Packet) -> Result<bool> {
     }
 }
 fn verify(game: &Game, witnesses: &Witnesses) -> Result<()> {
-    if compare(game, &watch::verification(witnesses)?)? {
+    let packet = watch::verification(witnesses)?;
+    let changed = compare(game, &packet).map_err(|reason| {
+        format!("{reason} (witnesses: {}, ranges: {}, bytes: {})", witnesses.len(), packet.ranges, packet.read_bytes)
+    })?;
+    if changed {
         Err("Campione incoerente: riprovare".into())
     } else {
         Ok(())

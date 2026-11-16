@@ -111,6 +111,7 @@ fn native_observation_time(started:Instant,received:Instant,geometry:&Value)->Op
 }
 fn native_route(snapshot:&Value,geometry:&Value)->bool {
     if geometry["suspend_visual"]==true{return true;}
+    if snapshot["proposed"].as_array().is_some_and(|rows|rows.iter().any(|r|r["panel"]=="construction_map")){return true;}
     if geometry["native_available"]!=true{return false;}
     // Native trees and event popups route through the same renderer. A popup
     // takes priority over recommendations in the tree underneath it.
@@ -669,6 +670,9 @@ mod tests {
     }
     #[test]
     fn native_tree_routing_preserves_mixed_guides_and_fails_closed() {
+        let map=json!({"proposed":[{"panel":"construction_map","identity":"219"}]});
+        assert!(native_route(&map,&json!({"native_available":false})),"map markers never use OCR coordinates or start capture fallback");
+        assert_eq!(marks(&[json!({"panel":"construction_map","title":"Mosca","rect":[100,200,112,212]})],1280,720).len(),1);
         let mixed=json!({"proposed":[{"panel":"focus"},{"panel":"research"},{"panel":"event"}]});
         let mut geometry=json!({"native_available":true,"active_panel":"focus","handled_panels":["focus","research"]});
         assert!(native_route(&mixed,&geometry));

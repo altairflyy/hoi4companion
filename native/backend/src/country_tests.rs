@@ -220,6 +220,12 @@ fn province_buildings_keep_their_native_location_and_do_not_become_state_levels(
     let building=m.alloc();m.object(building,"CBuilding");m.u(building+0x1d8,status);m.u(building+0x1e0,definition);m.put(building+0x40,&2i16.to_le_bytes());m.array(status+0x38,&[building]);
     let a=json!({"building_database_rva":0x8000,"building_scopes":{"naval_base":"province"}});
     let v=m.request("fortifications",a.clone()).unwrap();assert_eq!(v["items"][0]["buildings"]["naval_base"],2);assert!(v["items"][0].get("bunker").is_none());
+    assert_eq!(v["items"][0]["state_id"],1);
+    m.i(map,-1);assert_eq!(m.request("fortifications",a.clone()).unwrap()["items"][0]["buildings"]["naval_base"],0);
+    m.i(status+0x2c,0);assert!(m.request("fortifications",a.clone()).is_err());
+    m.i(status+0x2c,1);m.i(map,0);
+    m.i(province+0x188,0);assert_eq!(m.request("fortifications",a.clone()).unwrap()["items"],json!([]));
+    m.i(province+0x188,1);
     m.i(status+0x6c,2);assert!(m.request("fortifications",a).is_err());
 }
 #[test]

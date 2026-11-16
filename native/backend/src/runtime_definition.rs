@@ -148,5 +148,5 @@ pub fn prepare(
     // Neither changes a step key; only live-observed or uncheckable meaning.
     crate::decomposition::withdraw_incompatible_decisions(&mut guide, index)?;
     crate::reference_candidates::ground_references(&mut guide, index)?;
-    Ok(guide)
+    crate::construction_instructions::bind(&guide,index)
 }

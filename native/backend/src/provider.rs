@@ -228,6 +228,15 @@ impl GuiLane {
             return Err("Sessione di processo cambiata".into());
         }
         let mut result = crate::hud_geometry::admit(&raw, proposals, &args["view"])?;
+        if let Some(panels)=result["handled_panels"].as_array_mut() {panels.push(json!("construction_map"));}
+        if raw["available"]==true && raw["resolution"]==json!([args["view"][4],args["view"][5]])
+            && raw["active_panel"].as_str().is_none_or(str::is_empty)
+            && crate::hud_geometry::rows(proposals).iter().any(|p|p["panel"]=="construction_map") {
+            match crate::map_markers::geometry(&mut memory,game.base,&profile,proposals,&args["view"]) {
+                Ok(map)=>{if let (Some(rows),Some(points))=(result["matches"].as_array_mut(),map["matches"].as_array()){rows.extend(points.iter().cloned());}result["diagnostics"]["map_bytes"]=map["bytes"].clone();},
+                Err(reason)=>result["diagnostics"]["map_unavailable"]=json!(reason),
+            }
+        }
         result["sample_age_ms"] = json!(raw["sample_age_ms"].as_f64().ok_or("Missing native GUI witness age")?
             + returned.elapsed().as_secs_f64()*1000.);
         Ok(result)

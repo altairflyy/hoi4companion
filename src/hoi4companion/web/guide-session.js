@@ -4,7 +4,7 @@
  const listeners=[];
  let guide=null,catalog=[],progress={checks:{},started:{}},live=null,error='',pending=0,sequence=0,server=null,queue=Promise.resolve();
  let activation=Promise.resolve(),activating=0,activeRevision=-1,activeSync=false,activeServer=null;
- let projection=null,projectionVersion=0,projectionTask=null,projectionError=false;
+ let projection=null,projectionVersion=0,projectionTask=null,projectionError=false,projectionMutation=0;
  const endpoint=path=>path+'?id='+encodeURIComponent(guide.id);
  async function json(url,options){const r=await fetch(url,options),data=await r.json();if(!r.ok)throw Error(data.error||'HTTP '+r.status);return data;}
  function publish(){
@@ -22,20 +22,19 @@
   projectionTask=(async()=>{
    let processed=-1;
    while(processed!==projectionVersion&&guide?.runtime_engine==='rust-guide-core'){
-    processed=projectionVersion;const selected=sequence,id=guide.id,expectedServer=server;
+    processed=projectionVersion;const selected=sequence,id=guide.id,expectedServer=server,mutation=projectionMutation;
     const read=readsLive(live),basis=liveBasis(live);
-    let timer=null;const controller=typeof AbortController==='function'&&typeof setTimeout==='function'?new AbortController():null;
-    if(controller)timer=setTimeout(()=>controller.abort(),5000);
     try{
-     const packet=await json('/api/guide/projection?id='+encodeURIComponent(id)+'&live='+(read?'1':'0'),controller?{signal:controller.signal}:undefined);
-     if(selected!==sequence||processed!==projectionVersion)continue;
+     // One request is already serialized below. A cold backend may still be
+     // preparing archived definitions; do not cancel it and queue another copy.
+     const packet=await json('/api/guide/projection?id='+encodeURIComponent(id)+'&live='+(read?'1':'0'));
+     if(selected!==sequence||mutation!==projectionMutation||basis!==liveBasis(live)||expectedServer&&server!==expectedServer)continue;
      if(packet.schema_version!==1||packet.engine!=='rust-guide-core'||packet.guide_id!==id||packet.progress?.guide_id!==id||packet.evaluation?.guide_id!==id||packet.evaluation.run_id!==null&&packet.evaluation.run_id!==packet.progress.run_id||!packet.state||!packet.server_id||expectedServer&&packet.server_id!==expectedServer||packet.definition&&(packet.definition.run_id!==packet.progress.run_id||packet.definition.status==='pinned'&&packet.definition.id!==packet.progress.definition_ref?.id))throw Error('Invalid shared guide evaluation');
      if(packet.definition_revision!==guide.runtime_definition_revision){projection=null;Promise.resolve().then(()=>select(id,false));break;}
      projection={sequence:selected,packet,basis};if(!pending)progress=packet.progress;
      server=packet.server_id;
      if(projectionError){error='';projectionError=false;}publish();
     }catch(e){if(selected===sequence&&processed===projectionVersion){projection=null;projectionError=true;error=HoiI18n.t('Shared guide evaluation unavailable: ')+e.message;publish();}}
-    finally{if(timer!==null)clearTimeout(timer);}
    }
   })().finally(()=>{projectionTask=null;});
   return projectionTask;
@@ -73,7 +72,7 @@
   }catch(e){if(current===sequence){error=HoiI18n.t("Guide unavailable: ")+e.message;publish();}}
  }
  function write(payload){
-  const id=guide.id,current=sequence,guard={expected_run_id:progress.run_id,expected_revision:progress.run_revision,expected_definition_id:progress.definition_ref?.id??null,server_id:progress.server_id};pending++;projection=null;projectionVersion++;publish();
+  const id=guide.id,current=sequence,guard={expected_run_id:progress.run_id,expected_revision:progress.run_revision,expected_definition_id:progress.definition_ref?.id??null,server_id:progress.server_id};pending++;projectionMutation++;projection=null;projectionVersion++;publish();
   const task=queue.then(async()=>{
    const saved=await json('/api/guide/progress?id='+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,...guard})});
    if(current===sequence){if(pending===1)progress=saved;else progress={...saved,checks:progress.checks,started:progress.started};error='';}

@@ -103,6 +103,13 @@ fn started_keys(guide: &Value) -> HashSet<String> {
         .map(|s| text(&s["key"]).to_owned())
         .collect()
 }
+/// Memo of `current_archive`: guide ID -> (key, compiled archive or its error).
+/// A failed compile is kept too, so a broken guide is not recompiled on every
+/// observation; a new revision or catalog context retries it.
+type ArchiveMemo = HashMap<String, (Value, Result<Archive>)>;
+fn archive_key(guide: &Value, context: Option<&Arc<crate::runtime_context::Context>>) -> Value {
+    json!([guide["runtime_definition_revision"], context.map(|c| Arc::as_ptr(c) as usize)])
+}
 /// Archive that NEW runs of `id` are pinned to: the current compiler contract
 /// (`Context::compile_new` from the associated source when a catalog is
 /// loaded, else decomposition of the registry definition), memoized by the
@@ -112,19 +119,32 @@ fn current_archive(
     sources: &Map<String, Value>,
     associations: Option<&PathBuf>,
     context: Option<&Arc<crate::runtime_context::Context>>,
-    memo: &mut HashMap<String, (Value, Archive)>,
+    memo: &mut ArchiveMemo,
     id: &str,
 ) -> Result<Option<Archive>> {
     let Some(guide) = guides.get(id) else {
         return Ok(None);
     };
-    let seen_key = json!([guide["runtime_definition_revision"], context.map(|c| Arc::as_ptr(c) as usize)]);
+    let seen_key = archive_key(guide, context);
     if let Some((seen, archive)) = memo.get(id)
         && *seen == seen_key
     {
-        return Ok(Some(archive.clone()));
+        return archive.clone().map(Some);
     }
-    let compiled = match (context, sources.get(id)) {
+    let archive = compile_archive(id, guide, sources.get(id), associations, context);
+    memo.insert(id.to_owned(), (seen_key, archive.clone()));
+    archive.map(Some)
+}
+/// The compile `current_archive` memoizes. It needs no application state, so
+/// `ArchiveJob` can run it without holding the application lock.
+fn compile_archive(
+    id: &str,
+    guide: &Value,
+    source: Option<&Value>,
+    associations: Option<&PathBuf>,
+    context: Option<&Arc<crate::runtime_context::Context>>,
+) -> Result<Archive> {
+    let compiled = match (context, source) {
         (Some(context), Some(source)) => {
             let input = match associations {
                 Some(directory) => crate::guide_repository::apply(
@@ -144,9 +164,23 @@ fn current_archive(
             crate::decomposition::decompose(guide, &compile)?["guide"].clone()
         }
     };
-    let archive = definition_archive::build(id, &compiled, sources.get(id).unwrap_or(&Value::Null))?;
-    memo.insert(id.to_owned(), (seen_key, archive.clone()));
-    Ok(Some(archive))
+    definition_archive::build(id, &compiled, source.unwrap_or(&Value::Null))
+}
+/// A current definition that a campaign binding may need and that is not
+/// compiled for the current catalog yet, captured with everything its compile
+/// needs. The live read loop never compiles one: see `Application::cold_archives`.
+pub(crate) struct ArchiveJob {
+    id: String,
+    key: Value,
+    guide: Value,
+    source: Option<Value>,
+    associations: Option<PathBuf>,
+    context: Option<Arc<crate::runtime_context::Context>>,
+}
+impl ArchiveJob {
+    pub(crate) fn compile(&self) -> Result<Archive> {
+        compile_archive(&self.id, &self.guide, self.source.as_ref(), self.associations.as_ref(), self.context.as_ref())
+    }
 }
 fn campaign(state: &Value) -> Option<&str> {
     if state["usable"] != true {
@@ -181,8 +215,13 @@ pub struct Application {
     observation_revision: u64,
     bound_context: Option<(u64, u64, u64, u64, u64)>,
     persistent: bool,
-    /// guide ID -> (runtime revision, archive of the current definition).
-    current_archives: HashMap<String, (Value, Archive)>,
+    /// guide ID -> (runtime revision and catalog, current definition archive).
+    current_archives: ArchiveMemo,
+    /// Set by the live service, which compiles current definitions in the
+    /// background: a campaign binding then waits for them instead of compiling
+    /// them inside the read loop (minutes for dozens of guides).
+    background_archives: bool,
+    observation_scopes: HashMap<String, Value>,
     /// Move checklists onto the current definition only once the game catalog
     /// is applied (default), so startup never moves a run twice.
     upgrade_awaits_catalog: bool,
@@ -216,6 +255,8 @@ impl Application {
             bound_context: None,
             persistent: path.is_some(),
             current_archives: HashMap::new(),
+            background_archives: false,
+            observation_scopes: HashMap::new(),
             upgrade_awaits_catalog: args["upgrade_without_catalog"] != true,
             archived_guides: HashMap::new(),
         };
@@ -402,6 +443,47 @@ impl Application {
         self.runs
             .call_with(op, args, &mut |id| current_archive(guides, sources, associations, context, memo, id))
     }
+    /// Guides whose current definition a campaign binding may need (the active
+    /// guide first, then every guide with a checklist) and that are not compiled
+    /// for the current catalog yet. Empty until the catalog context exists.
+    fn cold_archive_ids(&mut self) -> Result<Vec<String>> {
+        let Some(context) = self.context.clone() else {
+            return Ok(vec![]);
+        };
+        let mut ids: Vec<String> = self.active.iter().cloned().collect();
+        let metadata = self.runs.call("metadata", json!({}))?;
+        for id in metadata.as_object().into_iter().flat_map(|m| m.keys()) {
+            if !ids.contains(id) {
+                ids.push(id.clone());
+            }
+        }
+        Ok(ids.into_iter().filter(|id| {
+            self.guides.get(id).is_some_and(|guide| {
+                let key = archive_key(guide, Some(&context));
+                !self.current_archives.get(id).is_some_and(|(seen, _)| *seen == key)
+            })
+        }).collect())
+    }
+    /// Compiles needed by a campaign binding, for the background service.
+    pub(crate) fn cold_archives(&mut self) -> Result<Vec<ArchiveJob>> {
+        Ok(self.cold_archive_ids()?.into_iter().map(|id| ArchiveJob {
+            key: archive_key(&self.guides[&id], self.context.as_ref()),
+            guide: self.guides[&id].clone(),
+            source: self.sources.get(&id).cloned(),
+            associations: self.association_directory.clone(),
+            context: self.context.clone(),
+            id,
+        }).collect())
+    }
+    /// Keeps a background compile unless its guide or catalog changed meanwhile.
+    pub(crate) fn store_archive(&mut self, job: &ArchiveJob, archive: Result<Archive>) {
+        if self.guides.get(&job.id).map(|guide| archive_key(guide, self.context.as_ref())).as_ref() == Some(&job.key) {
+            self.current_archives.insert(job.id.clone(), (job.key.clone(), archive));
+        }
+    }
+    pub(crate) fn compile_archives_in_background(&mut self) {
+        self.background_archives = true;
+    }
     fn current_definition_id(&mut self, id: &str) -> Result<Option<String>> {
         Ok(current_archive(&self.guides, &self.sources, self.association_directory.as_ref(), self.context.as_ref(), &mut self.current_archives, id)?
             .map(|a| a.id))
@@ -562,6 +644,13 @@ impl Application {
         if self.bound_context == Some(self.binding_context()) {
             return Ok(());
         }
+        // Binding a campaign can create a checklist for every guide and pin it
+        // to its current definition. While those are still compiling in the
+        // background, wait: progress stays unverified meanwhile, and the read
+        // loop keeps delivering observations instead of stalling.
+        if self.background_archives && !self.cold_archive_ids()?.is_empty() {
+            return Ok(());
+        }
         let changed = if let Some(id) = campaign(&self.live) {
             let args = json!({"campaign_id":id,"country":self.live["sample"]["country"],"session_id":self.live["sample"]["session_id"],"tick":self.live["sample"]["native_tick"]});
             self.runs_call("bind_campaign", args)?
@@ -577,6 +666,7 @@ impl Application {
             self.revision += 1;
         }
         if self.live["usable"] == true {
+            let identity = state::normalize(&json!({"usable":self.live["usable"],"source":self.live["source"],"sample":{"country":self.live["sample"]["country"],"focus_tree_id":self.live["sample"]["focus_tree_id"]}}));
             let ids = self.runs.call("metadata", json!({}))?;
             for id in ids.as_object().into_iter().flat_map(|m| m.keys()) {
                 if !self.guides.contains_key(id) {
@@ -591,6 +681,23 @@ impl Application {
                 // Observe against the run's own definition. An unverifiable
                 // run (missing/corrupt archive) is not observed at all.
                 let record = self.runs.call("get", json!({"guide_id":id}))?;
+                // Determine admission from the run's immutable scope before
+                // compiling current definitions for unrelated countries. A
+                // cached scope is tied to the archive hash, never its title.
+                let scope = if record["definition_ref"]["status"] == "pinned" {
+                    let archive_id = text(&record["definition_ref"]["id"]);
+                    if let Some(scope) = self.observation_scopes.get(archive_id) {
+                        scope.clone()
+                    } else {
+                        let Some(payload) = self.runs.archive(archive_id) else {continue};
+                        let Ok(envelope) = definition_archive::open(archive_id, &payload) else {continue};
+                        if envelope["guide_id"] != *id {continue;}
+                        let scope = envelope["definition"]["applies_to"].clone();
+                        self.observation_scopes.insert(archive_id.to_owned(),scope.clone());
+                        scope
+                    }
+                } else { self.guides[id]["applies_to"].clone() };
+                if crate::guide_prepare::mode(&json!({"applies_to":scope}), &identity) != "live" {continue;}
                 let Ok((guide, _)) = self.definition_for_run(id, &record) else {
                     continue;
                 };
@@ -964,6 +1071,18 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+    #[test]
+    fn foreign_archived_runs_do_not_compile_current_definitions_on_live_delivery() {
+        let make=|id:&str,country:&str|json!({"id":id,"applies_to":{"country":country},"tracks":{"operations":[{"key":"note","action":{"kind":"manual"}}]}});
+        let mut app=Application::open(&json!({"guides":[make("foreign","FIN"),make("current","SOV")]})).unwrap();
+        app.progress(Some("foreign"),None,None).unwrap();
+        app.active(Some(&json!({"guide_id":"current"}))).unwrap();
+        app.progress(Some("current"),None,None).unwrap();
+        app.current_archives.clear();
+        app.accept(json!({"usable":true,"source":"process_memory","sample":{"country":"SOV","session_id":"one","country_overview":{"country":"SOV"}}})).unwrap();
+        assert!(!app.current_archives.contains_key("foreign"));
+        assert!(app.current_archives.contains_key("current"));
+    }
     #[test]
     fn progress_reads_reuse_binding_but_run_guide_and_live_changes_invalidate_it() {
         let make = |id: &str| json!({"id":id,"tracks":{"operations":[{"key":"note","action":{"kind":"manual"}}]}});

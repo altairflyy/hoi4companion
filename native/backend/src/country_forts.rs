@@ -128,17 +128,21 @@ impl<M: Memory> Reader<'_, M> {
                 {
                     return Err("Invalid provincial building container".into());
                 }
+                // One witness for the complete map keeps verification bounded
+                // even when a large country has many building definitions. The
+                // same bytes still participate in the full consistency check.
+                let mapping_bytes = if map_count > 0 {
+                    self.track(mapping, map_count as usize * 4)?
+                } else {
+                    Vec::new()
+                };
                 let mut row = json!({"id":identifier,"state_id":state_id,"buildings":{}});
                 let mut indices = HashSet::new();
                 for (key, (definition, ordinal)) in &definitions {
                     if *ordinal >= map_count as usize {
                         return Err("Incomplete province building map".into());
                     }
-                    let index = i32::from_le_bytes(
-                        self.track(mapping + *ordinal as u64 * 4, 4)?
-                            .try_into()
-                            .unwrap(),
-                    );
+                    let index = i32::from_le_bytes(mapping_bytes[*ordinal * 4..*ordinal * 4 + 4].try_into().unwrap());
                     if index == -1 {
                         if ["bunker", "coastal_bunker"].contains(&key.as_str()) { row[key] = json!(0); }
                         row["buildings"][key] = json!(0);

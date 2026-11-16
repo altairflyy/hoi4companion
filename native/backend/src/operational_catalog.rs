@@ -80,10 +80,32 @@ pub fn unique(values: impl IntoIterator<Item = Value>) -> Vec<Value> {
 /// Only catalog-qualified state buildings enter the regional live map. A
 /// province-only building must never acquire a fabricated regional zero.
 pub(crate) fn building_scopes(rows: &Value) -> Value {
-    json!(rows.as_array().into_iter().flatten()
-        .filter(|r| r["kind"] == "building" && matches!(r["location_scope"].as_str(), Some("state" | "province")))
-        .filter_map(|r| r["id"].as_str().map(|id| (id.to_owned(), r["location_scope"].clone())))
-        .collect::<std::collections::BTreeMap<_, _>>())
+    let mut scopes = std::collections::BTreeMap::<String, Option<String>>::new();
+    for row in rows.as_array().into_iter().flatten().filter(|r| r["kind"] == "building") {
+        let Some(id) = row["id"].as_str() else { continue };
+        let scope = row["location_scope"].as_str().filter(|s| matches!(*s, "state" | "province")).map(str::to_owned);
+        scopes.entry(id.to_owned()).and_modify(|old| {
+            if *old != scope { *old = None; }
+        }).or_insert(scope);
+    }
+    json!(scopes.into_iter().filter_map(|(id, scope)| scope.map(|s| (id, s))).collect::<std::collections::BTreeMap<_, _>>())
+}
+
+#[cfg(test)]
+mod building_scope_tests {
+    use super::*;
+    #[test]
+    fn conflicting_or_missing_catalog_scope_is_not_guessed() {
+        let rows = json!([
+            {"kind":"building","id":"a","location_scope":"state"},
+            {"kind":"building","id":"a","location_scope":"province"},
+            {"kind":"building","id":"b","location_scope":"province"},
+            {"kind":"building","id":"b"},
+            {"kind":"building","id":"c","location_scope":"province"},
+            {"kind":"building","id":"c","location_scope":"province"}
+        ]);
+        assert_eq!(building_scopes(&rows), json!({"c":"province"}));
+    }
 }
 /// Request only purchases actually declared by installed guides. An empty
 /// catalog country list means unknown/global applicability, not a request to
@@ -607,24 +629,21 @@ pub fn operations(source: &mut Source) -> Result<Vec<Value>> {
                         let specializations=blocks(node,"specialization").flat_map(entries).filter_map(|(_,v)|v.as_str().map(str::to_owned)).collect::<Vec<_>>();
                         if !specializations.is_empty() {row["specializations"]=json!(specializations);}
                         let caps: Vec<_> = blocks(node, "level_cap").collect();
-                        let scope = if caps
-                            .iter()
-                            .any(|c| crate::script_document::first(c, "province_max").is_some())
-                        {
-                            Some("province")
-                        } else if caps
-                            .iter()
-                            .any(|c| crate::script_document::first(c, "state_max").is_some())
-                        {
-                            Some("state")
-                        } else {
-                            None
+                        let province = caps.iter().any(|c| crate::script_document::first(c, "province_max").is_some());
+                        let state = caps.iter().any(|c| crate::script_document::first(c, "state_max").is_some());
+                        // The game definitions say province_max makes the
+                        // building provincial, even with a state-wide cap.
+                        let scope = match (state, province) {
+                            (_, true) => Some("province"),
+                            (true, false) => Some("state"),
+                            _ => None,
                         };
                         if let Some(scope) = scope {
                             row["location_scope"] = json!(scope);
                         }
+                        row["shares_slots"] = json!(caps.iter().any(|c| scalar(c,"shares_slots")=="yes"));
                         if let Some(max) = caps.iter().find_map(|c| {
-                            let v = scalar(c, "province_max");
+                            let v = scalar(c, if province {"province_max"} else {"state_max"});
                             (!v.is_empty() && v.bytes().all(|b| b.is_ascii_digit()))
                                 .then(|| v.parse::<u64>().ok())
                                 .flatten()
@@ -648,6 +667,12 @@ pub fn operations(source: &mut Source) -> Result<Vec<Value>> {
                 }
             }
         }
+    }
+    match crate::map_markers::anchors(&source.game,&source.mods) {
+        Ok(anchors)=>for row in rows.iter_mut().filter(|r|r["kind"]=="state") {
+            if let Some(point)=row["id"].as_str().and_then(|id|id.parse::<u64>().ok()).and_then(|id|anchors.get(&id)) {row["geography"]["map_anchor"]=point.clone();}
+        },
+        Err(e)=>source.warnings.push(json!(format!("Map anchors unavailable: {e}"))),
     }
     let neighbors = match crate::map_topology::neighbors(&source.game, &source.mods) {
         Ok(value) => value,

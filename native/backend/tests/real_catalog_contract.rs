@@ -20,6 +20,30 @@ fn automatic(step: &Value) -> bool {
 }
 
 #[test]
+fn real_catalog_sov_construction_monitoring() {
+    if std::env::var("HOI4_REAL_CATALOG").as_deref()!=Ok("1") {return;}
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let data=root.join(".local");
+    let settings:Value=serde_json::from_slice(&std::fs::read(data.join("settings.json")).unwrap()).unwrap();
+    let guides=request(0,"guide_repository",json!({"directories":[data.join("guides")],"association_directory":data.join("guide-associations")})).unwrap();
+    let guide=guides["guides"].as_array().unwrap().iter().find(|g|g["id"]=="word-67736ac669bdcbf1").unwrap();
+    let catalog=Catalog(request(0,"catalog_open",json!({"settings":settings,"vocabulary_path":root.join("src/hoi4companion/guide_language.json")})).unwrap().as_u64().unwrap());
+    let compiled=request(0,"catalog_runtime_guide_new",json!({"handle":catalog.0,"guide":guide,"library":{}})).unwrap();
+    let rows=steps(&compiled);
+    let facility=rows.iter().find(|r|r["title"].as_str()==Some("Build: INFRA+Land Facility in Moscow")).expect("real facility instruction");
+    let targets=facility["action"]["params"]["construction_targets"].as_array().expect("live targets");
+    assert_eq!(targets.len(),2);
+    assert_eq!(targets[0]["state_id"],219);
+    assert_eq!(targets[0]["target_level"],5);
+    assert_eq!(targets[1]["province_id"],6380);
+    assert_eq!(targets[1]["target_level"],1);
+    assert_eq!(facility["completion"]["op"],"all");
+    let industry=rows.iter().find(|r|r["title"].as_str().is_some_and(|t|t.starts_with("Build: INFRA+MILs in:"))).expect("real industry instruction");
+    assert_eq!(industry["action"]["params"]["construction_targets"].as_array().unwrap().len(),12);
+    assert!(industry["started_when"].is_object());
+}
+
+#[test]
 fn real_catalog_contract_comparison() {
     if std::env::var("HOI4_REAL_CATALOG").as_deref() != Ok("1") {
         return eprintln!("real catalog comparison skipped (set HOI4_REAL_CATALOG=1)");

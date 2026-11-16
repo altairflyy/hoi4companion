@@ -137,6 +137,48 @@ pub fn bind(step: &Value, index: &Index, geography: &Geography) -> Result<Value,
     {
         return Ok(json!({"step":step,"handled":false,"reason":null,"location":null}));
     }
+    // One instruction may require several different buildings or locations.
+    // Bind every declared target independently and require all completions;
+    // never drop an unresolved target and accidentally complete the rest.
+    if params["category"] == "construction" && params["construction_targets"].is_array() {
+        let targets = params["construction_targets"].as_array().unwrap();
+        let mut started = Vec::new();
+        let mut completed = Vec::new();
+        let mut valid = !targets.is_empty() && targets.len() <= 64;
+        for (i, target) in targets.iter().enumerate() {
+            if !target.is_object() || target.get("construction_targets").is_some()
+                || target["quantity_mode"] == "additional" {
+                valid = false;
+                continue;
+            }
+            let mut child = json!({"key":format!("{}.target-{}",s(&step["key"]),i+1),"action":{"kind":"manual","params":target}});
+            child["action"]["params"]["category"] = json!("construction");
+            let result = bind(&child, index, geography)?;
+            let queued = result["step"]["started_when"].clone();
+            let built = result["step"]["completion"].clone();
+            if params["completion_mode"] == "queued_or_built" && !queued.is_null() {
+                completed.push(if built.is_null() {queued.clone()} else {json!({"op":"any","args":[built,queued.clone()]})});
+                started.push(queued);
+                continue;
+            }
+            if result["handled"] != true || result["step"]["completion"].is_null() {
+                valid = false;
+                completed.push(fact(&format!("guide.construction.{}.target-{}.unqualified",s(&step["key"]),i+1), "eq", json!(true)));
+            } else {
+                completed.push(result["step"]["completion"].clone());
+            }
+            if !result["step"]["started_when"].is_null() {
+                started.push(result["step"]["started_when"].clone());
+            }
+        }
+        if !started.is_empty() {
+            attach(&mut step, "started_when", json!({"op":"any","args":started}));
+        }
+        if !targets.is_empty() && completed.len() == targets.len() {
+            attach(&mut step, "completion", json!({"op":"all","args":completed}));
+        }
+        return Ok(json!({"step":step,"handled":true,"reason":if valid {"compound_construction_targets"}else{"compound_construction_unresolved"},"location":null}));
+    }
     let agency = params["operation_id"] == "create_intelligence_agency"
         || (["intelligenceagency", "agenziadiintelligence"].contains(
             &hoi4companion_catalog_core::normal_name(s(&params["project_name"])).as_str(),
@@ -187,6 +229,12 @@ pub fn bind(step: &Value, index: &Index, geography: &Geography) -> Result<Value,
         let provincial = building
             .as_ref()
             .is_some_and(|b| b["location_scope"] == "province");
+        let scoped = building.as_ref().is_some_and(|b| {
+            matches!(s(&b["location_scope"]), "state" | "province")
+                || b["location_scope"].is_null()
+                    && ["infrastructure", "industrial_complex", "arms_factory", "dockyard"]
+                        .contains(&s(&b["id"]))
+        });
         location = geography.resolve(&params, provincial);
         let region = location["state_id"].as_u64();
         let mut reason = "building_or_state_not_resolved".to_owned();
@@ -200,6 +248,8 @@ pub fn bind(step: &Value, index: &Index, geography: &Geography) -> Result<Value,
         let invalid_group = has_group && !group;
         if invalid_group {
             reason = "province_selector_requires_provincial_fort".into();
+        } else if building.is_some() && !scoped && region.is_some() {
+            reason = "building_scope_unknown".into();
         } else if group {
             let building = building.as_ref().unwrap();
             params["building_id"] = building["id"].clone();
@@ -243,6 +293,7 @@ pub fn bind(step: &Value, index: &Index, geography: &Geography) -> Result<Value,
             && let Some(region) = region
             && !group
             && !invalid_group
+            && scoped
         {
             params["building_id"] = building["id"].clone();
             params["state_id"] = json!(region);
@@ -265,6 +316,19 @@ pub fn bind(step: &Value, index: &Index, geography: &Geography) -> Result<Value,
             let mut target = params["target_level"].clone();
             if !integer(&target, 1) {
                 target = params["target_quantity"].clone();
+            }
+            // Facilities with a catalog-qualified single provincial level have
+            // an unambiguous maximum of one. Shared-slot and other variable
+            // maxima cannot be inferred from static definitions alone.
+            if target.is_null()
+                && params["quantity"].is_null()
+                && params["quantity_mode"].is_null()
+                && provincial
+                && building["max_level"] == 1
+                && building["specializations"].as_array().is_some_and(|a| !a.is_empty())
+            {
+                target = json!(1);
+                params["target_level"] = target.clone();
             }
             if !integer(&target, 1) {
                 if params["quantity_mode"] == "target_total" {
@@ -353,4 +417,67 @@ pub fn bind(step: &Value, index: &Index, geography: &Geography) -> Result<Value,
     };
     step["action"]["params"] = params;
     Ok(json!({"step":step,"handled":true,"reason":reason,"location":location}))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unknown_scope_never_creates_a_state_specific_automatic_condition() {
+        let entries = json!([
+            {"kind":"building","id":"mod_structure","name":"Mod Structure"},
+            {"kind":"state","id":"42","name":"Test State"}
+        ]);
+        let index = Index::new(&json!({"entries":entries})).unwrap();
+        let geography = Geography::new(index.rows());
+        let step = json!({"key":"build","action":{"kind":"manual","params":{
+            "category":"construction","building_id":"mod_structure","state_id":42,
+            "quantity_mode":"target_total","quantity":1
+        }}});
+        let result = bind(&step, &index, &geography).unwrap();
+        assert_eq!(result["reason"], "building_scope_unknown");
+        assert!(result["step"].get("started_when").is_none());
+        assert!(result["step"].get("completion").is_none());
+    }
+
+    #[test]
+    fn single_level_facility_defaults_to_one_only_when_location_is_qualified() {
+        let entries = json!([
+            {"kind":"building","id":"land_facility","name":"Land Facility","location_scope":"province","max_level":1,"specializations":["specialization_land"]},
+            {"kind":"state","id":"42","name":"Test State","geography":{"province_ids":[10]}}
+        ]);
+        let index = Index::new(&json!({"entries":entries})).unwrap();
+        let geography = Geography::new(index.rows());
+        let mut step = json!({"key":"facility","action":{"kind":"manual","params":{
+            "category":"construction","building_id":"land_facility","state_id":42,"province_id":10
+        }}});
+        let result = bind(&step, &index, &geography).unwrap();
+        assert_eq!(result["step"]["completion"], fact("country.fortifications.items.10.buildings.land_facility", "gte", json!(1)));
+        step["action"]["params"].as_object_mut().unwrap().remove("province_id");
+        let result = bind(&step, &index, &geography).unwrap();
+        assert!(result["step"].get("completion").is_none());
+    }
+
+    #[test]
+    fn compound_requires_each_target_and_does_not_discard_an_unknown() {
+        let entries = json!([
+            {"kind":"building","id":"infrastructure","name":"Infrastructure","location_scope":"state"},
+            {"kind":"building","id":"land_facility","name":"Land Facility","location_scope":"province","max_level":1,"specializations":["specialization_land"]},
+            {"kind":"state","id":"42","name":"Test State","geography":{"province_ids":[10]}}
+        ]);
+        let index = Index::new(&json!({"entries":entries})).unwrap();
+        let geography = Geography::new(index.rows());
+        let mut step = json!({"key":"compound","action":{"kind":"manual","params":{"category":"construction","construction_targets":[
+            {"building_id":"infrastructure","state_id":42,"target_level":5},
+            {"building_id":"land_facility","state_id":42,"province_id":10}
+        ]}}});
+        let result = bind(&step, &index, &geography).unwrap();
+        assert_eq!(result["step"]["completion"]["op"], "all");
+        assert_eq!(result["step"]["completion"]["args"].as_array().unwrap().len(), 2);
+        step["action"]["params"]["construction_targets"][1].as_object_mut().unwrap().remove("province_id");
+        let result = bind(&step, &index, &geography).unwrap();
+        assert_eq!(result["reason"], "compound_construction_unresolved");
+        assert!(result["step"]["completion"]["args"][1]["key"].as_str().unwrap().ends_with("unqualified"));
+    }
 }

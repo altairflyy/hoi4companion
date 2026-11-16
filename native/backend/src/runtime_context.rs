@@ -13,6 +13,7 @@ pub struct Context {
     library: Value,
     presentation: guide_enrich::Presentation,
     compiled: Mutex<HashMap<String, (String, Value)>>,
+    presented: Mutex<HashMap<String, Value>>,
     prepared_cache: Option<crate::compiled_cache::Cache>,
 }
 impl Context {
@@ -30,6 +31,7 @@ impl Context {
             library,
             presentation,
             compiled: Mutex::new(HashMap::new()),
+            presented: Mutex::new(HashMap::new()),
             prepared_cache,
         }))
     }
@@ -67,8 +69,19 @@ impl Context {
         Ok(result)
     }
     pub fn present(&self, guide: &Value) -> Result<Value, String> {
+        // Research projection can request the same static presentation on every
+        // delivery. Cache by the WHOLE projected definition, including bindings;
+        // the owning context fixes catalog, vocabulary and reference library.
+        // Live facts, evaluation and completion are never stored here.
+        let signature=format!("{:x}",Sha256::digest(serde_json::to_vec(guide).map_err(|e|e.to_string())?));
+        if let Some(value)=self.presented.lock().map_err(|_|"Guide presentation unavailable")?.get(&signature) {
+            return Ok(value.clone());
+        }
         let mut value=self.presentation.enrich(guide)?;
         value["advanced_references"]=json!(self.library["documents"].as_array().into_iter().flatten().map(|d|json!({"id":d["id"],"name":d["name"],"category":d["category"]})).collect::<Vec<_>>());
+        let mut cache=self.presented.lock().map_err(|_|"Guide presentation unavailable")?;
+        if cache.len()>=64 {cache.clear();}
+        cache.insert(signature,value.clone());
         Ok(value)
     }
     pub fn prepare_presented(&self,guide:&Value)->Result<Value,String>{
@@ -97,14 +110,37 @@ impl Context {
         // Catalog focuses of the guide's own tree add grounded candidates.
         let extra = crate::entity_resolution::catalog_candidates(self.index.rows(), guide);
         let result = crate::decomposition::decompose_with(guide, &compile, &extra)?;
+        let bound = crate::construction_instructions::bind(&result["guide"], &self.index)?;
         if result["report"].as_array().is_some_and(|r| r.iter().any(|e| e["status"] == "decomposed")) {
-            self.present(&result["guide"])
+            self.present(&bound)
         } else {
-            Ok(result["guide"].clone())
+            Ok(bound)
         }
     }
     pub fn compare(&self, guide: &Value) -> Result<Value, String> {
         let prepared = self.prepare(guide)?;
         Ok(json!({"definition":prepared,"presentation":self.present(&prepared)?}))
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn presentation_cache_keys_full_definition_and_returns_independent_values() {
+        let source=Arc::new(json!({"operation_entities":[]}));
+        let context=Context {
+            index:Index::new(&json!({"entries":[]})).unwrap(),
+            presentation:guide_enrich::Presentation::new(source.clone(),crate::import_catalog::language()),
+            source,library:json!({"documents":[]}),compiled:Mutex::new(HashMap::new()),
+            presented:Mutex::new(HashMap::new()),prepared_cache:None,
+        };
+        let mut guide=crate::guide_schema::normalize(&json!({"id":"cache","title":"First","tracks":{"operations":[{"key":"one","action":{"kind":"manual"}}]}})).unwrap();
+        let expected=context.present(&guide).unwrap();
+        let mut copy=context.present(&guide).unwrap();copy["title"]=json!("caller mutation");
+        assert_eq!(context.present(&guide).unwrap(),expected);
+        assert_eq!(context.presented.lock().unwrap().len(),1);
+        guide["title"]=json!("Second");
+        assert_eq!(context.present(&guide).unwrap()["title"],"Second");
+        assert_eq!(context.presented.lock().unwrap().len(),2);
     }
 }

@@ -369,6 +369,7 @@ pub(super) fn normalize(value: &Value) -> Value {
             } else if section == "states" {
                 let valid = data["status"] == "observed" && data["items"].as_array().is_some_and(|rows|
                     rows.len() <= 4096 && rows.iter().all(|r| r.is_object() && integer_range(&r["id"],1,100000)
+                        && ["owned", "controlled"].iter().all(|k| r.get(k).is_none_or(Value::is_boolean))
                         && ["civilian_factories", "military_factories", "dockyards", "infrastructure"].iter().all(|k| r.get(k).is_none_or(|v| integer_range(v,0,1000)))
                         && r.get("buildings").is_none_or(building_levels))
                     && rows.iter().map(|r| r["id"].to_string()).collect::<BTreeSet<_>>().len() == rows.len());

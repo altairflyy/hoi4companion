@@ -120,3 +120,50 @@ The card shows the same design/template pictures as the walkthrough page (`guide
 - Overlay (`native/overlay/src/card_images.rs`): fetches `GET /api/reference-library/image?id=` over loopback on a short-lived thread, decodes PNG or JPEG (the library's stored formats; `image` crate `png` + `jpeg`), scales to at most 1024 px, converts to premultiplied BGRA and caches by id (at most 16 entries kept beyond the current card). The HUD loop never waits: `current_card` attaches the pictures decoded so far.
 - Drawing (`draw_card`): under the text, each image has a muted "Design reference · name" line and a thumbnail fitted to the card width at the DPI scale, at most a third of the card's maximum height (80% of the client height). A picture that does not fit is left out; collapsing hides all of them.
 - Failure: until the picture arrives, or if fetch/decode/bitmap creation fails, only the name line is shown; a failed id is retried after 60 s. The card redraws once when a picture arrives (`CardImage` equality compares the shared decoded picture, so later frames do not redraw).
+
+## Construction map markers (2026-11-16)
+The current step's catalog-bound `construction_targets` propose one small (12 px)
+marker per state ID. Names are captions only. Installed `map/buildings.txt` supplies
+static graphical anchors (factory/airbase positions), respecting the existing mod
+file replacement rules. These positions never supply building levels or completion.
+Live country, observed ownership/control, guide/session/campaign and current-card
+identity gate the proposals. Completed steps stop proposing markers.
+
+For qualified PE SHA-256
+`709f916afbebcfe64a26678702691aeb40945d206074c2a80de8e9d601fce148`,
+`map_markers.rs` reads the current camera via the existing read-only qualified
+handle. Globals: idler RVA `33ddb08` -> camera at `+760`; graphics RVA `3500ed0`;
+map RVA `33e7700`. Camera matrix at `+90`, center X at `+190`, viewport at
+`+6c8/+6cc`; graphics viewport at `+180/+184`; world width at map `+40`.
+The projection uses column-major clip coordinates, nearest horizontal world wrap,
+positive W, depth [0,1], and viewport clipping. All reads are revalidated; a changed
+camera, mismatching viewport or unknown build yields no marker. Central panels
+recognized by native GUI observation suppress map markers. Existing foreground,
+window, guide revision and 750 ms freshness gates still apply. No map OCR or screen
+capture fallback starts when native map evidence is unavailable.
+
+Evidence: static disassembly of projection VA `14121d5c0` and a separate external
+RPM-only probe on the installed build/current game. 39 native VictoryPoint icons
+matched the formula plus native alignment (0,15) with maximum rounding residual
+0.499 px; eight airbases independently matched alignment (16,16). Unit-stack
+interpolation was excluded. The static anchor is projected directly without icon
+alignment. At the sampled 1280x720 view, Minsk, Vinnytsia and Odessa were inside;
+Moscow, Kharkov and Krasnodar were outside. No game interaction or screenshot was
+used. Pan/zoom/resize transition and final visual appearance need gameplay review;
+the numerical probe does not establish those results.
+
+Regression checks cover wrapping/clipping/camera translation, exact-build and
+viewport rejection, current-step state ID deduplication/country rejection, and
+native renderer routing without capture fallback.
+Installed release verification: current SOV card2 active; six state proposals and
+three native map rectangles (Odessa/Vinnytsia/Minsk), native_available/usable true.
+Observed geometry2.48ms, witness age1.29ms, map read120bytes. Installed backend and
+HUD hashes match optimized builds; Companion restarted, HOI4PID64832 unchanged.
+This is API/native-coordinate verification; final visual gameplay was not inspected.
+
+HUD requests now renew a two-second demand lease on the existing shared reader.
+The observer runs while either SSE clients or a live HUD need it; closing the
+browser no longer disconnects the HUD. This does not extend the separate data
+(2 s) or geometric (750 ms) evidence budgets. With neither client, the original
+reader shutdown remains. tests/test_native_hud_demand.cjs exercises HUD-only
+requests, missing-game unknowns, expiration and resumption through real HTTP.

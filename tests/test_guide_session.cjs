@@ -60,6 +60,24 @@ test('a malformed shared packet is rejected instead of falling back to client ru
  assert.notEqual(page.api.value.state?.from_shared,'second');
 });
 
+test('live delivery during a pending request does not starve coherent shared evaluations',async()=>{
+ let release,count=0;
+ const page=await openGuidePage({shared:'first',fetchOverride:async(url)=>{
+  if(url==='/api/guides'||url==='/api/guide/active')return;
+  if(url.startsWith('/api/guide/projection')){
+   count++;
+   if(count===1)return new Promise(resolve=>{release=resolve;});
+   return new Promise(()=>{});
+  }
+  return {ok:true,json:async()=>url.startsWith('/api/guide/progress')?nativeProgress('first'):nativeDefinition('first')};
+ }});
+ page.emit({usable:false});
+ release({ok:true,json:async()=>nativePacket('first')});
+ await new Promise(setImmediate);
+ assert.equal(page.api.value.state.from_shared,'first');
+ assert.equal(page.api.value.error,'');
+});
+
 test('creating a new run never publishes the old run evaluation with new progress',async()=>{
  let run='run-first',packets=0;
  const page=await openGuidePage({shared:'first',presentationEvaluate:(guide,state,progress,evaluation)=>{

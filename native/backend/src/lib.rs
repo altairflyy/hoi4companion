@@ -13,6 +13,7 @@ mod catalog_views;
 mod command_families;
 mod compiled_cache;
 mod construction_binding;
+mod construction_instructions;
 mod decision_admission;
 #[cfg(test)]
 mod decision_admission_tests;
@@ -67,6 +68,7 @@ mod live_process;
 #[path = "../../common/loopback.rs"]
 pub mod loopback;
 mod map_topology;
+mod map_markers;
 mod media_frames;
 mod media_references;
 pub mod monitor;

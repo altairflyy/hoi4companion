@@ -20,6 +20,9 @@ type Result<T> = std::result::Result<T, String>;
 fn recent_delivery(age: Option<Duration>) -> bool {
     age.is_some_and(|age| age < Duration::from_secs(2))
 }
+fn observation_requested(streams: usize, hud_age: Option<Duration>) -> bool {
+    streams > 0 || recent_delivery(hud_age)
+}
 /// Whether the HUD may mark `key` done: it must be the checkable step of
 /// the card in a current delivery for the same guide.
 fn hud_check_allowed(current:&Value,guide:&str,key:&str)->bool{
@@ -112,6 +115,7 @@ pub struct Service {
     catalog_args: Mutex<Option<Value>>,
     reading: Mutex<Reading>,
     last_delivery: Mutex<Option<Instant>>,
+    last_hud_request: Mutex<Option<Instant>>,
     #[cfg(windows)]
     gui_lane: Mutex<Option<(u64, crate::provider::GuiLane)>>,
     provider: Mutex<Option<ProviderOwner>>,
@@ -345,6 +349,7 @@ impl Service {
                 cached: None,
             }),
             last_delivery: Mutex::new(None),
+            last_hud_request: Mutex::new(None),
             #[cfg(windows)]
             gui_lane: Mutex::new(None),
             provider: Mutex::new(provider),
@@ -383,6 +388,10 @@ impl Service {
             began: Instant::now(),
         });
         result.resume_collections();
+        if let Ok(mut app) = result.application.lock() {
+            app.compile_archives_in_background();
+        }
+        Service::compile_definitions(Arc::downgrade(&result));
         let weak = Arc::downgrade(&result);
         thread::Builder::new()
             .name("hoi4-native-events".into())
@@ -400,7 +409,9 @@ impl Service {
                     if owner.stopped.load(Ordering::Acquire) {
                         break;
                     }
-                    if *clients == 0 {
+                    let hud_age = owner.last_hud_request.lock().ok()
+                        .and_then(|request| request.map(|when| when.elapsed()));
+                    if !observation_requested(*clients, hud_age) {
                         if let Ok(provider) = owner.provider.lock()
                             && let Some(provider) = provider.as_ref()
                         {
@@ -897,6 +908,44 @@ impl Service {
                 .unavailable(&error)),
         }
     }
+    /// Compiles, off the application lock, the current definitions a campaign
+    /// binding may need: the active guide first, then every guide with a
+    /// checklist. Startup and catalog reloads leave them cold; compiling them in
+    /// the read loop stalled live delivery (and the HUD) for minutes.
+    fn compile_definitions(weak: std::sync::Weak<Service>) {
+        let _ = thread::Builder::new()
+            .name("hoi4-definitions".into())
+            .spawn(move || {
+                while let Some(owner) = weak.upgrade() {
+                    if owner.stopped.load(Ordering::Acquire) {
+                        break;
+                    }
+                    let jobs = owner.application.lock().ok()
+                        .and_then(|mut app| app.cold_archives().ok())
+                        .unwrap_or_default();
+                    if jobs.is_empty() {
+                        drop(owner);
+                        thread::sleep(Duration::from_secs(2));
+                        continue;
+                    }
+                    // Leave most cores to the game.
+                    let workers = thread::available_parallelism().map_or(1, |n| (n.get() / 4).clamp(1, 3));
+                    let next = AtomicUsize::new(0);
+                    thread::scope(|scope| {
+                        for _ in 0..workers {
+                            scope.spawn(|| {
+                                while let Some(job) = jobs.get(next.fetch_add(1, Ordering::Relaxed)) {
+                                    let archive = job.compile();
+                                    let Ok(mut app) = owner.application.lock() else { return };
+                                    app.store_archive(job, archive);
+                                }
+                            });
+                        }
+                    });
+                    owner.wake.notify_all();
+                }
+            });
+    }
     fn publish_hud(&self) -> Result<()> {
         let epoch=self.hud_epoch.load(Ordering::Acquire);
         let observed=*self.last_delivery.lock().map_err(|_|"Live delivery unavailable")?;
@@ -914,7 +963,16 @@ impl Service {
         Ok(())
     }
     fn overlay_latest(&self) -> Result<Value> {
-        // The existing SSE reader owns process acquisition. HUD geometry uses
+        // HUD requests lease the same acquisition loop as SSE clients. A closed
+        // or suspended browser must not disconnect the still-running HUD.
+        let resume = {
+            let mut request = self.last_hud_request.lock().map_err(|_|"HUD demand unavailable")?;
+            let resume = !recent_delivery(request.map(|when|when.elapsed()));
+            *request = Some(Instant::now());
+            resume
+        };
+        if resume { self.wake.notify_all(); }
+        // The shared reader owns process acquisition. HUD geometry uses
         // the latest qualified delivery without queuing behind an integrity
         // audit. Coarse guide facts have a bounded 2s delivery budget (normal
         // cadence250ms + measured full reads~850ms); GUI evidence stays750ms.
@@ -2112,6 +2170,14 @@ mod accept_tests {
         assert!(recent_delivery(Some(Duration::from_millis(1999))));
         assert!(!recent_delivery(Some(Duration::from_secs(2))));
         assert!(!recent_delivery(Some(Duration::from_secs(5))));
+    }
+    #[test]
+    fn hud_keeps_shared_observer_alive_without_browser_and_releases_when_gone() {
+        assert!(!observation_requested(0,None));
+        assert!(observation_requested(0,Some(Duration::from_millis(1999))));
+        assert!(!observation_requested(0,Some(Duration::from_secs(2))));
+        assert!(observation_requested(1,None));
+        assert!(observation_requested(1,Some(Duration::from_secs(5))));
     }
     #[test]
     fn shutdown_signal_wakes_a_blocking_local_accept() {
