@@ -10,6 +10,7 @@ mod subscription;
 mod evidence;
 mod wake;
 mod visual_worker;
+mod stability;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
@@ -24,6 +25,7 @@ use windows::Win32::UI::HiDpi::{SetProcessDpiAwarenessContext,DPI_AWARENESS_CONT
 use windows::Win32::UI::WindowsAndMessaging::{GetClientRect,GetForegroundWindow,GetWindowThreadProcessId,IsIconic,IsWindowVisible};
 use capture::{Capture,Frame};
 use render::{Renderer,TargetWindow,Highlight,OverlayFrame,ControlAction,StepCard};
+use stability::{CardHold,MarkHold,Observation};
 
 struct Options {
     ui_language:String, port:u16, guide:String, start:bool, proof:Option<PathBuf>,
@@ -183,6 +185,24 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
     let badge=if card["event_answer"]==true {i18n::text("Event answer recognized: the button is highlighted when the event appears.")}else{String::new()};
     Some(StepCard {header,heading:heading.trim().to_owned(),note,body,badge})
 }
+/// The card for this sample: the backend's current card, or the last one kept
+/// briefly while the delivery is unknown (see the stability module).
+fn current_card(hold:&mut CardHold,snapshot:&Value,now:Instant)->Option<StepCard> {
+    let known=stability::delivery_known(snapshot).then(||step_card(snapshot));
+    hold.observe(&snapshot["guide_id"],known,now)
+}
+/// Identity that verified highlight samples must share to be held together.
+fn mark_context(snapshot:&Value,version:u64,view:&TargetWindow)->Value {
+    json!([snapshot["guide_id"],snapshot["guide_server_id"],version,view_json(view)])
+}
+/// Publish the layers for this window. The renderer hides only when there is
+/// nothing to draw; otherwise it updates the surface in place.
+fn present(renderer:&Renderer,view:&TargetWindow,marks:Vec<Highlight>,witnessed:Option<Instant>,card:Option<StepCard>)->Result<(),String> {
+    if marks.is_empty()&&card.is_none() {renderer.hide();return Ok(());}
+    let now=Instant::now();
+    let observed_at=witnessed.filter(|_|!marks.is_empty()).unwrap_or(now);
+    renderer.show(OverlayFrame {target:view.clone(),marks,card,observed_at,valid_for:Duration::from_millis(750),card_observed_at:now})
+}
 fn guides(snapshot:&Value)->Vec<(String,String)> {
     snapshot["guides"].as_array().into_iter().flatten().filter_map(|g|
         Some((g["id"].as_str()?.to_owned(),g["title"].as_str()?.to_owned()))).collect()
@@ -273,13 +293,16 @@ fn run(options:Options)->Result<(),String> {
     let mut native_unchanged_since=Instant::now();
     let mut ocr_ms=0.;let mut matching_ms=0.;
     let mut capture_retry_at=Instant::now();
+    let mut mark_hold=MarkHold::default();let mut card_hold=CardHold::default();
     while !renderer.should_exit() {
         let wake_revision=renderer.wake_revision();
         let mut refresh=false;
         while let Some(action)=renderer.take_action(){
-            renderer.hide();last_matches.clear();last_version=None;
             match action {
-                ControlAction::SelectGuide(id)=>{let _=bridge.request(json!({"kind":"select","guide_id":id}),&[])?;},
+                ControlAction::SelectGuide(id)=>{
+                    renderer.hide();last_matches.clear();last_version=None;mark_hold.clear();card_hold.clear();
+                    let _=bridge.request(json!({"kind":"select","guide_id":id}),&[])?;
+                },
                 ControlAction::RefreshGuides=>refresh=true,
                 ControlAction::OpenSuite=>{
                     // Start/reuse only our launcher, never issue game input.
@@ -295,15 +318,27 @@ fn run(options:Options)->Result<(),String> {
         let snapshot=if !renderer.is_paused() && let Some(view)=current.as_ref() {
             bridge.request(json!({"kind":"observe","view":view_json(view),"refresh_guides":refresh}),&[])?
         }else{bridge.snapshot(refresh)?};
-        renderer.set_guides(guides(&snapshot),snapshot["guide_id"].as_str().unwrap_or(""));
+        // An unknown delivery has no guide list: keep the shown one meanwhile.
+        if stability::delivery_known(&snapshot) {renderer.set_guides(guides(&snapshot),snapshot["guide_id"].as_str().unwrap_or(""));}
         if renderer.is_paused()||current.is_none()||snapshot["usable"]!=true {
             if let Some(worker)=visual.as_mut(){worker.invalidate();}
-            let card=if renderer.is_paused(){None}else{current.as_ref().and_then(|_|step_card(&snapshot))};
-            match (card,current.as_ref()) {
-                (Some(card),Some(view))=>{renderer.show(OverlayFrame {target:view.clone(),marks:Vec::new(),card:Some(card),observed_at:Instant::now(),valid_for:Duration::from_millis(750)})?;},
-                _=>renderer.hide(),
+            match current.as_ref().filter(|_|!renderer.is_paused()) {
+                Some(view)=>{
+                    // No targets: a current delivery is verified absence, a
+                    // missing one is unknown. Only the card normally remains.
+                    let now=Instant::now();
+                    let observation=if stability::delivery_known(&snapshot){Observation::Verified(Vec::new(),now)}else{Observation::Unverified};
+                    let (rows,witnessed)=mark_hold.observe(mark_context(&snapshot,snapshot["version"].as_u64().unwrap_or(0),view),observation,now);
+                    last_matches=rows;
+                    let card=current_card(&mut card_hold,&snapshot,now);
+                    present(&renderer,view,marks(&last_matches,view.width,view.height),witnessed,card)?;
+                }
+                None=>{
+                    renderer.hide();mark_hold.clear();last_matches.clear();target=None;
+                    if renderer.is_paused(){card_hold.clear();}
+                }
             }
-            capture=None;target=None;last_scene=None;last_matches.clear();cached_ocr=None;
+            capture=None;last_scene=None;cached_ocr=None;
             let nation_unknown=snapshot["guide_filter"]["status"]=="unavailable";
             let message=if renderer.is_paused(){"Overlay paused"}else if nation_unknown{"Waiting for a validated game nation to list compatible guides"}else if current.is_none(){"Switch to HOI4 to show highlights"}
                 else{snapshot["idle_explanation"]["message"].as_str().or_else(||snapshot["error"].as_str().filter(|s|!s.is_empty())).unwrap_or("No current guide recommendation")};
@@ -315,8 +350,9 @@ fn run(options:Options)->Result<(),String> {
         }
         let view=current.unwrap();
         if target.as_ref()!=Some(&view) {
+            // The next frame carries the new window; no hide/show in between.
             if let Some(worker)=visual.as_mut(){worker.invalidate();}
-            renderer.hide();capture=None;
+            capture=None;mark_hold.clear();
             target=Some(view.clone());last_scene=None;cached_ocr=None;last_matches.clear();
         }
         let started=geometry_observed;
@@ -331,17 +367,18 @@ fn run(options:Options)->Result<(),String> {
             // OCR availability. No WGC readback or image bytes on this path.
             capture=None;
             last_scene=None;cached_ocr=None;last_version=None;
-            let previous_matches=last_matches.clone();
             let native_observed=native_observation_time(geometry_observed,Instant::now(),geometry);
-            last_matches=if geometry["usable"]==true&&geometry["suspend_visual"]!=true&&geometry["version"]==version&&geometry["view"]==view_json(&view)
-                &&native_observed.is_some()&&game_view().as_ref()==Some(&view) {
-                geometry["matches"].as_array().cloned().unwrap_or_default()
-            }else{Vec::new()};
-            if previous_matches!=last_matches {native_unchanged_since=Instant::now();}
-            let highlights=marks(&last_matches,view.width,view.height);
-            let card=step_card(&snapshot);
-            if highlights.is_empty()&&card.is_none(){renderer.hide();}
-            else{renderer.show(OverlayFrame {target:view.clone(),observed_at:if highlights.is_empty(){Instant::now()}else{native_observed.unwrap()},marks:highlights,card,valid_for:Duration::from_millis(750)})?;}
+            let observation=match native_observed {
+                Some(witness) if geometry["usable"]==true&&geometry["suspend_visual"]!=true&&geometry["version"]==version&&geometry["view"]==view_json(&view)
+                    &&game_view().as_ref()==Some(&view)=>Observation::Verified(geometry["matches"].as_array().cloned().unwrap_or_default(),witness),
+                _=>Observation::Unverified,
+            };
+            let now=Instant::now();
+            let (rows,witnessed)=mark_hold.observe(mark_context(&snapshot,version,&view),observation,now);
+            if rows!=last_matches {native_unchanged_since=now;}
+            last_matches=rows;
+            let card=current_card(&mut card_hold,&snapshot,now);
+            present(&renderer,&view,marks(&last_matches,view.width,view.height),witnessed,card)?;
             native_frames+=1;
             if last_status.elapsed()>Duration::from_millis(500){
                 let ms=geometry["geometry_ms"].as_f64().unwrap_or(0.);
@@ -387,7 +424,9 @@ fn run(options:Options)->Result<(),String> {
             Ok(Some(frame))=>frame,
             Ok(None)=>continue,
             Err(error)=>{
-                renderer.hide();capture=None;last_scene=None;cached_ocr=None;last_matches.clear();last_version=None;
+                capture=None;last_scene=None;cached_ocr=None;last_matches.clear();last_version=None;mark_hold.clear();
+                // Capture evidence is gone; the guide card does not depend on it.
+                present(&renderer,&view,Vec::new(),None,current_card(&mut card_hold,&snapshot,Instant::now()))?;
                 if let Some(worker)=visual.as_mut(){worker.invalidate();}
                 capture_retry_at=Instant::now()+Duration::from_millis(500);
                 let message=format!("Capture unavailable; retrying: {error}");
@@ -398,7 +437,9 @@ fn run(options:Options)->Result<(),String> {
             }
         };
         let source=capture.as_mut().ok_or("Capture not initialized")?;
-        if !aligned(&frame,&view)||game_view().as_ref()!=Some(&view){renderer.hide();continue;}
+        // A transitional frame proves nothing: publish nothing. The renderer
+        // still hides on its own when the window changes or the deadline passes.
+        if !aligned(&frame,&view)||game_view().as_ref()!=Some(&view){continue;}
         total_frames+=1;
         let frame_generation=frame.generation;
         let stable=last_version==Some(version)&&cached_ocr.as_ref().is_some_and(|page| {
@@ -429,18 +470,16 @@ fn run(options:Options)->Result<(),String> {
                 _=>{},
             }
         }
-        if changed&&!admitted {renderer.hide();last_matches.clear();}
+        if changed&&!admitted {last_matches.clear();}
         if changed&&visual.as_ref().is_none_or(|worker|!worker.busy()) {
             if visual.is_none(){visual=Some(visual_worker::VisualWorker::new(options.port)?);}
             let page=if last_scene==Some(digest){cached_ocr.clone()}else{None};
             visual.as_mut().unwrap().submit(visual_worker::Job{frame,digest,context,page})?;
         }
-        if game_view().as_ref()!=Some(&view){renderer.hide();continue;}
+        if game_view().as_ref()!=Some(&view){continue;}
         let highlights=marks(&last_matches,view.width,view.height);
-        let card=step_card(&snapshot);
-        if highlights.is_empty()&&card.is_none(){renderer.hide();}
-        else if changed||last_draw.elapsed()>Duration::from_millis(250)||highlights.is_empty(){
-            renderer.show(OverlayFrame {target:view.clone(),observed_at:if highlights.is_empty(){Instant::now()}else{verified_at},marks:highlights,card,valid_for:Duration::from_millis(750)})?;
+        if changed||last_draw.elapsed()>Duration::from_millis(250)||highlights.is_empty(){
+            present(&renderer,&view,highlights,Some(verified_at),current_card(&mut card_hold,&snapshot,Instant::now()))?;
             last_draw=Instant::now();
         }
         if last_status.elapsed()>Duration::from_millis(500){

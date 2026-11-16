@@ -3,7 +3,7 @@
 //! Rendering and native controls live on one dedicated STA/message-loop thread.
 //! Callers only publish the latest frame, so a busy renderer cannot queue stale
 //! highlights. The safety timer hides independently of recognition progress.
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
@@ -51,6 +51,10 @@ const QUIT: usize = 202;
 const GUIDES: usize = 203;
 const REFRESH: usize = 204;
 const MAX_MARKS: usize = 64;
+/// Compositor fade when the layer appears; never applied on disappearance.
+const FADE_IN: Duration = Duration::from_millis(90);
+/// Interval for re-asserting the topmost position without moving the window.
+const TOPMOST_REFRESH: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TargetWindow {
@@ -78,8 +82,18 @@ fn overlaps(a:[f32;4],b:[f32;4],gap:f32)->bool {
 /// Place captions outside all highlighted controls. Production uses a compact
 /// side column, rather than covering the previous line's name/factory counters.
 /// When no safe space remains, keep the border and omit its caption.
+#[cfg(test)]
 fn caption_layout(frame:&OverlayFrame,scale:f32)->Vec<Option<[f32;4]>> {caption_layout_avoiding(frame,scale,&[])}
+#[cfg(test)]
 fn caption_layout_avoiding(frame:&OverlayFrame,scale:f32,avoid:&[[f32;4]])->Vec<Option<[f32;4]>> {
+    caption_slots(frame,scale,avoid,&HashMap::new()).into_iter().map(|slot|slot.map(|(_,rect)|rect)).collect()
+}
+/// Caption identity kept across frames, independent of the control's position.
+fn caption_key(mark:&Highlight)->String {format!("{}{}",mark.panel,mark.caption)}
+/// Like the first-fit placement, but a caption keeps the candidate side it used
+/// in the previous frame while that side is still free. Without this a caption
+/// jumps between above/right/below as the player pans or another label moves.
+fn caption_slots(frame:&OverlayFrame,scale:f32,avoid:&[[f32;4]],preferred:&HashMap<String,usize>)->Vec<Option<(usize,[f32;4])>> {
     let width=frame.target.width as f32;let height=frame.target.height as f32;
     let gap=6.0*scale;
     let production_right=frame.marks.iter().filter(|m|m.panel=="production")
@@ -115,11 +129,12 @@ fn caption_layout_avoiding(frame:&OverlayFrame,scale:f32,avoid:&[[f32;4]])->Vec<
                 [left-gap-label_width,top,left-gap,top+label_height],
             ]);
         }
-        let selected=candidates.into_iter().find(|r|
-            r[0]>=0.0&&r[1]>=0.0&&r[2]<=width&&r[3]<=height&&
+        let free=|r:&[f32;4]| r[0]>=0.0&&r[1]>=0.0&&r[2]<=width&&r[3]<=height&&
             !frame.marks.iter().any(|other|overlaps(*r,other.rect,gap/2.0))&&
-            !placed.iter().any(|other|overlaps(*r,*other,gap/2.0)));
-        if let Some(rect)=selected {placed.push(rect);}
+            !placed.iter().any(|other|overlaps(*r,*other,gap/2.0));
+        let selected=preferred.get(&caption_key(mark)).and_then(|i|candidates.get(*i).filter(|r|free(r)).map(|r|(*i,*r)))
+            .or_else(||candidates.iter().enumerate().find(|(_,r)|free(r)).map(|(i,r)|(i,*r)));
+        if let Some((_,rect))=selected {placed.push(rect);}
         result.push(selected);
     }
     result
@@ -132,8 +147,24 @@ pub struct OverlayFrame {
     /// The guide step to do now, shown as a panel on the right of the game
     /// window (under the theater bar), with or without highlighted controls.
     pub card: Option<StepCard>,
+    /// Witness time of the highlights; with `valid_for` it bounds only them.
     pub observed_at: Instant,
     pub valid_for: Duration,
+    /// Last time the main loop confirmed the card for this window. The card
+    /// has its own lifetime, so expired highlights never take it down.
+    pub card_observed_at: Instant,
+}
+/// Card lifetime if the main loop stops refreshing it (stall protection).
+pub const CARD_VALID_FOR: Duration = Duration::from_millis(1500);
+/// The layers still within their lifetimes, or None when nothing may be drawn.
+fn visible_frame(frame:&OverlayFrame,now:Instant)->Option<OverlayFrame> {
+    let marks_live=!frame.marks.is_empty()&&now.saturating_duration_since(frame.observed_at)<=frame.valid_for;
+    let card_live=frame.card.is_some()&&now.saturating_duration_since(frame.card_observed_at)<=CARD_VALID_FOR;
+    if !marks_live&&!card_live {return None;}
+    let mut shown=frame.clone();
+    if !marks_live {shown.marks.clear();}
+    if !card_live {shown.card=None;}
+    Some(shown)
 }
 
 /// Already localized card text; guide text stays as authored.
@@ -396,9 +427,12 @@ impl Paint {
 struct Graphics {
     context: ID2D1DeviceContext,
     swap: IDXGISwapChain1,
-    _composition: IDCompositionDevice,
+    composition: IDCompositionDevice,
     _target: IDCompositionTarget,
     _visual: IDCompositionVisual,
+    /// Layer opacity, animated by the compositor for a short fade-in only.
+    effect: Option<IDCompositionEffectGroup>,
+    caption_sides: HashMap<String,usize>,
     write: IDWriteFactory,
     paint: Paint,
     formats: Option<(f32,IDWriteTextFormat,IDWriteTextFormat)>,
@@ -430,10 +464,28 @@ impl Graphics {
             let composition:IDCompositionDevice=DCompositionCreateDevice(&dxgi)?;
             let target=composition.CreateTargetForHwnd(window,true)?;
             let visual=composition.CreateVisual()?;
-            visual.SetContent(&swap)?;target.SetRoot(&visual)?;composition.Commit()?;
+            visual.SetContent(&swap)?;target.SetRoot(&visual)?;
+            // Optional: without an effect group the layer simply appears at once.
+            let effect=composition.CreateEffectGroup().ok().filter(|effect|
+                effect.SetOpacity2(1.0).is_ok()&&visual.SetEffect(effect).is_ok());
+            composition.Commit()?;
             let write:IDWriteFactory=DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
             let paint=Paint::new(&context)?;
-            Ok(Self {context,swap,_composition:composition,_target:target,_visual:visual,write,paint,formats:None,card_formats:None,bitmap:None,size:(0,0)})
+            Ok(Self {context,swap,composition,_target:target,_visual:visual,effect,caption_sides:HashMap::new(),write,paint,formats:None,card_formats:None,bitmap:None,size:(0,0)})
+        }
+    }
+    /// Fade the whole layer in when it becomes visible. Disappearance stays
+    /// instantaneous so an expired highlight is never kept on screen.
+    unsafe fn fade_in(&self) {
+        unsafe {
+            let Some(effect)=self.effect.as_ref() else {return;};
+            let animated=(||{
+                let animation=self.composition.CreateAnimation()?;
+                animation.AddCubic(0.0,0.0,(1.0/FADE_IN.as_secs_f64()) as f32,0.0,0.0)?;
+                animation.End(FADE_IN.as_secs_f64(),1.0)?;
+                effect.SetOpacity(&animation)?;self.composition.Commit()
+            })();
+            if animated.is_err() {let _=effect.SetOpacity2(1.0);let _=self.composition.Commit();}
         }
     }
     unsafe fn size(&mut self,width:u32,height:u32)->windows::core::Result<()> {
@@ -503,7 +555,9 @@ impl Graphics {
             let card=match frame.card.as_ref() {Some(card)=>Some(self.card_layout(card,frame,scale)?),None=>None};
             let avoid:Vec<[f32;4]>=card.iter().map(|c|c.0).collect();
             let (_,format,compact)=self.formats.as_ref().unwrap();
-            let captions=caption_layout_avoiding(frame,scale,&avoid);
+            let slots=caption_slots(frame,scale,&avoid,&self.caption_sides);
+            self.caption_sides=frame.marks.iter().zip(&slots).filter_map(|(mark,slot)|slot.map(|(i,_)|(caption_key(mark),i))).collect();
+            let captions:Vec<Option<[f32;4]>>=slots.into_iter().map(|slot|slot.map(|(_,rect)|rect)).collect();
             self.context.BeginDraw();self.context.Clear(Some(&D2D1_COLOR_F {r:0.0,g:0.0,b:0.0,a:0.0}));
             let result={
                 if let Some(([left,top,right,bottom],lines))=card.as_ref() {
@@ -558,6 +612,11 @@ struct Ui {
     last_status:String,
     excluded:bool,
     visible:bool,
+    /// Layers (highlights, card) present in the last drawn surface.
+    drawn:(bool,bool),
+    /// Last window placement, so SetWindowPos runs only when it changes.
+    placed:Option<[i32;4]>,
+    topmost_at:Instant,
     _font:HFONT,
     last_paused:bool,
     wake:Arc<Wake>,
@@ -594,33 +653,55 @@ impl Ui {
                 self.excluded=excluded;
             }
             let Some(frame)=frame else {self.hide();return;};
-            if self.paused.load(Ordering::Acquire) || frame.observed_at.elapsed()>frame.valid_for
-                || frame.marks.is_empty()&&frame.card.is_none() || !target_matches(&frame.target) {
-                self.hide();return;
-            }
-            if redraw || revision!=self.last_revision || !self.visible {
-                let result=(|| {
-                    SetWindowPos(self.overlay,Some(HWND_TOPMOST),frame.target.x,frame.target.y,
-                        frame.target.width as i32,frame.target.height as i32,SWP_NOACTIVATE)?;
-                    self.graphics.as_mut().unwrap().draw(&frame)?;
-                    if !target_matches(&frame.target) || frame.observed_at.elapsed()>frame.valid_for {
-                        return Ok(false);
-                    }
-                    let _=ShowWindow(self.overlay,SW_SHOWNOACTIVATE);Ok::<bool,windows::core::Error>(true)
-                })();
-                match result {
-                    Ok(true)=>{},
-                    Ok(false)=>{self.hide();return;},
+            if self.paused.load(Ordering::Acquire) || !target_matches(&frame.target) {self.hide();return;}
+            // Each layer has its own lifetime: expired highlights leave the card.
+            let Some(shown)=visible_frame(&frame,Instant::now()) else {self.hide();return;};
+            let layers=(!shown.marks.is_empty(),shown.card.is_some());
+            if redraw || revision!=self.last_revision || !self.visible || layers!=self.drawn {
+                match self.present(&frame,shown) {
+                    Ok(Some(drawn))=>{self.drawn=drawn;self.last_revision=revision;}
+                    Ok(None)=>{self.hide();}
                     Err(error)=>{
                         self.hide();let message=wide(&crate::i18n::format("Rendering suspended: {0}",&[&error.to_string()]));
-                        let _=SetWindowTextW(self.status,PCWSTR(message.as_ptr()));return;
+                        let _=SetWindowTextW(self.status,PCWSTR(message.as_ptr()));
                     }
                 }
-                self.last_revision=revision;self.visible=true;
+            }else if self.topmost_at.elapsed()>=TOPMOST_REFRESH {
+                let _=SetWindowPos(self.overlay,Some(HWND_TOPMOST),0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+                self.topmost_at=Instant::now();
             }
         }
     }
-    unsafe fn hide(&mut self) {unsafe {let _=ShowWindow(self.overlay,SW_HIDE);self.visible=false;}}
+    /// Draw and show one frame. The window is moved only when the game's client
+    /// area moved and shown only when it was hidden: no hide/show churn.
+    /// Returns the layers actually on screen, or None if nothing may stay.
+    unsafe fn present(&mut self,frame:&OverlayFrame,mut shown:OverlayFrame)->windows::core::Result<Option<(bool,bool)>> {
+        unsafe {
+            let target=&frame.target;
+            let placement=[target.x,target.y,target.width as i32,target.height as i32];
+            if !self.visible || self.placed!=Some(placement) {
+                SetWindowPos(self.overlay,Some(HWND_TOPMOST),target.x,target.y,target.width as i32,target.height as i32,SWP_NOACTIVATE)?;
+                self.placed=Some(placement);self.topmost_at=Instant::now();
+            }
+            let graphics=self.graphics.as_mut().unwrap();
+            graphics.draw(&shown)?;
+            if !target_matches(target) {return Ok(None);}
+            // A highlight that expired while drawing is removed at once.
+            match visible_frame(frame,Instant::now()) {
+                None=>return Ok(None),
+                Some(again) if again.marks.is_empty()&&!shown.marks.is_empty() || again.card.is_none()&&shown.card.is_some()=>{
+                    graphics.draw(&again)?;shown=again;
+                }
+                Some(_)=>{}
+            }
+            if !self.visible {
+                graphics.fade_in();
+                let _=ShowWindow(self.overlay,SW_SHOWNOACTIVATE);self.visible=true;
+            }
+            Ok(Some((!shown.marks.is_empty(),shown.card.is_some())))
+        }
+    }
+    unsafe fn hide(&mut self) {unsafe {if self.visible {let _=ShowWindow(self.overlay,SW_HIDE);} self.visible=false;self.drawn=(false,false);}}
     unsafe fn command(&mut self,id:usize,notification:u16) {
         unsafe {
             match id {
@@ -712,7 +793,7 @@ unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBo
         let graphics=Graphics::new(overlay).map_err(|e|e.to_string())?;
         let mut ui=Box::new(Ui {overlay,status,pause,combo,shared,paused,exit,
             graphics:Some(graphics),last_revision:u64::MAX,last_guides:Vec::new(),last_selected:String::new(),
-            last_status:String::new(),excluded:true,visible:false,_font:font,last_paused:false,wake:wake.clone()});
+            last_status:String::new(),excluded:true,visible:false,drawn:(false,false),placed:None,topmost_at:Instant::now(),_font:font,last_paused:false,wake:wake.clone()});
         let pointer=(&mut *ui) as *mut Ui as isize;
         SetWindowLongPtrW(overlay,GWLP_USERDATA,pointer);SetWindowLongPtrW(control,GWLP_USERDATA,pointer);
         SetTimer(Some(control),1,50,None);
@@ -784,7 +865,43 @@ mod tests {
     }
     fn frame()->OverlayFrame {OverlayFrame {target:TargetWindow {hwnd:1,pid:1,x:0,y:0,width:800,height:600},
         marks:vec![Highlight {rect:[10.0,20.0,80.0,60.0],caption:"Ricerca".into(),active:false,choice:false,panel:"research".into()}],
-        card:None,observed_at:Instant::now(),valid_for:Duration::from_secs(1)}}
+        card:None,observed_at:Instant::now(),valid_for:Duration::from_secs(1),card_observed_at:Instant::now()}}
+    #[test]
+    fn expired_highlights_leave_the_card_and_each_layer_keeps_its_own_deadline() {
+        let now=Instant::now();
+        let mut f=frame();f.valid_for=Duration::from_millis(750);
+        f.observed_at=now;f.card_observed_at=now;f.card=Some(StepCard {heading:"Build".into(),..Default::default()});
+        let shown=visible_frame(&f,now+Duration::from_millis(700)).unwrap();
+        assert_eq!((shown.marks.len(),shown.card.is_some()),(1,true));
+        let shown=visible_frame(&f,now+Duration::from_millis(751)).unwrap();
+        assert!(shown.marks.is_empty(),"the 750 ms highlight deadline is unchanged");
+        assert!(shown.card.is_some(),"the card does not disappear with the highlights");
+        assert!(visible_frame(&f,now+CARD_VALID_FOR+Duration::from_millis(1)).is_none());
+        let mut fresh_card=f.clone();fresh_card.card_observed_at=now+Duration::from_secs(1);
+        let shown=visible_frame(&fresh_card,now+Duration::from_secs(1)).unwrap();
+        assert!(shown.marks.is_empty()&&shown.card.is_some(),"a refreshed card never revives expired highlights");
+        let mut bare=f;bare.card=None;
+        assert!(visible_frame(&bare,now+Duration::from_millis(751)).is_none());
+    }
+    #[test]
+    fn captions_keep_their_side_while_it_stays_free() {
+        let mut f=frame();f.marks[0].rect=[300.0,200.0,370.0,240.0];
+        let first=caption_slots(&f,1.0,&[],&HashMap::new())[0].unwrap();
+        assert_eq!(first.0,0,"first fit is above the control");
+        // A previous frame placed this caption on the right: keep it there
+        // although the first-fit side is free again.
+        let preferred=HashMap::from([(caption_key(&f.marks[0]),1usize)]);
+        let kept=caption_slots(&f,1.0,&[],&preferred)[0].unwrap();
+        assert_eq!(kept.0,1);assert!(kept.1[0]>=370.0);
+        // A small pan moves the caption with its control on the same side.
+        f.marks[0].rect=[303.0,201.0,373.0,241.0];
+        let moved=caption_slots(&f,1.0,&[],&preferred)[0].unwrap();
+        assert_eq!(moved.0,1);assert!((moved.1[0]-kept.1[0]-3.0).abs()<0.01);
+        // When the kept side becomes blocked, fall back to the first free one.
+        let blocked=caption_slots(&f,1.0,&[[380.0,190.0,700.0,260.0]],&preferred)[0].unwrap();
+        assert_ne!(blocked.0,1);
+        assert!(!overlaps(blocked.1,[380.0,190.0,700.0,260.0],0.0));
+    }
     #[test]
     fn nonfinite_out_of_bounds_and_excessive_lifetimes_are_rejected() {
         assert!(validate_frame(&frame()).is_ok());
