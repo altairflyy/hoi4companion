@@ -65,7 +65,11 @@ fn real_catalog_contract_comparison() {
             let step = |k: &str| a.iter().find(|s| s["key"] == k).cloned();
             assert_eq!(step("word-0002").unwrap()["action"]["params"]["production_targets"].as_array().unwrap().len(), 7, "one production step");
             assert!(step("word-0002--operation-2").is_none(), "no split production memo");
-            assert_eq!(step("word-0008").unwrap()["action"]["params"]["binding_withdrawn"]["id"], "GER_mobilize_the_selbschutz");
+            // The wrong German decision is gone; the reference is grounded to the
+            // only answer the Soviet Union can receive.
+            let mobilize = step("word-0008").unwrap();
+            assert!(mobilize["action"]["params"]["decision_id"].is_null());
+            assert_eq!(mobilize["action"]["params"]["event_option_id"], "bftb_turkey.4.a");
         }
         for s in a.iter().filter(|s| !s["action"]["params"]["reference_resolution"].is_null()) {
             eprintln!("GROUNDED {} {} -> {} «{}»", guide["applies_to"]["country"].as_str().unwrap_or(""), s["action"]["params"]["instructions"][0], s["action"]["params"]["reference_resolution"]["option_id"], s["action"]["params"]["reference_resolution"]["option_text"].as_str().unwrap_or(""));
@@ -130,5 +134,36 @@ fn truncated_reference_survey() {
     eprintln!("truncated references by binding / compatible candidates: {buckets:#?}");
     for s in samples {
         eprintln!("REF {s}");
+    }
+}
+
+#[test]
+fn reference_probe() {
+    if std::env::var("HOI4_REAL_CATALOG").as_deref() != Ok("1") {
+        return;
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let data = root.join(".local");
+    let settings: Value = serde_json::from_slice(&std::fs::read(data.join("settings.json")).unwrap()).unwrap();
+    let catalog = Catalog(request(0, "catalog_open", json!({"settings":settings,"vocabulary_path":root.join("src/hoi4companion/guide_language.json")})).unwrap().as_u64().unwrap());
+    let entities = request(0, "catalog_entities", json!({"handle":catalog.0})).unwrap();
+    let rows = entities["entries"].as_array().unwrap();
+    let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
+    for r in rows { *kinds.entry(r["kind"].as_str().unwrap_or("?").to_owned()).or_default() += 1; }
+    eprintln!("PROBE kinds {kinds:?}");
+    for kind in ["event", "event_option", "decision"] {
+        if let Some(r) = rows.iter().find(|r| r["kind"] == kind) {
+            eprintln!("PROBE sample {kind}: {}", r.to_string().chars().take(700).collect::<String>());
+        }
+    }
+    for (text, country, scope) in [("We will seize…", "ITA", "italian_focus"), ("We will seize…", "GER", "german_focus"), ("Mobilize The…", "SOV", "soviet_focus")] {
+        let found = request(0, "catalog_reference_candidates", json!({"handle":catalog.0,"text":text,"country":country,"scope":scope})).unwrap();
+        for c in found.as_array().unwrap().iter().take(8) {
+            let full = rows.iter().find(|r| r["id"] == c["id"] && r["kind"] == c["kind"]);
+            let parent = c["event_id"].as_str().and_then(|e| rows.iter().find(|r| r["kind"] == "event" && r["id"] == e));
+            eprintln!("PROBE {country} {text:?} -> {} {} | row={} | parent={}", c["kind"], c["id"],
+                full.map(|r| r.to_string().chars().take(400).collect::<String>()).unwrap_or_default(),
+                parent.map(|r| r.to_string().chars().take(400).collect::<String>()).unwrap_or_default());
+        }
     }
 }

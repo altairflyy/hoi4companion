@@ -61,7 +61,10 @@ pub fn ground_references(guide: &mut Value, index: &Index) -> Result<()> {
     for row in tracks.values_mut().filter_map(Value::as_array_mut).flatten() {
         let params = &row["action"]["params"];
         let Some(text) = params["instructions"].as_array().filter(|a| a.len() == 1).and_then(|a| a[0].as_str()) else { continue };
-        let text = text.trim().to_owned();
+        // Trailing notes after the truncated name ("We will seize…(25PP) (if
+        // possible)") are not part of the reference.
+        let author_cost = crate::import_catalog::regex(r"(?i)\((\d{1,4})\s*PP\)").captures(text).and_then(|c| c[1].parse::<f64>().ok());
+        let text = crate::import_catalog::regex(r"(?:\s*\([^()]*\))+\s*$").replace(text.trim(), "").trim().to_owned();
         if row["action"]["kind"] != "manual" || bound(params) || text.contains('\n') || text.chars().count() > 80
             || !(text.ends_with('…') || text.ends_with("..."))
         {
@@ -75,10 +78,24 @@ pub fn ground_references(guide: &mut Value, index: &Index) -> Result<()> {
             }
             continue;
         }
-        if compatible.len() == 1 && compatible[0]["kind"] == "event_option" {
-            let option = &compatible[0];
+        // Prefer what the nation can provably receive; otherwise a single
+        // candidate whose event namespace names the nation.
+        let confirmed: Vec<&Value> = compatible.iter().filter(|c| c["compatible"] == true).collect();
+        // The author's cost note ("(25PP)") must match the answer's real cost.
+        let costed: Vec<&Value> = author_cost
+            .map(|c| compatible.iter().filter(|o| o["political_power_cost"].as_f64() == Some(c)).collect())
+            .unwrap_or_default();
+        let pick = match (confirmed.as_slice(), costed.as_slice()) {
+            (_, [one]) => Some((*one).clone()),
+            ([one], _) => Some((*one).clone()),
+            ([], _) if compatible.len() == 1 => Some(compatible[0].clone()),
+            _ => None,
+        };
+        if let Some(option) = pick.filter(|c| c["kind"] == "event_option") {
+            let option = &option;
             let event_id = option["event_id"].as_str().unwrap_or("");
-            if !event_id.is_empty() && event_affinity(event_id, index, &tag)? {
+            let cost_match = costed.len() == 1 && costed[0]["id"] == option["id"];
+            if !event_id.is_empty() && (option["compatible"] == true || cost_match || event_affinity(event_id, index, &tag)?) {
                 let probe = json!({"action":{"kind":"manual","params":{"category":"politics","event_id":event_id,"event_option_id":option["id"]}}});
                 let result = crate::political_binding::bind(&probe, index, &country, false)?;
                 if result["reason"] == "event_visible_option" {
@@ -88,7 +105,7 @@ pub fn ground_references(guide: &mut Value, index: &Index) -> Result<()> {
                             params[keep] = row["action"]["params"][keep].clone();
                         }
                     }
-                    params["reference_resolution"] = json!({"basis":"single_nation_event_answer","event_id":event_id,"option_id":option["id"],"option_text":option["name"]});
+                    params["reference_resolution"] = json!({"basis":if cost_match {"political_power_cost_matches"} else if option["compatible"] == true {"event_received_by_nation"} else {"event_namespace_names_nation"},"event_id":event_id,"option_id":option["id"],"option_text":option["name"]});
                     row["action"]["params"] = params;
                     if let Some(map) = row.as_object_mut() {
                         map.remove("tracking");
@@ -121,11 +138,29 @@ pub fn candidates(text: &str, index: &Index, country: &Value, scope: &Value) -> 
         if id.is_empty() || !seen.insert((kind.to_owned(), id.to_owned())) {
             continue;
         }
-        let ownership = if row["country_condition"].is_null() {
+        let mut ownership = if row["country_condition"].is_null() {
             None
         } else {
             crate::decision_admission::ownership(&row["country_condition"], actor, None, 0)
         };
+        // An option's own trigger ("true") says nothing about the nation; the
+        // nation is decided by who can receive the event (event_reach).
+        let event_id = if kind == "event" { id } else { row["event_id"].as_str().unwrap_or("") };
+        if ["event", "event_option"].contains(&kind) {
+            if ownership == Some(true) {
+                ownership = None;
+            }
+            if let (Some(actor), false) = (actor, event_id.is_empty()) {
+                let parents = index.entries(json!({"op":"matches","query":event_id,"kinds":["event"],"country":country,"explicit":true}))?;
+                let receives = parents.iter().filter_map(|p| crate::event_reach::receives(&p["receivers"], &p["receivers_unknown"], actor)).collect::<Vec<_>>();
+                if !receives.is_empty() && receives.iter().all(|r| !r) {
+                    continue;
+                }
+                if receives.contains(&true) {
+                    ownership = Some(true);
+                }
+            }
+        }
         if ownership == Some(false) {
             continue;
         }
@@ -136,7 +171,7 @@ pub fn candidates(text: &str, index: &Index, country: &Value, scope: &Value) -> 
             && prefix.len() == 3
             && prefix.chars().all(|c| c.is_ascii_uppercase())
             && actor.is_some_and(|a| a != prefix);
-        out.push(json!({"kind":kind,"id":id,"name":row["name"],"event_id":row["event_id"],
+        out.push(json!({"kind":kind,"id":id,"name":row["name"],"event_id":row["event_id"],"political_power_cost":row["political_power_cost"],
             "compatible":match ownership { Some(true) => json!(true), _ => if foreign { json!(false) } else { Value::Null } },
             "foreign_tag":foreign}));
     }

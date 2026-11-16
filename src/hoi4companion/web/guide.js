@@ -123,7 +123,11 @@
   const label=(categories[row.category]||HoiI18n.t("INSTRUCTION"))+(hint&&hint!==row.category?' · '+hint:'');
   const top=el('div','operation-top');top.append(el('span','eyebrow',label),el('span','badge',badge(row)));node.append(top);
   const repeatedTitle=row.tracking==='reminder'&&row.instructions?.some(text=>text.replace(/\s+/g,' ').startsWith(name(row).replace(/\s+/g,' ')));
-  if(!repeatedTitle)node.append(referenceText('h3','',operational.title||name(row),row));
+  // Abbreviated event answers are completed like LPF: full in-game answer
+  // first, the author's shorthand in parentheses.
+  const heading=operational.title||name(row),answer=row.action?.params?.event_option_name||row.action?.params?.reference_resolution?.option_text;
+  const completed=answer&&/(?:…|\.{3})/.test(heading)&&!heading.includes(answer)?`«${answer}» (${heading})`:heading;
+  if(!repeatedTitle)node.append(referenceText('h3','',completed,row));
   if(row.action.params?.timing||!row.action.params?.source_action)node.append(referenceText('p','operation-timing',HoiI18n.t("When: ")+row.timing,row));
   if(unplacedOperations.has(row.key)&&!row.action.params?.source_action)node.append(el('p','operation-copy',HoiI18n.t("Chronological position is unverified: consult this instruction's timing and conditions.")));
   if(row.game_date)node.append(el('p','operation-timing',HoiI18n.t("Date shown in the guide: ")+row.game_date+HoiI18n.t(" · chronological reference, not an automatic deadline")));

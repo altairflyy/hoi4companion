@@ -86,6 +86,7 @@ pub mod occurrence_manifest;
 pub mod decomposition;
 pub mod entity_resolution;
 pub mod reference_candidates;
+pub mod event_reach;
 pub mod progress_store;
 #[cfg(windows)]
 mod provider;

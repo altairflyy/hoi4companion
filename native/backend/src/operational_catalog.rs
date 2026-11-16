@@ -270,7 +270,9 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
             }
         }
     }
-    for (_, root) in source.documents("events", "Catalogo politica non leggibile")? {
+    let event_docs = source.documents("events", "Catalogo politica non leggibile")?;
+    for (_, root) in &event_docs {
+        let root = root.clone();
         for (kind, event) in entries(&root).filter(|(k, v)| {
             [
                 "country_event",
@@ -295,6 +297,12 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
                     continue;
                 }
                 let mut row = source.names(key);
+                // Political power the answer costs (add_political_power < 0 at the
+                // option scope): lets an author note like "(25PP)" pick the answer.
+                let cost: f64 = entries(option).filter(|(k, _)| *k == "add_political_power").filter_map(|(_, v)| v.as_str()?.parse::<f64>().ok()).filter(|v| *v < 0.0).map(|v| -v).sum();
+                if cost > 0.0 {
+                    row["political_power_cost"] = json!(cost);
+                }
                 row.as_object_mut().unwrap().extend(json!({"kind":"event_option","id":key,"event_id":id,"country_condition":recipient::combine("all",blocks(option,"trigger").map(|b|recipient::condition(b,"all",false,0)).collect())}).as_object().unwrap().clone());
                 rows.push(row);
             }
@@ -315,7 +323,10 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
             categories.insert(id.into(), condition);
         }
     }
-    for (path, root) in source.documents("common/decisions", "Catalogo politica non leggibile")? {
+    let decision_docs = source.documents("common/decisions", "Catalogo politica non leggibile")?;
+    let mut decision_roots = vec![];
+    for (path, root) in &decision_docs {
+        let root = root.clone();
         if path
             .to_string_lossy()
             .replace('\\', "/")
@@ -324,6 +335,7 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
         {
             continue;
         }
+        decision_roots.push(root.clone());
         for (category, group) in entries(&root).filter(|(_, v)| v.get("entries").is_some()) {
             for (id, node) in
                 entries(group).filter(|(k, v)| v.get("entries").is_some() && !metadata.contains(k))
@@ -339,6 +351,19 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
                 rows.push(row);
             }
         }
+    }
+    // Which nations can receive each event (focus/decision/event effects).
+    let focus_roots: Vec<Value> = source
+        .documents("common/national_focus", "Catalogo politica non leggibile")?
+        .into_iter()
+        .map(|(_, r)| r)
+        .collect();
+    let event_roots: Vec<Value> = event_docs.iter().map(|(_, r)| r.clone()).collect();
+    let reach = crate::event_reach::compute(&focus_roots, &decision_roots, &event_roots);
+    for row in rows.iter_mut().filter(|r| r["kind"] == "event") {
+        let id = row["id"].as_str().unwrap_or("").to_owned();
+        row["receivers"] = json!(reach.receivers.get(&id).map(|s| s.iter().cloned().collect::<Vec<_>>()).unwrap_or_default());
+        row["receivers_unknown"] = json!(reach.unknown.contains(&id));
     }
     let mut keys = std::collections::HashMap::new();
     let mut out: Vec<Value> = vec![];
