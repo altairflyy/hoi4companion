@@ -76,15 +76,12 @@ impl Context {
         if let Some(cache)=&self.prepared_cache{cache.resolve(guide,build)}else{build()}
     }
     /// Current compiler contract for NEW checklists, from the associated source:
-    /// contract-4 preparation (uncached; contract-4 parsing such as production
-    /// pairs), presentation, withdrawal of catalog-contradicted bindings, then
-    /// decomposition and grounded triggers. The contract-1 registry is untouched.
+    /// preparation (the same production parsing as the registry), presentation,
+    /// withdrawal of catalog-contradicted bindings, then decomposition and
+    /// grounded triggers.
     pub fn compile_new(&self, source: &Value) -> Result<Value, String> {
-        let prepared = crate::informal_targets::with_contract4_parsing(|| {
-            runtime_definition::prepare(source, &self.index, &self.source["continuous_focuses"], &self.library)
-        })?;
+        let prepared = runtime_definition::prepare(source, &self.index, &self.source["continuous_focuses"], &self.library)?;
         let mut presented = self.present(&prepared)?;
-        crate::decomposition::drop_duplicate_production(&mut presented)?;
         crate::decomposition::withdraw_incompatible_decisions(&mut presented, &self.index)?;
         // Present again so withdrawn bindings and new children get fresh names.
         self.present(&self.decompose(&presented)?)

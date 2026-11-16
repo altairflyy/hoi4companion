@@ -419,6 +419,19 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
         );
     }
     match op {
+        "catalog_event_command" => {
+            let index = owner.import_index()?;
+            Ok(crate::event_instructions::command(&args["text"], &index, &args["country"])?.unwrap_or(Value::Null))
+        }
+        "catalog_reference_candidates" => {
+            let index = owner.import_index()?;
+            crate::reference_candidates::candidates(
+                args["text"].as_str().unwrap_or(""),
+                &index,
+                &args["country"],
+                &args["scope"],
+            )
+        }
         "catalog_runtime_guide_new" => crate::runtime_context::Context::new(
             &mut owner,
             args.get("library").cloned().unwrap_or(Value::Null),

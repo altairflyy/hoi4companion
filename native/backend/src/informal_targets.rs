@@ -7,28 +7,11 @@ use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 type Result<T> = std::result::Result<T, String>;
 
-thread_local! {
-    /// Compiler contract 4 only: also read `name:qty name:qty` pairs that share
-    /// one comma-separated part (a missing comma). Off for the contract-1
-    /// registry so legacy checklists keep their exact meaning.
-    static SPLIT_PAIRS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-/// Run `f` with contract-4 production parsing enabled on this thread.
-pub(crate) fn with_contract4_parsing<T>(f: impl FnOnce() -> T) -> T {
-    struct Reset(bool);
-    impl Drop for Reset {
-        fn drop(&mut self) {
-            SPLIT_PAIRS.with(|c| c.set(self.0));
-        }
-    }
-    let _reset = Reset(SPLIT_PAIRS.with(|c| c.replace(true)));
-    f()
-}
-/// "I-16:5 Truck:4" -> ["I-16:5", "Truck:4"]; anything else unchanged.
+/// "I-16:5 Truck:4" (missing comma) -> ["I-16:5", "Truck:4"]; anything else
+/// unchanged. Applies to every compile: production completion is observed
+/// live, so reading more targets of the same instruction changes no saved
+/// check (see docs/guide-definition-identity.md, contract 4).
 fn split_pairs(part: &str) -> Vec<String> {
-    if !SPLIT_PAIRS.with(|c| c.get()) {
-        return vec![part.to_owned()];
-    }
     let pair = regex(r"(?i)[^\s:,][^:,]*?\s*:\s*(?:\d{1,6}(?:\s*(?:->|→)\s*\d{1,6})?|ALL|rest)\b");
     let found: Vec<_> = pair.find_iter(part).collect();
     let covered: usize = found.iter().map(|m| m.as_str().len()).sum();
@@ -334,18 +317,16 @@ pub fn production(
     // unquantified line (shown, never part of completion). Nothing invented.
     let mut unquantified = vec![];
     let mut consumed = HashSet::new();
-    let contract4 = SPLIT_PAIRS.with(|c| c.get());
     for (i, part) in parts.iter().enumerate() {
         let part = shared
             .get(&i)
             .map(|q| {
-                let name = if contract4 { part.trim_end().trim_end_matches(':').trim_end() } else { part.as_str() };
+                let name = part.trim_end().trim_end_matches(':').trim_end();
                 format!("{name}:{q}")
             })
             .unwrap_or_else(|| part.clone());
         let Some(entry) = item.captures(&part) else {
-            if SPLIT_PAIRS.with(|c| c.get())
-                && let Some(bare) = regex(r"^\s*([^:\d][^:]*?)\s*:\s*$").captures(&parts[i])
+            if let Some(bare) = regex(r"^\s*([^:\d][^:]*?)\s*:\s*$").captures(&parts[i])
             {
                 let query = bare[1].trim();
                 let name = aliases.get(&query.to_lowercase()).map(String::as_str).unwrap_or(query);
@@ -482,17 +463,13 @@ pub fn production(
 }
 
 #[cfg(test)]
-mod contract4_tests {
+mod production_parsing_tests {
     use super::*;
     #[test]
-    fn missing_comma_pairs_split_only_under_contract_4() {
-        assert_eq!(split_pairs("I-16:5 Truck:4"), vec!["I-16:5 Truck:4"], "contract 1 unchanged");
-        with_contract4_parsing(|| {
-            assert_eq!(split_pairs("I-16:5 Truck:4"), vec!["I-16:5", "Truck:4"]);
-            assert_eq!(split_pairs("Inf Equip:ALL"), vec!["Inf Equip:ALL"]);
-            assert_eq!(split_pairs("Sup Equip:"), vec!["Sup Equip:"], "no quantity: never invented");
-            assert_eq!(split_pairs("Art:2 (add MIOs)"), vec!["Art:2 (add MIOs)"]);
-        });
-        assert_eq!(split_pairs("I-16:5 Truck:4").len(), 1, "flag scoped to the closure");
+    fn missing_comma_pairs_split_and_bare_names_stay_whole() {
+        assert_eq!(split_pairs("I-16:5 Truck:4"), vec!["I-16:5", "Truck:4"]);
+        assert_eq!(split_pairs("Inf Equip:ALL"), vec!["Inf Equip:ALL"]);
+        assert_eq!(split_pairs("Sup Equip:"), vec!["Sup Equip:"], "no quantity here: taken from the next item, never invented");
+        assert_eq!(split_pairs("Art:2 (add MIOs)"), vec!["Art:2 (add MIOs)"]);
     }
 }

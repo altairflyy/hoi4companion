@@ -140,5 +140,13 @@ pub fn prepare(
             )?;
         }
     }
+    // One production instruction stays one step: a re-read residual that only
+    // repeats targets of its row's main production step is merged away.
+    crate::decomposition::drop_duplicate_production(&mut guide)?;
+    // Bindings the catalog contradicts are withdrawn, then truncated author
+    // references are grounded against every nation-compatible entity kind.
+    // Neither changes a step key; only live-observed or uncheckable meaning.
+    crate::decomposition::withdraw_incompatible_decisions(&mut guide, index)?;
+    crate::reference_candidates::ground_references(&mut guide, index)?;
     Ok(guide)
 }

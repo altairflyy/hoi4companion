@@ -173,6 +173,12 @@
    node.append(el('p','operation-observations',HoiI18n.t('Production priority · {0}: {1} · {2}',product,HoiI18n.t(p.priority==='first'?'Leading group':'Last military line'),HoiI18n.t(p.priority_satisfied===true?'Order verified':p.priority_satisfied===false?'Reorder the production lines':'Order unverifiable'))));});
   if(row.fortifications){const f=row.fortifications;node.append(el('p','operation-observations',HoiI18n.t('Fortifications: {0} / {1} provinces at level {2}',f.completed_provinces??HoiI18n.t('unverifiable'),f.total_provinces??HoiI18n.t('unverifiable'),f.target_level)));}
   if(row.construction){const c=row.construction;node.append(el('p','operation-observations',c.target===null?HoiI18n.t("Baseline not recorded yet: open the guide before issuing the order."):HoiI18n.t("Buildings in the state: {0} / {1} · baseline: {2}",c.current??HoiI18n.t("unverifiable"),c.target,c.baseline)));}
+  // Grounding of abbreviated references: what the text was matched to, or the
+  // real candidates when no single nation-compatible meaning exists.
+  const ref=row.action?.params||{},kindLabel=k=>HoiI18n.t(({event_option:'event answer',event:'event',decision:'decision',focus:'focus',law:'law',idea:'national spirit',technology:'technology'})[k]||k);
+  if(ref.reference_resolution)node.append(el('p','operation-copy',HoiI18n.t("Recognized: event answer “{0}” ({1}).",ref.reference_resolution.option_text||ref.reference_resolution.option_id,ref.reference_resolution.event_id)));
+  if(ref.binding_withdrawn)node.append(el('p','operation-copy',HoiI18n.t("Link removed: {0} ({1}) is not compatible with this nation. Track it manually.",ref.binding_withdrawn.name||ref.binding_withdrawn.id,ref.binding_withdrawn.id)));
+  if(Array.isArray(ref.reference_candidates?.candidates)&&ref.reference_candidates.candidates.length)node.append(el('p','operation-copy',HoiI18n.t(ref.reference_candidates.status==='no_compatible_candidate'?"No match for this nation. Similar names in the game: {0}":"Possible references: {0}",ref.reference_candidates.candidates.map(c=>`${c.name||c.id} (${kindLabel(c.kind)})`).join(' · '))));
   // Items listed without a quantity stay in this step; never a completion target.
   const unquantified=Array.isArray(row.action?.params?.production_unquantified)?row.action.params.production_unquantified:[];
   if(unquantified.length&&!row.production?.layout)node.append(el('p','operation-copy',HoiI18n.t("Also listed without a quantity: {0}. Check them in the game.",unquantified.map(u=>u.variant_name||u.equipment_name||u.source_text).join(', '))));
