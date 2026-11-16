@@ -1,5 +1,5 @@
 # Handoff: production step tracking (I-16 not detected)
-Updated: 2026-11-16 17:20. Branch `guide-identity-decomposition`. Fix committed (ca95ba6), app rebuilt and restarted.
+Updated: 2026-11-16 17:50. RESOLVED: I-16 matched (ca95ba6), factory targets are a minimum (34dc7d2), step `word-0002` completed live after rebuild/restart.
 Read `CLAUDE.md` and `docs/AGENT_HANDOFF.md` first. Rust is the only evaluator, and unknown never means complete.
 
 ## User report
