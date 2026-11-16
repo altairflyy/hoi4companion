@@ -65,11 +65,11 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  get('hideDone').checked=false;get('hideDone').onchange();
  const checkbox=descendants(get('operationCards')).find(node=>node['data-check']==='done');checkbox.checked=false;checkbox.onchange();await settle();
  assert.equal(run.checks.done,false);assert.equal(get('operationProgress').textContent,'0/1');
- const start=()=>descendants(get('operationCards')).find(node=>node['data-start']==='build');
- assert.equal(start().textContent,'Ho impartito l’ordine');
- start().onclick();await settle();
+ // There is no manual start control; a run that already records a start still shows the step in progress.
+ assert.equal(descendants(get('operationCards')).some(node=>node['data-start']),false);
+ run.started={build:true};run.revision++;await push(current);
  assert.equal(run.started.build,true);assert.equal(get('operationProgress').textContent,'0/1');assert.equal(get('operationActive').textContent,'1 in corso');
- assert.match(get('operationCards').textContent,/Avviata · in corso \(manuale\)/);assert.match(get('operationCards').textContent,/completamento ancora da verificare/);
+ assert.match(get('operationCards').textContent,/Avviata · in corso \(manuale\)/);
  assert.equal(get('nextOperation').textContent.includes('Construction'),false);
  const finish=descendants(get('operationCards')).find(node=>node['data-check']==='done');finish.checked=true;finish.onchange();await settle();
  assert.equal(get('operationProgress').textContent,'1/1');assert.equal(get('operationActive').textContent,'');
@@ -79,7 +79,7 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  assert.equal(get('operationActive').textContent,'');
  const undo=get('resetNotice').children.find(node=>typeof node.onclick==='function');await undo.onclick();await settle();
  assert.equal(run.run_id,'first');assert.equal(run.checks.done,false);assert.equal(get('resetNotice').hidden,true);
- assert.equal(get('operationActive').textContent,'1 in corso');start().onclick();await settle();assert.equal(get('operationActive').textContent,'');assert.equal(run.checks.done,false);
+ assert.equal(get('operationActive').textContent,'1 in corso');run.started={build:false};run.revision++;await push(current);assert.equal(get('operationActive').textContent,'');assert.equal(run.checks.done,false);
  // A declared live criterion replaces the button, including while the game tick
  // is unchanged. A cancelled queue can never act as completion evidence.
  guide.tracks.operations[0].started_when={op:'fact',key:'construction.queued',test:'contains',value:'state:22:arms_factory'};
@@ -94,7 +94,7 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  await push(live([line]));
  assert.match(get('summaryCards').textContent,/Costruzione avviata/);
  assert.equal(get('operationActive').textContent,'1 in corso');assert.equal(get('operationProgress').textContent,'0/1');
- assert.equal(start(),undefined);assert.match(get('operationCards').textContent,/In corso · avvio rilevato live/);assert.match(get('operationCards').textContent,/3 in coda · 0 fabbriche attive/);
+ assert.match(get('operationCards').textContent,/In corso · avvio rilevato live/);assert.match(get('operationCards').textContent,/3 in coda · 0 fabbriche attive/);
  await push(live([{...line,amount:4}]));assert.match(get('operationCards').textContent,/4 in coda/);
  await push(live([]));assert.equal(get('operationActive').textContent,'');assert.equal(get('operationProgress').textContent,'0/1');assert.match(get('operationCards').textContent,/Nessun ordine rilevato/);
  await push({...live([line]),usable:false});assert.equal(get('operationActive').textContent,'');assert.match(get('operationCards').textContent,/Avvio non verificabile/);assert.equal(get('operationCards').textContent.includes('ORDINI LETTI LIVE'),false);

@@ -88,24 +88,19 @@
  const clock=seconds=>Math.floor(seconds/60)+':'+String(Math.floor(seconds%60)).padStart(2,'0');
  const name=row=>row.name||row.title||row.key;
  function badge(row){if(row.runtime_reason==='production_superseded')return HoiI18n.t('Superseded');if(row.tracking==='reminder')return row.runtime_status==='waiting'?HoiI18n.t("Reminder · upcoming"):row.runtime_status==='unverifiable'?HoiI18n.t("Reminder · timing needs verification"):HoiI18n.t("Reminder");return row.runtime_status==='completed'?HoiI18n.t("Completed"):row.runtime_status==='not_applicable'?HoiI18n.t("Not applicable"):row.runtime_status==='waiting'?HoiI18n.t("Upcoming"):row.runtime_status==='active'?(row.start_basis==='live'?HoiI18n.t("In progress · start detected live"):row.start_basis==='condition'?HoiI18n.t("In progress · criterion verified"):HoiI18n.t("Started · in progress (manual)")):row.started_when?(row.selection?.value===false?HoiI18n.t("No order detected"):HoiI18n.t("Start cannot be verified")):row.runtime_reason==='manual_confirmation_required'||row.runtime_status==='ready'?HoiI18n.t("Check in the game"):HoiI18n.t("Timing needs verification");}
- function confirm(key,text){const label=el('label','checkpoint-check'),input=el('input');input.type='checkbox';input.checked=value.progress.checks[key]===true;input.disabled=value.pending>0;input.setAttribute('data-check',key);input.addEventListener('change',()=>window.hoiGuide.confirm(key,input.checked).catch(()=>{}));label.append(input,el('span','',text));return label;}
+ function confirm(key,text){const label=el('label','checkpoint-check'),input=el('input');input.type='checkbox';input.checked=value.progress.checks[key]===true;input.disabled=value.pending>0;input.setAttribute('data-check',key);input.addEventListener('change',()=>window.hoiGuide.confirm(key,input.checked).catch(()=>{}));label.title=HoiI18n.t("Tick it when you have done this in the game. The ✓ on the in-game card does the same.");label.append(input,el('span','',text));return label;}
  function controls(row,box){
   if(row.superseded_by?.length){box.append(el('p','operation-copy',HoiI18n.t('Superseded targets are no longer requested; this does not prove the earlier setup was completed.')),dependencyItems(row.superseded_by,row));if(row.runtime_reason==='production_superseded')return;}
   if(row.tracking==='reminder'){box.append(el('p','operation-copy',HoiI18n.t("Method reminder: no confirmation required; it does not block other steps.")));return;}
   if(row.started_when&&row.runtime_status!=='completed'){
    box.append(el('p','operation-start-note',row.runtime_status==='active'?HoiI18n.t("Start detected using the guide's condition. Starting alone does not prove completion."):HoiI18n.t("Automatic start detection: waiting for the guide's condition to be met.")));
   }
-  if(['manual','special_project'].includes(row.action.kind)&&!row.started_when&&row.action_readiness?.domain!=='political'&&row.selection&&row.runtime_status!=='completed'){
-   const started=value.progress.started?.[row.key]===true,button=el('button','operation-start',started?HoiI18n.t("Undo reported start"):HoiI18n.t("I issued the order"));
-   button.type='button';button.disabled=value.pending>0;button.setAttribute('data-start',row.key);button.setAttribute('aria-pressed',String(started));button.onclick=()=>window.hoiGuide.start(row.key,!started).catch(()=>{});box.append(button);
-   if(row.runtime_status==='active')box.append(el('p','operation-start-note',HoiI18n.t("Order reported manually; completion still needs verification. Starting alone does not release completion dependencies.")));
-  }
-  if(['manual','special_project'].includes(row.action.kind)&&!row.completion_condition)box.append(confirm(row.key,HoiI18n.t("Completed · ")+(row.confirmation||HoiI18n.t("final criterion verified in the game"))));
+  if(['manual','special_project'].includes(row.action.kind)&&!row.completion_condition)box.append(confirm(row.key,HoiI18n.t("Done")+(row.confirmation?' · '+row.confirmation:'')));
   const phase=value.guide.phases?.find(p=>p.id===row.phase);
   const keys=new Set([row.when,row.priority_when,row.skip_when,row.started_when,phase?.when].flatMap(node=>HoiContracts.checkKeys(node)));
   if(row.completion_condition)for(const key of HoiContracts.checkKeys(row.completion_condition))if(key!==row.action.params?.legacy_key)keys.add(key);
   const finalKeys=new Set(HoiContracts.checkKeys(row.completion_condition));
-  for(const key of keys)box.append(confirm(key,finalKeys.has(key)?HoiI18n.t("Final criterion verified in the game"):key===row.key?HoiI18n.t("Completed · ")+(row.confirmation||HoiI18n.t("final criterion verified in the game")):HoiI18n.t("Condition verified in the game")));
+  for(const key of keys)box.append(confirm(key,finalKeys.has(key)?HoiI18n.t("Final criterion verified in the game"):key===row.key?HoiI18n.t("Done")+(row.confirmation?' · '+row.confirmation:''):HoiI18n.t("Condition verified in the game")));
  }
  function cachedCard(row,highlight=false){
   const key=(highlight?'next:':'plan:')+row.key,p=value.progress,phase=value.guide.phases?.find(item=>item.id===row.phase);
