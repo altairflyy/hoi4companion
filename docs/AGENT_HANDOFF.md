@@ -14,6 +14,7 @@ Updated: 2026-11-15. Repository-relative paths throughout; replace stale state, 
 ## Verified architecture and decisions
 - `CLAUDE.md` is the permanent instruction source; read it first, then this file and relevant diffs.
 - Rust guide-core evaluates guides; backend exposes evaluations; JS presents them; separate Rust HUD consumes the active guide.
+- 2026-11-16 branch `retire-legacy-js-evaluator` (324c8cf, on top of 76fa327, not merged): removed JS `contracts.condition()` and the guide-session live-stream progress path for unstamped guides; npm 436 pass / 1 skipped, guide-core 10 pass.
 - Game access stays read-only; unknown observations never imply completion. No Python or new AI integration.
 - Preserve source text, order, trigger scope, provenance and existing guide/campaign/run progress.
 - User decision 2026-11-16 (replaces earlier A/B "pinned runs immutable, never auto-transfer"): updating the app updates open checklists. The active run (pinned or legacy) is re-pinned to the current definition (`Application::upgrade_run`, storage op `upgrade`); manual checks/starts move only to the same key+text, the same text in the same Word block, or the children of a confirmed whole block (`run_upgrade.rs`); the row keeps the last 8 `previous_definitions` (ref+checks+started), whose archives stay referenced/loaded. Waits for the catalog context (`upgrade_without_catalog` open arg for tests). No "Nuova checklist" needed.

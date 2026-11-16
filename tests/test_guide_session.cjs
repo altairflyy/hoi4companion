@@ -217,29 +217,42 @@ test('editing split legacy confirmations preserves sibling activities and rolls 
 function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}
 
 test('relative bindings refresh the shared guide and are cleared on a new run',async()=>{
- const definition={schema_version:1,id:'relative',title:'Relative',tracks:{research:[{key:'r',action:{kind:'research',entity:{kind:'technology',id:'a'}},relative_research:{query:'Artillery UP',chain:['a','b']}}]}};
+ const definition={schema_version:1,id:'relative',title:'Relative',runtime_engine:'rust-guide-core',tracks:{research:[{key:'r',action:{kind:'research',entity:{kind:'technology',id:'a'}},relative_research:{query:'Artillery UP',chain:['a','b']}}]}};
  let saved={schema_version:1,guide_id:'relative',run_id:'old',session_id:'s',checks:{},started:{},revision:0},subscriber;
  const window={hoiLive:{enabled:true,subscribe(fn){subscriber=fn;}}};
  const fact=value=>({status:'observed',source:'fixture',value});
  const live={schema_version:1,usable:true,session_id:'s',facts:{country:fact('POL'),'research.completed':fact(['a']),'research.active':fact([]),'research.slots':fact([{technology_id:null}])}};
- const context={window,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{href:'http://localhost/walkthrough',search:''},HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js'),fetch:async(url)=>{
-  let value;if(url==='/api/guide/active')value={};else if(url==='/api/guides')value={guides:[definition]};else if(url.startsWith('/api/guide/progress'))value=saved;else {value=structuredClone(definition);value.tracks.research[0].action.entity.id=saved.research_bindings?.r||'unbound-up:r';}
+ // The server projects the run's bindings into the definition, so a new binding is a new definition revision.
+ const revision=()=>(saved.research_bindings?.r||'unbound').padEnd(64,'0');
+ const context={window,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{href:'http://localhost/walkthrough',search:''},HoiGuidePresentation:{evaluate:(guide,state,progress,evaluation)=>({shared:!!evaluation})},fetch:async(url)=>{
+  let value;if(url==='/api/guide/active')value={};else if(url==='/api/guides')value={guides:[definition]};else if(url.startsWith('/api/guide/progress'))value=saved;
+  else if(url.startsWith('/api/guide/projection'))value={schema_version:1,engine:'rust-guide-core',server_id:'core',guide_id:'relative',definition_revision:revision(),state:live,progress:saved,evaluation:{schema_version:1,guide_id:'relative',run_id:saved.run_id,steps:[]}};
+  else {value=structuredClone(definition);value.tracks.research[0].action.entity.id=saved.research_bindings?.r||'unbound-up:r';value.runtime_definition_revision=revision();}
   return {ok:true,json:async()=>value};
  }};
- runLocalized(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await new Promise(setImmediate);
+ const settle=async()=>{for(let i=0;i<20;i++)await new Promise(setImmediate);};
+ runLocalized(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);await settle();
  saved={...saved,revision:1,research_bindings:{r:'b'}};
- subscriber({...live,guide_revision:1,guide_runs:{relative:saved}});await new Promise(setImmediate);
+ subscriber({...live,guide_server_id:'core'});await settle();
  assert.equal(window.hoiGuide.value.guide.tracks.research[0].action.entity.id,'b');
+ assert.equal(window.hoiGuide.value.view.shared,true);assert.equal(window.hoiGuide.value.state,live);
  saved={schema_version:1,guide_id:'relative',run_id:'new',session_id:'s',checks:{},started:{},revision:2};
- subscriber({...live,guide_revision:2,guide_runs:{relative:saved}});await new Promise(setImmediate);
+ subscriber({...live,guide_server_id:'core'});await settle();
  assert.deepEqual(window.hoiGuide.value.progress.research_bindings,undefined);
  assert.notEqual(window.hoiGuide.value.guide.tracks.research[0].action.entity.id,'b');
 });
 
-test('campaign war observations arrive through the shared stream and clear on a new run',async()=>{
- const page=await openGuidePage();
- page.emit({guide_revision:1,guide_runs:{first:{run_id:'old',campaign_conditions:{country:'TST',war_seen:true}}}});
+test('campaign war observations arrive through the shared packet and clear on a new run',async()=>{
+ let conditions={country:'TST',war_seen:true},run='old';
+ const page=await openGuidePage({shared:'first',fetchOverride:async(url)=>{
+  if(url==='/api/guides'||url==='/api/guide/active')return;
+  if(url.startsWith('/api/guide/projection')){const p=nativePacket('first');p.progress={...p.progress,run_id:run,campaign_conditions:conditions};p.evaluation.run_id=run;return {ok:true,json:async()=>p};}
+  return {ok:true,json:async()=>url.startsWith('/api/guide/progress')?nativeProgress('first'):nativeDefinition('first')};
+ }});
+ const settle=async()=>{for(let i=0;i<4;i++)await new Promise(setImmediate);};
+ await settle();
  assert.deepEqual(JSON.parse(JSON.stringify(page.api.value.progress.campaign_conditions)),{country:'TST',war_seen:true});
- page.emit({guide_revision:2,guide_runs:{first:{run_id:'new'}}});
+ conditions={};run='new';page.emit({usable:false,guide_server_id:'core'});await settle();
+ assert.equal(page.api.value.progress.run_id,'new');
  assert.deepEqual(JSON.parse(JSON.stringify(page.api.value.progress.campaign_conditions)),{});
 });
