@@ -227,6 +227,9 @@ pub struct Application {
     upgrade_awaits_catalog: bool,
     /// Verified archived definitions by archive ID, ready for evaluation.
     archived_guides: HashMap<String, Value>,
+    /// Provinces any loaded or archived definition names, keyed by what can
+    /// change them (registry generation, number of loaded archives).
+    readable_provinces: Option<((u64, usize), Arc<HashSet<String>>)>,
 }
 pub(crate) struct PreparedContext {
     generation: u64,
@@ -259,6 +262,7 @@ impl Application {
             observation_scopes: HashMap::new(),
             upgrade_awaits_catalog: args["upgrade_without_catalog"] != true,
             archived_guides: HashMap::new(),
+            readable_provinces: None,
         };
         for guide in args["guides"].as_array().into_iter().flatten() {
             if result.guides.contains_key(text(&guide["id"])) {
@@ -717,7 +721,42 @@ impl Application {
         self.bound_context = Some(self.binding_context());
         Ok(())
     }
+    /// Provinces any definition can read, for `keep_readable_provinces`.
+    fn readable_provinces(&mut self) -> Arc<HashSet<String>> {
+        let key = (self.definition_generation, self.archived_guides.len());
+        if let Some((seen, ids)) = &self.readable_provinces
+            && *seen == key
+        {
+            return ids.clone();
+        }
+        let ids: HashSet<String> = self.guides.values().chain(self.archived_guides.values())
+            .flat_map(crate::guide_prepare::named_provinces).collect();
+        let ids = Arc::new(ids);
+        self.readable_provinces = Some((key, ids.clone()));
+        ids
+    }
+    /// The provincial section lists every province of the map (about 2,400,
+    /// each with every building type), and every evaluation would expand it to
+    /// about 100k facts. Only provinces a definition names, or that a border
+    /// selector expands to, can be read; the rest are dropped once, here.
+    fn keep_readable_provinces(&mut self, value: &mut Value) {
+        let Some(section) = value.pointer("/sample/country_overview/fortifications") else {
+            return;
+        };
+        let borders: HashSet<String> = section["borders"].as_object().into_iter().flatten()
+            .flat_map(|(_, ids)| ids.as_array().into_iter().flatten().map(Value::to_string))
+            .collect();
+        let ids = self.readable_provinces();
+        if let Some(items) = value.pointer_mut("/sample/country_overview/fortifications/items").and_then(Value::as_array_mut) {
+            items.retain(|row| {
+                let id = row["id"].to_string();
+                ids.contains(&id) || borders.contains(&id)
+            });
+        }
+    }
     pub fn accept(&mut self, value: Value) -> Result<Value> {
+        let mut value = value;
+        self.keep_readable_provinces(&mut value);
         // A successful fresh read need not rerun every guide or invalidate HUD
         // targets when only delivery timestamps and diagnostic counters changed.
         // All game data, identity, validity and unknown fields remain significant.
@@ -1071,6 +1110,17 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+    #[test]
+    fn accepted_observations_keep_only_provinces_a_definition_or_border_names() {
+        let guide = json!({"id":"forts","tracks":{"operations":[{"key":"build","action":{"kind":"manual","params":{"construction_targets":[{"province_id":10}]}}}]}});
+        let mut app = Application::open(&json!({"guides":[guide]})).unwrap();
+        let row = |id: u64| json!({"id":id,"state_id":1,"buildings":{"bunker":0}});
+        app.accept(json!({"usable":true,"source":"process_memory","sample":{"country":"SOV","country_overview":{"country":"SOV",
+            "fortifications":{"status":"observed","items":[row(10),row(11),row(12)],"borders":{"FIN":[12]}}}}})).unwrap();
+        let kept: Vec<u64> = app.live["sample"]["country_overview"]["fortifications"]["items"].as_array().unwrap()
+            .iter().map(|r| r["id"].as_u64().unwrap()).collect();
+        assert_eq!(kept, vec![10, 12]);
+    }
     #[test]
     fn foreign_archived_runs_do_not_compile_current_definitions_on_live_delivery() {
         let make=|id:&str,country:&str|json!({"id":id,"applies_to":{"country":country},"tracks":{"operations":[{"key":"note","action":{"kind":"manual"}}]}});

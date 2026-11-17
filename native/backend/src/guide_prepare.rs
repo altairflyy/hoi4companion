@@ -398,6 +398,17 @@ const PROVINCE_FACTS: &str = "country.fortifications.items.";
 /// (`province_id`, `province_ids`, construction targets), province fact keys in
 /// its conditions, and border provinces a border selector expands to.
 fn guide_provinces(guide: &Value, state: &Value) -> BTreeSet<String> {
+    let mut ids = named_provinces(guide);
+    for (key, fact) in state["facts"].as_object().into_iter().flatten() {
+        if key.starts_with("fortifications.borders.") {
+            ids.extend(fact["value"].as_array().into_iter().flatten().map(Value::to_string));
+        }
+    }
+    ids
+}
+/// Provinces a definition names: `province_id`, `province_ids` (step params and
+/// construction targets) and province fact keys in its conditions.
+pub(crate) fn named_provinces(guide: &Value) -> BTreeSet<String> {
     fn walk(value: &Value, ids: &mut BTreeSet<String>) {
         match value {
             Value::Object(map) => {
@@ -425,11 +436,6 @@ fn guide_provinces(guide: &Value, state: &Value) -> BTreeSet<String> {
     }
     let mut ids = BTreeSet::new();
     walk(guide, &mut ids);
-    for (key, fact) in state["facts"].as_object().into_iter().flatten() {
-        if key.starts_with("fortifications.borders.") {
-            ids.extend(fact["value"].as_array().into_iter().flatten().map(Value::to_string));
-        }
-    }
     ids
 }
 /// Keeps only the province facts the guide can read. Every reader looks them
