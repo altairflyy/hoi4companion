@@ -60,6 +60,7 @@
   "abbreviations": {
     "general": {
       "ASAP": "as soon as the requirements allow",
+      "UP": "next useful upgrade",
       "PRIO": "highest priority",
       "MIO": "military industrial organization",
       "MIOs": "military industrial organizations",
@@ -90,6 +91,8 @@
       "Inf Equip": "infantry equipment",
       "AA": "anti-air",
       "AT": "anti-tank",
+      "Eng": "engineer company",
+      "A-Eng": "assault engineer vehicle",
       "ASV": "assault engineer vehicle",
       "SPG": "self-propelled artillery",
       "Art": "artillery"
@@ -142,17 +145,49 @@
       "FL": "flame tank",
       "TD": "tank destroyer",
       "AR": "armored recon",
-      "B-SPAA": "battalion self-propelled anti-air"
+      "B-SPAA": "battalion self-propelled anti-air",
+      "TS": "tank or self-propelled gun",
+      "MG": "machine gun",
+      "SL": "smoke launchers"
+    },
+    "regimental_companies": {
+      "IG": "infantry guns",
+      "HW": "heavy weapons",
+      "MHW": "motorized heavy weapons",
+      "R-SPAA": "regimental self-propelled anti-air"
     },
     "naval": {
       "BB": "battleship",
+      "BBe": "empty battleship",
+      "BC": "battlecruiser",
       "BCe": "empty battlecruiser",
       "CL": "light cruiser",
+      "CLna": "light cruiser without armor",
       "CA": "heavy cruiser",
       "CV": "carrier",
+      "CVe": "empty carrier",
+      "CV(e)": "empty carrier",
+      "CL(na)": "light cruiser without armor",
       "DD": "destroyer",
+      "DDt": "torpedo destroyer",
+      "DDl": "light-attack destroyer",
+      "DDes": "escort destroyer",
+      "DDr": "roach destroyer",
+      "DDe": "empty destroyer",
+      "DD(t)": "torpedo destroyer",
+      "DD(l)": "light-attack destroyer",
+      "DD(es)": "escort destroyer",
+      "DD(r)": "roach destroyer",
+      "DD(e)": "empty destroyer",
       "SHBB": "super-heavy battleship",
-      "SS": "submarine"
+      "SS": "submarine",
+      "SSc": "cheap submarine",
+      "SSm": "minelaying submarine",
+      "SS(c)": "cheap submarine",
+      "SS(m)": "minelaying submarine",
+      "Spotting CL": "spotting light cruiser",
+      "Fleet SS": "fleet submarine",
+      "Cruiser SS": "cruiser submarine"
     },
     "land_doctrines": {
       "GBP": "Grand Battleplan",
@@ -185,6 +220,30 @@
     "on_focus": "On a focus names its completion; on picking a focus names its selection.",
     "production_order": "Listed production lines indicate priority; from indicates reassignment.",
     "production_remaining": "ALL assigns all remaining and future military factories to this line; keep it last in priority.",
+    "naval_production_remaining": "ALL assigns all remaining and future naval dockyards to this line; keep it last in priority.",
+    "construction_plurals": {
+      "INFRA": "infrastructure",
+      "MIL": "military factories",
+      "CIV": "civilian factories"
+    },
+    "design_notation": {
+      "ground_codes": {
+        "T": "tank",
+        "S": "self-propelled gun",
+        "TS": "tank or self-propelled gun",
+        "T/S": "tank or self-propelled gun",
+        "FL": "flame tank",
+        "TD": "tank destroyer",
+        "AR": "armored recon"
+      },
+      "infantry_suffix": "I",
+      "cannon_suffix": "ca",
+      "recon_variants": {
+        "AR-H": "armored recon with an improved small or high-velocity cannon",
+        "AR-S": "armored recon with a close support gun",
+        "AR-H/S": "armored recon with an improved small or high-velocity cannon, or a close support gun"
+      }
+    },
     "division_suffixes": {"a":"artillery","s":"self-propelled artillery","t":"tanks"},
     "arrow": "The meaning of an arrow depends on its domain; do not infer a universal condition."
   },
@@ -218,7 +277,10 @@
   },
   "vocabulary_sources": {
     "doctrines": "English doctrine names in ABBREVIATIONS & TOOLS, Part III; IDs resolved from installed common/doctrines. Short forms require a Land/Air/Naval Doc qualifier.",
-    "political_traits": "English trait names and character instances from installed common/characters; no nation-specific aliases."
+    "political_traits": "English trait names and character instances from installed common/characters; no nation-specific aliases.",
+    "naval_variants": "ABBREVIATIONS & TOOLS, Part II, NAVAL DESIGNS: BB, BCe, CL(na), CV(e), DD(t,l,es,r,e), SS(c,m) and named cruiser/submarine roles. Expanded codes describe author notation, not exact equipment identities.",
+    "BBe": "User-confirmed 2026-11-17: BBe means battleship empty. Explain it inline as empty battleship; it is not BCe (empty battlecruiser). This confirms the abbreviation, not an exact equipment/template ID.",
+    "design_notation": "ABBREVIATIONS & TOOLS, Part II: numbered aircraft designs; ca=cannons; T/S and TS tank/SPG; -I infantry variant; AR-H/S cannon choices. Presentation only; numeric engine/armor upgrade pairs are not inferred."
   },
-  "vocabulary_revision": 3
+  "vocabulary_revision": 5
 }

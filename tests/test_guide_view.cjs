@@ -58,6 +58,11 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  assert.equal(referenceImages.length,2);assert.deepEqual(referenceImages.map(node=>node.alt),['OFF','T-I1']);assert.ok(referenceImages.every(node=>node.loading==='lazy'));
  const controls=descendants(get('operationCards')).filter(node=>node['data-check']);
  assert.deepEqual(controls.map(node=>node['data-check']).sort(),['done','phase_open']);
+ const diagnostics=descendants(get('operationCards')).find(node=>node.className==='operation-diagnostics');
+ assert.ok(diagnostics);assert.notEqual(diagnostics.open,true);
+ assert.ok(diagnostics.children.some(node=>node.className==='operation-monitoring'));
+ assert.ok(diagnostics.children.some(node=>node.className?.startsWith('operation-hud ')));
+ assert.equal(descendants(get('operationCards')).find(node=>node.className?.split(' ').includes('operation-card')).children.some(node=>node.className==='operation-monitoring'),false);
  await push({usable:true,sample:{country:'GER'},guide_revision:1,guide_id:'one',guide_states:{one:{done:true}}});
  assert.equal(get('operationProgress').textContent,'0/1');
  run.checks={done:true};run.revision++;await push({usable:true,sample:{country:'GER'},guide_revision:2});
@@ -241,6 +246,9 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  assert.match(descendants(readable).find(n=>n.className==='operation-original').textContent,/LAW: LPF \+ CAV \(150PP\)/);
  assert.ok(descendants(readable).some(n=>n.href==='/importer#advanced-'+'d'.repeat(64)));
  assert.equal(alternateGuide.tracks.operations[0].action.params.instructions[0],'LAW: LPF + CAV (150PP)');
+ const css=fs.readFileSync('src/hoi4companion/web/guide.css','utf8');
+ assert.match(css,/\.guide-page \.operation-instructions\{[^}]*font-size:16px[^}]*color:var\(--text\)/);
+ assert.match(css,/\.guide-page \.operation-reading-note\{[^}]*font-size:14px[^}]*color:var\(--text\)/);
 });
 
 function walkthroughEvaluation(guide,state,progress){

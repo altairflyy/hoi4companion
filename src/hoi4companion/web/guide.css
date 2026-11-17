@@ -78,3 +78,23 @@ main{max-width:1240px;margin:auto;padding:28px 32px 60px}.hero{display:flex;just
 .guide-page .game-overview>summary h2{display:inline;font:600 16px/1.5 'Segoe UI',sans-serif;margin:0}
 .guide-page .game-overview[open]>summary{margin-bottom:12px}
 .guide-page .next-operation>.eyebrow{font-size:12px;letter-spacing:.04em}
+.guide-page .operation-instructions{font-size:16px;line-height:1.7;color:var(--text);margin:12px 0;padding-left:24px}
+.guide-page .operation-instructions li+li{margin-top:8px}
+.guide-page .operation-reading-note{font-size:14px;line-height:1.65;color:var(--text);margin:12px 0}
+.guide-page .operation-diagnostics{border-top:1px solid var(--line);margin-top:16px;padding-top:8px}
+.guide-page .operation-diagnostics>summary{font-size:13px;line-height:1.5;color:var(--muted);cursor:pointer;padding:4px 0}
+.guide-page .operation-diagnostics .operation-monitoring,.guide-page .operation-diagnostics .operation-hud{font-size:14px;line-height:1.6;color:var(--text)}
+.operation-diagnostics>summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.guide-reference-toolbar{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:8px;padding:12px 0;margin:12px 0;background:var(--bg,var(--panel));border-bottom:1px solid var(--line)}
+.guide-reference-toolbar[hidden],.hud-view .guide-reference-toolbar{display:none}
+.guide-reference-shortcut{font:600 14px/1.4 'Segoe UI',sans-serif;padding:8px 12px;color:var(--text);background:var(--pane);border:1px solid var(--line);border-radius:5px;cursor:pointer}
+.guide-reference-shortcut:hover,.guide-reference-shortcut:focus-visible{border-color:var(--blue);outline:2px solid var(--blue);outline-offset:2px}
+.guide-reference-preview{width:min(940px,calc(100vw - 16px));max-height:min(720px,calc(100vh - 24px));padding:20px}
+.guide-reference-band{font:600 15px/1.5 'Segoe UI',sans-serif;color:var(--text);background:var(--pane);border-bottom:1px solid var(--line);margin:20px 0 8px;padding:8px 12px}
+.guide-reference-table-scroll{overflow:auto;margin:8px 0 16px;max-width:100%}
+.guide-reference-table{border-collapse:collapse;width:100%;font:14px/1.6 'Segoe UI',sans-serif;color:var(--text)}
+.guide-reference-table th,.guide-reference-table td{border:1px solid var(--line);padding:10px 12px;vertical-align:top;text-align:left;white-space:pre-line;overflow-wrap:anywhere}
+.guide-reference-table th{font-weight:600}.guide-reference-table th[scope=row]{min-width:100px;max-width:220px}
+.guide-reference-table .reference-column-heading th{background:var(--pane);color:var(--text)}
+.guide-reference-table tr:nth-child(even){background:var(--pane)}
+.guide-reference-body .guide-reference-text{font:14px/1.65 'Segoe UI',sans-serif;color:var(--text)}

@@ -1,5 +1,5 @@
 'use strict';
-const test=require('node:test'),assert=require('node:assert/strict');
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const refs=require('../src/hoi4companion/web/guide-references.js');
 const row=(...columns)=>'[Table row]\n'+columns.map((c,i)=>`[Column ${i+1}]\n${c}`).join('\n')+'\n';
 const guide={id:'test',sources:[{id:'doc',type:'file',title:'Country.docx',text:
@@ -11,6 +11,18 @@ const guide={id:'test',sources:[{id:'doc',type:'file',title:'Country.docx',text:
  row('PEACE CONFERENCE PRIORITY')+row('ROM','Annex the cores.')+
  row('RNG / VARIABLE OUTCOMES')+row('GER DOES NOT ATTACK','Justify instead.')} ]};
 const links=(text,index=refs.build(guide),extras=[])=>refs.segments(text,index,extras).filter(p=>p.reference);
+const tables={id:'tables',sources:[{id:'country',title:'Country.docx',text:
+ row('ARMY SETUP')+row('NAVY')+row('COMMAND','NAME','FLEET / ROLE / ORDERS')+
+ row('Admiral 1','','Two fleets for NED.')+
+ row('ARMY')+row('HQ SETUP','')+row('MARSHAL 1','Mikhail T → Georgy Z')+
+ row('ARMY','GENERAL','ROLE / ORDERS')+row('10 ALP\n11 ARM\n1 MOT','Konstantine R\nIvan K\nANY DEF','Invade NED.\nARM pushes; MOT follows.')+
+ row('MARSHAL 2','ANY DEF; MARSHAL 3 (ANY DEF)')+row('ARMY','GENERAL','UNITS / ROLE / ORDERS')+
+ row('M2: 3×24 INF\nM3: 18→24 NKVD→INF','Aleksandr V','Defend POL.\nDo not change these source values.')+
+ row('WAR PLANS')+row('START & NED')+row('Prepare the landing.')+
+ row('GER & AXIS')+row('Push Minsk → Wilno.')+row('FRA / UK / USA')+row('Invade through the indicated ports.')+
+ row('PEACE CONFERENCE PRIORITY')+row('NED','Take navy, puppet, resource rights, then reparations.')+
+ row('AXIS','Puppet all but CZE.')+row('RELEVANT EVENTS')+row('JUL 1937','JAP war on CHI')+
+ row('SEP 1939','GER attack POL\nACHIEVEMENTS')+row('ACHIEVEMENT','GUIDE ADJUSTMENTS')+row('Unrelated achievement','Do not include in events.')} ]};
 test('Word references point to their own subsection and preserve the original wording',()=>{
  const index=refs.build(guide),initial=links('ARMY: Initial Setup*, train',index)[0];
  assert.equal(initial.text,'Initial Setup*');assert.equal(initial.candidates.length,1);
@@ -95,4 +107,72 @@ test('ambiguous previews retain each source separately and missing references of
  const panel=document.getElementById('guideReferencePreview');assert.match(panel.textContent,/Several sections match/);assert.equal(walk(panel).filter(n=>n.tag==='details').length,2);
  controller.setGuide(guide);const missing=node();controller.append(missing,'Refer to Missing Setup*');walk(missing).find(n=>n.tag==='button').onclick();
  assert.match(panel.textContent,/could not be located/);assert.ok(walk(panel).some(n=>n.tag==='a'&&n.href==='#sourceDetails'));
+});
+
+test('Armies Setup resolves the army table rather than its navy sibling and keeps cells intact',()=>{
+ const index=refs.build(tables),part=links('Armies: Rename, Setup* & Train',index)[0];
+ assert.equal(part.candidates.length,1);const army=part.candidates[0];assert.equal(army.title,'ARMY');
+ assert.match(army.text,/Mikhail T → Georgy Z/);assert.match(army.text,/MARSHAL 3/);
+ assert.doesNotMatch(army.text,/Two fleets/);
+ const units=army.blocks.find(b=>b.type==='row'&&b.cells[0].startsWith('10 ALP'));
+ assert.deepEqual(units.cells,['10 ALP\n11 ARM\n1 MOT','Konstantine R\nIvan K\nANY DEF','Invade NED.\nARM pushes; MOT follows.']);
+ const inherited=refs.segments('Setup*',index,[],'Armies: Rename, Setup & Train').find(p=>p.reference);
+ assert.equal(inherited.candidates[0].id,army.id);
+ assert.equal(links('Navy: Setup*',index)[0].candidates[0].title,'NAVY');
+ assert.ok(links('Setup*',index)[0].candidates.length>1);
+ const mixed=links('Armies: Rename, Setup* & Train\nNavy: Setup*',index);
+ assert.deepEqual(mixed.map(p=>p.candidates[0].title),['ARMY','NAVY']);
+ assert.equal(links('ARMY: Rename\n- Request forces and setup*\nNAVY: gather',index)[0].candidates[0].title,'ARMY');
+ assert.equal(links('Assign scientist & setup done',index).length,0);
+ assert.equal(links('army setup*',index)[0].candidates[0].title,'ARMY');
+ const named=links('USSR Setup*',index)[0];assert.equal(named.text,'USSR Setup*');assert.equal(named.candidates.length,0);
+ assert.equal(refs.segments('USSR   Setup*',index).map(p=>p.text).join(''),'USSR   Setup*');
+ assert.equal(links('UK setup*',index)[0].candidates[0].title,'FRA / UK / USA');
+});
+
+test('quick references preserve complete war, peace and event sections without crossing boundaries',()=>{
+ const index=refs.build(tables),quick=refs.quickReferences(index);
+ assert.deepEqual(quick.map(q=>q.label),['Army setup','War plans','Peace conference','Relevant events']);
+ assert.match(quick[1].candidates[0].text,/START & NED.*GER & AXIS.*FRA \/ UK \/ USA/s);
+ assert.doesNotMatch(quick[1].candidates[0].text,/Take navy, puppet/);
+ assert.match(quick[2].candidates[0].text,/Take navy, puppet/);assert.doesNotMatch(quick[2].candidates[0].text,/JUL 1937/);
+ const events=quick[3].candidates[0];assert.deepEqual(events.blocks.filter(b=>b.type==='row').map(b=>b.cells),[['JUL 1937','JAP war on CHI'],['SEP 1939','GER attack POL']]);
+ assert.doesNotMatch(events.text,/achievement/i);
+ assert.equal(refs.quickReferences(refs.build({id:'empty'})).length,0);
+});
+
+test('table previews render semantic cells, retain source text and stay pinned through identical live projections',()=>{
+ const {document,listeners,walk,node}=dom(),controller=refs.create({document});
+ assert.equal(controller.setGuide(tables),true);
+ const line=node();controller.append(line,'Armies: Rename, Setup* & Train');walk(line).find(n=>n.tag==='button').onclick();
+ const panel=document.getElementById('guideReferencePreview');assert.ok(walk(panel).some(n=>n.tag==='table'));
+ assert.ok(walk(panel).some(n=>n.tag==='th'&&n.textContent==='GENERAL'&&n.scope==='col'));
+ assert.ok(walk(panel).some(n=>n.tag==='td'&&n.textContent==='Konstantine R\nIvan K\nANY DEF'));
+ assert.equal(walk(panel).some(n=>n.tag==='pre'),false);assert.doesNotMatch(panel.textContent,/\[Table row\]|\[Column \d+\]/);
+ assert.equal(controller.setGuide({...structuredClone(tables),runtime_definition_revision:'new-view'}),false);
+ assert.equal(panel.hidden,false);assert.match(panel.textContent,/Mikhail T/);
+ const shortcuts=controller.shortcuts();assert.equal(shortcuts.length,4);shortcuts[3].onclick();
+ assert.match(panel.textContent,/JAP war on CHI/);assert.doesNotMatch(panel.textContent,/Take navy, puppet/);
+ assert.equal(controller.setGuide({...tables,id:'another-campaign-guide'}),true);assert.equal(panel.hidden,true);
+ controller.setGuide(tables);const quick=controller.shortcuts();quick[1].onpointerenter();
+ const scroller=walk(panel).find(n=>n.className==='guide-reference-table-scroll');listeners.scroll({target:scroller});assert.equal(panel.hidden,false);
+ listeners.scroll({target:document.body});assert.equal(panel.hidden,true);
+});
+
+test('reference cells never become HTML and source updates invalidate an open preview',()=>{
+ const {document,walk,node}=dom(),controller=refs.create({document});
+ const unsafe={id:'safe',sources:[{id:'s',text:row('RELEVANT EVENTS')+row('JUL 1937','<img src=x onerror=alert(1)>')}]};
+ controller.setGuide(unsafe);controller.shortcuts()[0].onclick();const panel=document.getElementById('guideReferencePreview');
+ assert.match(panel.textContent,/<img src=x onerror=alert\(1\)>/);assert.equal(walk(panel).some(n=>n.tag==='img'),false);
+ const changed=structuredClone(unsafe);changed.sources[0].text=row('RELEVANT EVENTS')+row('1938','Changed source');
+ assert.equal(controller.setGuide(changed),true);assert.equal(panel.hidden,true);
+ const frozen=JSON.stringify(tables);refs.build(tables);assert.equal(JSON.stringify(tables),frozen);
+});
+
+test('quick source references have a persistent accessible toolbar outside the collapsed plan',()=>{
+ const html=fs.readFileSync('src/hoi4companion/web/guide.html','utf8'),css=fs.readFileSync('src/hoi4companion/web/guide.css','utf8');
+ assert.ok(html.indexOf('id="guideQuickReferences"')<html.indexOf('<details id="operationsPlan"'));
+ assert.match(html,/<nav id="guideQuickReferences"[^>]*aria-label="Guide references"/);
+ assert.match(css,/\.guide-reference-toolbar\{[^}]*position:sticky/);
+ assert.match(css,/\.guide-reference-table\{[^}]*font:14px\/1\.6/);
 });

@@ -137,8 +137,11 @@
   if(/\b(?:doctrines?|spirits?)\b/i.test(sourceText))topics.add('doctrines');
   const references=(value.guide.advanced_references||[]).filter(d=>topics.has(d.category)&&/^[a-f0-9]{64}$/.test(d.id));
   if(references.length){const details=el('details','operation-advanced-references');details.append(el('summary','',HoiI18n.t('Advanced guide references')));for(const ref of references){const a=el('a','',ref.name);a.href='/importer#advanced-'+ref.id;details.append(a,el('br'));}node.append(details);}
-  if(row.tracking!=='reminder')node.append(el('p','operation-monitoring',operational.monitoring),el('p','operation-hud operation-hud-'+operational.hud.status,operational.hud.message));
-  for(const note of operational.reading_notes)node.append(el('p','operation-copy',note));
+  for(const note of operational.reading_notes)node.append(el('p','operation-reading-note',note));
+  if(row.tracking!=='reminder'){
+   const details=el('details','operation-diagnostics');details.append(el('summary','',HoiI18n.t('Tracking and HUD details')));
+   details.append(el('p','operation-monitoring',operational.monitoring),el('p','operation-hud operation-hud-'+operational.hud.status,operational.hud.message));node.append(details);
+  }
   if(row.evidence?.some(e=>e.quote)||row.instructions?.length){
    const original=el('details','operation-original');original.append(el('summary','',HoiI18n.t('Original action and references')));
    for(const quote of new Set([...(row.instructions||[]),...(row.evidence||[]).map(e=>e.quote)].filter(Boolean)))original.append(referenceText('blockquote','',quote,row));node.append(original);
@@ -242,7 +245,9 @@
   if(ordering.conflict_count)orderNotes.push(HoiI18n.t("{0} temporal conflicts: declared dependencies take precedence over campaign dates, then source times. Review the source references.",ordering.conflict_count));
   $('operationOrderNotice').textContent=orderNotes.join(' ');$('operationOrderNotice').hidden=!orderNotes.length;
   dependencyRows=new Map(Object.values(view.model.tracks).flatMap(t=>t.rows).map(row=>[row.key,row]));
-  if(lastGuide!==guide){actionReader=guide.action_language?HoiActionPlan.createReader(guide.action_language):null;cardCache.clear();blockCache.clear();filterKey='';summaryKey='';guideReferences?.setGuide(guide);if(lastGuide){for(const pending of frameCache.values())pending.then(url=>URL.revokeObjectURL(url)).catch(()=>{});frameCache.clear();mediaReferences.clear();if(lastGuide.id!==guide.id){expandedFrames.clear();expandedDependencies.clear();}if($('sourceMediaDialog').open)$('sourceMediaDialog').close();}visualReferenceSteps=new Set((guide.source_inventory?.items||[]).filter(item=>!item.excluded_reason&&Number.isFinite(item.timestamp_seconds)).flatMap(item=>item.step_keys||[]));lastGuide=guide;filter='all';const heading=HoiGuidePresentation.heading(guide.title);$('guideTitle').textContent=heading.title;$('guideTitle').title=guide.title;$('guideMetadata').textContent=heading.details;$('guideMetadata').hidden=!heading.details;$('subtitle').textContent=guide.subtitle;
+  if(lastGuide!==guide){actionReader=guide.action_language?HoiActionPlan.createReader(guide.action_language):null;cardCache.clear();blockCache.clear();filterKey='';summaryKey='';
+   if(guideReferences?.setGuide(guide)){const nav=$('guideQuickReferences'),buttons=guideReferences.shortcuts();nav.replaceChildren(...buttons);nav.hidden=!buttons.length;}
+   if(lastGuide){for(const pending of frameCache.values())pending.then(url=>URL.revokeObjectURL(url)).catch(()=>{});frameCache.clear();mediaReferences.clear();if(lastGuide.id!==guide.id){expandedFrames.clear();expandedDependencies.clear();}if($('sourceMediaDialog').open)$('sourceMediaDialog').close();}visualReferenceSteps=new Set((guide.source_inventory?.items||[]).filter(item=>!item.excluded_reason&&Number.isFinite(item.timestamp_seconds)).flatMap(item=>item.step_keys||[]));lastGuide=guide;filter='all';const heading=HoiGuidePresentation.heading(guide.title);$('guideTitle').textContent=heading.title;$('guideTitle').title=guide.title;$('guideMetadata').textContent=heading.details;$('guideMetadata').hidden=!heading.details;$('subtitle').textContent=guide.subtitle;
    if(location.hash?.startsWith('#operation-')){$('operationsPlan').open=true;$('hideDone').checked=false;}
    $('guideSelect').replaceChildren();for(const item of value.catalog){const option=el('option','',HoiGuidePresentation.heading(item.title).title);option.title=item.title;option.value=item.id;option.selected=item.id===guide.id;if(typeof HoiGuideAvailability!=='undefined')HoiGuideAvailability.decorate(option,item.compatibility,HoiI18n.t);$('guideSelect').append(option);}
    const href=sourceLink();$('sourceLink').hidden=!href;if(href)$('sourceLink').href=href;$('sourceBasis').textContent=[guide.source?.author,guide.source?.published,guide.source?.basis].filter(Boolean).join(' · ');

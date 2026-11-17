@@ -1,5 +1,20 @@
 # Guide import workflow
 
+## Readable document references
+
+The walkthrough reconstructs source tables from the row/column boundaries already
+retained in Word imports. Army command layouts, war-plan subsections, peace
+priorities and event calendars use semantic tables rather than flattened raw text.
+No reimport or campaign migration is needed. A sticky reference toolbar exposes
+available sections of the active guide, even offline; hover previews and click
+pins the same panel. Escape/Close dismiss it. Unchanged live projections keep the
+panel open; switching guide or changing its source closes stale content.
+
+`Setup*` uses the nearest authored Army/Navy context. Named/group references use
+exact section aliases; unresolved or ambiguous references never select a guessed
+section. Source text remains literal and untrusted HTML is never executed. These
+are passive document references, not live completion/event-occurrence evidence.
+
 Catalog resolution accepts documented research-family abbreviations followed by
 an explicit level (numeric or Roman). Native IDs remain exact, and original
 catalog names take precedence over expansions. Scripted localisation alternatives

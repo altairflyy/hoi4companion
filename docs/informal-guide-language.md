@@ -18,12 +18,37 @@ aircraft design codes are explained in place. Original codes remain next to
 template names so reference previews still work. English and Italian UI copy
 share the same definitions.
 
+Naval variants from the reference include `CVe` (empty carrier), `CLna` (no
+armor), `DDt/l/es/r/e` and `SSc/m`. `NAV: ... ALL` means remaining/future
+**dockyards**, including under an ASAP/PRIO prefix; military production retains
+its factory meaning. Regimental `IG`, `HW/MHW`, `R-SPAA` and design accessories
+`MG`/`SL` are explained in their own contexts. `ASAP` is explained as acting as
+soon as requirements allow, never an automatically satisfied condition.
+
+The user confirmed `BBe = battleship empty` on 2026-11-17. It is explained
+**inline**, as “empty battleship (BBe)” / “corazzata vuota (BBe)”, including a
+naval design reference with that exact name. It is not corrected to `BCe`, which
+denotes a different ship class. This confirms a word's meaning, not the existence
+or identity of a specific installed template. Confirmed entries take precedence
+over stale possible-reading metadata; actual unresolved ambiguities stay qualified.
+
+Building plurals, parenthesized naval variants, `UP`, `0→ALL`, production quota
+arrows, numbered aircraft/ground designs, `-I`, `ca` and `AR-H/S` are explained in
+the primary instruction. Unknown numeric upgrade pairs retain their original
+values. Ordinary lowercase “up”, proper bound names and quoted text are protected.
+Source text and saved guide/campaign semantics remain unchanged. Instruction text
+is 16px with full text contrast; supplemental reading notes are 14px. Repeated
+monitoring/HUD boilerplate is available in a closed “Tracking and HUD details”
+disclosure, separate from what the player must do.
+
 `Build INFRAs + MILs` alternates the two buildings in each indicated region;
 `Build INFRAs, then MILs` handles all infrastructure before factories. Production
 `ALL` explains the remaining/future capacity convention and priority. These
 are reading aids, not new runtime criteria or inferred completion.
 
-Exact bound entity names and quoted text are preserved. A shortened name such
+Exact bound entity names retain their spelling; confirmed coded design names
+receive an appended explanation without changing their reference/ID. Quoted
+text is preserved. A shortened name such
 as `Ratsu…` remains qualified as a garrison-template reference; the reader does
 not invent its full identity. Ambiguous abbreviations such as unqualified `SD`
 remain unchanged with an explanation. “Original action and references” keeps
