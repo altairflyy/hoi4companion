@@ -17,6 +17,11 @@ pub struct Prefs {
     /// place on the right under the theater selector.
     pub position: Option<[f32; 2]>,
     pub collapsed: bool,
+    /// Hidden for this run only: never saved, so a card hidden once (Hide or
+    /// Ctrl+Alt+H) is back on the next launch. The desktop app's HUD has no
+    /// tray icon, so a remembered hide left the card gone with no visible way
+    /// to bring it back.
+    #[serde(skip)]
     pub hidden: bool,
 }
 
@@ -108,8 +113,12 @@ mod tests {
         let prefs = Prefs {position: Some([0.25, 0.5]), collapsed: true, hidden: false};
         prefs.save(&path);
         assert_eq!(Prefs::load(&path), prefs);
+        // A hide saved by an older HUD is not restored.
         std::fs::write(&path, br#"{"position":[2.0,0.5],"collapsed":false,"hidden":true}"#).unwrap();
-        assert_eq!(Prefs::load(&path), Prefs {position: None, collapsed: false, hidden: true});
+        assert_eq!(Prefs::load(&path), Prefs {position: None, collapsed: false, hidden: false});
+        let hidden = Prefs {hidden: true, ..prefs};
+        hidden.save(&path);
+        assert_eq!(Prefs::load(&path), prefs);
         std::fs::write(&path, b"not json").unwrap();
         assert_eq!(Prefs::load(&path), Prefs::default());
         let _ = std::fs::remove_dir_all(dir);
