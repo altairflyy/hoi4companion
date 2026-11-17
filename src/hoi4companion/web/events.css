@@ -15,6 +15,7 @@
 .event-tag-decision{color:#f2b766;border-color:#8a6430}
 .event-tag-event{color:#6fc8ff;border-color:#2f6f94}
 .event-tag-guide{color:#e9e2c6;border-color:#9a8a4f;font-weight:600}
+.event-tag-branch{color:#b8b0a0;border-style:dashed}
 .events-guide{color:var(--muted);font-size:13px;margin:6px 0 0}
 .event-tag-sender{color:#ff9f8f;border-color:#8f4a40}
 .event-tag-possible,.event-possible .event-title{color:var(--muted)}

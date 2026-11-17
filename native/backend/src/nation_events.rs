@@ -34,50 +34,64 @@ pub fn guide_focuses(definition: &Value) -> Vec<String> {
         .map(str::to_owned).collect()
 }
 
-/// For every event the guide's focuses lead to, the guide focuses at the start
-/// of the chain. Links: a focus fires an event (directly or through a
-/// scripted effect) or makes a decision available; a decision or event fires
-/// the next event (other nations' answers included); an event whose own
-/// trigger requires a focus. Only what the scripts trace.
-fn guide_roots(rows: &[Value], guide: &[String]) -> HashMap<String, BTreeSet<String>> {
+/// How events are reached. Links: a focus fires an event (directly or through
+/// a scripted effect) or makes a decision available; a decision or event fires
+/// the next event (other nations' answers included); an event's own trigger
+/// requires a focus. Only what the scripts trace.
+struct Chains {
+    /// Every focus that leads to a node ("event:ID", "decision:ID").
+    roots: HashMap<String, BTreeSet<String>>,
+    /// Nodes something other than a focus can start: an event nothing traced
+    /// calls (on_actions, timed), a decision always available, and what they fire.
+    free: HashSet<String>,
+}
+fn chains(rows: &[Value]) -> Chains {
     let mut children: HashMap<String, Vec<String>> = HashMap::new();
+    let mut nodes = vec![];
+    let mut has_parent = HashSet::new();
     for row in rows.iter().filter(|r| r["kind"] == "event" || r["kind"] == "decision") {
         let node = format!("{}:{}", s(&row["kind"]), s(&row["id"]));
-        let required = row["requires_focus"].as_array().into_iter().flatten().filter_map(Value::as_str).map(|f| format!("focus:{f}"));
+        let required = row["enabled_by"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned);
         let sources = row["triggered_by"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned);
         for source in sources.chain(required) {
             children.entry(source).or_default().push(node.clone());
+            has_parent.insert(node.clone());
         }
+        nodes.push(node);
     }
     let mut roots: HashMap<String, BTreeSet<String>> = HashMap::new();
-    let mut work: Vec<(String, String)> = vec![];
-    for focus in guide {
-        for child in children.get(&format!("focus:{focus}")).into_iter().flatten() {
-            work.push((child.clone(), focus.clone()));
-        }
-    }
+    let mut work: Vec<(String, String)> = children.iter().filter_map(|(k, v)| k.strip_prefix("focus:").map(|f| (f.to_owned(), v)))
+        .flat_map(|(f, v)| v.iter().map(move |c| (c.clone(), f.clone()))).collect();
     while let Some((node, root)) = work.pop() {
         if !roots.entry(node.clone()).or_default().insert(root.clone()) {
             continue;
         }
-        for child in children.get(&node).into_iter().flatten() {
-            work.push((child.clone(), root.clone()));
+        work.extend(children.get(&node).into_iter().flatten().map(|c| (c.clone(), root.clone())));
+    }
+    // Free starts: catalog nodes without a traced parent, and callers the catalog does not know.
+    let known: HashSet<&String> = nodes.iter().collect();
+    let mut stack: Vec<String> = nodes.iter().filter(|n| !has_parent.contains(*n)).cloned()
+        .chain(children.keys().filter(|k| !k.starts_with("focus:") && !known.contains(k)).cloned()).collect();
+    let mut free = HashSet::new();
+    while let Some(node) = stack.pop() {
+        if free.insert(node.clone()) {
+            stack.extend(children.get(&node).into_iter().flatten().cloned());
         }
     }
-    roots
+    Chains { roots, free }
 }
 
 /// `{country, events:[...], possible:[...]}`: each event with its title,
 /// description, type, timing, options (with political power cost) and what
 /// fires it (focus/decision/event, named). With a guide's focuses, each event
 /// also names the guide focuses that lead to it (`guide_focuses`, empty when
-/// none does).
+/// none does) and says whether the guide can see it (`guide_reach`).
 pub fn list(entries: &Value, country: &str, guide: &[String]) -> Value {
     let rows: &[Value] = entries.as_array().map(Vec::as_slice).unwrap_or(&[]);
     if country.len() != 3 {
         return json!({"country":country,"events":[],"possible":[],"reason":"country_unknown"});
     }
-    let roots = guide_roots(rows, guide);
+    let chains = chains(rows);
     let by_kind_id: HashMap<(&str, &str), &Value> = rows.iter().map(|r| ((s(&r["kind"]), s(&r["id"])), r)).collect();
     let mut options: HashMap<&str, Vec<Value>> = HashMap::new();
     for row in rows.iter().filter(|r| r["kind"] == "event_option") {
@@ -93,17 +107,33 @@ pub fn list(entries: &Value, country: &str, guide: &[String]) -> Value {
         let found = by_kind_id.get(&(kind, id)).map(|r| name(r)).unwrap_or_else(|| json!(readable_id(id)));
         json!({"kind":kind,"id":id,"name":found})
     };
+    let empty = BTreeSet::new();
     let event = |row: &Value| {
+        let node = format!("event:{}", s(&row["id"]));
+        let roots = chains.roots.get(&node).unwrap_or(&empty);
+        // "guide": a guide focus leads to it. "other_branch": only this nation's
+        // focuses outside the guide do, so the guide never shows it. "anyway":
+        // it can come without those focuses (on_actions, free decisions, other nations).
+        let own = format!("{country}_");
+        let reach = if guide.iter().any(|f| roots.contains(f)) {
+            "guide"
+        } else if !roots.is_empty() && !chains.free.contains(&node) && roots.iter().all(|f| f.starts_with(&own)) {
+            "other_branch"
+        } else {
+            "anyway"
+        };
         json!({"id":row["id"],"title":name(row),"description":row.get("description").cloned().unwrap_or(Value::Null),
             "event_type":row["event_type"],"triggered_only":row["triggered_only"],"timed":row["timed"],
             "options":options.get(s(&row["id"])).cloned().unwrap_or_default(),
             // Every nation the scripts send it to: one entry means exclusive to that nation.
             "receivers":row["receivers"].as_array().cloned().unwrap_or_default(),
             // Guide focuses that lead to it, in the guide's order.
-            "guide_focuses":guide.iter().filter(|f| roots.get(&format!("event:{}", s(&row["id"]))).is_some_and(|r| r.contains(*f)))
-                .map(|f| source(&format!("focus:{f}"))).collect::<Vec<_>>(),
+            "guide_focuses":guide.iter().filter(|f| roots.contains(*f)).map(|f| source(&format!("focus:{f}"))).collect::<Vec<_>>(),
             // Position in the guide of the first focus that leads to it (null when none).
-            "guide_order":guide.iter().position(|f| roots.get(&format!("event:{}", s(&row["id"]))).is_some_and(|r| r.contains(f))),
+            "guide_order":guide.iter().position(|f| roots.contains(f)),
+            "guide_reach":reach,
+            // For an event only focuses outside the guide lead to: some of them.
+            "branch_focuses":if reach == "other_branch" { roots.iter().take(3).map(|f| source(&format!("focus:{f}"))).collect::<Vec<_>>() } else { vec![] },
             "triggered_by":row["triggered_by"].as_array().into_iter().flatten().filter_map(Value::as_str).map(source).collect::<Vec<_>>()})
     };
     let mut events = vec![];
@@ -157,7 +187,10 @@ mod tests {
             {"kind":"event","id":"ger.ask","name":"Soviet offer","receivers":["GER"],"triggered_by":["focus:SOV_pact"]},
             {"kind":"event","id":"sov.yes","name":"Germany agrees","receivers":["SOV"],"triggered_by":["event:ger.ask"]},
             {"kind":"event","id":"sov.loop","name":"Loop","receivers":["SOV"],"triggered_by":["event:sov.yes","event:sov.loop"]},
-            {"kind":"event","id":"sov.other","name":"Other branch","receivers":["SOV"],"triggered_by":["focus:SOV_other"]}]);
+            {"kind":"event","id":"sov.other","name":"Other branch","receivers":["SOV"],"triggered_by":["focus:SOV_other"]},
+            {"kind":"event","id":"sov.both","name":"Also on_action","receivers":["SOV"],"triggered_by":["focus:SOV_other","event:sov.pulse"]},
+            {"kind":"event","id":"sov.pulse","name":"Monthly","receivers":["SOV"],"triggered_by":[]},
+            {"kind":"event","id":"sov.cze","name":"Czech offer","receivers":["SOV"],"triggered_by":["focus:CZE_offer"]}]);
         let definition = json!({"tracks":{"focus":[
             {"action":{"kind":"select_focus","entity":{"kind":"focus","id":"SOV_pact"}}},
             {"action":{"kind":"research","entity":{"kind":"technology","id":"tech"}}},
@@ -171,6 +204,13 @@ mod tests {
         assert_eq!(by_id("sov.other")["guide_focuses"], json!([]), "focus outside the guide");
         assert_eq!(by_id("sov.yes")["guide_order"], 0);
         assert_eq!(by_id("sov.other")["guide_order"], Value::Null);
+        let reach = |id: &str| by_id(id)["guide_reach"].as_str().unwrap().to_owned();
+        assert_eq!(reach("sov.yes"), "guide");
+        assert_eq!(reach("sov.other"), "other_branch", "only a focus outside the guide leads to it");
+        assert_eq!(by_id("sov.other")["branch_focuses"][0]["id"], "SOV_other");
+        assert_eq!(reach("sov.both"), "anyway", "a monthly event can fire it too");
+        assert_eq!(reach("sov.pulse"), "anyway", "nothing traced calls it");
+        assert_eq!(reach("sov.cze"), "anyway", "another nation sends it");
         assert_eq!(result["guide_focus_count"], 1);
     }
 
@@ -179,7 +219,7 @@ mod tests {
         let entries = json!([
             {"kind":"decision","id":"SOV_mission","triggered_by":["focus:SOV_purge"]},
             {"kind":"event","id":"sov.mission","receivers":["SOV"],"triggered_by":["decision:SOV_mission"]},
-            {"kind":"event","id":"sov.timed","receivers":["SOV"],"triggered_by":[],"requires_focus":["SOV_purge"]}]);
+            {"kind":"event","id":"sov.timed","receivers":["SOV"],"triggered_by":[],"enabled_by":["focus:SOV_purge"]}]);
         let result = list(&entries, "SOV", &["SOV_purge".to_owned()]);
         for event in result["events"].as_array().unwrap() {
             assert_eq!(event["guide_order"], 0, "{}", event["id"]);

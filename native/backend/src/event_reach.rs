@@ -28,7 +28,8 @@ pub struct Reach {
     /// What makes each decision available: "focus:ID" (activated by it or
     /// required by its conditions), "decision:ID" or "event:ID".
     pub unlocks: HashMap<String, BTreeSet<String>>,
-    /// Focuses an event's own trigger requires (`has_completed_focus`).
+    /// What an event's own trigger requires: "focus:ID" (`has_completed_focus`)
+    /// or, for a required country flag, whatever sets it.
     pub requires: HashMap<String, BTreeSet<String>>,
 }
 
@@ -72,18 +73,30 @@ impl Effects<'_> {
 /// Decision a call makes available: `activate_decision = X` or `{ decision = X }`.
 const ACTIVATES: &[&str] = &["activate_decision", "activate_mission", "activate_targeted_decision", "unlock_decision_tooltip"];
 
-/// Focus ids a condition block requires (`has_completed_focus`), outside `NOT`.
-fn required_focuses(node: &Value, out: &mut BTreeSet<String>, depth: usize) {
+/// What a condition block requires, outside `NOT`: "focus:ID"
+/// (`has_completed_focus`) and "flag:NAME" (`has_country_flag`).
+fn conditions(node: &Value, out: &mut BTreeSet<String>, depth: usize) {
     if depth > 64 {
         return;
     }
     for (key, value) in entries(node) {
-        if key == "has_completed_focus" && let Some(id) = value.as_str() {
-            out.insert(id.to_owned());
-        } else if key != "NOT" && value.get("entries").is_some() {
-            required_focuses(value, out, depth + 1);
+        let named = value.as_str().map(str::to_owned).unwrap_or_else(|| scalar(value, "flag").to_owned());
+        match key {
+            "has_completed_focus" if !named.is_empty() => {
+                out.insert(format!("focus:{named}"));
+            }
+            "has_country_flag" if !named.is_empty() => {
+                out.insert(format!("flag:{named}"));
+            }
+            "NOT" => {}
+            _ if value.get("entries").is_some() => conditions(value, out, depth + 1),
+            _ => {}
         }
     }
+}
+/// A call target that is not an event: a decision made available or a country flag set.
+fn gate(id: &str) -> bool {
+    id.starts_with("decision:") || id.starts_with("flag:")
 }
 
 fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String, Receiver)>, depth: usize, effects: &Effects) {
@@ -100,6 +113,13 @@ fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String,
                 if !id.is_empty() {
                     let to = if key == "news_event" { Receiver::Unknown } else { receiver.clone() };
                     out.push((id, to));
+                }
+                continue;
+            }
+            "set_country_flag" => {
+                let id = value.as_str().map(str::to_owned).unwrap_or_else(|| scalar(value, "flag").to_owned());
+                if !id.is_empty() {
+                    out.push((format!("flag:{id}"), receiver.clone()));
                 }
                 continue;
             }
@@ -189,7 +209,7 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
                 calls(focus, "focus", &Receiver::Owner, &mut out, 0, effects);
                 let source = format!("focus:{}", scalar(focus, "id"));
                 for (id, to) in out {
-                    if id.starts_with("decision:") {
+                    if gate(&id) {
                         reach.unlocks.entry(id).or_default().insert(source.clone());
                         continue;
                     }
@@ -207,16 +227,16 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
                 for key in ["allowed", "visible", "available"] {
                     for block in blocks(decision, key) {
                         tags(block, &mut owners, 0);
-                        required_focuses(block, &mut needs, 0);
+                        conditions(block, &mut needs, 0);
                     }
                 }
                 if !needs.is_empty() {
-                    reach.unlocks.entry(format!("decision:{decision_id}")).or_default().extend(needs.into_iter().map(|f| format!("focus:{f}")));
+                    reach.unlocks.entry(format!("decision:{decision_id}")).or_default().extend(needs);
                 }
                 let mut out = vec![];
                 calls(decision, "decision", &Receiver::Owner, &mut out, 0, effects);
                 for (id, to) in out {
-                    if id.starts_with("decision:") {
+                    if gate(&id) {
                         reach.unlocks.entry(id).or_default().insert(format!("decision:{decision_id}"));
                         continue;
                     }
@@ -239,14 +259,14 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
             }
             let mut needs = BTreeSet::new();
             for block in blocks(event, "trigger") {
-                required_focuses(block, &mut needs, 0);
+                conditions(block, &mut needs, 0);
             }
             if !needs.is_empty() {
                 reach.requires.entry(id.clone()).or_default().extend(needs);
             }
             let mut out = vec![];
             calls(event, "event", &Receiver::Owner, &mut out, 0, effects);
-            let (unlocked, out): (Vec<_>, Vec<_>) = out.into_iter().partition(|(to, _)| to.starts_with("decision:"));
+            let (unlocked, out): (Vec<_>, Vec<_>) = out.into_iter().partition(|(to, _)| gate(to));
             for (decision, _) in unlocked {
                 reach.unlocks.entry(decision).or_default().insert(format!("event:{id}"));
             }
@@ -256,6 +276,20 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
             edges.extend(out.into_iter().map(|(to, r)| (id.clone(), to, r)));
         }
     }
+    // A required flag stands for whatever sets it (focus, decision, event).
+    let flags: HashMap<String, BTreeSet<String>> = reach.unlocks.iter().filter(|(k, _)| k.starts_with("flag:")).map(|(k, v)| (k.clone(), v.clone())).collect();
+    let resolve = |set: &mut BTreeSet<String>| {
+        let named: Vec<String> = set.iter().filter(|k| k.starts_with("flag:")).cloned().collect();
+        for flag in named {
+            set.remove(&flag);
+            set.extend(flags.get(&flag).into_iter().flatten().cloned());
+        }
+    };
+    reach.requires.values_mut().for_each(resolve);
+    reach.unlocks.retain(|k, _| !k.starts_with("flag:"));
+    reach.unlocks.values_mut().for_each(resolve);
+    reach.requires.retain(|_, v| !v.is_empty());
+    reach.unlocks.retain(|_, v| !v.is_empty());
     for _ in 0..64 {
         let mut changed = false;
         for (from, to, r) in &edges {
@@ -342,6 +376,7 @@ mod tests {
             ("focus", node(vec![("id", json!("SOV_purge")), ("completion_reward", node(vec![
                 ("SOV_purge_effect", json!("yes")),
                 ("activate_mission", json!("SOV_mission")),
+                ("set_country_flag", node(vec![("flag", json!("SOV_trial_flag")), ("days", json!("15"))])),
             ]))])),
         ]))]);
         // The effect calls itself: expansion stops instead of looping.
@@ -352,8 +387,13 @@ mod tests {
             ("SOV_gated", node(vec![("visible", node(vec![("has_completed_focus", json!("SOV_purge")),
                 ("NOT", node(vec![("has_completed_focus", json!("SOV_other"))]))]))])),
         ]))]);
-        let events = node(vec![("country_event", node(vec![("id", json!("sov.timed")),
-            ("trigger", node(vec![("has_completed_focus", json!("SOV_purge"))]))]))]);
+        let events = node(vec![
+            ("country_event", node(vec![("id", json!("sov.timed")),
+                ("trigger", node(vec![("has_completed_focus", json!("SOV_purge"))]))])),
+            ("country_event", node(vec![("id", json!("sov.trial")),
+                ("trigger", node(vec![("has_country_flag", json!("SOV_trial_flag")),
+                    ("NOT", node(vec![("has_country_flag", json!("SOV_never"))]))]))])),
+        ]);
         let r = compute(&[tree], &[decisions], &[events], &[effects]);
         let set = |m: &HashMap<String, BTreeSet<String>>, id: &str| m.get(id).cloned().unwrap_or_default().into_iter().collect::<Vec<_>>();
         assert_eq!(set(&r.sources, "sov.purge"), ["focus:SOV_purge"], "scripted effect expanded");
@@ -361,6 +401,8 @@ mod tests {
         assert_eq!(set(&r.unlocks, "decision:SOV_mission"), ["focus:SOV_purge"], "activated by the focus");
         assert_eq!(set(&r.unlocks, "decision:SOV_gated"), ["focus:SOV_purge"], "required focus, NOT excluded");
         assert_eq!(set(&r.sources, "sov.mission"), ["decision:SOV_mission"]);
-        assert_eq!(set(&r.requires, "sov.timed"), ["SOV_purge"]);
+        assert_eq!(set(&r.requires, "sov.timed"), ["focus:SOV_purge"]);
+        assert_eq!(set(&r.requires, "sov.trial"), ["focus:SOV_purge"], "a required flag stands for what sets it");
+        assert!(r.unlocks.keys().all(|k| !k.starts_with("flag:")));
     }
 }

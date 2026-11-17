@@ -1,6 +1,10 @@
 {
   "schema_version": 1,
   "messages": {
+    "The active guide is for {0}: all events of the nation are shown.": "La guida attiva è per {0}: sono mostrati tutti gli eventi della nazione.",
+    "Branch outside the guide: {0}": "Ramo fuori dalla guida: {0}",
+    "{0} from your guide focuses at the top": "{0} dai focus della guida in cima",
+    "{0} hidden: only focuses outside the guide lead to them": "{0} nascosti: arrivano solo da focus fuori dalla guida",
     "From your guide": "Dalla tua guida",
     "All events of {0}": "Tutti gli eventi di {0}",
     "Guide focus: {0}": "Focus della guida: {0}",

@@ -23,26 +23,30 @@
  }
  // True when a focus of the active guide leads to the event (backend-traced).
  const fromGuide=event=>(event.guide_focuses||[]).length>0;
+ // The guide can meet the event: a guide focus leads to it, or it comes
+ // anyway. Hidden only when just this nation's focuses outside the guide do.
+ const withGuide=event=>event.guide_reach!=='other_branch';
  // The guide view applies only when a guide with focuses is active.
  const guideActive=data=>(data?.guide_focus_count||0)>0;
  function matches(event,query){
   const q=norm(query).trim();if(!q)return true;
   return [event.title,event.id,event.description,...(event.options||[]).map(o=>o.name),...(event.triggered_by||[]).map(s=>s.name)].some(text=>norm(text).includes(q));
  }
- // Events shown for the current filters. The guide view keeps the events the
- // guide's focuses lead to, in guide order; the full view keeps the backend's
- // (alphabetical) order.
+ // Events shown for the current filters. The guide view drops the events of
+ // branches the guide does not take and lists first those its focuses lead
+ // to, in guide order; the full view keeps the backend's (alphabetical) order.
  function visible(data,{query='',origin='all',possible=false,scope='guide'}={}){
   const guide=scope==='guide'&&guideActive(data);
   let list=[...(data?.events||[]),...(!guide&&possible?(data?.possible||[]).map(e=>({...e,possible:true})):[])];
-  if(guide)list=list.filter(fromGuide).map((e,i)=>[e,i]).sort((a,b)=>(a[0].guide_order??1e9)-(b[0].guide_order??1e9)||a[1]-b[1]).map(([e])=>e);
+  if(guide)list=list.filter(withGuide).map((e,i)=>[e,i]).sort((a,b)=>(a[0].guide_order??1e9)-(b[0].guide_order??1e9)||a[1]-b[1]).map(([e])=>e);
   return list.filter(event=>(origin==='all'||origins(event).includes(origin))&&matches(event,query));
  }
  function counts(data,{scope='guide'}={}){
-  const all=data?.events||[],events=scope==='guide'&&guideActive(data)?all.filter(fromGuide):all;
-  const result={all:events.length,possible:(data?.possible||[]).length,guide:all.filter(fromGuide).length,nation:all.length};
+  const all=data?.events||[],events=scope==='guide'&&guideActive(data)?all.filter(withGuide):all;
+  const result={all:events.length,possible:(data?.possible||[]).length,guide:all.filter(withGuide).length,nation:all.length,
+   fromGuide:all.filter(fromGuide).length,otherBranch:all.length-all.filter(withGuide).length};
   for(const kind of [...ORIGINS,'none'])result[kind]=events.filter(e=>origins(e).includes(kind)).length;
   return result;
  }
- return {origins,matches,visible,counts,readable,sender,fromGuide,guideActive,ORIGINS};
+ return {origins,matches,visible,counts,readable,sender,fromGuide,withGuide,guideActive,ORIGINS};
 });
