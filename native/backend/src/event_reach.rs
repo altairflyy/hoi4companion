@@ -9,7 +9,9 @@
 //! receivers are complete (no unknown caller).
 use crate::script_document::{blocks, entries, scalar};
 use serde_json::Value;
+use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]
 enum Receiver {
@@ -23,6 +25,11 @@ pub struct Reach {
     pub unknown: HashSet<String>,
     /// What fires each event: "focus:ID", "decision:ID" or "event:ID".
     pub sources: HashMap<String, BTreeSet<String>>,
+    /// What makes each decision available: "focus:ID" (activated by it or
+    /// required by its conditions), "decision:ID" or "event:ID".
+    pub unlocks: HashMap<String, BTreeSet<String>>,
+    /// Focuses an event's own trigger requires (`has_completed_focus`).
+    pub requires: HashMap<String, BTreeSet<String>>,
 }
 
 fn is_tag(key: &str) -> bool {
@@ -36,7 +43,50 @@ const SKIP: &[&str] = &["limit", "trigger", "allowed", "available", "visible", "
     "effect_tooltip", "custom_effect_tooltip", "custom_trigger_tooltip", "modifier", "mean_time_to_happen",
     "is_triggered_only", "bypass", "cancel_if_invalid", "complete_tooltip", "target_trigger", "target_root_trigger"];
 
-fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String, Receiver)>, depth: usize) {
+/// Scripted effects by name, expanded where a focus, decision or event calls
+/// them; each body's calls are computed once, relative to the caller's scope.
+#[derive(Default)]
+struct Effects<'a> {
+    bodies: HashMap<&'a str, &'a Value>,
+    memo: RefCell<HashMap<String, Rc<Vec<(String, Receiver)>>>>,
+    active: RefCell<HashSet<String>>,
+}
+impl Effects<'_> {
+    fn expand(&self, name: &str) -> Option<Rc<Vec<(String, Receiver)>>> {
+        let body = self.bodies.get(name)?;
+        if let Some(found) = self.memo.borrow().get(name) {
+            return Some(found.clone());
+        }
+        // A recursive effect contributes nothing more while it is being expanded.
+        if !self.active.borrow_mut().insert(name.to_owned()) {
+            return Some(Rc::new(vec![]));
+        }
+        let mut out = vec![];
+        calls(body, "effect", &Receiver::Owner, &mut out, 0, self);
+        self.active.borrow_mut().remove(name);
+        let out = Rc::new(out);
+        self.memo.borrow_mut().insert(name.to_owned(), out.clone());
+        Some(out)
+    }
+}
+/// Decision a call makes available: `activate_decision = X` or `{ decision = X }`.
+const ACTIVATES: &[&str] = &["activate_decision", "activate_mission", "activate_targeted_decision", "unlock_decision_tooltip"];
+
+/// Focus ids a condition block requires (`has_completed_focus`), outside `NOT`.
+fn required_focuses(node: &Value, out: &mut BTreeSet<String>, depth: usize) {
+    if depth > 64 {
+        return;
+    }
+    for (key, value) in entries(node) {
+        if key == "has_completed_focus" && let Some(id) = value.as_str() {
+            out.insert(id.to_owned());
+        } else if key != "NOT" && value.get("entries").is_some() {
+            required_focuses(value, out, depth + 1);
+        }
+    }
+}
+
+fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String, Receiver)>, depth: usize, effects: &Effects) {
     if depth > 64 {
         return;
     }
@@ -53,7 +103,18 @@ fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String,
                 }
                 continue;
             }
+            _ if ACTIVATES.contains(&key) => {
+                let id = value.as_str().map(str::to_owned).unwrap_or_else(|| scalar(value, "decision").to_owned());
+                if !id.is_empty() {
+                    out.push((format!("decision:{id}"), receiver.clone()));
+                }
+                continue;
+            }
             _ => {}
+        }
+        if let Some(found) = effects.expand(key) {
+            out.extend(found.iter().map(|(id, to)| (id.clone(), if *to == Receiver::Owner { receiver.clone() } else { to.clone() })));
+            continue;
         }
         if value.get("entries").is_none() {
             continue;
@@ -71,7 +132,7 @@ fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String,
         } else {
             Receiver::Unknown
         };
-        calls(value, key, &next, out, depth + 1);
+        calls(value, key, &next, out, depth + 1, effects);
     }
 }
 fn tags(node: &Value, out: &mut BTreeSet<String>, depth: usize) {
@@ -91,8 +152,15 @@ fn tags(node: &Value, out: &mut BTreeSet<String>, depth: usize) {
 
 /// `focus_docs`: national_focus roots; `decision_docs`: decision roots
 /// (category -> decision); `event_docs`: event roots.
-pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Value]) -> Reach {
+pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Value], effect_docs: &[Value]) -> Reach {
     let mut reach = Reach::default();
+    let mut effects = Effects::default();
+    for root in effect_docs {
+        for (name, body) in entries(root).filter(|(_, v)| v.get("entries").is_some()) {
+            effects.bodies.insert(name, body);
+        }
+    }
+    let effects = &effects;
     let seed = |id: String, to: Receiver, owners: Option<&BTreeSet<String>>, reach: &mut Reach| match to {
         Receiver::Tag(t) => {
             reach.receivers.entry(id).or_default().insert(t);
@@ -118,9 +186,13 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
             let focuses: Vec<&Value> = if key == "focus_tree" { blocks(tree, "focus").collect() } else if key == "shared_focus" { vec![tree] } else { vec![] };
             for focus in focuses {
                 let mut out = vec![];
-                calls(focus, "focus", &Receiver::Owner, &mut out, 0);
+                calls(focus, "focus", &Receiver::Owner, &mut out, 0, effects);
                 let source = format!("focus:{}", scalar(focus, "id"));
                 for (id, to) in out {
+                    if id.starts_with("decision:") {
+                        reach.unlocks.entry(id).or_default().insert(source.clone());
+                        continue;
+                    }
                     reach.sources.entry(id.clone()).or_default().insert(source.clone());
                     seed(id, to, owners.as_ref(), &mut reach);
                 }
@@ -131,14 +203,23 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
         for (_, group) in entries(root).filter(|(_, v)| v.get("entries").is_some()) {
             for (decision_id, decision) in entries(group).filter(|(_, v)| v.get("entries").is_some()) {
                 let mut owners = BTreeSet::new();
+                let mut needs = BTreeSet::new();
                 for key in ["allowed", "visible", "available"] {
                     for block in blocks(decision, key) {
                         tags(block, &mut owners, 0);
+                        required_focuses(block, &mut needs, 0);
                     }
                 }
+                if !needs.is_empty() {
+                    reach.unlocks.entry(format!("decision:{decision_id}")).or_default().extend(needs.into_iter().map(|f| format!("focus:{f}")));
+                }
                 let mut out = vec![];
-                calls(decision, "decision", &Receiver::Owner, &mut out, 0);
+                calls(decision, "decision", &Receiver::Owner, &mut out, 0, effects);
                 for (id, to) in out {
+                    if id.starts_with("decision:") {
+                        reach.unlocks.entry(id).or_default().insert(format!("decision:{decision_id}"));
+                        continue;
+                    }
                     reach.sources.entry(id.clone()).or_default().insert(format!("decision:{decision_id}"));
                     seed(id, to, Some(&owners), &mut reach);
                 }
@@ -156,8 +237,19 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
             if kind == "news_event" {
                 reach.unknown.insert(id.clone());
             }
+            let mut needs = BTreeSet::new();
+            for block in blocks(event, "trigger") {
+                required_focuses(block, &mut needs, 0);
+            }
+            if !needs.is_empty() {
+                reach.requires.entry(id.clone()).or_default().extend(needs);
+            }
             let mut out = vec![];
-            calls(event, "event", &Receiver::Owner, &mut out, 0);
+            calls(event, "event", &Receiver::Owner, &mut out, 0, effects);
+            let (unlocked, out): (Vec<_>, Vec<_>) = out.into_iter().partition(|(to, _)| to.starts_with("decision:"));
+            for (decision, _) in unlocked {
+                reach.unlocks.entry(decision).or_default().insert(format!("event:{id}"));
+            }
             for (to, _) in &out {
                 reach.sources.entry(to.clone()).or_default().insert(format!("event:{id}"));
             }
@@ -226,7 +318,7 @@ mod tests {
             ("country_event", node(vec![("id", json!("sov.1")), ("option", node(vec![("country_event", json!("sov.2"))]))])),
             ("country_event", node(vec![("id", json!("eng.5")), ("option", node(vec![("FROM", node(vec![("country_event", json!("back.1"))]))]))])),
         ]);
-        let r = compute(&[tree], &[decisions], &[events]);
+        let r = compute(&[tree], &[decisions], &[events], &[]);
         let set = |id: &str| r.receivers.get(id).cloned().unwrap_or_default().into_iter().collect::<Vec<_>>();
         assert_eq!(set("sov.1"), ["SOV"]);
         assert_eq!(set("sov.2"), ["SOV"], "chain inherits the receiver");
@@ -241,5 +333,34 @@ mod tests {
         assert_eq!(receives(&json!(["ENG"]), &json!(false), "SOV"), Some(false));
         assert_eq!(receives(&json!(["ENG"]), &json!(true), "SOV"), None);
         assert_eq!(receives(&json!([]), &json!(false), "SOV"), None);
+    }
+
+    #[test]
+    fn focuses_reach_events_through_scripted_effects_decisions_and_triggers() {
+        let tree = node(vec![("focus_tree", node(vec![
+            ("country", node(vec![("modifier", node(vec![("tag", json!("SOV"))]))])),
+            ("focus", node(vec![("id", json!("SOV_purge")), ("completion_reward", node(vec![
+                ("SOV_purge_effect", json!("yes")),
+                ("activate_mission", json!("SOV_mission")),
+            ]))])),
+        ]))]);
+        // The effect calls itself: expansion stops instead of looping.
+        let effects = node(vec![("SOV_purge_effect", node(vec![
+            ("country_event", json!("sov.purge")), ("SOV_purge_effect", json!("yes"))]))]);
+        let decisions = node(vec![("cat", node(vec![
+            ("SOV_mission", node(vec![("complete_effect", node(vec![("country_event", json!("sov.mission"))]))])),
+            ("SOV_gated", node(vec![("visible", node(vec![("has_completed_focus", json!("SOV_purge")),
+                ("NOT", node(vec![("has_completed_focus", json!("SOV_other"))]))]))])),
+        ]))]);
+        let events = node(vec![("country_event", node(vec![("id", json!("sov.timed")),
+            ("trigger", node(vec![("has_completed_focus", json!("SOV_purge"))]))]))]);
+        let r = compute(&[tree], &[decisions], &[events], &[effects]);
+        let set = |m: &HashMap<String, BTreeSet<String>>, id: &str| m.get(id).cloned().unwrap_or_default().into_iter().collect::<Vec<_>>();
+        assert_eq!(set(&r.sources, "sov.purge"), ["focus:SOV_purge"], "scripted effect expanded");
+        assert_eq!(set(&r.receivers, "sov.purge"), ["SOV"]);
+        assert_eq!(set(&r.unlocks, "decision:SOV_mission"), ["focus:SOV_purge"], "activated by the focus");
+        assert_eq!(set(&r.unlocks, "decision:SOV_gated"), ["focus:SOV_purge"], "required focus, NOT excluded");
+        assert_eq!(set(&r.sources, "sov.mission"), ["decision:SOV_mission"]);
+        assert_eq!(set(&r.requires, "sov.timed"), ["SOV_purge"]);
     }
 }

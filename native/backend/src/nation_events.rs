@@ -35,28 +35,33 @@ pub fn guide_focuses(definition: &Value) -> Vec<String> {
 }
 
 /// For every event the guide's focuses lead to, the guide focuses at the start
-/// of the chain: a focus fires an event directly, or an event fired that way
-/// fires the next one (other nations' answers included). Only traced calls.
-fn guide_roots<'a>(rows: &'a [Value], guide: &[String]) -> HashMap<&'a str, BTreeSet<String>> {
-    let mut children: HashMap<&str, Vec<&str>> = HashMap::new();
-    for row in rows.iter().filter(|r| r["kind"] == "event") {
-        for source in row["triggered_by"].as_array().into_iter().flatten().filter_map(Value::as_str) {
-            children.entry(source).or_default().push(s(&row["id"]));
+/// of the chain. Links: a focus fires an event (directly or through a
+/// scripted effect) or makes a decision available; a decision or event fires
+/// the next event (other nations' answers included); an event whose own
+/// trigger requires a focus. Only what the scripts trace.
+fn guide_roots(rows: &[Value], guide: &[String]) -> HashMap<String, BTreeSet<String>> {
+    let mut children: HashMap<String, Vec<String>> = HashMap::new();
+    for row in rows.iter().filter(|r| r["kind"] == "event" || r["kind"] == "decision") {
+        let node = format!("{}:{}", s(&row["kind"]), s(&row["id"]));
+        let required = row["requires_focus"].as_array().into_iter().flatten().filter_map(Value::as_str).map(|f| format!("focus:{f}"));
+        let sources = row["triggered_by"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned);
+        for source in sources.chain(required) {
+            children.entry(source).or_default().push(node.clone());
         }
     }
-    let mut roots: HashMap<&str, BTreeSet<String>> = HashMap::new();
-    let mut work: Vec<(&str, String)> = vec![];
+    let mut roots: HashMap<String, BTreeSet<String>> = HashMap::new();
+    let mut work: Vec<(String, String)> = vec![];
     for focus in guide {
-        for child in children.get(format!("focus:{focus}").as_str()).into_iter().flatten() {
-            work.push((child, focus.clone()));
+        for child in children.get(&format!("focus:{focus}")).into_iter().flatten() {
+            work.push((child.clone(), focus.clone()));
         }
     }
-    while let Some((event, root)) = work.pop() {
-        if !roots.entry(event).or_default().insert(root.clone()) {
+    while let Some((node, root)) = work.pop() {
+        if !roots.entry(node.clone()).or_default().insert(root.clone()) {
             continue;
         }
-        for child in children.get(format!("event:{event}").as_str()).into_iter().flatten() {
-            work.push((child, root.clone()));
+        for child in children.get(&node).into_iter().flatten() {
+            work.push((child.clone(), root.clone()));
         }
     }
     roots
@@ -95,10 +100,10 @@ pub fn list(entries: &Value, country: &str, guide: &[String]) -> Value {
             // Every nation the scripts send it to: one entry means exclusive to that nation.
             "receivers":row["receivers"].as_array().cloned().unwrap_or_default(),
             // Guide focuses that lead to it, in the guide's order.
-            "guide_focuses":guide.iter().filter(|f| roots.get(s(&row["id"])).is_some_and(|r| r.contains(*f)))
+            "guide_focuses":guide.iter().filter(|f| roots.get(&format!("event:{}", s(&row["id"]))).is_some_and(|r| r.contains(*f)))
                 .map(|f| source(&format!("focus:{f}"))).collect::<Vec<_>>(),
             // Position in the guide of the first focus that leads to it (null when none).
-            "guide_order":guide.iter().position(|f| roots.get(s(&row["id"])).is_some_and(|r| r.contains(f))),
+            "guide_order":guide.iter().position(|f| roots.get(&format!("event:{}", s(&row["id"]))).is_some_and(|r| r.contains(f))),
             "triggered_by":row["triggered_by"].as_array().into_iter().flatten().filter_map(Value::as_str).map(source).collect::<Vec<_>>()})
     };
     let mut events = vec![];
@@ -167,5 +172,17 @@ mod tests {
         assert_eq!(by_id("sov.yes")["guide_order"], 0);
         assert_eq!(by_id("sov.other")["guide_order"], Value::Null);
         assert_eq!(result["guide_focus_count"], 1);
+    }
+
+    #[test]
+    fn guide_focuses_lead_through_decisions_and_required_focuses() {
+        let entries = json!([
+            {"kind":"decision","id":"SOV_mission","triggered_by":["focus:SOV_purge"]},
+            {"kind":"event","id":"sov.mission","receivers":["SOV"],"triggered_by":["decision:SOV_mission"]},
+            {"kind":"event","id":"sov.timed","receivers":["SOV"],"triggered_by":[],"requires_focus":["SOV_purge"]}]);
+        let result = list(&entries, "SOV", &["SOV_purge".to_owned()]);
+        for event in result["events"].as_array().unwrap() {
+            assert_eq!(event["guide_order"], 0, "{}", event["id"]);
+        }
     }
 }

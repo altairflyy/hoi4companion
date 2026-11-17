@@ -395,9 +395,20 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
         .map(|(_, r)| r)
         .collect();
     let event_roots: Vec<Value> = event_docs.iter().map(|(_, r)| r.clone()).collect();
-    let reach = crate::event_reach::compute(&focus_roots, &decision_roots, &event_roots);
+    let effect_roots: Vec<Value> = source
+        .documents("common/scripted_effects", "Catalogo politica non leggibile")?
+        .into_iter()
+        .map(|(_, r)| r)
+        .collect();
+    let reach = crate::event_reach::compute(&focus_roots, &decision_roots, &event_roots, &effect_roots);
+    let listed = |set: Option<&std::collections::BTreeSet<String>>| json!(set.map(|s| s.iter().take(64).cloned().collect::<Vec<_>>()).unwrap_or_default());
+    for row in rows.iter_mut().filter(|r| r["kind"] == "decision") {
+        // What makes it available: focuses (activating or required), decisions, events.
+        row["triggered_by"] = listed(reach.unlocks.get(&format!("decision:{}", row["id"].as_str().unwrap_or(""))));
+    }
     for row in rows.iter_mut().filter(|r| r["kind"] == "event") {
         let id = row["id"].as_str().unwrap_or("").to_owned();
+        row["requires_focus"] = listed(reach.requires.get(&id));
         row["receivers"] = json!(reach.receivers.get(&id).map(|s| s.iter().cloned().collect::<Vec<_>>()).unwrap_or_default());
         row["receivers_unknown"] = json!(reach.unknown.contains(&id));
         row["triggered_by"] = json!(reach.sources.get(&id).map(|s| s.iter().take(64).cloned().collect::<Vec<_>>()).unwrap_or_default());
