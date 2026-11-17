@@ -37,6 +37,7 @@ Updated: 2026-11-17. Read CLAUDE.md, this file and current Git diff before editi
 - Rust guide-core is the only evaluator; JS presents stamped backend projections. Unknown/stale data never completes steps or permits unverifiable HUD highlights. Game access always read-only.
 - Immutable definition storage, run pinning and stable operation identities implemented; compiler contract 4 is current. Updating the app upgrades open checklists, carrying manual progress only through supported semantic correspondence, retaining previous definitions. Details `docs/guide-definition-identity.md`.
 - Recent production/event/reference fixes and their exact verification, history, known semantic gaps and migration/rollback notes are preserved in `docs/handoff-before-desktop-2026-11-17.md`; consult the relevant section before modifying those systems.
+- Events page (2026-11-17): suite tab `#events`, `GET /api/events[?country=TAG]` (`native/backend/src/nation_events.rs`, receivers/sources from `event_reach.rs`). Each event carries `receivers`; page tags "Solo TAG" / "Condiviso con …", sender nation, own focus/decision origin, reach filter. Verified live for SOV: 159 events, 134 exclusive, 25 shared. Tests `tests/test_events_page.cjs`.
 - Remaining semantic work: grounded decision/war/capitulation and composite triggers, catalog-backed measurement, human review of children. Do not infer old benchmark interpretations are human-validated.
 
 ## Working boundaries / next actions
