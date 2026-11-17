@@ -23,9 +23,11 @@
  }
  // True when a focus of the active guide leads to the event (backend-traced).
  const fromGuide=event=>(event.guide_focuses||[]).length>0;
- // The guide can meet the event: a guide focus leads to it, or it comes
- // anyway. Hidden only when just this nation's focuses outside the guide do.
- const withGuide=event=>event.guide_reach!=='other_branch';
+ // The guide can meet the event: a guide focus leads to it, or the nation
+ // meets it with no focus (history, on_actions, its own free decisions).
+ // Hidden: branches outside the guide and other nations' focuses/decisions.
+ const HIDDEN=['other_branch','foreign'];
+ const withGuide=event=>!HIDDEN.includes(event.guide_reach);
  // The guide view applies only when a guide with focuses is active.
  const guideActive=data=>(data?.guide_focus_count||0)>0;
  function matches(event,query){
@@ -44,7 +46,8 @@
  function counts(data,{scope='guide'}={}){
   const all=data?.events||[],events=scope==='guide'&&guideActive(data)?all.filter(withGuide):all;
   const result={all:events.length,possible:(data?.possible||[]).length,guide:all.filter(withGuide).length,nation:all.length,
-   fromGuide:all.filter(fromGuide).length,otherBranch:all.length-all.filter(withGuide).length};
+   fromGuide:all.filter(fromGuide).length,otherBranch:all.filter(e=>e.guide_reach==='other_branch').length,
+   foreign:all.filter(e=>e.guide_reach==='foreign').length};
   for(const kind of [...ORIGINS,'none'])result[kind]=events.filter(e=>origins(e).includes(kind)).length;
   return result;
  }

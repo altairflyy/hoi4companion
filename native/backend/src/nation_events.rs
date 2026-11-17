@@ -41,13 +41,20 @@ pub fn guide_focuses(definition: &Value) -> Vec<String> {
 struct Chains {
     /// Every focus that leads to a node ("event:ID", "decision:ID").
     roots: HashMap<String, BTreeSet<String>>,
-    /// Nodes something other than a focus can start: an event nothing traced
-    /// calls (on_actions, timed), a decision always available, and what they fire.
+    /// Nodes the played nation meets without any focus: an event nothing traced
+    /// calls (on_actions, timed, history), a decision always available, and
+    /// what they fire. Another nation's decisions and the uncalled events only
+    /// other nations receive do not start chains here.
     free: HashSet<String>,
 }
-fn chains(rows: &[Value]) -> Chains {
+/// The nation tag an id starts with ("GER_befriend_poland" is GER's).
+fn tag_of(id: &str) -> Option<&str> {
+    id.split_once('_').map(|(tag, _)| tag).filter(|t| t.len() == 3 && t.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()))
+}
+fn chains(rows: &[Value], country: &str) -> Chains {
     let mut children: HashMap<String, Vec<String>> = HashMap::new();
     let mut nodes = vec![];
+    let mut foreign = HashSet::new();
     let mut has_parent = HashSet::new();
     for row in rows.iter().filter(|r| r["kind"] == "event" || r["kind"] == "decision") {
         let node = format!("{}:{}", s(&row["kind"]), s(&row["id"]));
@@ -56,6 +63,12 @@ fn chains(rows: &[Value]) -> Chains {
         for source in sources.chain(required) {
             children.entry(source).or_default().push(node.clone());
             has_parent.insert(node.clone());
+        }
+        let id = s(&row["id"]);
+        let others_only = row["kind"] == "event"
+            && row["receivers"].as_array().is_some_and(|r| !r.is_empty() && !r.iter().any(|t| t == country));
+        if others_only || row["kind"] == "decision" && tag_of(id).is_some_and(|t| t != country) {
+            foreign.insert(node.clone());
         }
         nodes.push(node);
     }
@@ -70,7 +83,7 @@ fn chains(rows: &[Value]) -> Chains {
     }
     // Free starts: catalog nodes without a traced parent, and callers the catalog does not know.
     let known: HashSet<&String> = nodes.iter().collect();
-    let mut stack: Vec<String> = nodes.iter().filter(|n| !has_parent.contains(*n)).cloned()
+    let mut stack: Vec<String> = nodes.iter().filter(|n| !has_parent.contains(*n) && !foreign.contains(*n)).cloned()
         .chain(children.keys().filter(|k| !k.starts_with("focus:") && !known.contains(k)).cloned()).collect();
     let mut free = HashSet::new();
     while let Some(node) = stack.pop() {
@@ -91,7 +104,7 @@ pub fn list(entries: &Value, country: &str, guide: &[String]) -> Value {
     if country.len() != 3 {
         return json!({"country":country,"events":[],"possible":[],"reason":"country_unknown"});
     }
-    let chains = chains(rows);
+    let chains = chains(rows, country);
     let by_kind_id: HashMap<(&str, &str), &Value> = rows.iter().map(|r| ((s(&r["kind"]), s(&r["id"])), r)).collect();
     let mut options: HashMap<&str, Vec<Value>> = HashMap::new();
     for row in rows.iter().filter(|r| r["kind"] == "event_option") {
@@ -111,16 +124,19 @@ pub fn list(entries: &Value, country: &str, guide: &[String]) -> Value {
     let event = |row: &Value| {
         let node = format!("event:{}", s(&row["id"]));
         let roots = chains.roots.get(&node).unwrap_or(&empty);
-        // "guide": a guide focus leads to it. "other_branch": only this nation's
-        // focuses outside the guide do, so the guide never shows it. "anyway":
-        // it can come without those focuses (on_actions, free decisions, other nations).
+        // "guide": a guide focus leads to it. "anyway": the nation meets it with
+        // no focus (on_actions, timed, history, its own free decisions).
+        // "other_branch": only this nation's focuses outside the guide lead to
+        // it. "foreign": it comes from other nations' focuses or decisions.
         let own = format!("{country}_");
         let reach = if guide.iter().any(|f| roots.contains(f)) {
             "guide"
-        } else if !roots.is_empty() && !chains.free.contains(&node) && roots.iter().all(|f| f.starts_with(&own)) {
+        } else if chains.free.contains(&node) {
+            "anyway"
+        } else if !roots.is_empty() && roots.iter().all(|f| f.starts_with(&own)) {
             "other_branch"
         } else {
-            "anyway"
+            "foreign"
         };
         json!({"id":row["id"],"title":name(row),"description":row.get("description").cloned().unwrap_or(Value::Null),
             "event_type":row["event_type"],"triggered_only":row["triggered_only"],"timed":row["timed"],
@@ -190,7 +206,13 @@ mod tests {
             {"kind":"event","id":"sov.other","name":"Other branch","receivers":["SOV"],"triggered_by":["focus:SOV_other"]},
             {"kind":"event","id":"sov.both","name":"Also on_action","receivers":["SOV"],"triggered_by":["focus:SOV_other","event:sov.pulse"]},
             {"kind":"event","id":"sov.pulse","name":"Monthly","receivers":["SOV"],"triggered_by":[]},
-            {"kind":"event","id":"sov.cze","name":"Czech offer","receivers":["SOV"],"triggered_by":["focus:CZE_offer"]}]);
+            {"kind":"event","id":"sov.cze","name":"Czech offer","receivers":["SOV"],"triggered_by":["focus:CZE_offer"]},
+            {"kind":"decision","id":"GER_ask","triggered_by":[]},
+            {"kind":"event","id":"sov.ger","name":"German request","receivers":["SOV"],"triggered_by":["decision:GER_ask"]},
+            {"kind":"event","id":"ita.ai","name":"Italian AI move","receivers":["ITA"],"triggered_by":[]},
+            {"kind":"event","id":"sov.ita","name":"Italian answer","receivers":["SOV"],"triggered_by":["event:ita.ai"]},
+            {"kind":"decision","id":"SOV_own","triggered_by":[]},
+            {"kind":"event","id":"sov.own","name":"Own choice","receivers":["SOV"],"triggered_by":["decision:SOV_own"]}]);
         let definition = json!({"tracks":{"focus":[
             {"action":{"kind":"select_focus","entity":{"kind":"focus","id":"SOV_pact"}}},
             {"action":{"kind":"research","entity":{"kind":"technology","id":"tech"}}},
@@ -210,7 +232,10 @@ mod tests {
         assert_eq!(by_id("sov.other")["branch_focuses"][0]["id"], "SOV_other");
         assert_eq!(reach("sov.both"), "anyway", "a monthly event can fire it too");
         assert_eq!(reach("sov.pulse"), "anyway", "nothing traced calls it");
-        assert_eq!(reach("sov.cze"), "anyway", "another nation sends it");
+        assert_eq!(reach("sov.cze"), "foreign", "another nation's focus sends it");
+        assert_eq!(reach("sov.ger"), "foreign", "another nation's decision sends it");
+        assert_eq!(reach("sov.ita"), "foreign", "an event only another nation receives starts it");
+        assert_eq!(reach("sov.own"), "anyway", "own decision, always available");
         assert_eq!(result["guide_focus_count"], 1);
     }
 
