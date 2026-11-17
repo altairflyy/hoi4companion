@@ -152,7 +152,10 @@ pub fn targets(
         if row["tracking"] != "reminder" && params["category"] == "production" {
             if (["ready", "active", "completed"].contains(&status)
                 || status == "not_applicable" && reason == "production_superseded"
-                || status == "unverifiable" && reason == "manual_confirmation_required")
+                || status == "unverifiable" && reason == "manual_confirmation_required"
+                // Its own targets are observed even while an earlier manual step
+                // ("Finish all but cancel extra") is unconfirmed.
+                || status == "unverifiable" && reason == "dependency_unknown")
                 && item["production_admitted"] != false
             {
                 result.extend(hud_production::proposals(
