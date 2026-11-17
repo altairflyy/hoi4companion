@@ -3,7 +3,7 @@
 use crate::{domain_context, guide_prepare, guide_runtime, production_context, state};
 use hoi4companion_guide_core::{Condition, State};
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 type Result<T> = std::result::Result<T, String>;
 fn text(v: &Value) -> &str {
     v.as_str().unwrap_or("")
@@ -190,6 +190,47 @@ fn step_result<'a>(evaluation: &'a Value, key: &str) -> Result<&'a Value> {
         .find(|r| text(&r["key"]) == key)
         .ok_or_else(|| "Missing evaluated guide step".into())
 }
+/// True when the guide has "UP" steps (next level of a technology line).
+pub fn has_relative_research(guide: &Value) -> bool {
+    rows(guide).iter().any(|s| truth(&s["relative_research"]))
+}
+/// Where each "UP" step lands when the nation's start research is known
+/// (`guide["research_start"]`, from the country history): the k-th "UP" of a
+/// line in a track is the k-th level of that line the nation lacks at the
+/// start and no explicit step of the track names. None: the line has no
+/// such level left. A line with a level whose start state is unknown is left
+/// out, so its steps keep the observation-time binding.
+fn intended_up_targets(guide: &Value, record: &Value) -> Option<HashMap<String, Option<Value>>> {
+    let start = &guide["research_start"];
+    let researched = start["researched"].as_array()?;
+    let unknown = start["unknown"].as_array().cloned().unwrap_or_default();
+    let mut result = HashMap::new();
+    for lane in guide["tracks"].as_object().into_iter().flat_map(|m| m.values()) {
+        let steps = list(lane);
+        // Levels the track asks by name, or a branch choice already bound to.
+        let taken: HashSet<&Value> = steps
+            .iter()
+            .filter(|s| s["action"]["kind"] == "research" && !truth(&s["relative_research"]))
+            .map(|s| record["research_bindings"].get(text(&s["key"])).unwrap_or(&s["action"]["entity"]["id"]))
+            .collect();
+        let mut used: HashMap<String, HashSet<Value>> = HashMap::new();
+        for step in steps.iter().filter(|s| truth(&s["relative_research"]) && !truth(&s["research_choice"])) {
+            let chain = list(&step["relative_research"]["chain"]);
+            if chain.iter().any(|id| unknown.contains(id)) {
+                continue;
+            }
+            let done = used
+                .entry(step["relative_research"]["chain"].to_string())
+                .or_insert_with(|| chain.iter().filter(|id| researched.contains(id)).cloned().collect());
+            let target = chain.iter().find(|id| !done.contains(*id) && !taken.contains(id)).cloned();
+            if let Some(target) = &target {
+                done.insert(target.clone());
+            }
+            result.insert(text(&step["key"]).to_owned(), target);
+        }
+    }
+    Some(result)
+}
 fn research(guide: &Value, state: &Value, record: &mut Value, runs: &Value) -> Result<()> {
     let evaluation = guide_runtime::evaluate(guide, state, record)?;
     if !admitted(&evaluation, state, record) {
@@ -253,6 +294,7 @@ fn research(guide: &Value, state: &Value, record: &mut Value, runs: &Value) -> R
                 .remove(key);
         }
     }
+    let intended = intended_up_targets(guide, record);
     for lane in guide["tracks"]
         .as_object()
         .into_iter()
@@ -290,6 +332,18 @@ fn research(guide: &Value, state: &Value, record: &mut Value, runs: &Value) -> R
                         if ["ready", "active", "completed"].contains(&text(&row["status"])) {
                             record["research_bindings"][key] = info["options"][0].clone();
                         }
+                    }
+                }
+                previous.push(step);
+                continue;
+            }
+            // Known start research: the binding follows the guide's order,
+            // whatever was researched before the guide was loaded.
+            if let Some(target) = intended.as_ref().and_then(|m| m.get(key)) {
+                match target {
+                    Some(target) => record["research_bindings"][key] = target.clone(),
+                    None => {
+                        record["research_bindings"].as_object_mut().unwrap().remove(key);
                     }
                 }
                 previous.push(step);

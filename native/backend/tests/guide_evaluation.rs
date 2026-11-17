@@ -849,3 +849,34 @@ fn naval_all_takes_the_dockyards_left_after_other_naval_lines() {
     let result = details(json!([line("3","ship_hull_heavy_1","naval",10),line("1","convoy_1","naval",5)]));
     assert_eq!(result[1]["navy.target-2"]["reason"], "remaining_line_not_last");
 }
+
+#[test]
+fn up_steps_follow_the_guide_order_when_the_guide_is_loaded_late() {
+    // Engines UP three times; the nation starts with e1. Loaded late, with e2
+    // and e3 already done: the first two UP steps are credited, the third asks e4.
+    let up = |key: &str| json!({"key":key,"action":{"kind":"research","entity":{"kind":"technology","id":"e1"}},"relative_research":{"query":"Engines UP","chain":["e1","e2","e3","e4","e5"]}});
+    let mut guide = json!({"schema_version":1,"id":"g","title":"G","applies_to":{"country":"POL"},"tracks":{"research":[up("u1"),up("u2"),up("u3")]}});
+    let mut state = relative_state();
+    state["facts"]["research.completed"] = observed(json!(["e1","e2","e3"]));
+    let record = json!({"schema_version":1,"guide_id":"g","run_id":"x","session_id":"s","country":"POL","checks":{}});
+    let observe = |guide: &Value, record: &Value| {
+        request(0, "guide_observe", json!({"guide":guide,"state":state,"record":record,"runs":{}})).unwrap()["record"].clone()
+    };
+    // Without start research the old rule stands: the first UP takes the next missing level.
+    let old = observe(&guide, &record);
+    assert_eq!(old["research_bindings"]["u1"], "e4");
+    guide["research_start"] = json!({"researched":["e1"],"unknown":[]});
+    let bound = observe(&guide, &record);
+    assert_eq!(bound["research_bindings"], json!({"u1":"e2","u2":"e3","u3":"e4"}));
+    // A wrong earlier binding is corrected, and the evaluation follows the guide.
+    let mut shifted = record.clone();
+    shifted["research_bindings"] = json!({"u1":"e4"});
+    let fixed = observe(&guide, &shifted);
+    assert_eq!(fixed["research_bindings"]["u1"], "e2");
+    let result = eval(&guide, &state, &fixed);
+    assert_eq!(statuses(&result), ["completed", "completed", "ready"]);
+    // A level whose start state is unknown keeps the observation-time rule.
+    guide["research_start"] = json!({"researched":["e1"],"unknown":["e2"]});
+    let unsure = observe(&guide, &record);
+    assert_eq!(unsure["research_bindings"]["u1"], "e4");
+}

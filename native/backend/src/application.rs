@@ -707,9 +707,19 @@ impl Application {
                     }
                 } else { self.guides[id]["applies_to"].clone() };
                 if crate::guide_prepare::mode(&json!({"applies_to":scope}), &identity) != "live" {continue;}
-                let Ok((guide, _)) = self.definition_for_run(id, &record) else {
+                let Ok((mut guide, _)) = self.definition_for_run(id, &record) else {
                     continue;
                 };
+                // "UP" research steps bind against what the nation had at the
+                // campaign start, so levels done before the guide was loaded count.
+                if let Some(context) = self.context.as_ref()
+                    && crate::guide_observe::has_relative_research(&guide)
+                {
+                    let start = context.research_start(&guide);
+                    if !start.is_null() {
+                        guide["research_start"] = start;
+                    }
+                }
                 let active = self.active.as_ref() == Some(id);
                 let (guides, sources, memo, context, associations) =
                     (&self.guides, &self.sources, &mut self.current_archives, self.context.as_ref(), self.association_directory.as_ref());

@@ -15,6 +15,8 @@ pub struct Context {
     compiled: Mutex<HashMap<String, (String, Value)>>,
     presented: Mutex<HashMap<String, Value>>,
     prepared_cache: Option<crate::compiled_cache::Cache>,
+    /// Scenario research at the start (country history), by country and date.
+    research_start: Mutex<HashMap<String, Value>>,
 }
 impl Context {
     pub(crate) fn political_cost_ids<'a>(&self,guides:impl IntoIterator<Item=&'a Value>)->Value {
@@ -33,7 +35,31 @@ impl Context {
             compiled: Mutex::new(HashMap::new()),
             presented: Mutex::new(HashMap::new()),
             prepared_cache,
+            research_start: Mutex::new(HashMap::new()),
         }))
+    }
+    /// Technologies a guide's nation has when its campaign starts, from the
+    /// installed country history (`{researched, unknown}`); null without game
+    /// files, a single country history file or a valid nation. Static data only.
+    pub fn research_start(&self, guide: &Value) -> Value {
+        let country = guide["applies_to"]["country"].as_str().or(guide["country"].as_str()).unwrap_or("");
+        let start = &guide["start_date"];
+        if self.source["game_root"].is_null() || !(start.is_null() || start.is_string()) {
+            return Value::Null;
+        }
+        let key = json!([country, start]).to_string();
+        if let Some(found) = self.research_start.lock().ok().and_then(|c| c.get(&key).cloned()) {
+            return found;
+        }
+        let value = crate::research_start::read(&json!({"game":self.source["game_root"],"mods":self.source["mod_roots"],
+            "country":country,"start_date":start,"dlcs":self.source["dlcs"],"scripts":self.source["scripts"]})).unwrap_or(Value::Null);
+        if let Ok(mut cache) = self.research_start.lock() {
+            if cache.len() >= 64 {
+                cache.clear();
+            }
+            cache.insert(key, value.clone());
+        }
+        value
     }
     pub fn prepare(&self, guide: &Value) -> Result<Value, String> {
         let id = guide["id"].as_str().ok_or("Missing guide identity")?;
@@ -190,7 +216,7 @@ mod tests {
             index:Index::new(&json!({"entries":[]})).unwrap(),
             presentation:guide_enrich::Presentation::new(source.clone(),crate::import_catalog::language()),
             source,library:json!({"documents":[]}),compiled:Mutex::new(HashMap::new()),
-            presented:Mutex::new(HashMap::new()),prepared_cache:None,
+            presented:Mutex::new(HashMap::new()),prepared_cache:None,research_start:Mutex::new(HashMap::new()),
         };
         let mut guide=crate::guide_schema::normalize(&json!({"id":"cache","title":"First","tracks":{"operations":[{"key":"one","action":{"kind":"manual"}}]}})).unwrap();
         let expected=context.present(&guide).unwrap();
