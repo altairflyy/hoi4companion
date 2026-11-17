@@ -13,6 +13,12 @@ fn name(row: &Value) -> Value {
     [&row["localized_name"], &row["name"], &row["id"]].into_iter().find(|v| !s(v).trim().is_empty()).cloned().unwrap_or(Value::Null)
 }
 
+fn readable_id(id: &str) -> String {
+    match id.split_once('_') {
+        Some((tag, rest)) if tag.len() == 3 && tag.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()) => format!("{tag} · {}", rest.replace('_', " ")),
+        _ => id.replace('_', " "),
+    }
+}
 /// `{country, events:[...], possible:[...]}`: each event with its title,
 /// description, type, timing, options (with political power cost) and what
 /// fires it (focus/decision/event, named).
@@ -32,7 +38,8 @@ pub fn list(entries: &Value, country: &str) -> Value {
     }
     let source = |key: &str| {
         let (kind, id) = key.split_once(':').unwrap_or(("", key));
-        let found = by_kind_id.get(&(kind, id)).map(|r| name(r)).unwrap_or_else(|| json!(id));
+        // Unknown to the catalog (another nation's tree): "CZE_soviet_alliance" reads "CZE · soviet alliance".
+        let found = by_kind_id.get(&(kind, id)).map(|r| name(r)).unwrap_or_else(|| json!(readable_id(id)));
         json!({"kind":kind,"id":id,"name":found})
     };
     let event = |row: &Value| {
@@ -78,6 +85,7 @@ mod tests {
         assert_eq!(purge["title"], "Purga");
         assert_eq!(purge["options"], json!([{"id":"sov.1.a","name":"Fallo","political_power_cost":25}]));
         assert_eq!(purge["triggered_by"], json!([{"kind":"focus","id":"SOV_purge","name":"La Grande Purga"},{"kind":"event","id":"sov.0","name":"sov.0"}]));
+        assert_eq!(readable_id("CZE_soviet_alliance"), "CZE · soviet alliance");
         assert_eq!(result["possible"].as_array().unwrap().iter().map(|e| e["id"].clone()).collect::<Vec<_>>(), [json!("any.1")]);
         assert_eq!(list(&entries, "")["reason"], "country_unknown");
     }

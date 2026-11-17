@@ -7,6 +7,11 @@
  const norm=s=>String(s||'').toLocaleLowerCase('it').normalize('NFD').replace(/[̀-ͯ]/g,'');
  // Origin kinds of one event: what fires it, or 'none' when nothing traced does.
  function origins(event){const kinds=[...new Set((event.triggered_by||[]).map(s=>s.kind).filter(k=>ORIGINS.includes(k)))];return kinds.length?kinds:['none'];}
+ // Script placeholders read as words: ROOT is the played nation, FROM the
+ // nation that sent the event; anything else is left out.
+ function readable(text,{country='',other='the other nation'}={}){
+  return String(text||'').replace(/\[(?:ROOT|THIS)\.[A-Za-z]+\]/g,country||'…').replace(/\[FROM\.[A-Za-z]+\]/g,other).replace(/\[[^\]]*\]/g,'…').replace(/\s+/g,' ').trim();
+ }
  function matches(event,query){
   const q=norm(query).trim();if(!q)return true;
   return [event.title,event.id,event.description,...(event.options||[]).map(o=>o.name),...(event.triggered_by||[]).map(s=>s.name)].some(text=>norm(text).includes(q));
@@ -21,5 +26,5 @@
   for(const kind of [...ORIGINS,'none'])result[kind]=(data?.events||[]).filter(e=>origins(e).includes(kind)).length;
   return result;
  }
- return {origins,matches,visible,counts,ORIGINS};
+ return {origins,matches,visible,counts,readable,ORIGINS};
 });

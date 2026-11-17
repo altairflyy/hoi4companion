@@ -25,3 +25,7 @@ test('the events page is routed in the suite and wired to its scripts',()=>{
  for(const script of ['/events-model.js','/events.js'])assert.ok(html.includes(script));
  assert.match(fs.readFileSync('src/hoi4companion/web/suite.html','utf8'),/data-view="events"/);
 });
+test('script placeholders read as the played and the other nation',()=>{
+ assert.equal(model.readable(' La [FROM.GetName] propone a [ROOT.GetNameDef] un [Unknown]  patto ',{country:'SOV',other:'l\u2019altra nazione'}),'La l’altra nazione propone a SOV un … patto');
+ assert.equal(model.readable(null),'');
+});

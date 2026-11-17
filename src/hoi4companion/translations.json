@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "messages": {
+    "the other nation": "l’altra nazione",
     "EVENTS": "EVENTI",
     "Events for": "Eventi per",
     "Events the game can send to the nation you play, read from the installed scripts. Open one to see its answers and what triggers it.": "Eventi che il gioco può inviare alla nazione che giochi, letti dagli script installati. Aprine uno per vedere le risposte e cosa lo attiva.",
