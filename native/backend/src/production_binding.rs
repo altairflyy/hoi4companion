@@ -351,7 +351,7 @@ fn run(
         fact(&format!("{key}.started"), "eq", json!(true)),
     );
     if params["quantity_mode"] == "remaining" {
-        if category != "military"
+        if !["military", "naval"].contains(&s(&category))
             || [
                 "requested_factories",
                 "assigned_factories",

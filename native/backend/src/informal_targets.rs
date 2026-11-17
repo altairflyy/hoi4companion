@@ -213,7 +213,7 @@ pub fn production(
     library: &Value,
     declared: &Value,
 ) -> Result<Option<Value>> {
-    let pattern = regex(r"(?i)^\s*(MIL|NAV|Production)\s*:\s*(.+)$");
+    let pattern = regex(r"(?i)^\s*(MIL|NAV|Navy|Production)\s*:\s*(.+)$");
     let fallback;
     let hit = if let Some(hit) = pattern.captures(text) {
         hit
@@ -231,13 +231,36 @@ pub fn production(
             .ok_or("Invalid production prefix")?
     };
     let prefix = hit[1].to_owned();
-    let body = &hit[2];
+    // "Navy: build convoys:5": the verb only introduces the list.
+    let body = regex(r"(?i)^(?:build|produce|queue)\s+").replace(&hit[2], "").to_string();
+    let body = body.as_str();
     let category = match prefix.to_lowercase().as_str() {
         "mil" => Some("military"),
-        "nav" => Some("naval"),
+        "nav" | "navy" => Some("naval"),
         _ => None,
     };
-    if regex(r"\s&\s").is_match(body) {
+    let item = regex(
+        r"(?i)^([^:\n]+?)\s*(?::\s*|\s+to\s+|\s+)(\d{1,6}(?:\s*(?:->|→)\s*\d{1,6})?|ALL|rest)\s*$",
+    );
+    // "A:5 & B: ALL" lists two items; "Leningrad & Minsk Class:2" is one
+    // design name. Split on " & " only after a part with its own quantity.
+    let split_and = |part: &str| -> Option<Vec<String>> {
+        let mut out = vec![];
+        let mut rest = part.to_owned();
+        while let Some(at) = rest.find(" & ") {
+            let left = rest[..at].trim().to_owned();
+            if !item.is_match(&left) {
+                return None;
+            }
+            out.push(left);
+            rest = rest[at + 3..].trim().to_owned();
+        }
+        out.push(rest);
+        Some(out)
+    };
+    if regex(r"\s&\s").is_match(body)
+        && body.split(',').any(|p| p.contains(" & ") && split_and(p.trim()).is_none())
+    {
         return Ok(None);
     }
     let aliases = index.vocabulary()["abbreviations"]["production"]
@@ -246,6 +269,14 @@ pub fn production(
         .flatten()
         .filter(|(k, _)| !["MIL", "NAV"].contains(&k.as_str()))
         .map(|(k, v)| (k.to_lowercase(), v.as_str().unwrap_or("").to_owned()))
+        .chain(
+            index.vocabulary()["abbreviations"]["naval"]
+                .as_object()
+                .into_iter()
+                .flatten()
+                .filter(|_| category == Some("naval"))
+                .map(|(k, v)| (k.to_lowercase(), v.as_str().unwrap_or("").to_owned())),
+        )
         .collect::<HashMap<_, _>>();
     let mut parts = vec![];
     let mut original = vec![];
@@ -255,7 +286,8 @@ pub fn production(
         .split(',')
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .flat_map(split_pairs)
+        .flat_map(|p| split_and(p).unwrap_or_else(|| vec![p.to_owned()]))
+        .flat_map(|p| split_pairs(&p))
     {
         let mut part = part.to_owned();
         if let Some(note) = regex(r"(?i)^(.*?)\s*(\((?:add\s+)?MIOs?\))$").captures(&part) {
@@ -283,9 +315,6 @@ pub fn production(
     if parts.iter().any(|p| regex(r"^\d+$").is_match(p)) {
         return Ok(None);
     }
-    let item = regex(
-        r"(?i)^([^:\n]+?)\s*(?::\s*|\s+to\s+|\s+)(\d{1,6}(?:\s*(?:->|→)\s*\d{1,6})?|ALL|rest)\s*$",
-    );
     let all_parts = parts
         .iter()
         .enumerate()
@@ -361,19 +390,18 @@ pub fn production(
             .get(&query.to_lowercase())
             .map(String::as_str)
             .unwrap_or(query);
+        // "BBe" = empty battleship: "empty" describes the design's modules,
+        // the equipment to produce is still a battleship hull.
+        let name = if category == Some("naval") { name.strip_prefix("empty ").unwrap_or(name) } else { name };
         let remaining = ["all", "rest"].contains(&entry[2].to_lowercase().as_str());
-        if remaining
-            && (category == Some("naval")
-                || all_parts != vec![parts.len() - 1]
-                || i != parts.len() - 1)
-        {
+        if remaining && (all_parts != vec![parts.len() - 1] || i != parts.len() - 1) {
             parsed.push(None);
             continue;
         }
         let mut params = json!({"equipment_name":name,"category":"production"});
         if remaining {
             params["quantity_mode"] = json!("remaining");
-            params["production_category"] = json!("military");
+            params["production_category"] = json!(category.unwrap_or("military"));
         } else {
             let bounds = regex(r"\s*(?:->|→)\s*")
                 .split(&entry[2])

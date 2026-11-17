@@ -471,8 +471,20 @@ fn project(guide: &Value, state: &Value, baselines: &Value) -> (Value, usize) {
         let remaining = params["quantity_mode"] == "remaining";
         let mut allocated = None;
         let mut reason = "";
+        // "ALL" takes what is left of the pool its line draws from: military
+        // factories, or naval dockyards for a naval line.
+        let pool = selector.and_then(|v| v["category"].as_str()).filter(|c| ["military", "naval"].contains(c));
+        let pool_lines: Vec<usize> = if known_lines {
+            lines.iter().enumerate().filter(|(_, r)| pool.is_some_and(|c| r["category"] == c)).map(|(i, _)| i).collect()
+        } else {
+            vec![]
+        };
         if remaining {
-            let total = &state["facts"]["country.production.effective_factories.military"];
+            let total = &state["facts"][if pool == Some("naval") {
+                "country.production.effective_factories.dockyards"
+            } else {
+                "country.production.effective_factories.military"
+            }];
             let total = if state["usable"] == true
                 && ["observed", "calculated"].contains(&text(&total["status"]))
                 && total["source"].as_str().is_some_and(|s| !s.is_empty())
@@ -485,10 +497,10 @@ fn project(guide: &Value, state: &Value, baselines: &Value) -> (Value, usize) {
             target = None;
             if known_lines
                 && matched.complete
-                && selector.is_some_and(|v| v["category"] == "military")
+                && pool.is_some()
                 && let Some(total) = total
             {
-                let others = military
+                let others = pool_lines
                     .iter()
                     .filter(|i| !matched.indices.contains(i))
                     .map(|i| lines[*i]["requested_factories"].as_f64().unwrap_or(0.) as u128)
@@ -498,7 +510,7 @@ fn project(guide: &Value, state: &Value, baselines: &Value) -> (Value, usize) {
                     target = Some(desired);
                     allocated = requested.map(|requested| {
                         matched.indices.len() == 1
-                            && matched.indices.first() == military.last()
+                            && matched.indices.first() == pool_lines.last()
                             && requested > 0
                             && requested >= desired
                     });
@@ -510,7 +522,7 @@ fn project(guide: &Value, state: &Value, baselines: &Value) -> (Value, usize) {
                 "remaining_line_ambiguous"
             } else if matched.indices.is_empty() {
                 "remaining_line_missing"
-            } else if matched.indices.first() != military.last() {
+            } else if matched.indices.first() != pool_lines.last() {
                 "remaining_line_not_last"
             } else {
                 ""

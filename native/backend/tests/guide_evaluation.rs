@@ -785,3 +785,64 @@ fn unmatched_production_targets_state_why() {
     let detail = production_details(json!([naval]), step)[1]["tank"].clone();
     assert_eq!(detail["reason"], "category_mismatch");
 }
+
+// ---- naval production lines
+
+fn naval_catalog() -> Value {
+    json!({"vocabulary":{"abbreviations":{"production":{},"naval":{"BBe":"empty battleship"}}},"entries":[
+        {"name":"Convoy","aliases":["Convoys"],"kind":"equipment","id":"convoy","family_id":"convoy","production_ui_category":"interface_category_naval","equipment_ids":["convoy_1"],"is_archetype":true,"country_aliases":{}},
+        {"name":"Battleship","aliases":["Battleships","heavy ship hull"],"kind":"equipment","id":"ship_hull_heavy","family_id":"ship_hull_heavy","production_ui_category":"interface_category_naval","equipment_ids":["ship_hull_heavy_1","ship_hull_heavy_2"],"is_archetype":true,"country_aliases":{}}]})
+}
+fn naval_command(text: &str) -> Value {
+    let mut args = naval_catalog();
+    args["text"] = json!(text);
+    args["country"] = json!("SOV");
+    args["library"] = json!({});
+    args["declared"] = json!({});
+    request(0, "import_production_command", args).unwrap()
+}
+
+#[test]
+fn navy_lines_become_naval_production_targets_with_all_remaining_dockyards() {
+    let parsed = naval_command("Navy: build convoys:5 & BBe: ALL");
+    let targets = parsed["params"]["production_targets"].as_array().unwrap_or_else(|| panic!("not parsed: {parsed}"));
+    assert_eq!(targets.len(), 2, "{parsed}");
+    assert_eq!(targets[0]["requested_factories"], 5);
+    assert_eq!(targets[0]["production_selector"]["category"], "naval");
+    assert_eq!(targets[1]["quantity_mode"], "remaining");
+    assert_eq!(targets[1]["production_selector"]["category"], "naval");
+    // A design name with "&" and no quantity before it stays one item.
+    assert!(naval_command("Navy: Leningrad & Minsk Class").is_null());
+}
+
+#[test]
+fn naval_all_takes_the_dockyards_left_after_other_naval_lines() {
+    let parsed = naval_command("Navy: build convoys:5 & BBe: ALL");
+    let step = json!({"key":"navy","action":{"kind":"manual","params":parsed["params"].clone()}});
+    let bound = request(0, "import_bind_production", {
+        let mut args = naval_catalog();
+        args["step"] = step;
+        args["country"] = json!("SOV");
+        args["library"] = json!({});
+        args["declared"] = json!({});
+        args
+    }).unwrap();
+    let step = bound["step"].clone();
+    let line = |id: &str, equipment: &str, category: &str, requested: u64| json!({"id":id,"equipment":equipment,"name":equipment,"category":category,
+        "requested_factories":requested,"assigned_factories":requested,"active_factories":requested,"damaged_factories":0,"design":{"status":"observed","modules":{},"upgrades":{}}});
+    let details = |lines: Value| {
+        let state = normalized_state(&json!({"schema_version":1,"usable":true,"facts":{"country":observed(json!("SOV")),
+            "production.lines":observed(lines),"country.production.effective_factories.military":observed(json!(40)),
+            "country.production.effective_factories.dockyards":observed(json!(15))}}));
+        production_projection("production", json!({"guide":{"tracks":{"operations":[step.clone()]}},"state":state,"baselines":{}}))
+    };
+    // A land line never counts against the dockyards.
+    let result = details(json!([line("1","convoy_1","naval",5),line("2","infantry_equipment_1","military",30),line("3","ship_hull_heavy_1","naval",10)]));
+    let all = &result[1]["navy.target-2"];
+    assert_eq!(all["target"], 10, "{result}");
+    assert_eq!(all["reason"], "");
+    assert_eq!(result[0]["facts"]["guide.production.navy.target-2.remaining_allocated"]["value"], true);
+    // The ALL line must be the last naval line.
+    let result = details(json!([line("3","ship_hull_heavy_1","naval",10),line("1","convoy_1","naval",5)]));
+    assert_eq!(result[1]["navy.target-2"]["reason"], "remaining_line_not_last");
+}
