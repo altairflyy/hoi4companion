@@ -130,7 +130,8 @@ impl Context {
 /// family) the selector names, localized. The author's text is unchanged.
 fn name_production_targets(guide: &mut Value, catalog: &[Value]) {
     for step in guide["tracks"].as_object_mut().into_iter().flat_map(|t| t.values_mut()).flat_map(|v| v.as_array_mut().into_iter().flatten()) {
-        let params = &mut step["action"]["params"];
+        // Never create a missing params object (indexing would insert null).
+        let Some(params) = step.get_mut("action").and_then(|a| a.get_mut("params")) else { continue };
         if params["category"] != "production" {
             continue;
         }
@@ -171,6 +172,9 @@ mod tests {
             {"equipment_name":"battleship","production_selector":{"equipment_ids":["ship_hull_heavy_2","ship_hull_heavy_1"],"variant_names":[]}},
             {"equipment_name":"I-16","production_selector":{"equipment_ids":["fighter_equipment_1","small_plane_airframe_1"],"variant_names":["I-16","fighter_equipment_1"]}},
             {"equipment_name":"unknown","production_selector":{"equipment_ids":["nothing"],"variant_names":[]}}]}}}]}});
+        let mut focus = json!({"tracks":{"focus":[{"key":"f","action":{"kind":"select_focus","entity":{"kind":"focus","id":"F"}}}]}});
+        name_production_targets(&mut focus, &catalog);
+        assert!(focus["tracks"]["focus"][0]["action"].get("params").is_none(), "a step without params keeps none");
         name_production_targets(&mut guide, &catalog);
         let targets = &guide["tracks"]["operations"][0]["action"]["params"]["production_targets"];
         assert_eq!(targets[0]["display_name"], "Equipaggiamento di supporto");
