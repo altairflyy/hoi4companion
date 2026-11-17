@@ -427,6 +427,10 @@ struct Paint {
     card_border:ID2D1SolidColorBrush,
     text:ID2D1SolidColorBrush,
     muted:ID2D1SolidColorBrush,
+    /// Card checklist emphasis (see `card::Hue`): reached, to do, queued.
+    done:ID2D1SolidColorBrush,
+    todo:ID2D1SolidColorBrush,
+    queued:ID2D1SolidColorBrush,
 }
 impl Paint {
     unsafe fn new(context:&ID2D1DeviceContext)->windows::core::Result<Self> {
@@ -442,7 +446,10 @@ impl Paint {
                 card_bg:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.035,g:0.055,b:0.075,a:0.88},None)?,
                 card_border:context.CreateSolidColorBrush(&D2D1_COLOR_F {a:0.55,..colors[0]},None)?,
                 text:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.86,g:0.89,b:0.91,a:1.0},None)?,
-                muted:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.62,g:0.69,b:0.73,a:1.0},None)?})
+                muted:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.62,g:0.69,b:0.73,a:1.0},None)?,
+                done:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.42,g:0.88,b:0.52,a:1.0},None)?,
+                todo:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:1.0,g:0.64,b:0.32,a:1.0},None)?,
+                queued:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.27,g:0.84,b:1.0,a:1.0},None)?})
         }
     }
 }
@@ -580,7 +587,7 @@ impl Graphics {
             let limit=max_height-10.0*scale;
             let mut blocks:Vec<(String,usize,u8)>=Vec::new();
             if !collapsed {
-                for (text,format,tone) in [(&card.heading,1usize,1u8),(&card.note,2,2),(&card.body,3,1),(&card.badge,2,3)] {
+                for (text,format,tone) in [(&card.heading,1usize,1u8),(&card.note,2,2),(&card.body,3,4),(&card.badge,2,3)] {
                     blocks.push((text.clone(),format,tone));
                 }
             }
@@ -600,7 +607,7 @@ impl Graphics {
             for (text,format,tone) in blocks {block(self,&text,format,tone,&mut y,&mut lines)?;}
             if !collapsed && !card.production.trim().is_empty()
                 && block(self,&crate::i18n::text("Production"),0,0,&mut y,&mut lines)?.is_some() {
-                block(self,&card.production,2,1,&mut y,&mut lines)?;
+                block(self,&card.production,3,4,&mut y,&mut lines)?;
             }
             // Reference pictures (as on the walkthrough page) under the text,
             // each with its name. Until a picture is decoded, or if it fails,
@@ -648,8 +655,24 @@ impl Graphics {
                 self.context.DrawRectangle(rect,&self.paint.card_border,1.0*scale,None);
             }
             for (text,format,rect,tone) in &lines {
-                let brush=match tone {0=>&self.paint.strokes[0],1=>&self.paint.text,2=>&self.paint.muted,_=>&self.paint.strokes[2]};
-                self.context.DrawText(text,&formats[*format],rect,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
+                let brush=match tone {0=>&self.paint.strokes[0],1|4=>&self.paint.text,2=>&self.paint.muted,_=>&self.paint.strokes[2]};
+                if *tone!=4 {
+                    self.context.DrawText(text,&formats[*format],rect,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
+                    continue;
+                }
+                // Checklist text: marks, counts and states in color (card::spans).
+                let layout=self.write.CreateTextLayout(text,&formats[*format],(rect.right-rect.left).max(1.0),(rect.bottom-rect.top).max(1.0))?;
+                for (start,length,hue) in crate::card::spans(&String::from_utf16_lossy(text)) {
+                    let range=DWRITE_TEXT_RANGE {startPosition:start,length};
+                    let effect=match hue {
+                        crate::card::Hue::Done=>Some(&self.paint.done),crate::card::Hue::Todo=>Some(&self.paint.todo),
+                        crate::card::Hue::Queued=>Some(&self.paint.queued),crate::card::Hue::Unknown=>Some(&self.paint.muted),
+                        crate::card::Hue::Strong=>None,
+                    };
+                    if let Some(effect)=effect {layout.SetDrawingEffect(&effect.cast::<windows::core::IUnknown>()?,range)?;}
+                    if hue!=crate::card::Hue::Unknown {layout.SetFontWeight(DWRITE_FONT_WEIGHT_SEMI_BOLD,range)?;}
+                }
+                self.context.DrawTextLayout(windows_numerics::Vector2 {X:rect.left,Y:rect.top},&layout,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP);
             }
             for (button,label,[left,top,right,bottom]) in &buttons {
                 let rect=D2D_RECT_F {left:*left,top:*top,right:*right,bottom:*bottom};

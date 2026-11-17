@@ -84,8 +84,127 @@ pub fn hit(buttons: &[(Button, [f32; 4])], x: f32, y: f32) -> Option<Button> {
     buttons.iter().find(|(_, r)| x >= r[0] && x < r[2] && y >= r[1] && y < r[3]).map(|(b, _)| *b)
 }
 
+/// Emphasis on the card's checklist lines, so what is done and what is left
+/// reads at a glance.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Hue {
+    /// Reached (a ✓ line mark, a count at or above its target).
+    Done,
+    /// Still to do (a • line mark, a count below its target, "up to the maximum").
+    Todo,
+    /// Already queued in the game.
+    Queued,
+    /// Not observed ("?").
+    Unknown,
+    /// The region or product a line is about (semibold, default color).
+    Strong,
+}
+
+/// Colored ranges of card text, in UTF-16 units as DirectWrite counts them:
+/// line marks, the name before a line's first colon, "a/b" and "a of b"
+/// counts (in both interface languages) and a few state phrases.
+pub fn spans(text: &str) -> Vec<(u32, u32, Hue)> {
+    const QUEUED: [&str; 2] = ["(in coda)", "(queued)"];
+    const TODO: [&str; 2] = ["fino al massimo", "up to the maximum"];
+    let mut out = Vec::new();
+    let mut base = 0u32;
+    for line in text.split('\n') {
+        let chars: Vec<char> = line.chars().collect();
+        // UTF-16 offset of each char index (plus the end).
+        let mut at = Vec::with_capacity(chars.len() + 1);
+        let mut unit = base;
+        for c in &chars {
+            at.push(unit);
+            unit += c.len_utf16() as u32;
+        }
+        at.push(unit);
+        let range = |from: usize, to: usize, hue: Hue, out: &mut Vec<(u32, u32, Hue)>| {
+            if to > from {
+                out.push((at[from], at[to] - at[from], hue));
+            }
+        };
+        let start = chars.iter().position(|c| !c.is_whitespace()).unwrap_or(chars.len());
+        if let Some(mark) = chars.get(start).and_then(|c| match c { '✓' => Some(Hue::Done), '•' => Some(Hue::Todo), _ => None }) {
+            range(start, start + 1, mark, &mut out);
+            let name = start + 2;
+            if let Some(colon) = chars.iter().skip(name).position(|c| *c == ':').map(|p| p + name).filter(|p| p - name <= 60) {
+                range(name, colon, Hue::Strong, &mut out);
+            }
+        }
+        let number = |i: usize| -> Option<(usize, Option<u64>)> {
+            if chars.get(i) == Some(&'?') {
+                return Some((i + 1, None));
+            }
+            let end = (i..chars.len()).find(|j| !chars[*j].is_ascii_digit()).unwrap_or(chars.len());
+            (end > i).then(|| (end, chars[i..end].iter().collect::<String>().parse().ok()))
+        };
+        let mut i = 0;
+        while i < chars.len() {
+            let fresh = i == 0 || !chars[i - 1].is_ascii_alphanumeric();
+            if fresh && let Some((end, have)) = number(i) {
+                // "a/b" or "a di b" / "a of b".
+                let separator = [("/", 1usize), (" di ", 4), (" of ", 4)].into_iter().find(|(sep, n)| {
+                    chars.get(end..end + n).is_some_and(|s| s.iter().collect::<String>() == *sep)
+                });
+                if let Some((_, n)) = separator && let Some((stop, want)) = number(end + n) {
+                    let hue = match (have, want) {
+                        (Some(have), Some(want)) if have >= want => Hue::Done,
+                        (Some(_), Some(_)) => Hue::Todo,
+                        _ => Hue::Unknown,
+                    };
+                    range(i, stop, hue, &mut out);
+                    i = stop;
+                    continue;
+                }
+                i = end;
+                continue;
+            }
+            i += 1;
+        }
+        let lower: String = chars.iter().collect();
+        for (phrases, hue) in [(&QUEUED[..], Hue::Queued), (&TODO[..], Hue::Todo)] {
+            for phrase in phrases {
+                if let Some(byte) = lower.find(phrase) {
+                    let from = lower[..byte].chars().count();
+                    range(from, from + phrase.chars().count(), hue, &mut out);
+                }
+            }
+        }
+        if let (Some(open), Some(close)) = (lower.find('('), lower.find(')'))
+            && close > open
+            && (lower[open..close].ends_with(" in uso") || lower[open..close].ends_with(" in use"))
+        {
+            let from = lower[..open].chars().count();
+            range(from, from + lower[open..=close].chars().count(), Hue::Todo, &mut out);
+        }
+        base = unit + 1;
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn checklist_lines_color_marks_counts_and_states() {
+        let text = "In 2 regioni, segnate sulla mappa:
+✓ Mosca: Infrastruttura 5/5
+• Kharkov: Infrastruttura 4/5 (in coda) · Fabbrica militare 1, fino al massimo
+• Camion: 3 di 4 fabbriche (2 in uso)
+• Kursk: Infrastruttura ?/5";
+        let spans = spans(text);
+        let pick = |hue: Hue| -> Vec<String> {
+            let units: Vec<u16> = text.encode_utf16().collect();
+            spans.iter().filter(|s| s.2 == hue).map(|s| String::from_utf16_lossy(&units[s.0 as usize..(s.0 + s.1) as usize])).collect()
+        };
+        assert_eq!(pick(Hue::Done), ["✓", "5/5"]);
+        assert_eq!(pick(Hue::Strong), ["Mosca", "Kharkov", "Camion", "Kursk"]);
+        assert_eq!(pick(Hue::Todo), ["•", "4/5", "fino al massimo", "•", "3 di 4", "(2 in uso)", "•"]);
+        assert_eq!(pick(Hue::Queued), ["(in coda)"]);
+        assert_eq!(pick(Hue::Unknown), ["?/5"]);
+        assert!(spans.iter().all(|s| s.2 != Hue::Done || !pick(Hue::Done).is_empty()));
+        assert!(super::spans("I-16:5 Truck:4").is_empty(), "author shorthand is not a count");
+    }
+
     use super::*;
 
     #[test]
