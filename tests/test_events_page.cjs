@@ -26,6 +26,10 @@ test('the events page is routed in the suite and wired to its scripts',()=>{
  assert.match(fs.readFileSync('src/hoi4companion/web/suite.html','utf8'),/data-view="events"/);
 });
 test('script placeholders read as the played and the other nation',()=>{
- assert.equal(model.readable(' La [FROM.GetName] propone a [ROOT.GetNameDef] un [Unknown]  patto ',{country:'SOV',other:'l\u2019altra nazione'}),'La l’altra nazione propone a SOV un … patto');
+ assert.equal(model.readable(' La [FROM.GetName] propone a [ROOT.GetNameDef] un [Unknown]  patto ',{country:'SOV',other:'l\u2019altra nazione'}),'L’altra nazione propone a SOV un … patto');
+ assert.equal(model.readable('La [FROM.GetName] chiede aiuto a l’[ROOT.GetNameDef]',{country:'SOV',other:'CZE'}),'CZE chiede aiuto a SOV');
+ assert.equal(model.sender({triggered_by:[{kind:'focus',id:'CZE_soviet_alliance'},{kind:'focus',id:'CZE_seek_french_leadership'}]},'SOV'),'CZE');
+ assert.equal(model.sender({triggered_by:[{kind:'focus',id:'CZE_a'},{kind:'decision',id:'POL_b'}]},'SOV'),null,'two senders: none named');
+ assert.equal(model.sender({triggered_by:[{kind:'focus',id:'SOV_a'}]},'SOV'),null,'own focus is not a sender');
  assert.equal(model.readable(null),'');
 });

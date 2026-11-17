@@ -10,7 +10,16 @@
  // Script placeholders read as words: ROOT is the played nation, FROM the
  // nation that sent the event; anything else is left out.
  function readable(text,{country='',other='the other nation'}={}){
-  return String(text||'').replace(/\[(?:ROOT|THIS)\.[A-Za-z]+\]/g,country||'…').replace(/\[FROM\.[A-Za-z]+\]/g,other).replace(/\[[^\]]*\]/g,'…').replace(/\s+/g,' ').trim();
+  // An article the game writes before a name ("la [FROM.GetName]") is dropped.
+  const article=/(?:\b(?:la|il|lo|le|gli|i|the)\s+|\bl['’])(?=\[(?:ROOT|THIS|FROM)\.)/gi;
+  return String(text||'').replace(article,'').replace(/\[(?:ROOT|THIS)\.[A-Za-z]+\]/g,country||'…').replace(/\[FROM\.[A-Za-z]+\]/g,other).replace(/\[[^\]]*\]/g,'…').replace(/\s+/g,' ').trim()
+   .replace(/^./,c=>c.toLocaleUpperCase());
+ }
+ // The nation that sends an event, when every traced trigger belongs to one
+ // other nation (its focus or decision ids start with its tag).
+ function sender(event,country){
+  const tags=[...new Set((event.triggered_by||[]).filter(s=>s.kind!=='event').map(s=>/^([A-Z][A-Z0-9]{2})_/.exec(s.id||'')?.[1]).filter(Boolean))];
+  return tags.length===1&&tags[0]!==country?tags[0]:null;
  }
  function matches(event,query){
   const q=norm(query).trim();if(!q)return true;
@@ -26,5 +35,5 @@
   for(const kind of [...ORIGINS,'none'])result[kind]=(data?.events||[]).filter(e=>origins(e).includes(kind)).length;
   return result;
  }
- return {origins,matches,visible,counts,readable,ORIGINS};
+ return {origins,matches,visible,counts,readable,sender,ORIGINS};
 });

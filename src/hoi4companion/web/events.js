@@ -7,8 +7,10 @@
  for(const node of document.querySelectorAll('[data-copy]'))node.textContent=t(node.dataset.copy);
  $('eventSearch').placeholder=t('Search title, option or what triggers it');
  const originLabel={focus:'National focus',decision:'Decision',event:'Event'};
- const read=text=>model.readable(text,{country,other:t('the other nation')});
+ let current=null;
+ const read=text=>model.readable(text,{country,other:model.sender(current||{},country)||t('the other nation')});
  function card(event){
+  current=event;
   const item=el('details','event-card'+(event.possible?' event-possible':''));
   const summary=el('summary');summary.append(el('span','event-title',read(event.title)||event.id));
   const tags=el('span','event-tags');
