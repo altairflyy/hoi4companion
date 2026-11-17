@@ -178,7 +178,7 @@ fn card_construction(runtime: &Value, key: &str) -> Value {
         .map(|(_, name, items)| json!({"name":name,"items":items})).collect::<Vec<_>>()})
 }
 /// Most production lines the HUD card lists.
-const CARD_PRODUCTION: usize = 8;
+const CARD_PRODUCTION: usize = 12;
 /// The guide's current production plan for the card, so the player sees how
 /// many factories to assign without opening the production panel: the HUD's
 /// own production proposals (`hud_production::proposals`, admitted from the
@@ -191,7 +191,12 @@ fn card_production(proposed: &Value) -> Value {
             .iter()
             .filter(|row| row["panel"] == "production")
             .take(CARD_PRODUCTION)
-            .map(|row| fields.iter().map(|f| ((*f).to_owned(), row[*f].clone())).collect())
+            .map(|row| {
+                let mut line: serde_json::Map<String, Value> = fields.iter().map(|f| ((*f).to_owned(), row[*f].clone())).collect();
+                // Military factories or naval dockyards, so the card says which.
+                line.insert("category".into(), row["production_selector"]["category"].clone());
+                Value::Object(line)
+            })
             .collect(),
     )
 }
@@ -357,12 +362,12 @@ mod tests {
     #[test]
     fn card_lists_the_production_proposals_only() {
         let proposed = json!([
-            {"key":"p1.target-1","panel":"production","guide_step":"p1","title":"F1ca","quantity":15,"quantity_mode":"total","requested":10,"assigned":8,"goal_satisfied":false,"production_priority":null,"rect":[1,2,3,4]},
+            {"key":"p1.target-1","panel":"production","guide_step":"p1","title":"F1ca","quantity":15,"quantity_mode":"total","requested":10,"assigned":8,"goal_satisfied":false,"production_priority":null,"production_selector":{"category":"military"},"rect":[1,2,3,4]},
             {"key":"f1","panel":"focus","title":"Five-Year Plan"},
             {"key":"p2","panel":"production","guide_step":"p2","title":"Infantry Equipment","quantity":null,"quantity_mode":"remaining","requested":null,"assigned":null,"goal_satisfied":null,"production_priority":"last"}]);
         let rows = card_production(&proposed);
         assert_eq!(rows.as_array().unwrap().len(), 2);
-        assert_eq!(rows[0], json!({"key":"p1.target-1","guide_step":"p1","title":"F1ca","quantity":15,"quantity_mode":"total","requested":10,"assigned":8,"goal_satisfied":false,"production_priority":null}));
+        assert_eq!(rows[0], json!({"key":"p1.target-1","guide_step":"p1","title":"F1ca","quantity":15,"quantity_mode":"total","requested":10,"assigned":8,"goal_satisfied":false,"production_priority":null,"category":"military"}));
         assert_eq!(rows[1]["quantity_mode"], "remaining");
         assert_eq!(card_production(&json!([])), json!([]));
     }

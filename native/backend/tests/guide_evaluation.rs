@@ -791,7 +791,10 @@ fn unmatched_production_targets_state_why() {
 fn naval_catalog() -> Value {
     json!({"vocabulary":{"abbreviations":{"production":{},"naval":{"BBe":"empty battleship"}}},"entries":[
         {"name":"Convoy","aliases":["Convoys"],"kind":"equipment","id":"convoy","family_id":"convoy","production_ui_category":"interface_category_naval","equipment_ids":["convoy_1"],"is_archetype":true,"country_aliases":{}},
-        {"name":"Battleship","aliases":["Battleships","heavy ship hull"],"kind":"equipment","id":"ship_hull_heavy","family_id":"ship_hull_heavy","production_ui_category":"interface_category_naval","equipment_ids":["ship_hull_heavy_1","ship_hull_heavy_2"],"is_archetype":true,"country_aliases":{}}]})
+        {"name":"Heavy Ship","aliases":["Heavy Ships","ship hull heavy"],"kind":"equipment","id":"ship_hull_heavy","family_id":"ship_hull_heavy","production_ui_category":"interface_category_naval","equipment_ids":["ship_hull_heavy_1","ship_hull_heavy_2","battleship_1","battle_cruiser_1"],"is_archetype":true,"country_aliases":{}},
+        {"name":"Battleship I","aliases":["Corazzata I"],"kind":"equipment","id":"battleship_1","family_id":"ship_hull_heavy","equipment_ids":["battleship_1"],"is_archetype":false,"country_aliases":{}},
+        {"name":"Battlecruiser I","aliases":[],"kind":"equipment","id":"battle_cruiser_1","family_id":"ship_hull_heavy","equipment_ids":["battle_cruiser_1"],"is_archetype":false,"country_aliases":{}},
+        {"name":"Modern Battleship","aliases":["Modern Battleships"],"kind":"equipment","id":"modern_battleship","family_id":"ship_hull_heavy","equipment_ids":["modern_battleship"],"is_archetype":false,"country_aliases":{}}]})
 }
 fn naval_command(text: &str) -> Value {
     let mut args = naval_catalog();

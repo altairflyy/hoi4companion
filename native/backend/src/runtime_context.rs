@@ -110,7 +110,8 @@ impl Context {
         // Catalog focuses of the guide's own tree add grounded candidates.
         let extra = crate::entity_resolution::catalog_candidates(self.index.rows(), guide);
         let result = crate::decomposition::decompose_with(guide, &compile, &extra)?;
-        let bound = crate::construction_instructions::bind(&result["guide"], &self.index)?;
+        let mut bound = crate::construction_instructions::bind(&result["guide"], &self.index)?;
+        crate::informal_targets::bind_production_children(&mut bound, &self.index, &self.library)?;
         if result["report"].as_array().is_some_and(|r| r.iter().any(|e| e["status"] == "decomposed")) {
             self.present(&bound)
         } else {

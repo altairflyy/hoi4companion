@@ -89,6 +89,10 @@ fn real_catalog_contract_comparison() {
             let step = |k: &str| a.iter().find(|s| s["key"] == k).cloned();
             assert_eq!(step("word-0002").unwrap()["action"]["params"]["production_targets"].as_array().unwrap().len(), 7, "one production step");
             assert!(step("word-0002--operation-2").is_none(), "no split production memo");
+            // The naval line of the same row is tracked production too.
+            let navy: Vec<Value> = b.iter().filter(|s| s["title"].as_str().is_some_and(|t| t.starts_with("Navy: build convoys"))).cloned().collect();
+            eprintln!("SOV navy steps: {}", navy.iter().map(|s| format!("{} targets={}", s["key"], s["action"]["params"]["production_targets"])).collect::<Vec<_>>().join(" | "));
+            assert!(navy.iter().any(|s| s["action"]["params"]["production_targets"].as_array().is_some_and(|t| t.len() == 2)), "naval production is tracked");
             // The wrong German decision is gone; the reference is grounded to the
             // only answer the Soviet Union can receive.
             let mobilize = step("word-0008").unwrap();

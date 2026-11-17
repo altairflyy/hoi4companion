@@ -219,10 +219,11 @@ fn region_line(region:&Value)->String {
 /// "✓ Camion: 4 of 4 factories" or "Armi leggere: all remaining factories · last line".
 fn card_production_line(row:&Value)->String {
     let title=row["title"].as_str().map(str::trim).filter(|s|!s.is_empty()).unwrap_or("?");
-    let mut line=if row["quantity_mode"]=="remaining" {i18n::format("{0}: all remaining factories",&[title])}
+    let naval=row["category"]=="naval";
+    let mut line=if row["quantity_mode"]=="remaining" {i18n::format(if naval {"{0}: all remaining dockyards"} else {"{0}: all remaining factories"},&[title])}
         else {
             let count=|key:&str|row[key].as_u64().map(|n|n.to_string()).unwrap_or_else(||"?".into());
-            let mut line=i18n::format("{0}: {1} of {2} factories",&[title,&count("requested"),&count("quantity")]);
+            let mut line=i18n::format(if naval {"{0}: {1} of {2} dockyards"} else {"{0}: {1} of {2} factories"},&[title,&count("requested"),&count("quantity")]);
             if let (Some(assigned),Some(requested))=(row["assigned"].as_u64(),row["requested"].as_u64()) && assigned<requested {
                 line.push_str(&format!(" ({})",i18n::format("{0} in use",&[&assigned.to_string()])));
             }
@@ -705,6 +706,8 @@ mod tests {
         assert_eq!(card.note,"In the guide: “Build: INFRA+MILs in: Moscow, Kharkov”");
         assert_eq!(card.body,"In 2 regions, marked on the map:\n• Moscow: Infrastructure 5/5 · Military factory 7, up to the maximum\n• Kharkov: Infrastructure 4/5 (queued)");
         assert_eq!(card.production,"• Truck: 4 of 4 factories (3 in use)\n✓ Infantry equipment: all remaining factories · last line");
+        assert_eq!(card_production_line(&json!({"title":"Convoy","category":"naval","quantity":5,"requested":5,"assigned":5,"goal_satisfied":true})),"✓ Convoy: 5 of 5 dockyards");
+        assert_eq!(card_production_line(&json!({"title":"Heavy Ship","category":"naval","quantity_mode":"remaining","goal_satisfied":false,"production_priority":"last"})),"• Heavy Ship: all remaining dockyards · last line");
         assert_eq!(short_guide_title("Plain guide.docx"),"Plain guide");
         assert_eq!(short_guide_title("  "),"");
     }

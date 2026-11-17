@@ -279,6 +279,8 @@
     "{0}: {1} of {2} factories": "{0}: {1} di {2} fabbriche",
     "{0} in use": "{0} in uso",
     "{0}: all remaining factories": "{0}: tutte le fabbriche rimanenti",
+    "{0}: all remaining dockyards": "{0}: tutti i cantieri rimanenti",
+    "{0}: {1} of {2} dockyards": "{0}: {1} di {2} cantieri",
     "last line": "ultima linea",
     "first line": "prima linea",
     "Tick it when you have done this in the game. The ✓ on the in-game card does the same.": "Spunta quando l’hai fatto nel gioco. La ✓ sulla scheda in gioco fa la stessa cosa.",

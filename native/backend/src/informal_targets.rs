@@ -206,6 +206,22 @@ pub fn named(text: &str, index: &Index, country: &Value) -> Result<Option<Value>
         json!({"params":bound["step"]["action"]["params"],"policies":policies,"timing":hit.get(4).map(|m|m.as_str())}),
     ))
 }
+/// With the ship designer every warship is a design on a hull: a role the
+/// author names (battleship, battlecruiser, destroyer...) is produced on its
+/// hull family. Only roles, never design names: those keep their own match.
+fn naval_hull(name: &str) -> Option<&'static str> {
+    let role = name.trim().to_lowercase();
+    let role = role.trim_end_matches('s');
+    Some(match role {
+        "battleship" | "battlecruiser" | "battle cruiser" => "ship_hull_heavy",
+        "super-heavy battleship" | "super heavy battleship" => "ship_hull_super_heavy",
+        "cruiser" | "light cruiser" | "heavy cruiser" => "ship_hull_cruiser",
+        "destroyer" => "ship_hull_light",
+        "submarine" => "ship_hull_submarine",
+        "carrier" | "aircraft carrier" => "ship_hull_carrier",
+        _ => return None,
+    })
+}
 pub fn production(
     text: &str,
     index: &Index,
@@ -231,6 +247,12 @@ pub fn production(
             .ok_or("Invalid production prefix")?
     };
     let prefix = hit[1].to_owned();
+    // "A, then B" is a sequence: decomposition splits it and each part is
+    // read on its own (`bind_production_children`), so the first part's words
+    // never borrow a quantity from the second.
+    if regex(r"(?i)[,;]\s*then\s+").is_match(&hit[2]) {
+        return Ok(None);
+    }
     // "Navy: build convoys:5": the verb only introduces the list.
     let body = regex(r"(?i)^(?:build|produce|queue)\s+").replace(&hit[2], "").to_string();
     let body = body.as_str();
@@ -399,6 +421,15 @@ pub fn production(
             continue;
         }
         let mut params = json!({"equipment_name":name,"category":"production"});
+        if category == Some("naval")
+            && let Some(hull) = naval_hull(name)
+            && index
+                .entries(json!({"op":"matches","query":hull,"kinds":["equipment"],"explicit":true}))?
+                .iter()
+                .any(|e| e["id"] == hull && crate::state::truth(&e["is_archetype"]))
+        {
+            params["equipment_id"] = json!(hull);
+        }
         if remaining {
             params["quantity_mode"] = json!("remaining");
             params["production_category"] = json!(category.unwrap_or("military"));
@@ -488,6 +519,35 @@ pub fn production(
     Ok(Some(
         json!({"params":params,"remainder":if remainder.is_empty(){Value::Null}else{json!(format!("{prefix}: {}",remainder.join(", ")))}}),
     ))
+}
+
+/// Children split from one line (`A, then B`) are read as production orders
+/// the way the whole line would be: "Navy: build convoys:5 & BBe: ALL" gets
+/// tracked targets. Only a fully understood child (no residue) is bound and
+/// only when every target binds; anything else stays a manual step.
+pub fn bind_production_children(guide: &mut Value, index: &Index, library: &Value) -> Result<()> {
+    let country = guide["applies_to"]["country"].clone();
+    let declared = crate::reference_identity::bindings(guide, index, library)?;
+    for step in guide["tracks"].as_object_mut().into_iter().flat_map(|t| t.values_mut()).flat_map(|v| v.as_array_mut().into_iter().flatten()) {
+        let params = &step["action"]["params"];
+        if params["decomposition"].is_null() || params["production_targets"].is_array() || params["category"] == "construction" || step["tracking"] == "reminder" {
+            continue;
+        }
+        let Some(text) = step["title"].as_str().map(str::to_owned) else { continue };
+        let Some(parsed) = production(&text, index, &country, library, &declared)? else { continue };
+        if !parsed["remainder"].is_null() {
+            continue;
+        }
+        let mut candidate = step.clone();
+        for (key, value) in parsed["params"].as_object().into_iter().flatten() {
+            candidate["action"]["params"][key] = value.clone();
+        }
+        let bound = crate::production_binding::bind(&candidate, index, &country, library, &declared)?;
+        if bound["reason"] == "production_layout" {
+            *step = bound["step"].clone();
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
