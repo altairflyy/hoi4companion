@@ -78,6 +78,7 @@ impl Context {
             return Ok(value.clone());
         }
         let mut value=self.presentation.enrich(guide)?;
+        name_production_targets(&mut value, self.index.rows());
         value["advanced_references"]=json!(self.library["documents"].as_array().into_iter().flatten().map(|d|json!({"id":d["id"],"name":d["name"],"category":d["category"]})).collect::<Vec<_>>());
         let mut cache=self.presented.lock().map_err(|_|"Guide presentation unavailable")?;
         if cache.len()>=64 {cache.clear();}
@@ -123,9 +124,61 @@ impl Context {
         Ok(json!({"definition":prepared,"presentation":self.present(&prepared)?}))
     }
 }
+/// The game's own name for each production target, so the walkthrough says
+/// "Equipaggiamento di supporto" where the author wrote "Sup Equip": a design
+/// or national model name first ("I-16"), else the one catalog equipment (or
+/// family) the selector names, localized. The author's text is unchanged.
+fn name_production_targets(guide: &mut Value, catalog: &[Value]) {
+    for step in guide["tracks"].as_object_mut().into_iter().flat_map(|t| t.values_mut()).flat_map(|v| v.as_array_mut().into_iter().flatten()) {
+        let params = &mut step["action"]["params"];
+        if params["category"] != "production" {
+            continue;
+        }
+        let targets: Vec<&mut Value> = match params["production_targets"].as_array_mut() {
+            Some(list) => list.iter_mut().collect(),
+            None => vec![params],
+        };
+        for target in targets {
+            let selector = &target["production_selector"];
+            let ids: Vec<&str> = selector["equipment_ids"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
+            if ids.is_empty() {
+                continue;
+            }
+            let variant = selector["variant_names"].as_array().and_then(|v| v.first()).and_then(Value::as_str).filter(|v| !v.contains('_'));
+            let entry = catalog.iter().filter(|e| e["kind"] == "equipment").find(|e| {
+                let own: Vec<&str> = e["equipment_ids"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
+                if ids.len() == 1 { e["id"] == ids[0] } else { crate::state::truth(&e["is_archetype"]) && own.len() == ids.len() && ids.iter().all(|id| own.contains(id)) }
+            });
+            let name = variant.map(str::to_owned).or_else(|| entry.and_then(|e| {
+                [&e["localized_name"], &e["name"]].into_iter().find_map(|n| n.as_str().filter(|n| !n.trim().is_empty()).map(str::to_owned))
+            }));
+            if let Some(name) = name {
+                target["display_name"] = json!(name);
+            }
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn production_targets_carry_the_game_name() {
+        let catalog = vec![
+            json!({"kind":"equipment","id":"support_equipment_1","name":"Support Equipment","localized_name":"Equipaggiamento di supporto","equipment_ids":["support_equipment_1"]}),
+            json!({"kind":"equipment","id":"ship_hull_heavy","name":"Heavy Ship","localized_name":"Nave pesante","is_archetype":true,"equipment_ids":["ship_hull_heavy_1","ship_hull_heavy_2"]})];
+        let mut guide = json!({"tracks":{"operations":[{"key":"p","action":{"kind":"manual","params":{"category":"production","production_targets":[
+            {"equipment_name":"Sup Equip","production_selector":{"equipment_ids":["support_equipment_1"],"variant_names":[]}},
+            {"equipment_name":"battleship","production_selector":{"equipment_ids":["ship_hull_heavy_2","ship_hull_heavy_1"],"variant_names":[]}},
+            {"equipment_name":"I-16","production_selector":{"equipment_ids":["fighter_equipment_1","small_plane_airframe_1"],"variant_names":["I-16","fighter_equipment_1"]}},
+            {"equipment_name":"unknown","production_selector":{"equipment_ids":["nothing"],"variant_names":[]}}]}}}]}});
+        name_production_targets(&mut guide, &catalog);
+        let targets = &guide["tracks"]["operations"][0]["action"]["params"]["production_targets"];
+        assert_eq!(targets[0]["display_name"], "Equipaggiamento di supporto");
+        assert_eq!(targets[1]["display_name"], "Nave pesante");
+        assert_eq!(targets[2]["display_name"], "I-16");
+        assert!(targets[3].get("display_name").is_none());
+        assert_eq!(targets[0]["equipment_name"], "Sup Equip", "the author's text stays");
+    }
     #[test]
     fn presentation_cache_keys_full_definition_and_returns_independent_values() {
         let source=Arc::new(json!({"operation_entities":[]}));

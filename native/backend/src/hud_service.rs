@@ -190,6 +190,8 @@ fn card_production(proposed: &Value) -> Value {
         crate::hud_geometry::rows(proposed)
             .iter()
             .filter(|row| row["panel"] == "production")
+            // A production step already done is not listed again and again.
+            .filter(|row| row["status"] != "completed")
             .take(CARD_PRODUCTION)
             .map(|row| {
                 let mut line: serde_json::Map<String, Value> = fields.iter().map(|f| ((*f).to_owned(), row[*f].clone())).collect();
@@ -369,6 +371,8 @@ mod tests {
         assert_eq!(rows.as_array().unwrap().len(), 2);
         assert_eq!(rows[0], json!({"key":"p1.target-1","guide_step":"p1","title":"F1ca","quantity":15,"quantity_mode":"total","requested":10,"assigned":8,"goal_satisfied":false,"production_priority":null,"category":"military"}));
         assert_eq!(rows[1]["quantity_mode"], "remaining");
+        let done = json!([{"key":"p3","panel":"production","guide_step":"p3","title":"Truck","status":"completed","goal_satisfied":true}]);
+        assert_eq!(card_production(&done), json!([]), "satisfied production is not shown forever");
         assert_eq!(card_production(&json!([])), json!([]));
     }
     #[test]

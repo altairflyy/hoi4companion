@@ -13,45 +13,66 @@
   return p.category||(row.action?.kind==='special_project'?'projects':'checkpoints');
  }
  function describe(row,context={}){
-  const p=row.action?.params||{},instructions=[],observations=[];let panel=null,access=null,target=null,bound=false;
+  const p=row.action?.params||{},instructions=[],observations=[];let panel=null,access=null,target=null,bound=false,constructionTitle=null;
   if(p.category==='production'&&row.tracking!=='reminder'){
-   panel='production';access=t('Open Production, then the equipment category.');
    const source=Array.isArray(p.production_targets)?p.production_targets:[p],lines=source.filter(x=>x&&typeof x==='object'&&!Array.isArray(x));
+   const naval=line=>line.production_selector?.category==='naval';
+   panel='production';access=lines.length&&lines.every(naval)?t('Open Production, then the naval category.'):t('Open Production, then the equipment category.');
    bound=lines.length===source.length&&lines.length>0&&lines.every(x=>x.production_selector);
-   for(const line of lines){
-    const product=label(line,'variant_name','equipment_name','equipment_id')||t('Equipment specified by the guide');
-    const amount=line.requested_factories??line.assigned_factories;
-    const basis=line.assigned_factories!=null?t('assigned factories'):t('requested factories');
-    instructions.push(line.quantity_mode==='remaining'?t('{0}: allocate all remaining military factories; keep this line last.',product):
-     Number.isInteger(amount)?t('{0}: set {1} {2}{3}.',product,amount,basis,line.quantity_mode==='additional'?t(' more than the initial allocation'):''):
-     t('{0}: the guide does not specify a verifiable factory quota.',product));
-   }
-   target=instructions.join(' ');
-   // Live status per target, read from the Rust evaluation (reason and near
-   // lines); an unmatched target says why instead of staying silently at zero.
+   const name=line=>label(line,'display_name','variant_name','equipment_name','equipment_id')||t('Equipment specified by the guide');
+   // One line per product: what to set, replaced by the live count once the
+   // Rust evaluation has read it (a met target gets ✓), or by why it is not
+   // detected. Never the order and its status as two separate lists.
    const layout=Array.isArray(row.production?.layout)?row.production.layout:row.production?[row.production]:[];
+   lines.forEach((line,i)=>{
+    const product=name(line),amount=line.requested_factories??line.assigned_factories,dock=naval(line);
+    const basis=line.assigned_factories!=null?(dock?(amount===1?t('assigned dockyard'):t('assigned dockyards')):(amount===1?t('assigned factory'):t('assigned factories')))
+     :(dock?(amount===1?t('requested dockyard'):t('requested dockyards')):(amount===1?t('requested factory'):t('requested factories')));
+    let text=line.quantity_mode==='remaining'?t(dock?'{0}: allocate all remaining dockyards; keep this line last.':'{0}: allocate all remaining military factories; keep this line last.',product):
+     Number.isInteger(amount)?t('{0}: set {1} {2}{3}.',product,amount,basis,line.quantity_mode==='additional'?t(' more than the initial allocation'):''):
+     t('{0}: the guide does not specify a verifiable factory quota.',product);
+    const d=layout[i];
+    if(d&&typeof d==='object'&&!d.superseded_by?.length){
+     const count=d.basis==='assigned'?d.assigned:d.requested;
+     if(Array.isArray(d.lines)&&d.lines.length&&Number.isInteger(count)&&!d.reason&&!d.design_check){
+      const met=line.quantity_mode==='remaining'?Number.isInteger(d.target)&&count>=d.target:Number.isInteger(d.target)&&count>=d.target;
+      text=(met?'✓ ':'')+(line.quantity_mode==='remaining'
+       ?t(dock?'{0}: all remaining dockyards · {1} requested (at least {2})':'{0}: all remaining factories · {1} requested (at least {2})',product,count,d.target??'—')
+       :t(dock?'{0}: {1} of {2} dockyards':'{0}: {1} of {2} factories',product,count,d.target??'—'));
+     }
+    }
+    instructions.push(text);
+   });
+   target=instructions.join(' ');
+   // An unmatched target says why instead of staying silently at zero.
    lines.forEach((line,i)=>{const d=layout[i];if(!d||typeof d!=='object'||d.superseded_by?.length)return;
-    const product=label(line,'variant_name','equipment_name','equipment_id')||t('Equipment specified by the guide');
+    const product=name(line);
     const near=(Array.isArray(d.near_lines)?d.near_lines:[]).filter(n=>n.why===d.reason);
     const names=[...new Set(near.map(n=>n.name||n.equipment))].join(', ');
-    const count=d.basis==='assigned'?d.assigned:d.requested;
     const text=d.reason==='production_unavailable'?t('{0}: live production lines cannot be verified now.',product):
      d.reason==='line_missing'||d.reason==='remaining_line_missing'?t('{0}: not detected — no matching production line is observed.',product):
      d.reason==='design_name_mismatch'?t('{0}: not detected — the line with this equipment has another name ({1}).',product,names):
      d.reason==='category_mismatch'?t('{0}: not detected — the equipment is in another production category ({1}).',product,[...new Set(near.map(n=>n.category))].join(', ')):
      d.reason==='equipment_mismatch'?t('{0}: not detected — a line with this name uses other equipment ({1}).',product,[...new Set(near.map(n=>n.equipment))].join(', ')):
-     d.reason==='remaining_line_not_last'?t('{0}: detected, but it is not the last military line.',product):
-     d.reason==='remaining_capacity_unknown'?t('{0}: total military factories cannot be verified now.',product):
+     d.reason==='remaining_line_not_last'?t(naval(line)?'{0}: detected, but it is not the last naval line.':'{0}: detected, but it is not the last military line.',product):
+     d.reason==='remaining_capacity_unknown'?t(naval(line)?'{0}: total dockyards cannot be verified now.':'{0}: total military factories cannot be verified now.',product):
      d.reason==='remaining_line_ambiguous'?t('{0}: more than one matching line is observed.',product):
-     d.reason==='baseline_missing'||d.design_check?null:
-     Array.isArray(d.lines)&&d.lines.length&&Number.isInteger(count)?t('{0}: detected · {1} of {2} factories.',product,count,d.target??'—'):null;
+     null;
     if(text)observations.push(text);});
   }else if(p.category==='construction'&&row.tracking!=='reminder'){
    access=t('Open Construction and select the indicated region.');
+   const compound=Array.isArray(p.construction_targets)?p.construction_targets.filter(x=>x&&typeof x==='object'):[];
+   if(compound.length){
+    const buildings=[...new Set(compound.map(x=>x.building_name||x.building_id).filter(Boolean))];
+    const regions=[...new Set(compound.map(x=>x.state_name||x.state_id).filter(x=>x!=null))];
+    constructionTitle=t('Build: {0}',buildings.join(t(' and ')));
+    instructions.push(regions.length===1?t('In {0}.',regions[0]):t('In {0} regions: {1}.',regions.length,regions.join(', ')));
+   }else{
    const building=label(p,'building_name','building_id')||t('Building specified by the guide');
    const place=p.province_selector?.kind==='border'?t('Every land province bordering {0}',p.province_selector.country):Array.isArray(p.province_ids)?t('Provinces {0}',p.province_ids.join(', ')):label(p,'state_name')||(p.state_id!=null?t('State {0}',p.state_id):p.province_id!=null?t('Province {0}',p.province_id):t('Location not resolved'));
    const count=p.quantity??p.target_level??p.target_quantity;
    instructions.push(['bunker','coastal_bunker'].includes(p.building_id)&&Number.isInteger(p.target_level)?t('{0} · level {1} in each province · {2}',building,p.target_level,place):Number.isInteger(count)?t('{0} {1} {2} · {3}',count,p.quantity_mode==='additional'?t('additional'):t('total'),building,place):t('{0} · {1}',building,place));
+   }
   }else if(row.action?.kind==='special_project'){
    panel='projects';access=t('Open Special projects and select a compatible facility.');
    target=p.project_name||row.name||row.action.entity?.id;bound=!!p.project_id||!!row.action.entity?.id&&row.catalog_match!==false;
@@ -95,7 +116,7 @@
    row.started_when?t('Start can be observed; final completion has no automatic criterion.'):
    completion?t('Completion follows the declared criterion; no separate start observation is available.'):
    t('Execution cannot be verified automatically from the available data.');
-  const title=row.tracking!=='reminder'&&p.category==='production'?t('Set up production'):row.tracking!=='reminder'&&p.category==='construction'?instructions[0]:
+  const title=row.tracking!=='reminder'&&p.category==='production'?t('Set up production'):row.tracking!=='reminder'&&p.category==='construction'?(constructionTitle||instructions[0]):
    target&&['politics','event','projects'].includes(panel)?(panel==='politics'&&!label(p,'law_name','person_name','idea_name','trait_name')?(row.name||row.title||target):target):p.operation_id==='create_intelligence_agency'?t('Create intelligence agency'):null;
   const displayTitle=context.reader?.read(title||row.name||row.title||'',row).text||title;
   return {title:displayTitle,instructions,observations,access,target,monitoring,hud:{panel,status,message},

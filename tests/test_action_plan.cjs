@@ -94,8 +94,15 @@ test('production targets show the Rust match status and why an unmatched target 
    {basis:'requested',requested:0,assigned:0,target:5,lines:[],reason:'design_name_mismatch',near_lines:[{line_id:'2',name:'I-153',equipment:'small_plane_airframe_1',category:'military',why:'design_name_mismatch'}]},
    {basis:'requested',requested:0,assigned:0,target:4,lines:[],reason:'line_missing',near_lines:[]},
    {basis:'remaining',requested:150,assigned:33,target:23,lines:[{id:'7'}],reason:'remaining_line_not_last'}]}});
+ // One line per product: the met count replaces the order; reasons stay separate.
+ assert.deepEqual(plan.describe(r).instructions,[
+  '✓ support equipment: 5 of 5 factories',
+  'I-16: set 5 requested factories.',
+  'Truck: set 4 requested factories.',
+  'infantry equipment: allocate all remaining military factories; keep this line last.']);
+ const naval={production_selector:{equipment_ids:['convoy_1'],variant_names:[],category:'naval'}};
+ assert.deepEqual(plan.describe(row('n',{category:'production',production_targets:[{equipment_name:'convoys',display_name:'Convoy',requested_factories:1,...naval}]},{production:{layout:[{basis:'requested',requested:0,assigned:0,target:1,lines:[],reason:'line_missing'}]}})).instructions,['Convoy: set 1 requested dockyard.']);
  assert.deepEqual(plan.describe(r).observations,[
-  'support equipment: detected · 5 of 5 factories.',
   'I-16: not detected — the line with this equipment has another name (I-153).',
   'Truck: not detected — no matching production line is observed.',
   'infantry equipment: detected, but it is not the last military line.']);
