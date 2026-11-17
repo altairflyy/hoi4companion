@@ -26,7 +26,7 @@ pub const HOLD_GRACE: Duration = Duration::from_millis(150);
 /// Verified samples without a row needed before that row is removed.
 pub const ABSENT_CONFIRMATIONS: u32 = 2;
 /// Longest time the step card is kept while the guide delivery is unknown.
-pub const CARD_HOLD: Duration = Duration::from_millis(2000);
+pub const CARD_HOLD: Duration = Duration::from_millis(4000);
 
 pub enum Observation {
     /// A fully verified sample (identity, revision, window and freshness) with

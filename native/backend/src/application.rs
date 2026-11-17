@@ -230,6 +230,10 @@ pub struct Application {
     /// Provinces any loaded or archived definition names, keyed by what can
     /// change them (registry generation, number of loaded archives).
     readable_provinces: Option<((u64, usize), Arc<HashSet<String>>)>,
+    /// Run metadata and per-guide checks/started/baselines for the live packet,
+    /// keyed by the run store generation (bumped by every committed change).
+    /// Rebuilding it read every checklist on every observation (~0.5 s).
+    live_runs: Option<(u64, Value)>,
 }
 pub(crate) struct PreparedContext {
     generation: u64,
@@ -263,6 +267,7 @@ impl Application {
             upgrade_awaits_catalog: args["upgrade_without_catalog"] != true,
             archived_guides: HashMap::new(),
             readable_provinces: None,
+            live_runs: None,
         };
         for guide in args["guides"].as_array().into_iter().flatten() {
             if result.guides.contains_key(text(&guide["id"])) {
@@ -774,14 +779,23 @@ impl Application {
     }
     pub fn live_packet(&mut self) -> Result<Value> {
         let mut value = self.live.clone();
-        let metadata = self.runs.call("metadata", json!({}))?;
-        let (mut checks, mut started, mut baselines) = (json!({}), json!({}), json!({}));
-        for id in metadata.as_object().into_iter().flat_map(|m| m.keys()) {
-            let record = self.runs.call("get", json!({"guide_id":id}))?;
-            checks[id] = record["checks"].clone();
-            started[id] = record["started"].clone();
-            baselines[id] = record["baselines"].clone();
-        }
+        let runs = match &self.live_runs {
+            Some((generation, runs)) if *generation == self.runs.generation => runs.clone(),
+            _ => {
+                let metadata = self.runs.call("metadata", json!({}))?;
+                let (mut checks, mut started, mut baselines) = (json!({}), json!({}), json!({}));
+                for id in metadata.as_object().into_iter().flat_map(|m| m.keys()) {
+                    let record = self.runs.call("get", json!({"guide_id":id}))?;
+                    checks[id] = record["checks"].clone();
+                    started[id] = record["started"].clone();
+                    baselines[id] = record["baselines"].clone();
+                }
+                let runs = json!([metadata, checks, started, baselines]);
+                self.live_runs = Some((self.runs.generation, runs.clone()));
+                runs
+            }
+        };
+        let [metadata, checks, started, baselines]: [Value; 4] = serde_json::from_value(runs).map_err(|e| e.to_string())?;
         value["guide_id"] = json!(self.default);
         value["guide_checks"] = self
             .default
@@ -1110,6 +1124,18 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+    #[test]
+    fn live_packet_reuses_checklists_until_one_changes() {
+        let make = |id: &str| json!({"id":id,"tracks":{"operations":[{"key":"note","action":{"kind":"manual"}}]}});
+        let mut app = Application::open(&json!({"guides":[make("one")]})).unwrap();
+        app.progress(Some("one"),None,None).unwrap();
+        let first = app.live_packet().unwrap();
+        assert_eq!(app.live_packet().unwrap()["guide_states"], first["guide_states"]);
+        let generation = app.runs.generation;
+        app.runs.call("update",json!({"guide_id":"one","checks":{"note":true}})).unwrap();
+        assert_ne!(app.runs.generation, generation);
+        assert_eq!(app.live_packet().unwrap()["guide_states"]["one"]["note"], true);
+    }
     #[test]
     fn accepted_observations_keep_only_provinces_a_definition_or_border_names() {
         let guide = json!({"id":"forts","tracks":{"operations":[{"key":"build","action":{"kind":"manual","params":{"construction_targets":[{"province_id":10}]}}}]}});

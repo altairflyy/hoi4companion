@@ -29,9 +29,14 @@ fn hud_check_allowed(current:&Value,guide:&str,key:&str)->bool{
     current["live_delivery_fresh"]!=false&&current["guide_id"]==guide
         &&current["step_card"]["key"]==key&&current["step_card"]["checkable"]==true
 }
+/// Budget for the HUD's coarse guide facts (which step, which guides, map
+/// targets): one full integrity read (~1.4 s with the provincial section) plus
+/// packet and projection must fit, or every audit blanked the HUD for a
+/// moment. GUI geometry keeps its own 750 ms evidence budget in the overlay.
+const HUD_DELIVERY_BUDGET: Duration = Duration::from_secs(3);
 fn current_hud_delivery(delivery:Option<&(u64,Instant,Value)>,epoch:u64)->Option<Value>{
     let (published,observed,value)=delivery?;
-    if *published!=epoch||!recent_delivery(Some(observed.elapsed())){return None;}
+    if *published!=epoch||observed.elapsed()>=HUD_DELIVERY_BUDGET{return None;}
     let mut value=value.clone();value["state_age_ms"]=json!(observed.elapsed().as_secs_f64()*1000.);Some(value)
 }
 #[path = "http_collections.rs"]
@@ -974,8 +979,8 @@ impl Service {
         if resume { self.wake.notify_all(); }
         // The shared reader owns process acquisition. HUD geometry uses
         // the latest qualified delivery without queuing behind an integrity
-        // audit. Coarse guide facts have a bounded 2s delivery budget (normal
-        // cadence250ms + measured full reads~850ms); GUI evidence stays750ms.
+        // audit. Coarse guide facts have a bounded 3s delivery budget (normal
+        // cadence 250ms + measured full reads ~1.4s); GUI evidence stays 750ms.
         let delivery=self.hud_delivery.lock().map_err(|_|"HUD delivery unavailable")?;
         if let Some(value)=current_hud_delivery(delivery.as_ref(),self.hud_epoch.load(Ordering::Acquire)){return Ok(value);}
         drop(delivery);
@@ -2160,7 +2165,9 @@ mod accept_tests {
         assert_eq!(current_hud_delivery(Some(&current),7).unwrap()["guide_id"],"hun");
         assert!(current_hud_delivery(Some(&current),8).is_none());
         assert!(current_hud_delivery(None,7).is_none());
-        let stale=(7,Instant::now()-Duration::from_secs(2),current.2.clone());
+        let recent=(7,Instant::now()-Duration::from_millis(2500),current.2.clone());
+        assert!(current_hud_delivery(Some(&recent),7).is_some(),"a full integrity read must not blank the HUD");
+        let stale=(7,Instant::now()-HUD_DELIVERY_BUDGET,current.2.clone());
         assert!(current_hud_delivery(Some(&stale),7).is_none());
     }
     #[test]
