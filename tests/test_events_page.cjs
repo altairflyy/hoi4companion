@@ -15,7 +15,7 @@ test('events filter by what triggers them, search text and possible events',()=>
  assert.deepEqual(model.visible(data,{query:'FALLO'}).map(e=>e.id),['sov.1'],'answers are searchable, any case');
  assert.deepEqual(model.visible(data,{possible:true}).map(e=>e.id),['sov.1','sov.2','sov.3','any.1']);
  assert.equal(model.visible(data,{possible:true}).at(-1).possible,true);
- assert.deepEqual(model.counts(data),{all:3,possible:1,focus:1,decision:1,event:1,none:1,own:0,shared:0});
+ assert.deepEqual(model.counts(data),{all:3,possible:1,guide:0,nation:3,focus:1,decision:1,event:1,none:1});
  assert.deepEqual(model.visible(null),[]);
 });
 test('the events page is routed in the suite and wired to its scripts',()=>{
@@ -34,20 +34,16 @@ test('script placeholders read as the played and the other nation',()=>{
  assert.equal(model.readable(null),'');
 });
 
-test('events tell exclusive from shared and own triggers from other nations',()=>{
- const data={country:'SOV',events:[
-  {id:'a',title:'Purge',receivers:['SOV'],triggered_by:[{kind:'focus',id:'SOV_purge'}]},
-  {id:'b',title:'Pact',receivers:['SOV','GER'],triggered_by:[{kind:'focus',id:'GER_pact'}]},
-  {id:'c',title:'Crisis',receivers:['SOV','ITA','FRA']}],possible:[{id:'d',title:'Clash',receivers:[]}]};
- assert.equal(model.scope(data.events[0],'SOV'),'own');
- assert.equal(model.scope(data.events[1],'SOV'),'shared');
- assert.equal(model.scope(data.possible[0],'SOV'),'unknown');
- assert.equal(model.scope({receivers:['GER']},'SOV'),'shared','only another nation: not exclusive to the played one');
- assert.equal(model.fromOwn(data.events[0],'SOV'),true);
- assert.equal(model.fromOwn(data.events[1],'SOV'),false);
- const c=model.counts(data);assert.equal(c.own,1);assert.equal(c.shared,2);
- assert.deepEqual(model.visible(data,{reach:'own'}).map(e=>e.id),['a']);
- assert.deepEqual(model.visible(data,{reach:'shared'}).map(e=>e.id),['b','c']);
- assert.deepEqual(model.visible(data,{possible:true}).map(e=>e.id),['a','b','c','d']);
- const html=require('node:fs').readFileSync('src/hoi4companion/web/events.html','utf8');assert.match(html,/id="eventsReach"/);
+test('the guide view keeps the events its focuses lead to, in guide order',()=>{
+ const data={country:'SOV',guide_focus_count:2,events:[
+  {id:'a',title:'Alpha',guide_focuses:[{id:'SOV_b',name:'B'}],guide_order:1},
+  {id:'b',title:'Beta',guide_focuses:[]},
+  {id:'c',title:'Gamma',guide_focuses:[{id:'SOV_a',name:'A'}],guide_order:0}],possible:[{id:'d',title:'Clash'}]};
+ assert.deepEqual(model.visible(data).map(e=>e.id),['c','a'],'guide view is the default, in guide order');
+ assert.deepEqual(model.visible(data,{scope:'guide',possible:true}).map(e=>e.id),['c','a'],'possible events have no traced guide link');
+ assert.deepEqual(model.visible(data,{scope:'nation'}).map(e=>e.id),['a','b','c']);
+ const c=model.counts(data);assert.equal(c.guide,2);assert.equal(c.nation,3);assert.equal(c.all,2);
+ assert.equal(model.guideActive({...data,guide_focus_count:0}),false);
+ assert.deepEqual(model.visible({...data,guide_focus_count:0}).map(e=>e.id),['a','b','c'],'without a guide every event shows');
+ const html=require('node:fs').readFileSync('src/hoi4companion/web/events.html','utf8');assert.match(html,/id="eventsScope"/);
 });

@@ -751,7 +751,14 @@ impl Service {
                     Some(country) => country.clone(),
                     None => self.poll()?["sample"]["country"].as_str().unwrap_or("").to_owned(),
                 };
-                self.catalog(|c| Ok(crate::nation_events::list(&c.identity_data()?["entries"], &country)))
+                // The active guide's focuses, to mark the events they lead to; none without a guide.
+                let guide = self.app("app_definition", &json!({"guide_id":id})).ok();
+                let focuses = guide.as_ref().map(crate::nation_events::guide_focuses).unwrap_or_default();
+                let mut result = self.catalog(|c| Ok(crate::nation_events::list(&c.identity_data()?["entries"], &country, &focuses)))?;
+                if let Some(guide) = guide {
+                    result["guide"] = json!({"id":guide["id"],"title":guide["title"],"country":guide["country"]});
+                }
+                Ok(result)
             }
             ("GET", "/api/import/catalog") => {
                 let export = request

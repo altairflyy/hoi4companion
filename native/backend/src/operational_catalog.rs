@@ -400,7 +400,7 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
         let id = row["id"].as_str().unwrap_or("").to_owned();
         row["receivers"] = json!(reach.receivers.get(&id).map(|s| s.iter().cloned().collect::<Vec<_>>()).unwrap_or_default());
         row["receivers_unknown"] = json!(reach.unknown.contains(&id));
-        row["triggered_by"] = json!(reach.sources.get(&id).map(|s| s.iter().take(12).cloned().collect::<Vec<_>>()).unwrap_or_default());
+        row["triggered_by"] = json!(reach.sources.get(&id).map(|s| s.iter().take(64).cloned().collect::<Vec<_>>()).unwrap_or_default());
     }
     let mut keys = std::collections::HashMap::new();
     let mut out: Vec<Value> = vec![];

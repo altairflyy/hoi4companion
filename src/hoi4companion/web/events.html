@@ -6,8 +6,12 @@
 </head><body>
 <main>
 <section class="hero"><p class="eyebrow" data-copy="EVENTS">EVENTS</p><h1><span data-copy="Events for">Events for</span> <span id="eventsCountry">—</span></h1>
-<p data-copy="Events the game can send to the nation you play, read from the installed scripts. Open one to see its answers and what triggers it.">Events the game can send to the nation you play, read from the installed scripts. Open one to see its answers and what triggers it.</p></section>
+<p data-copy="Events the game can send to the nation you play, read from the installed scripts. Open one to see its answers and what triggers it.">Events the game can send to the nation you play, read from the installed scripts. Open one to see its answers and what triggers it.</p><p id="eventsGuide" class="events-guide"></p></section>
 <section class="events-toolbar">
+ <select id="eventsScope" aria-label="Which events">
+  <option value="guide" data-copy="From your guide">From your guide</option>
+  <option value="nation" data-copy="All events of {0}">All events of {0}</option>
+ </select>
  <input id="eventSearch" type="search" aria-label="Search events">
  <select id="eventsOrigin" aria-label="Triggered by">
   <option value="all" data-copy="All events">All events</option>
@@ -15,11 +19,6 @@
   <option value="decision" data-copy="From decisions">From decisions</option>
   <option value="event" data-copy="From other events">From other events</option>
   <option value="none" data-copy="No traced trigger">No traced trigger</option>
- </select>
- <select id="eventsReach" aria-label="Who receives it">
-  <option value="all" data-copy="Exclusive and shared">Exclusive and shared</option>
-  <option value="own" data-copy="Only for {0}">Only for {0}</option>
-  <option value="shared" data-copy="Shared with other nations">Shared with other nations</option>
  </select>
  <label class="events-possible"><input id="eventsPossible" type="checkbox"> <span id="eventsPossibleLabel">Also show possible events</span></label>
 </section>
