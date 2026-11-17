@@ -1,16 +1,29 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const model=require('../src/hoi4companion/web/suite-model.js');
-function suiteHarness(){
+function suiteHarness(sidebarButtons=[],emptyActive=false){
  const elements=new Map(),events={},calls=[];let listener;
- const element=id=>{if(!elements.has(id))elements.set(id,{id,dataset:{},value:'',checked:false,hidden:false,src:'about:blank',contentWindow:{dispatchEvent(){}},addEventListener(){},replaceChildren(){},append(){},setAttribute(){},removeAttribute(){}});return elements.get(id);};
- const document={visibilityState:'visible',focused:true,hasFocus(){return this.focused;},getElementById:element,querySelectorAll:()=>[],addEventListener(name,fn){events[name]=fn;}};
+ const element=id=>{if(!elements.has(id))elements.set(id,{id,dataset:{},value:'',checked:false,hidden:id==='suiteError',src:'about:blank',contentWindow:{dispatchEvent(){}},addEventListener(){},replaceChildren(){},append(){},setAttribute(){},removeAttribute(){}});return elements.get(id);};
+ const document={visibilityState:'visible',focused:true,hasFocus(){return this.focused;},getElementById:element,querySelectorAll:selector=>selector==='.suite-sidebar [data-view]'?sidebarButtons:[],addEventListener(name,fn){events[name]=fn;}};
  const window={hoiLive:{subscribe(fn){listener=fn;}},addEventListener(name,fn){events[name]=fn;}};
  const location={origin:'http://localhost',hash:'#overview'};
- const fetch=async path=>{calls.push(path);return {ok:true,json:async()=>path==='/api/guides'?{guides:[]}:path==='/api/guide/active'?{guide_id:'a'}:{schema_version:1,engine:'rust-guide-core',guide_id:'a',guide:{tracks:{}},evaluation:{guide_id:'a'},progress:{guide_id:'a'},state:{usable:false}}};};
- vm.runInNewContext(fs.readFileSync(require.resolve('../src/hoi4companion/web/suite.js'),'utf8'),{window,document,location,fetch,HoiSuiteModel:model,HoiI18n:{t:s=>s,language:'english'},Intl,URL,Event});
- return {document,location,events,calls,send:value=>listener(value),flush:()=>new Promise(resolve=>setImmediate(resolve))};
+ const fetch=async path=>{calls.push(path);return {ok:!(emptyActive&&path==='/api/guide/active'),json:async()=>path==='/api/guides'?{guides:[]}:path==='/api/guide/active'?(emptyActive?{error:'No guide available'}:{guide_id:'a'}):{schema_version:1,engine:'rust-guide-core',guide_id:'a',guide:{tracks:{}},evaluation:{guide_id:'a'},progress:{guide_id:'a'},state:{usable:false}}};};
+ const source=fs.readFileSync(require.resolve('../src/hoi4companion/web/suite.js'),'utf8').replace(/\}\)\(\);\s*$/, 'window.__suiteSettled=()=>loading;})();');
+ vm.runInNewContext(source,{window,document,location,fetch,HoiSuiteModel:model,HoiI18n:{t:s=>s,language:'english'},Intl,URL,Event});
+ return {document,location,events,calls,element,settled:()=>window.__suiteSettled(),send:value=>listener(value),flush:()=>new Promise(resolve=>setImmediate(resolve))};
 }
+test('an empty guide collection does not show an error',async()=>{
+ const h=suiteHarness([],true);await h.settled();
+ assert.equal(h.element('suiteError').hidden,true);
+ assert.equal(h.element('activeGuideTitle').textContent,'Choose a guide to begin');
+});
+test('sidebar marks settings and diagnostics as current when navigating',()=>{
+ const button=view=>({dataset:{view},current:false,setAttribute(name,value){if(name==='aria-current')this.current=value;},removeAttribute(name){if(name==='aria-current')this.current=false;}});
+ const buttons=['overview','settings','analysis'].map(button),h=suiteHarness(buttons);
+ assert.equal(buttons[0].current,'page');
+ h.location.hash='#settings';h.events.hashchange();assert.deepEqual(buttons.map(b=>b.current),[false,'page',false]);
+ h.location.hash='#analysis';h.events.hashchange();assert.deepEqual(buttons.map(b=>b.current),[false,false,'page']);
+});
 test('suite does not compete with HUD for projections in embedded views or while hidden',async()=>{
  const h=suiteHarness();await h.flush();h.calls.length=0;
  const packet={usable:true,active_guide_id:'a',sample:{country:'AAA',native_tick:1}};

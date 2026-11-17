@@ -4,7 +4,7 @@
  window.HoiSuiteLive=window.hoiLive;
  for(const el of document.querySelectorAll('[data-copy]'))el.textContent=t(el.dataset.copy);
  const titles={overview:'Command center',library:'Guide library',walkthrough:'Campaign plan',focus:'National focuses',technologies:'Technologies',country:'Country overview',templates:'Templates & references',importer:'Import ZIPs',analysis:'Diagnostics',settings:'Settings'};
- let view='overview',catalog=[],packet=null,active=null,projection=null,projectionKey='',projectionVersion=0,loading=null,queued=false,librarySignature='',libraryLoading=null;
+ let view='overview',catalog=[],catalogLoaded=false,packet=null,active=null,projection=null,projectionKey='',projectionVersion=0,loading=null,queued=false,librarySignature='',libraryLoading=null;
  const format=new Intl.NumberFormat(HoiI18n.language==='italian'?'it-IT':'en-US',{maximumFractionDigits:0});
  const display=value=>value===null||value===undefined?'—':format.format(value);
  const foreground=()=>document.visibilityState!=='hidden'&&(typeof document.hasFocus!=='function'||document.hasFocus());
@@ -13,7 +13,7 @@
  async function json(path,options){const response=await fetch(path,options),data=await response.json();if(!response.ok)throw Error(data.error||'HTTP '+response.status);return data;}
  function route(key){if(!Object.hasOwn(model.routes,key))key='overview';if(view!==key){projectionVersion++;queued=false;}view=key;
   frameActivity();
-  for(const button of document.querySelectorAll('nav [data-view]')){if(button.dataset.view===key)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
+  for(const button of document.querySelectorAll('.suite-sidebar [data-view]')){if(button.dataset.view===key)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
   $('viewTitle').textContent=t(titles[key]);$('overviewView').hidden=key!=='overview';$('libraryView').hidden=key!=='library';$('frameView').hidden=!model.routes[key];
   if(model.routes[key]){const url=new URL(model.routes[key],location.origin);url.searchParams.set('suite','1');if($('workspaceFrame').src!==url.href){$('frameStatus').textContent=t('Loading workspace…');$('workspaceFrame').src=url.href;}else if(key==='settings')$('workspaceFrame').contentDocument?.getElementById('navSettings')?.click();}
   if(key==='library')loadLibrary();
@@ -40,7 +40,7 @@
    card.append(country,title,info,button);$('guideCards').append(card);
   }
  }
- function loadLibrary(){if(libraryLoading)return libraryLoading;libraryLoading=(async()=>{try{const data=await json('/api/guides');catalog=data.guides||[];drawLibrary();if(active)drawRoute();}catch(e){error(e.message);}})().finally(()=>libraryLoading=null);return libraryLoading;}
+ function loadLibrary(){if(libraryLoading)return libraryLoading;libraryLoading=(async()=>{try{const data=await json('/api/guides');catalog=data.guides||[];catalogLoaded=true;drawLibrary();if(active)drawRoute();}catch(e){error(e.message);}})().finally(()=>libraryLoading=null);return libraryLoading;}
  function drawRoute(){const name=active?.title||catalog.find(g=>g.id===active?.guide_id)?.title;
   $('activeGuideTitle').textContent=name?model.title(name):t('Choose a guide to begin');$('activeGuideShort').textContent=name?model.title(name):t('No guide selected');$('routeItems').replaceChildren();
   const current=model.currentProjection(packet,projection);
@@ -60,7 +60,7 @@
     if(version!==projectionVersion||packet?.active_guide_id&&result.guide_id!==packet.active_guide_id)return;
     if(result.schema_version!==1||result.engine!=='rust-guide-core'||result.guide_id!==identity.guide_id||result.evaluation?.guide_id!==identity.guide_id||result.progress?.guide_id!==identity.guide_id)throw Error(t('Guide progress is unavailable; no steps are inferred.'));
     projection=result;drawRoute();if(view==='library')drawLibrary();
-   }catch(e){projection=null;drawRoute();error(e.message);}
+   }catch(e){projection=null;drawRoute();if(e.message==='No guide available'){if(!catalogLoaded)await loadLibrary();if(catalogLoaded&&!catalog.length)return;}error(e.message);}
   })().finally(()=>{loading=null;if(queued){queued=false;refreshProjection();}});return loading;
  }
  window.hoiLive.subscribe(value=>{packet=value;if(value?.active_guide_id&&value.active_guide_id!==active?.guide_id){projectionVersion++;projection=null;active={guide_id:value.active_guide_id,title:catalog.find(g=>g.id===value.active_guide_id)?.title};drawRoute();}const m=model.metrics(value);$('countryTag').textContent=m.country||'—';$('metricCountry').textContent=m.country||'—';$('metricDivisions').textContent=display(m.divisions);$('metricPP').textContent=display(m.politicalPower);$('metricFactories').textContent=display(m.factories);$('readerBadge').dataset.connected=String(m.current);$('readerText').textContent=t(m.current?'Reader connected':'Waiting for HOI4');$('campaignHint').textContent=t(m.current?'Current campaign':'No qualified game state');$('hudStatus').textContent=value?.usable?(value.overlay?.message||t('No new contextual indication')):t('Waiting for current game data');

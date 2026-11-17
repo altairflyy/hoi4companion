@@ -3,3 +3,38 @@
 
 /* Keep secondary controls reachable in short desktop windows. */
 @media(min-width:761px){.suite-sidebar{overflow-y:auto;scrollbar-width:thin}}
+
+/* A compact, quiet application frame keeps the campaign content in focus. */
+.suite-sidebar{padding:20px 12px 16px;background:#0b0e13;border-color:#222a34}
+.suite-brand{margin:0 8px 28px;gap:10px;font-size:14px;line-height:1.25}
+.suite-brand strong{font-weight:600}
+.suite-mark{display:grid;place-items:center;width:36px;height:36px;padding:0;border-radius:5px;font-size:13px}
+.suite-sidebar nav{gap:3px}
+.suite-sidebar nav button{min-height:42px;border-radius:5px;font-size:13px}
+.suite-sidebar nav button:hover:not(:disabled),.sidebar-bottom button:hover:not(:disabled){background:#19212b;color:var(--text)}
+.suite-sidebar nav button[aria-current=page],.sidebar-bottom button[aria-current=page]{background:#222d38;color:var(--text);box-shadow:inset 3px 0 var(--accent)}
+.nav-divider{margin:16px 12px;background:#222a34}
+.sidebar-bottom{gap:4px;padding:18px 0 0}
+.sidebar-bottom button,.sidebar-bottom a{display:block;padding:8px 12px;border-radius:5px;text-decoration:none}
+.sidebar-bottom a:hover{background:#19212b;color:var(--text)}
+.sidebar-bottom p{padding:12px 12px 0;line-height:1.45}
+.suite-topbar{height:60px;border-color:#222a34}
+.suite-breadcrumb{font-size:13px;gap:10px}
+.reader-badge{padding:6px 10px;border:1px solid #27313c;border-radius:5px;background:#11171e}
+.suite-dashboard,.suite-library{padding-top:32px}
+.hero h1{font-weight:600;letter-spacing:-.02em}
+.campaign-metrics,.active-route,.session-panel,.collection-entry,.guide-card{border-color:#293440;background:#151c24}
+.collection-entry{background:#11171e}
+.suite-footer{border-color:#222a34}
+.suite-frame-view{height:calc(100vh - 102px)}
+@media(max-width:760px){
+ .suite-sidebar{padding:12px 12px 8px}
+ .suite-brand{margin:0 4px 12px}
+ .suite-sidebar nav{gap:3px}
+ .sidebar-bottom{display:flex;overflow-x:auto;margin:6px 0 0;padding:6px 0 0;border-top:1px solid #222a34;gap:3px}
+ .sidebar-bottom button,.sidebar-bottom a{flex:none;white-space:nowrap;font-size:12px;padding:7px 10px}
+ .sidebar-bottom p{display:none}
+ .suite-topbar{height:56px}
+ .reader-badge{padding:4px 7px}
+ .suite-frame-view{height:calc(100vh - 240px);min-height:320px}
+}
