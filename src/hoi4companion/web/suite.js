@@ -3,7 +3,7 @@
  const model=HoiSuiteModel,t=HoiI18n.t,$=id=>document.getElementById(id);
  window.HoiSuiteLive=window.hoiLive;
  for(const el of document.querySelectorAll('[data-copy]'))el.textContent=t(el.dataset.copy);
- const titles={overview:'Command center',library:'Guide library',walkthrough:'Campaign plan',focus:'National focuses',technologies:'Technologies',country:'Country overview',templates:'Templates & references',importer:'Import ZIPs',analysis:'Diagnostics',settings:'Settings'};
+ const titles={overview:'Command center',library:'Guide library',walkthrough:'Campaign plan',focus:'National focuses',technologies:'Technologies',country:'Country overview',events:'Events',templates:'Templates & references',importer:'Import ZIPs',analysis:'Diagnostics',settings:'Settings'};
  let view='overview',catalog=[],catalogLoaded=false,packet=null,active=null,projection=null,projectionKey='',projectionVersion=0,loading=null,queued=false,librarySignature='',libraryLoading=null;
  const format=new Intl.NumberFormat(HoiI18n.language==='italian'?'it-IT':'en-US',{maximumFractionDigits:0});
  const display=value=>value===null||value===undefined?'—':format.format(value);

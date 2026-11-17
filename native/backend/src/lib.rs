@@ -43,6 +43,7 @@ pub mod guide_prepare;
 mod guide_repository;
 pub mod guide_runtime;
 mod guide_sections;
+mod nation_events;
 pub mod guide_schema;
 pub mod http;
 mod hud_diagnostics;

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><script src="/i18n.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
+<title>HOI4 Companion — Events</title>
+<link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/country.css"><link rel="stylesheet" href="/live-state.css"><link rel="stylesheet" href="/events.css">
+<script defer src="/live-state.js"></script><script defer src="/events-model.js"></script><script defer src="/events.js"></script>
+</head><body>
+<main>
+<section class="hero"><p class="eyebrow" data-copy="EVENTS">EVENTS</p><h1><span data-copy="Events for">Events for</span> <span id="eventsCountry">—</span></h1>
+<p data-copy="Events the game can send to the nation you play, read from the installed scripts. Open one to see its answers and what triggers it.">Events the game can send to the nation you play, read from the installed scripts. Open one to see its answers and what triggers it.</p></section>
+<section class="events-toolbar">
+ <input id="eventSearch" type="search" aria-label="Search events">
+ <select id="eventsOrigin" aria-label="Triggered by">
+  <option value="all" data-copy="All events">All events</option>
+  <option value="focus" data-copy="From national focuses">From national focuses</option>
+  <option value="decision" data-copy="From decisions">From decisions</option>
+  <option value="event" data-copy="From other events">From other events</option>
+  <option value="none" data-copy="No traced trigger">No traced trigger</option>
+ </select>
+ <label class="events-possible"><input id="eventsPossible" type="checkbox"> <span id="eventsPossibleLabel">Also show possible events</span></label>
+</section>
+<p id="eventsStatus" class="events-status" role="status"></p>
+<section id="eventsList" class="events-list" aria-live="polite"></section>
+</main>
+</body></html>

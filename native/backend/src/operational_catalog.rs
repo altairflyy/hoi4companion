@@ -312,6 +312,20 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
             let title = scalar(event, "title");
             let mut row = source.names(if title.is_empty() { id } else { title });
             row.as_object_mut().unwrap().extend(json!({"kind":"event","id":id,"country_condition":recipient::event(kind,event),"identity_countries":recipient::identity(event)}).as_object().unwrap().clone());
+            // For the events page: the localized description (first one), the
+            // event type and whether it fires only when called or also on a timer.
+            let desc = crate::script_document::first(event, "desc").and_then(|d| d.as_str().map(str::to_owned)
+                .or_else(|| blocks(event, "desc").next().map(|b| scalar(b, "text").to_owned()))).unwrap_or_default();
+            if !desc.is_empty() {
+                let text = source.names(&desc);
+                let text = text["localized_name"].as_str().filter(|t| *t != desc).unwrap_or("");
+                if !text.is_empty() {
+                    row["description"] = json!(text.chars().take(600).collect::<String>());
+                }
+            }
+            row["event_type"] = json!(kind);
+            row["triggered_only"] = json!(scalar(event, "is_triggered_only") == "yes");
+            row["timed"] = json!(crate::script_document::first(event, "mean_time_to_happen").is_some());
             rows.push(row);
             for option in blocks(event, "option") {
                 let key = scalar(option, "name");
@@ -386,6 +400,7 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
         let id = row["id"].as_str().unwrap_or("").to_owned();
         row["receivers"] = json!(reach.receivers.get(&id).map(|s| s.iter().cloned().collect::<Vec<_>>()).unwrap_or_default());
         row["receivers_unknown"] = json!(reach.unknown.contains(&id));
+        row["triggered_by"] = json!(reach.sources.get(&id).map(|s| s.iter().take(12).cloned().collect::<Vec<_>>()).unwrap_or_default());
     }
     let mut keys = std::collections::HashMap::new();
     let mut out: Vec<Value> = vec![];

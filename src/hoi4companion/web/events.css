@@ -1,0 +1,24 @@
+/* Events page: reuses theme tokens from theme.css. */
+.events-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:16px 0}
+.events-toolbar input[type=search]{flex:1 1 280px;min-width:0;padding:8px 10px;font-size:14px}
+.events-toolbar select{padding:8px 10px;font-size:14px}
+.events-possible{display:flex;gap:6px;align-items:center;font-size:14px}
+.events-status{color:var(--muted);font-size:13px;margin:4px 0 12px}
+.events-list{display:flex;flex-direction:column;gap:8px}
+.event-card{border:1px solid var(--line);border-radius:6px;padding:10px 14px;background:var(--pane)}
+.event-card[open]{border-color:var(--blue)}
+.event-card summary{cursor:pointer;display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+.event-title{font-weight:600;font-size:15px;color:var(--text)}
+.event-tags{display:flex;flex-wrap:wrap;gap:6px}
+.event-tag{font-size:12px;padding:1px 8px;border-radius:10px;border:1px solid var(--line);color:var(--muted)}
+.event-tag-focus{color:#7fd38f;border-color:#3f7a4b}
+.event-tag-decision{color:#f2b766;border-color:#8a6430}
+.event-tag-event{color:#6fc8ff;border-color:#2f6f94}
+.event-tag-possible,.event-possible .event-title{color:var(--muted)}
+.event-description{font-size:14px;line-height:1.6;color:var(--text);white-space:pre-line;margin:10px 0}
+.event-sources,.event-options-title{font-size:13px;color:var(--muted);margin:8px 0 4px}
+.event-options{margin:0 0 6px;padding-left:20px;font-size:14px;line-height:1.6}
+.event-cost{color:var(--muted)}
+.event-id{font-size:11px;color:var(--muted);opacity:.7;margin:6px 0 0;font-family:Consolas,monospace}
+.event-more{color:var(--muted);font-size:13px}
+@media (max-width:600px){.events-toolbar{flex-direction:column;align-items:stretch}}

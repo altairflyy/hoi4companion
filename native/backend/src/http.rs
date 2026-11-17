@@ -745,6 +745,14 @@ impl Service {
                 crate::import_document::document(&request.json_fields(&["document"])?["document"])
             }
             ("GET", "/api/config") => self.catalog(|c| Ok(c.overview())),
+            ("GET", "/api/events") => {
+                // Events the played (or asked) nation can receive, from the catalog.
+                let country = match request.query.get("country").filter(|c| !c.is_empty()) {
+                    Some(country) => country.clone(),
+                    None => self.poll()?["sample"]["country"].as_str().unwrap_or("").to_owned(),
+                };
+                self.catalog(|c| Ok(crate::nation_events::list(&c.identity_data()?["entries"], &country)))
+            }
             ("GET", "/api/import/catalog") => {
                 let export = request
                     .query
@@ -1644,6 +1652,7 @@ impl Service {
             "/technologies" => "technologies.html",
             "/importer" => "importer.html",
             "/country" => "country.html",
+            "/events" => "events.html",
             "/analysis" => "analysis.html",
             "/associations" => "associations.html",
             other => other.strip_prefix('/')?,

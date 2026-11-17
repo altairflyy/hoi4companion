@@ -21,6 +21,8 @@ enum Receiver {
 pub struct Reach {
     pub receivers: HashMap<String, BTreeSet<String>>,
     pub unknown: HashSet<String>,
+    /// What fires each event: "focus:ID", "decision:ID" or "event:ID".
+    pub sources: HashMap<String, BTreeSet<String>>,
 }
 
 fn is_tag(key: &str) -> bool {
@@ -117,7 +119,9 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
             for focus in focuses {
                 let mut out = vec![];
                 calls(focus, "focus", &Receiver::Owner, &mut out, 0);
+                let source = format!("focus:{}", scalar(focus, "id"));
                 for (id, to) in out {
+                    reach.sources.entry(id.clone()).or_default().insert(source.clone());
                     seed(id, to, owners.as_ref(), &mut reach);
                 }
             }
@@ -125,7 +129,7 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
     }
     for root in decision_docs {
         for (_, group) in entries(root).filter(|(_, v)| v.get("entries").is_some()) {
-            for (_, decision) in entries(group).filter(|(_, v)| v.get("entries").is_some()) {
+            for (decision_id, decision) in entries(group).filter(|(_, v)| v.get("entries").is_some()) {
                 let mut owners = BTreeSet::new();
                 for key in ["allowed", "visible", "available"] {
                     for block in blocks(decision, key) {
@@ -135,6 +139,7 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
                 let mut out = vec![];
                 calls(decision, "decision", &Receiver::Owner, &mut out, 0);
                 for (id, to) in out {
+                    reach.sources.entry(id.clone()).or_default().insert(format!("decision:{decision_id}"));
                     seed(id, to, Some(&owners), &mut reach);
                 }
             }
@@ -153,6 +158,9 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
             }
             let mut out = vec![];
             calls(event, "event", &Receiver::Owner, &mut out, 0);
+            for (to, _) in &out {
+                reach.sources.entry(to.clone()).or_default().insert(format!("event:{id}"));
+            }
             edges.extend(out.into_iter().map(|(to, r)| (id.clone(), to, r)));
         }
     }
@@ -225,6 +233,10 @@ mod tests {
         assert_eq!(set("eng.5"), ["ENG"], "TAG scope targets that nation");
         assert_eq!(set("ita.2"), ["ITA"], "random_list weight keeps the scope");
         assert!(r.unknown.contains("any.1") && r.unknown.contains("back.1"));
+        let from = |id: &str| r.sources[id].iter().cloned().collect::<Vec<_>>();
+        assert_eq!(from("sov.1"), ["focus:SOV_a"]);
+        assert_eq!(from("sov.2"), ["event:sov.1"]);
+        assert_eq!(from("ita.2"), ["decision:ITA_dec"]);
         assert_eq!(receives(&json!(["SOV"]), &json!(false), "SOV"), Some(true));
         assert_eq!(receives(&json!(["ENG"]), &json!(false), "SOV"), Some(false));
         assert_eq!(receives(&json!(["ENG"]), &json!(true), "SOV"), None);
