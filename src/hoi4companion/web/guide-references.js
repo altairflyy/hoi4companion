@@ -216,7 +216,9 @@
   }
   function referenceButton(part,cls='guide-reference-link'){
    const button=el('button',cls,part.text);button.type='button';button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-controls','guideReferencePreview');button.setAttribute('aria-label',t('View reference: {0}').replace('{0}',part.text));
-   button.onpointerenter=()=>show(part,button,false);button.onpointerleave=later;button.onfocus=()=>{if(!restoring)show(part,button,false);};button.onblur=later;button.onclick=()=>show(part,button,true);return button;
+   // A click opens the preview and a second click closes it; hovering or
+   // tabbing over a reference never pops a preview over the page.
+   button.onclick=()=>{if(panel&&!panel.hidden&&trigger===button)close(true);else show(part,button,true);};return button;
   }
   function appendParts(node,parts){
    for(const part of parts){

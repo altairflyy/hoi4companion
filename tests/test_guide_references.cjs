@@ -88,11 +88,13 @@ function dom(){
  const walk=node=>[node,...(node.children||[]).flatMap(walk)];
  return {document,listeners,walk,node:()=>new Node('p')};
 }
-test('hover previews, click pins, Escape closes without reopening and source HTML stays literal',async()=>{
+test('hover never opens a preview; click opens, a second click or Escape closes, source HTML stays literal',async()=>{
  const {document,listeners,walk,node}=dom(),controller=refs.create({document});controller.setGuide(guide);
  const line=node();controller.append(line,'See Initial Setup');const button=walk(line).find(n=>n.tag==='button');
- button.onpointerenter();const panel=document.getElementById('guideReferencePreview');assert.equal(panel.hidden,false);assert.match(panel.textContent,/Change all to DEF/);
- button.onclick();assert.equal(document.activeElement,panel);button.onpointerleave();await new Promise(r=>setTimeout(r,240));assert.equal(panel.hidden,false);
+ assert.equal(button.onpointerenter,undefined,'no hover preview');assert.equal(button.onfocus,undefined,'no focus preview');
+ button.onclick();const panel=document.getElementById('guideReferencePreview');assert.equal(panel.hidden,false);assert.match(panel.textContent,/Change all to DEF/);
+ assert.equal(document.activeElement,panel);await new Promise(r=>setTimeout(r,240));assert.equal(panel.hidden,false);
+ button.onclick();assert.equal(panel.hidden,true,'a second click closes');button.onclick();assert.equal(panel.hidden,false);
  // The displayed source survives a routine replacement of its card by live UI.
  button.isConnected=false;line.replaceChildren();assert.match(panel.textContent,/Change all to DEF/);
  button.isConnected=true;listeners.keydown({key:'Escape',preventDefault(){}});assert.equal(panel.hidden,true);assert.equal(document.activeElement,button);
@@ -154,9 +156,11 @@ test('table previews render semantic cells, retain source text and stay pinned t
  const shortcuts=controller.shortcuts();assert.equal(shortcuts.length,4);shortcuts[3].onclick();
  assert.match(panel.textContent,/JAP war on CHI/);assert.doesNotMatch(panel.textContent,/Take navy, puppet/);
  assert.equal(controller.setGuide({...tables,id:'another-campaign-guide'}),true);assert.equal(panel.hidden,true);
- controller.setGuide(tables);const quick=controller.shortcuts();quick[1].onpointerenter();
+ controller.setGuide(tables);const quick=controller.shortcuts();quick[1].onclick();
  const scroller=walk(panel).find(n=>n.className==='guide-reference-table-scroll');listeners.scroll({target:scroller});assert.equal(panel.hidden,false);
- listeners.scroll({target:document.body});assert.equal(panel.hidden,true);
+ // A clicked preview stays while the page scrolls; Escape closes it.
+ listeners.scroll({target:document.body});assert.equal(panel.hidden,false);
+ listeners.keydown({key:'Escape',preventDefault(){}});assert.equal(panel.hidden,true);
 });
 
 test('reference cells never become HTML and source updates invalidate an open preview',()=>{
@@ -175,4 +179,12 @@ test('quick source references have a persistent accessible toolbar outside the c
  assert.match(html,/<nav id="guideQuickReferences"[^>]*aria-label="Guide references"/);
  assert.match(css,/\.guide-reference-toolbar\{[^}]*position:sticky/);
  assert.match(css,/\.guide-reference-table\{[^}]*font:14px\/1\.6/);
+});
+
+test('quick references match the shared native contract (HUD sections)',()=>{
+ const fixture=JSON.parse(fs.readFileSync('tests/fixtures/reference-sections.json','utf8'));
+ const index=refs.build({id:'f',sources:[{id:'doc',title:'Doc.docx',text:fixture.source}]});
+ const quick=refs.quickReferences(index).filter(q=>q.label!=='Peace conference').map(q=>({label:q.label,titles:q.candidates.map(c=>c.title),
+  rows:q.candidates.flatMap(c=>c.blocks.filter(b=>b.type==='row'&&!b.header).map(b=>b.cells))}));
+ assert.deepEqual(quick,fixture.quick);
 });
