@@ -1,0 +1,53 @@
+{
+ "description": "Shared contract: guide-references.js quickReferences and native guide_sections::quick read the same Word sections.",
+ "source": "[Table row]\n[Column 1]\nACTIONS\n[Column 2]\nRESEARCH PRIORITY\n[Column 3]\nFOCUS PRIORITY\n[Table row]\n[Column 1]\nSOV setup*\n[Column 2]\nTech\n[Column 3]\nFocus\n[Table row]\n[Column 1]\nARMY SETUP\n[Table row]\n[Column 1]\nNAVY\n[Table row]\n[Column 1]\nCOMMAND\n[Column 2]\nNAME\n[Column 3]\nFLEET / ROLE / ORDERS\n[Table row]\n[Column 1]\nAdmiral 1\n[Column 2]\n\n[Column 3]\nTwo fleets for NED.\n[Table row]\n[Column 1]\nARMY\n[Table row]\n[Column 1]\nHQ SETUP\n[Column 2]\n\n[Table row]\n[Column 1]\nMARSHAL 1\n[Column 2]\nMikhail T → Georgy Z\n[Table row]\n[Column 1]\nARMY\n[Column 2]\nGENERAL\n[Column 3]\nROLE / ORDERS\n[Table row]\n[Column 1]\n10 ALP\n11 ARM\n1 MOT\n[Column 2]\nKonstantine R\nIvan K\nANY DEF\n[Column 3]\nInvade NED.\nARM pushes; MOT follows.\n[Table row]\n[Column 1]\nWAR PLANS\n[Table row]\n[Column 1]\nSTART & NED\n[Table row]\n[Column 1]\nPrepare the landing.\n[Table row]\n[Column 1]\nGER & AXIS\n[Table row]\n[Column 1]\nPush Minsk → Wilno.\n[Table row]\n[Column 1]\nPEACE CONFERENCE PRIORITY\n[Table row]\n[Column 1]\nNED\n[Column 2]\nTake navy, puppet, resource rights, then reparations.\n[Table row]\n[Column 1]\nRELEVANT EVENTS\n[Table row]\n[Column 1]\nJUL 1937\n[Column 2]\nJAP war on CHI\n[Table row]\n[Column 1]\nSEP 1939\n[Column 2]\nGER attack POL\nACHIEVEMENTS\n[Table row]\n[Column 1]\nACHIEVEMENT\n[Column 2]\nGUIDE ADJUSTMENTS\n[Table row]\n[Column 1]\nUnrelated achievement\n[Column 2]\nDo not include in events.\n",
+ "quick": [
+  {
+   "label": "Army setup",
+   "titles": [
+    "ARMY"
+   ],
+   "rows": [
+    [
+     "MARSHAL 1",
+     "Mikhail T → Georgy Z"
+    ],
+    [
+     "10 ALP\n11 ARM\n1 MOT",
+     "Konstantine R\nIvan K\nANY DEF",
+     "Invade NED.\nARM pushes; MOT follows."
+    ]
+   ]
+  },
+  {
+   "label": "War plans",
+   "titles": [
+    "WAR PLANS"
+   ],
+   "rows": [
+    [
+     "Prepare the landing."
+    ],
+    [
+     "Push Minsk → Wilno."
+    ]
+   ]
+  },
+  {
+   "label": "Relevant events",
+   "titles": [
+    "RELEVANT EVENTS"
+   ],
+   "rows": [
+    [
+     "JUL 1937",
+     "JAP war on CHI"
+    ],
+    [
+     "SEP 1939",
+     "GER attack POL"
+    ]
+   ]
+  }
+ ]
+}

@@ -172,6 +172,11 @@ fn visible_frame(frame:&OverlayFrame,now:Instant)->Option<OverlayFrame> {
 }
 
 /// Already localized card text; guide text stays as authored.
+/// One quick-reference section of the guide (backend `guide_sections`).
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct RefSection {pub label:String, pub rows:Vec<RefRow>}
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct RefRow {pub id:String, pub text:String, pub heading:bool}
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct StepCard {
     pub header: String,
@@ -190,6 +195,10 @@ pub struct StepCard {
     /// The guide's current production plan, one localized line per product:
     /// target and live requested/assigned factories.
     pub production: String,
+    /// Army setup, war plans and events, opened from tags on the card.
+    pub references: Vec<RefSection>,
+    /// Checklist run the reference marks belong to ("guide:run").
+    pub references_scope: String,
 }
 /// Card frame on the right edge, below the game's top bar and theater selector.
 fn card_origin(width:f32,height:f32,scale:f32)->(f32,f32,f32) {
@@ -556,7 +565,8 @@ impl Graphics {
     /// Draw the step card into this (card-sized) surface. Returns the card's
     /// size and its header buttons in card coordinates. Text that does not fit
     /// in `max_height` is clipped.
-    unsafe fn draw_card(&mut self,card:&StepCard,collapsed:bool,notice:Option<&Notice>,width:f32,max_height:f32,scale:f32)
+    unsafe fn draw_card(&mut self,card:&StepCard,collapsed:bool,notice:Option<&Notice>,width:f32,max_height:f32,scale:f32,
+        open:Option<usize>,marks:&crate::card::Marks)
         ->windows::core::Result<((f32,f32),Vec<(Button,[f32;4])>)> {
         unsafe {
             self.ensure_card_formats(scale)?;
@@ -586,9 +596,14 @@ impl Graphics {
             let mut y=top+header_height+8.0*scale;
             let limit=max_height-10.0*scale;
             let mut blocks:Vec<(String,usize,u8)>=Vec::new();
+            let open=open.filter(|i|*i<card.references.len()&&!collapsed);
             if !collapsed {
-                for (text,format,tone) in [(&card.heading,1usize,1u8),(&card.note,2,2),(&card.body,3,4),(&card.badge,2,3)] {
-                    blocks.push((text.clone(),format,tone));
+                blocks.push((card.heading.clone(),1,1));
+                // An open reference section replaces the step details below.
+                if open.is_none() {
+                    for (text,format,tone) in [(&card.note,2usize,2u8),(&card.body,3,4),(&card.badge,2,3)] {
+                        blocks.push((text.clone(),format,tone));
+                    }
                 }
             }
             // One wrapped text block at `y`; None when empty or out of room.
@@ -604,8 +619,42 @@ impl Graphics {
                 lines.push((wide,format,rect,tone));*y+=used+8.0*scale;
                 Ok(Some(rect))
             };
+            let mut blocks=blocks.into_iter();
+            if let Some((text,format,tone))=blocks.next() {block(self,&text,format,tone,&mut y,&mut lines)?;}
+            // Quick-reference tags: a click opens the section (never a hover).
+            if !collapsed && !card.references.is_empty() && y+row<=limit {
+                let mut x=pad;
+                for (i,section) in card.references.iter().enumerate().take(8) {
+                    let left=section.rows.iter().filter(|r|!r.heading&&!marks.is_done(&card.references_scope,&r.id)).count();
+                    let label=format!("{}{} {}",if open==Some(i){"▾ "}else{""},crate::i18n::text(&section.label),if left==0 {"✓".to_owned()}else{left.to_string()});
+                    let wide:Vec<u16>=label.encode_utf16().collect();
+                    let w=self.measure(&wide,4,400.0*scale,row)?.0+18.0*scale;
+                    if x+w>pad+inner && x>pad {x=pad;y+=row+gap;}
+                    if y+row>limit {break;}
+                    buttons.push((Button::Tag(i as u8),label,[x,y,x+w,y+row]));x+=w+gap;
+                }
+                y+=row+8.0*scale;
+            }
+            if let Some(index)=open {
+                let section=&card.references[index];
+                let boxed=18.0*scale;
+                for (j,r) in section.rows.iter().enumerate() {
+                    if y>=limit-8.0*scale {break;}
+                    if r.heading {block(self,&r.text,0,0,&mut y,&mut lines)?;continue;}
+                    let done=marks.is_done(&card.references_scope,&r.id);
+                    let text:String=r.text.chars().filter(|c|!c.is_control()).collect();
+                    let wide:Vec<u16>=text.encode_utf16().collect();
+                    let text_left=pad+boxed+8.0*scale;
+                    let available=(limit-y).max(0.0);
+                    let used=self.measure(&wide,3,(pad+inner-text_left).max(40.0),available)?.1.min(available).max(boxed);
+                    lines.push((wide,3,D2D_RECT_F {left:text_left,top:y,right:pad+inner,bottom:y+used},if done {2} else {1}));
+                    buttons.push((Button::Item(j as u16),if done {"✓".into()} else {String::new()},[pad,y+1.0*scale,pad+boxed,y+1.0*scale+boxed]));
+                    y+=used+6.0*scale;
+                }
+                y+=4.0*scale;
+            }
             for (text,format,tone) in blocks {block(self,&text,format,tone,&mut y,&mut lines)?;}
-            if !collapsed && !card.production.trim().is_empty()
+            if !collapsed && open.is_none() && !card.production.trim().is_empty()
                 && block(self,&crate::i18n::text("Production"),0,0,&mut y,&mut lines)?.is_some() {
                 block(self,&card.production,3,4,&mut y,&mut lines)?;
             }
@@ -613,7 +662,7 @@ impl Graphics {
             // each with its name. Until a picture is decoded, or if it fails,
             // only the name is shown; a picture that does not fit is left out.
             let mut pictures:Vec<(std::sync::Arc<crate::card_images::Thumb>,D2D_RECT_F)>=Vec::new();
-            if !collapsed {
+            if !collapsed && open.is_none() {
                 for image in &card.images {
                     let label=crate::i18n::text("Design reference");
                     let label=if image.name.is_empty() {label} else {format!("{label} · {}",image.name)};
@@ -678,10 +727,11 @@ impl Graphics {
                 let rect=D2D_RECT_F {left:*left,top:*top,right:*right,bottom:*bottom};
                 let shape=D2D1_ROUNDED_RECT {rect,radiusX:4.0*scale,radiusY:4.0*scale};
                 self.context.FillRoundedRectangle(&shape,&self.paint.label_bg);
-                let border=if matches!(button,Button::Done|Button::Undo) {&self.paint.strokes[1]}else{&self.paint.muted};
+                let border=if matches!(button,Button::Done|Button::Undo) || matches!(button,Button::Tag(i) if open==Some(*i as usize)) {&self.paint.strokes[1]}
+                    else if matches!(button,Button::Item(_)) {&self.paint.text}else{&self.paint.muted};
                 self.context.DrawRoundedRectangle(&shape,border,1.0*scale,None);
                 let text:Vec<u16>=label.encode_utf16().collect();
-                let brush=if matches!(button,Button::Done|Button::Undo) {&self.paint.strokes[1]}else{&self.paint.text};
+                let brush=if matches!(button,Button::Done|Button::Undo) {&self.paint.strokes[1]}else if matches!(button,Button::Item(_)) {&self.paint.done}else{&self.paint.text};
                 self.context.DrawText(&text,&formats[4],&rect,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
             }
             self.context.EndDraw(None,None)?;self.swap.Present(0,DXGI_PRESENT(0)).ok()?;
@@ -775,6 +825,10 @@ struct Ui {
     notice:Option<Notice>,
     prefs:Prefs,
     prefs_path:std::path::PathBuf,
+    /// The quick-reference section open on the card, and the ticked rows.
+    open_ref:Option<usize>,
+    marks:crate::card::Marks,
+    marks_path:std::path::PathBuf,
     drag:Option<Drag>,
     pressed:Option<Button>,
     _font:HFONT,
@@ -867,8 +921,9 @@ impl Ui {
                 notice:self.notice.as_ref().map(|n|(n.text.clone(),n.undo.is_some())),scale:scale.to_bits(),client:(target.width,target.height)};
             if self.card_state.as_ref()!=Some(&state) || !self.card_visible {
                 let max_height=(client.1*0.8).max(80.0*scale).min(client.1);
+                let (open,marks)=(self.open_ref,self.marks.clone());
                 let graphics=self.card_graphics.as_mut().unwrap();
-                match graphics.draw_card(card,self.prefs.collapsed,self.notice.as_ref(),width,max_height,scale) {
+                match graphics.draw_card(card,self.prefs.collapsed,self.notice.as_ref(),width,max_height,scale,open,&marks) {
                     Ok((size,buttons))=>{self.card_size=size;self.card_buttons=buttons;self.card_state=Some(state);}
                     Err(error)=>{
                         self.hide_card();let message=wide(&crate::i18n::format("Rendering suspended: {0}",&[&error.to_string()]));
@@ -985,6 +1040,17 @@ impl Ui {
             match pressed {
                 Button::Hide=>{self.prefs.hidden=true;self.save_prefs();self.hide_card();self.update(true);}
                 Button::Collapse=>{self.prefs.collapsed=!self.prefs.collapsed;self.save_prefs();self.card_state=None;self.update(true);}
+                Button::Tag(i)=>{
+                    let i=i as usize;self.open_ref=if self.open_ref==Some(i) {None} else {Some(i)};
+                    self.card_state=None;self.update(true);
+                }
+                Button::Item(j)=>{
+                    if let (Some(open),Some(card))=(self.open_ref,self.card_content.as_ref())
+                        && let Some(row)=card.references.get(open).and_then(|s|s.rows.get(j as usize)) {
+                        self.marks.toggle(&card.references_scope,&row.id);self.marks.save(&self.marks_path);
+                    }
+                    self.card_state=None;self.update(true);
+                }
                 Button::Done=>{
                     if let Some(card)=self.card_content.as_ref().filter(|c|c.checkable&&!c.key.is_empty())
                         && let Ok(mut s)=self.shared.lock() && s.actions.len()<32 {
@@ -1108,11 +1174,13 @@ unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBo
         let graphics=Graphics::new(overlay).map_err(|e|e.to_string())?;
         let card_graphics=Graphics::new(card_window).map_err(|e|e.to_string())?;
         let prefs=Prefs::load(&prefs_path);
+        let marks_path=crate::card::Marks::path(&prefs_path);
+        let marks=crate::card::Marks::load(&marks_path);
         let mut ui=Box::new(Ui {overlay,card:card_window,status,pause,combo,shared,paused,exit,
             graphics:Some(graphics),card_graphics:Some(card_graphics),last_revision:u64::MAX,last_guides:Vec::new(),last_selected:String::new(),
             last_status:String::new(),excluded:true,visible:false,drawn_avoid:None,placed:None,topmost_at:Instant::now(),
             card_visible:false,card_placed:None,card_state:None,card_size:(0.0,0.0),card_buttons:Vec::new(),card_rect:None,
-            card_target:None,card_content:None,notice:None,prefs,prefs_path,drag:None,pressed:None,
+            card_target:None,card_content:None,notice:None,prefs,prefs_path,open_ref:None,marks,marks_path,drag:None,pressed:None,
             _font:font,last_paused:false,wake:wake.clone()});
         let pointer=(&mut *ui) as *mut Ui as isize;
         SetWindowLongPtrW(overlay,GWLP_USERDATA,pointer);SetWindowLongPtrW(control,GWLP_USERDATA,pointer);SetWindowLongPtrW(card_window,GWLP_USERDATA,pointer);

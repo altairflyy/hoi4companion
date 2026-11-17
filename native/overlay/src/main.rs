@@ -276,7 +276,14 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
     let production=card["production"].as_array().into_iter().flatten().map(card_production_line)
         .collect::<Vec<_>>().join("
 ");
-    Some(StepCard {header,heading,note,body,badge,key,guide_id,checkable,images,production})
+    let references=card["references"].as_array().into_iter().flatten().filter_map(|section|{
+        let label=section["label"].as_str().filter(|s|!s.trim().is_empty())?.to_owned();
+        let rows=section["rows"].as_array().into_iter().flatten().filter_map(|row|Some(render::RefRow {
+            id:row["id"].as_str()?.to_owned(),text:row["text"].as_str()?.trim().to_owned(),heading:row["heading"]==true})).collect::<Vec<_>>();
+        (!rows.is_empty()).then_some(render::RefSection {label,rows})
+    }).take(8).collect();
+    let references_scope=card["references_scope"].as_str().unwrap_or("").to_owned();
+    Some(StepCard {header,heading,note,body,badge,key,guide_id,checkable,images,production,references,references_scope})
 }
 /// The card for this sample: the backend's current card, or the last one kept
 /// briefly while the delivery is unknown (see the stability module), with
@@ -708,6 +715,13 @@ mod tests {
         assert_eq!(card.production,"• Truck: 4 of 4 factories (3 in use)\n✓ Infantry equipment: all remaining factories · last line");
         assert_eq!(card_production_line(&json!({"title":"Convoy","category":"naval","quantity":5,"requested":5,"assigned":5,"goal_satisfied":true})),"✓ Convoy: 5 of 5 dockyards");
         assert_eq!(card_production_line(&json!({"title":"Heavy Ship","category":"naval","quantity_mode":"remaining","goal_satisfied":false,"production_priority":"last"})),"• Heavy Ship: all remaining dockyards · last line");
+        let mut refs=snapshot.clone();
+        refs["step_card"]["references"]=json!([{"label":"War plans","rows":[{"id":"a","text":"START","heading":true},{"id":"b","text":" Prepare the landing. "},{"text":"no id"}]},{"label":"Empty","rows":[]}]);
+        refs["step_card"]["references_scope"]=json!("sov:run");
+        let parsed=step_card(&refs).unwrap();
+        assert_eq!(parsed.references.len(),1,"a section without rows is not a tag");
+        assert_eq!(parsed.references[0].rows.len(),2);assert_eq!(parsed.references[0].rows[1].text,"Prepare the landing.");
+        assert!(parsed.references[0].rows[0].heading);assert_eq!(parsed.references_scope,"sov:run");
         assert_eq!(short_guide_title("Plain guide.docx"),"Plain guide");
         assert_eq!(short_guide_title("  "),"");
     }

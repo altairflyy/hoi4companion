@@ -65,7 +65,44 @@ pub fn position_of(left: f32, top: f32, client: (f32, f32)) -> Option<[f32; 2]> 
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Button {Done, Collapse, Hide, Undo}
+pub enum Button {Done, Collapse, Hide, Undo,
+    /// A quick-reference tag (army setup, war plans, events): opens its section.
+    Tag(u8),
+    /// A row's checkbox in the open section.
+    Item(u16)}
+
+/// Quick-reference rows the player ticked as done, per checklist run
+/// ("guide:run"), in the HUD's data folder. Only the HUD reads them: they
+/// never change guide progress or completion.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Marks {
+    pub done: std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+}
+impl Marks {
+    pub fn path(card_prefs: &Path) -> PathBuf {
+        card_prefs.with_file_name("overlay-references.json")
+    }
+    pub fn load(path: &Path) -> Self {
+        std::fs::read(path).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok()).unwrap_or_default()
+    }
+    pub fn save(&self, path: &Path) {
+        if let Some(parent) = path.parent() {let _ = std::fs::create_dir_all(parent);}
+        let temporary = path.with_extension("json.tmp");
+        if let Ok(bytes) = serde_json::to_vec_pretty(self)
+            && std::fs::write(&temporary, bytes).is_ok() {
+            let _ = std::fs::rename(temporary, path);
+        }
+    }
+    pub fn is_done(&self, scope: &str, id: &str) -> bool {
+        self.done.get(scope).is_some_and(|set| set.contains(id))
+    }
+    pub fn toggle(&mut self, scope: &str, id: &str) {
+        if scope.is_empty() || id.is_empty() {return;}
+        let set = self.done.entry(scope.to_owned()).or_default();
+        if !set.remove(id) {set.insert(id.to_owned());}
+        if set.is_empty() {self.done.remove(scope);}
+    }
+}
 
 /// Result of the last "Done" click, shown on the card for `NOTICE_FOR`.
 #[derive(Clone, Debug, PartialEq)]
@@ -243,6 +280,23 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    #[test]
+    fn reference_marks_toggle_per_run_and_survive_a_restart() {
+        let dir = std::env::temp_dir().join(format!("hoi4-marks-{}", std::process::id()));
+        let path = Marks::path(&dir.join("overlay-card.json"));
+        assert_eq!(path.file_name().unwrap(), "overlay-references.json");
+        let mut marks = Marks::default();
+        marks.toggle("sov:run-1", "abc");
+        assert!(marks.is_done("sov:run-1", "abc"));
+        assert!(!marks.is_done("sov:run-2", "abc"), "another checklist starts clean");
+        marks.save(&path);
+        assert_eq!(Marks::load(&path), marks);
+        marks.toggle("sov:run-1", "abc");
+        assert!(marks.done.is_empty());
+        marks.toggle("", "abc");
+        assert!(marks.done.is_empty(), "no scope, no mark");
+        let _ = std::fs::remove_dir_all(dir);
+    }
     #[test]
     fn buttons_are_hit_only_inside_their_rectangles() {
         let buttons = [(Button::Done, [200.0, 8.0, 260.0, 30.0]), (Button::Hide, [300.0, 8.0, 322.0, 30.0])];

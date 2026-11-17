@@ -42,6 +42,7 @@ pub mod guide_observe;
 pub mod guide_prepare;
 mod guide_repository;
 pub mod guide_runtime;
+mod guide_sections;
 pub mod guide_schema;
 pub mod http;
 mod hud_diagnostics;

@@ -9,6 +9,8 @@ pub(crate) struct Hud {
     key: Value,
     event_key: Value,
     event_plan: Value,
+    /// Quick-reference sections of the guide (`guide_sections`), per definition.
+    sections: Value,
     snapshot: Value,
 }
 impl Hud {
@@ -28,6 +30,7 @@ impl Hud {
         ]);
         if self.event_key != event_key {
             self.event_plan = hud_events::plan(guide, index)?;
+            self.sections = crate::guide_sections::card_sections(guide);
             self.event_key = event_key;
         }
         let mut proposed = hud_targets::targets(guide, runtime, index, state, false, &self.event_plan)?;
@@ -82,6 +85,9 @@ impl Hud {
         self.snapshot["step_card"] = if error.is_empty() { card } else { Value::Null };
         if !self.snapshot["step_card"].is_null() {
             self.snapshot["step_card"]["production"] = production;
+            // Army setup, war plans and events, checkable per checklist run.
+            self.snapshot["step_card"]["references"] = self.sections.clone();
+            self.snapshot["step_card"]["references_scope"] = json!(format!("{}:{}", packet["guide_id"].as_str().unwrap_or(""), runtime["run_id"].as_str().unwrap_or("")));
         }
         Ok(self.snapshot.clone())
     }
