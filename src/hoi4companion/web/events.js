@@ -17,7 +17,7 @@
   const guideFocuses=event.guide_focuses||[];
   if(guideFocuses.length)tags.append(el('span','event-tag event-tag-guide',t('Guide focus: {0}',guideFocuses[0].name)+(guideFocuses.length>1?' '+t('+{0} more',guideFocuses.length-1):'')));
   const branch=event.branch_focuses||[];
-  if(event.guide_reach==='other_branch'&&branch.length)tags.append(el('span','event-tag event-tag-branch',t('Branch outside the guide: {0}',branch[0].name)));
+  if(model.guideActive(data)&&event.guide_reach==='other_branch'&&branch.length)tags.append(el('span','event-tag event-tag-branch',t('Branch outside the guide: {0}',branch[0].name)));
   const from=model.sender(event,country);
   if(from)tags.append(el('span','event-tag event-tag-sender',t('Sent by {0}',from)));
   for(const kind of model.origins(event))if(kind!=='none')tags.append(el('span','event-tag event-tag-'+kind,t(originLabel[kind])));
@@ -49,7 +49,7 @@
    :data.guide.applies===false?t('The active guide is for {0}: all events of the nation are shown.',data.guide.country)
    :t('Guide: {0}',data.guide.title);
   for(const option of $('eventsOrigin').options)option.textContent=t(option.dataset.copy)+` (${option.value==='all'?counts.all:counts[option.value]??0})`;
-  for(const option of $('eventsScope').options)option.textContent=t(option.dataset.copy,country)+` (${counts[option.value]??0})`;
+  for(const option of $('eventsScope').options)option.textContent=t(option.dataset.copy,country)+(option.disabled?'':` (${counts[option.value]??0})`);
   $('eventsPossible').disabled=$('eventsScope').value==='guide';
   $('eventsPossibleLabel').textContent=t('Also show possible events')+` (${counts.possible})`;
   const shown=model.visible(data,{query:$('eventSearch').value,origin:$('eventsOrigin').value,scope:$('eventsScope').value,possible:$('eventsPossible').checked});
