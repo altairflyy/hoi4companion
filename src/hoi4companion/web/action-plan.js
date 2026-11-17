@@ -38,7 +38,7 @@
       const met=line.quantity_mode==='remaining'?Number.isInteger(d.target)&&count>=d.target:Number.isInteger(d.target)&&count>=d.target;
       text=(met?'✓ ':'')+(line.quantity_mode==='remaining'
        ?t(dock?'{0}: all remaining dockyards · {1} requested (at least {2})':'{0}: all remaining factories · {1} requested (at least {2})',product,count,d.target??'—')
-       :t(dock?'{0}: {1} of {2} dockyards':'{0}: {1} of {2} factories',product,count,d.target??'—'));
+       :t(dock?(d.target===1?'{0}: {1} of {2} dockyard':'{0}: {1} of {2} dockyards'):(d.target===1?'{0}: {1} of {2} factory':'{0}: {1} of {2} factories'),product,count,d.target??'—'));
      }
     }
     instructions.push(text);
