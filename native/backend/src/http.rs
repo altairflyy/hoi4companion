@@ -463,7 +463,7 @@ impl Service {
             return Ok(packet.clone());
         }
         let now = self.now();
-        let political_cost_ids=self.application.lock().map_err(|_|"Application unavailable")?.political_cost_ids().clone();
+        let (political_cost_ids,province_ids)={let mut app=self.application.lock().map_err(|_|"Application unavailable")?;(app.political_cost_ids().clone(),app.readable_province_ids())};
         let provider = self
             .provider
             .lock()
@@ -473,7 +473,7 @@ impl Service {
             .ok_or_else(|| "Game installation not configured".into())
             .and_then(|provider| {
                 let handle = provider.handle;
-                crate::request(0, "provider_collect", json!({"handle":handle,"now":now,"political_cost_ids":political_cost_ids}))
+                crate::request(0, "provider_collect", json!({"handle":handle,"now":now,"political_cost_ids":political_cost_ids,"province_ids":province_ids}))
             });
         let mut value = match sample {
             Ok(sample) => reading.monitor.accept(sample, now, &timestamp())?,

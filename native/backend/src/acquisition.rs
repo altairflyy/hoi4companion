@@ -84,7 +84,7 @@ fn watch_rows(output: &Value, plan: &mut Witnesses) -> Result<()> {
     }
     Ok(())
 }
-pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focuses: &Value, building_scopes: &Value, political_cost_ids:&Value) -> Result<Sample> {
+pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focuses: &Value, building_scopes: &Value, political_cost_ids:&Value, province_ids:&Value) -> Result<Sample> {
     let metadata = game.profile.metadata();
     let attributes = profile_value(&metadata["selected"]);
     let base = game.base;
@@ -144,7 +144,7 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
             },
         ) && let Some(cache) = output.get("event_cache").filter(|v| v.is_array())
         {
-            return collect(game, neighbors, cache, shared_focuses, building_scopes, political_cost_ids);
+            return collect(game, neighbors, cache, shared_focuses, building_scopes, political_cost_ids, province_ids);
         }
     }
     let mut state = packet["state"].clone();
@@ -271,7 +271,8 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
         }
         let mut attrs = section_attributes.clone();
         if section == "fortifications" {
-            attrs["province_neighbors"] = neighbors.clone()
+            attrs["province_neighbors"] = neighbors.clone();
+            attrs["province_ids"] = province_ids.clone();
         }
         if section == "events" {
             attrs["event_cache"] = event_cache.clone()

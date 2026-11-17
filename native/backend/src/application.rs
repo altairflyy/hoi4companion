@@ -740,6 +740,13 @@ impl Application {
         self.readable_provinces = Some((key, ids.clone()));
         ids
     }
+    /// Provinces whose buildings the game reader should read (sorted ids): the
+    /// rest are never consulted. See `country_forts`.
+    pub(crate) fn readable_province_ids(&mut self) -> Value {
+        let mut ids: Vec<u64> = self.readable_provinces().iter().filter_map(|id| id.parse().ok()).collect();
+        ids.sort_unstable();
+        json!(ids)
+    }
     /// The provincial section lists every province of the map (about 2,400,
     /// each with every building type), and every evaluation would expand it to
     /// about 100k facts. Only provinces a definition names, or that a border

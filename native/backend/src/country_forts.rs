@@ -41,6 +41,11 @@ impl<M: Memory> Reader<'_, M> {
         let mut controllers = serde_json::Map::new();
         let mut items = vec![];
         let mut slots = BTreeMap::new();
+        // Only provinces a guide can read are read in detail (null: all). The
+        // others keep their controller, but their building containers (about
+        // 2,400 for a large country, most of a full read) are skipped.
+        let wanted: Option<HashSet<usize>> = self.attributes["province_ids"].as_array()
+            .map(|ids| ids.iter().filter_map(Value::as_u64).map(|id| id as usize).collect());
         for offset in (0..count).step_by(8192) {
             let raw = self
                 .d
@@ -98,6 +103,7 @@ impl<M: Memory> Reader<'_, M> {
                 if owner != self.tag as i64
                     || state_controller != self.tag as i64
                     || controller != self.tag as i64
+                    || wanted.as_ref().is_some_and(|ids| !ids.contains(&identifier))
                 {
                     continue;
                 }

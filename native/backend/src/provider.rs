@@ -25,6 +25,8 @@ struct Provider {
     shared_focuses: Value,
     building_scopes: Value,
     political_cost_ids: Value,
+    /// Provinces whose buildings are read; null reads every province.
+    province_ids: Value,
     stat: Option<(u64, SystemTime)>,
     profile: Option<Arc<Profile>>,
     game: Option<Arc<Game>>,
@@ -37,6 +39,16 @@ impl Provider {
         if !targets.is_array() {return Err("Political cost targets must be an array".into());}
         if self.political_cost_ids!=*targets {
             self.political_cost_ids=targets.clone();
+            self.cached=None;
+        }
+        Ok(())
+    }
+    fn set_province_ids(&mut self,ids:&Value)->Result<()> {
+        if !ids.as_array().is_some_and(|a|a.len()<=20000&&a.iter().all(|v|v.as_u64().is_some_and(|n|n>0&&n<=100000))) {
+            return Err("Province filter must be an array of province ids".into());
+        }
+        if self.province_ids!=*ids {
+            self.province_ids=ids.clone();
             self.cached=None;
         }
         Ok(())
@@ -57,6 +69,7 @@ impl Provider {
             shared_focuses: args["shared_focuses"].clone(),
             building_scopes: args["building_scopes"].clone(),
             political_cost_ids: args["political_cost_ids"].clone(),
+            province_ids: Value::Null,
             stat: None,
             profile: None,
             game: None,
@@ -113,7 +126,7 @@ impl Provider {
                 .as_ref()
                 .map(|v| v.sample.event_cache.clone())
                 .unwrap_or(Value::Null);
-            let sample = acquisition::collect(game, &self.neighbors, &cache, &self.shared_focuses, &self.building_scopes, &self.political_cost_ids)?;
+            let sample = acquisition::collect(game, &self.neighbors, &cache, &self.shared_focuses, &self.building_scopes, &self.political_cost_ids, &self.province_ids)?;
             let packet = watch::compile(&sample.watch)?;
             self.metrics["watch_ranges"] = json!(sample.watch.len());
             self.metrics["watch_bytes"] =
@@ -289,6 +302,7 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
     match op {
         "provider_collect" => {
             if let Some(targets)=args.get("political_cost_ids") {provider.set_political_cost_ids(targets)?;}
+            if let Some(ids)=args.get("province_ids") {provider.set_province_ids(ids)?;}
             provider.collect(args["now"].as_f64().ok_or("Provider clock missing")?)
         }
         "provider_inspect" => Ok(
@@ -314,6 +328,18 @@ mod tests {
         assert!(p.set_political_cost_ids(&Value::Null).is_err());assert!(p.cached.is_some());
         let next=json!([{"id":"new","group":"decision","countries":["GER"]}]);
         p.set_political_cost_ids(&next).unwrap();assert!(p.cached.is_none());assert_eq!(p.political_cost_ids,next);
+    }
+    #[test]
+    fn a_new_province_filter_drops_the_cached_read_and_invalid_filters_are_refused() {
+        let mut p=Provider::new(&json!({"path":"unused","manifest_sha256":"unused"})).unwrap();
+        assert!(p.province_ids.is_null(),"no filter reads every province");
+        let cached=||Some(Cached{sample:acquisition::Sample{value:Value::Null,watch:Default::default(),world:0,event_cache:Value::Null},packet:watch::Packet{bytes:vec![],ranges:0,read_bytes:0},audited:1.});
+        p.cached=cached();
+        p.set_province_ids(&json!([6380,10])).unwrap();assert!(p.cached.is_none());
+        p.cached=cached();
+        p.set_province_ids(&json!([6380,10])).unwrap();assert!(p.cached.is_some(),"same filter keeps the read");
+        for bad in [Value::Null,json!([0]),json!(["6380"]),json!({})] {assert!(p.set_province_ids(&bad).is_err());}
+        assert_eq!(p.province_ids,json!([6380,10]));
     }
     #[test]
     fn concurrent_gui_rejects_an_old_world_or_country_even_in_the_same_process() {

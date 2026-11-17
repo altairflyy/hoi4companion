@@ -226,6 +226,12 @@ fn province_buildings_keep_their_native_location_and_do_not_become_state_levels(
     m.i(status+0x2c,1);m.i(map,0);
     m.i(province+0x188,0);assert_eq!(m.request("fortifications",a.clone()).unwrap()["items"],json!([]));
     m.i(province+0x188,1);
+    // A guide province filter reads only listed provinces in detail; controllers stay.
+    let mut only=a.clone();only["province_ids"]=json!([1]);
+    assert_eq!(m.request("fortifications",only.clone()).unwrap()["items"][0]["buildings"]["naval_base"],2);
+    only["province_ids"]=json!([7]);
+    let skipped=m.request("fortifications",only).unwrap();
+    assert_eq!(skipped["items"],json!([]));assert_eq!(skipped["controllers"]["1"],"TST");
     m.i(status+0x6c,2);assert!(m.request("fortifications",a).is_err());
 }
 #[test]
