@@ -175,6 +175,62 @@ fn marks(rows:&[Value],width:u32,height:u32)->Vec<Highlight> {
              active:if panel=="production"{row["goal_satisfied"]==true&&row["navigation_stage"]=="line"}else{row["status"]=="active"&&panel!="event"},panel})
     }).take(64).collect()
 }
+/// Guide name for the card header without file extension, nation prefix or
+/// difficulty suffix: "RUSSIA (Communist)_ Reverse Barbarossa — Difficulty_⭐.docx"
+/// reads "Reverse Barbarossa". Falls back to the full name.
+fn short_guide_title(title:&str)->String {
+    let mut name=title.trim();
+    for extension in [".docx",".doc",".pdf",".txt",".json"] {
+        if name.len()>extension.len()&&name.to_lowercase().ends_with(extension) {name=&name[..name.len()-extension.len()];}
+    }
+    if let Some((head,_))=name.split_once(" — ") {name=head;}
+    if let Some((_,rest))=name.split_once(")_ ").filter(|(_,rest)|!rest.trim().is_empty()) {name=rest;}
+    let name=name.replace('_'," ");
+    let name=name.trim();
+    if name.is_empty() {title.trim().to_owned()} else {name.to_owned()}
+}
+/// "A, B and C" in the interface language.
+fn and_list(items:&[&str])->String {
+    match items {
+        []=>String::new(),
+        [one]=>(*one).to_owned(),
+        [rest@..,last]=>format!("{}{}{}",rest.join(", "),i18n::text(" and "),last),
+    }
+}
+/// One construction region: "✓ Mosca: Infrastruttura 5/5 · Fabbrica militare 7, up to the maximum".
+/// The check is shown only when every building has a known target it reached.
+fn region_line(region:&Value)->String {
+    let items=region["items"].as_array().cloned().unwrap_or_default();
+    let mut done=!items.is_empty();
+    let parts:Vec<String>=items.iter().map(|item|{
+        let building=item["building"].as_str().unwrap_or("?");
+        let current=item["current"].as_u64();
+        let mut part=match (current,item["target"].as_u64()) {
+            (Some(c),Some(t))=>{done&=c>=t;format!("{building} {c}/{t}")},
+            (None,Some(t))=>{done=false;format!("{building} ?/{t}")},
+            (Some(c),None)=>{done=false;format!("{building} {c}, {}",i18n::text("up to the maximum"))},
+            (None,None)=>{done=false;format!("{building}, {}",i18n::text("up to the maximum"))},
+        };
+        if item["queued"]==true {part.push_str(&format!(" ({})",i18n::text("queued")));}
+        part
+    }).collect();
+    format!("{} {}: {}",if done {"✓"} else {"•"},region["name"].as_str().unwrap_or("?"),parts.join(" · "))
+}
+/// "✓ Camion: 4 of 4 factories" or "Armi leggere: all remaining factories · last line".
+fn card_production_line(row:&Value)->String {
+    let title=row["title"].as_str().map(str::trim).filter(|s|!s.is_empty()).unwrap_or("?");
+    let mut line=if row["quantity_mode"]=="remaining" {i18n::format("{0}: all remaining factories",&[title])}
+        else {
+            let count=|key:&str|row[key].as_u64().map(|n|n.to_string()).unwrap_or_else(||"?".into());
+            let mut line=i18n::format("{0}: {1} of {2} factories",&[title,&count("requested"),&count("quantity")]);
+            if let (Some(assigned),Some(requested))=(row["assigned"].as_u64(),row["requested"].as_u64()) && assigned<requested {
+                line.push_str(&format!(" ({})",i18n::format("{0} in use",&[&assigned.to_string()])));
+            }
+            line
+        };
+    if let Some(priority)=row["production_priority"].as_str() {line.push_str(" · ");line.push_str(&i18n::text(if priority=="first"{"first line"}else{"last line"}));}
+    format!("{} {line}",if row["goal_satisfied"]==true {"✓"} else {"•"})
+}
 /// The step to do now (backend `step_card`), localized labels around the
 /// author's text. None when the guide does not apply to the observed game.
 fn step_card(snapshot:&Value)->Option<StepCard> {
@@ -185,12 +241,27 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
         (Some(i),Some(t)) if t>0=>i18n::format("Step {0} of {1}",&[&i.to_string(),&t.to_string()]),
         _=>String::new(),
     };
-    let title=text(&snapshot["title"]);
+    let title=short_guide_title(&text(&snapshot["title"]));
     if !title.is_empty() {header=if header.is_empty(){title}else{format!("{header} · {title}")};}
-    let note=card["abbreviation"].as_str().filter(|s|!s.trim().is_empty())
+    let mut heading=heading.trim().to_owned();
+    let mut note=card["abbreviation"].as_str().filter(|s|!s.trim().is_empty())
         .map(|a|i18n::format("In the guide: “{0}”",&[a.trim()])).unwrap_or_default();
-    let body=card["body"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::trim)
-        .filter(|l|!l.is_empty()).collect::<Vec<_>>().join("
+    let mut lines:Vec<String>=Vec::new();
+    // A construction step is said in words, region by region, from the
+    // evaluation; the author's shorthand stays once, as the guide's note.
+    let construction=&card["construction"];
+    let buildings:Vec<&str>=construction["buildings"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
+    if let Some(regions)=construction["regions"].as_array().filter(|r|!r.is_empty()&&!buildings.is_empty()) {
+        if note.is_empty() {note=i18n::format("In the guide: “{0}”",&[&heading]);}
+        heading=i18n::format("Build: {0}",&[&and_list(&buildings)]);
+        let count=construction["region_count"].as_u64().unwrap_or(regions.len() as u64);
+        lines.push(i18n::format(if count==1 {"In {0} region, marked on the map:"} else {"In {0} regions, marked on the map:"},&[&count.to_string()]));
+        lines.extend(regions.iter().map(region_line));
+        if count>regions.len() as u64 {lines.push(i18n::format("{0} more regions",&[&(count-regions.len() as u64).to_string()]));}
+    }
+    lines.extend(card["body"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::trim)
+        .filter(|l|!l.is_empty()).map(str::to_owned));
+    let body=lines.join("
 ");
     let badge=if card["event_answer"]==true {i18n::text("Event answer recognized: the button is highlighted when the event appears.")}else{String::new()};
     let key=card["key"].as_str().unwrap_or("").to_owned();
@@ -201,12 +272,10 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
         Some(card_images::CardImage {id,name:text(&image["name"]),thumb:None})
     }).take(card_images::CARD_IMAGES).collect();
     // The guide's current production plan (backend `card_production`).
-    let production=card["production"].as_array().into_iter().flatten()
-        .map(|row|{let title=row["title"].as_str().map(str::trim).filter(|s|!s.is_empty()).unwrap_or("?");
-            format!("{} {}",if row["goal_satisfied"]==true {"✓"}else{"•"},production_line(row,title))})
+    let production=card["production"].as_array().into_iter().flatten().map(card_production_line)
         .collect::<Vec<_>>().join("
 ");
-    Some(StepCard {header,heading:heading.trim().to_owned(),note,body,badge,key,guide_id,checkable,images,production})
+    Some(StepCard {header,heading,note,body,badge,key,guide_id,checkable,images,production})
 }
 /// The card for this sample: the backend's current card, or the last one kept
 /// briefly while the delivery is unknown (see the stability module), with
@@ -622,6 +691,24 @@ mod tests {
         assert!(result.iter().all(|mark|mark.choice&&!mark.active));
     }
     #[test]
+    fn construction_card_is_said_in_words_with_one_line_per_region() {
+        let snapshot=json!({"title":"RUSSIA (Communist)_ Reverse Barbarossa — Difficulty_⭐.docx","guide_id":"sov","step_card":{"index":2,"total":99,
+            "heading":"Build: INFRA+MILs in: Moscow, Kharkov","body":[],"key":"build",
+            "construction":{"buildings":["Infrastructure","Military factory"],"region_count":2,"regions":[
+                {"name":"Moscow","items":[{"building":"Infrastructure","current":5,"target":5,"queued":false},{"building":"Military factory","current":7,"target":null,"queued":false}]},
+                {"name":"Kharkov","items":[{"building":"Infrastructure","current":4,"target":5,"queued":true}]}]},
+            "production":[{"title":"Truck","quantity":4,"requested":4,"assigned":3,"goal_satisfied":false},
+                {"title":"Infantry equipment","quantity_mode":"remaining","requested":150,"assigned":14,"goal_satisfied":true,"production_priority":"last"}]}});
+        let card=step_card(&snapshot).unwrap();
+        assert_eq!(card.header,"Step 2 of 99 · Reverse Barbarossa");
+        assert_eq!(card.heading,"Build: Infrastructure and Military factory");
+        assert_eq!(card.note,"In the guide: “Build: INFRA+MILs in: Moscow, Kharkov”");
+        assert_eq!(card.body,"In 2 regions, marked on the map:\n• Moscow: Infrastructure 5/5 · Military factory 7, up to the maximum\n• Kharkov: Infrastructure 4/5 (queued)");
+        assert_eq!(card.production,"• Truck: 4 of 4 factories (3 in use)\n✓ Infantry equipment: all remaining factories · last line");
+        assert_eq!(short_guide_title("Plain guide.docx"),"Plain guide");
+        assert_eq!(short_guide_title("  "),"");
+    }
+    #[test]
     fn step_card_keeps_author_text_and_shows_recognized_answer_first() {
         let snapshot=json!({"title":"USSR","step_card":{"index":8,"total":42,"heading":"«Mobilize the Armed Forces immediately!»",
             "abbreviation":"Mobilize The…","body":["Queue civilian factories"],"event_answer":true}});
@@ -644,8 +731,8 @@ mod tests {
             {"title":"F1ca","quantity":15,"quantity_mode":"total","requested":10,"assigned":8,"goal_satisfied":false},
             {"title":"Infantry Equipment","quantity":null,"quantity_mode":"remaining","requested":4,"assigned":null,"goal_satisfied":true,"production_priority":"last"}]);
         assert_eq!(step_card(&manual).unwrap().production,
-            "• F1ca · Target 15 · requested 10 / assigned 8
-✓ Infantry Equipment · ALL remaining factories · requested 4 / assigned ? · Target met · Last line");
+            "• F1ca: 10 of 15 factories (8 in use)
+✓ Infantry Equipment: all remaining factories · last line");
         manual["step_card"]["images"]=json!([{"id":"aa","name":" F1ca "},{"id":"","name":"blank"},{"name":"no id"},{"id":"bb"},{"id":"cc"},{"id":"dd"}]);
         let images=step_card(&manual).unwrap().images;
         assert_eq!(images.iter().map(|i|(i.id.as_str(),i.name.as_str())).collect::<Vec<_>>(),[("aa","F1ca"),("bb",""),("cc","")]);

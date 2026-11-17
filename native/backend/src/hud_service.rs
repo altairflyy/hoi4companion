@@ -127,9 +127,11 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
     let title = clean(&step["title"]).or_else(|| instructions.first().cloned()).unwrap_or_else(|| key.to_owned());
     let heading = resolved.clone().map(|r| format!("«{r}»")).unwrap_or_else(|| title.clone());
     let abbreviation = resolved.as_ref().and_then(|_| instructions.first().cloned().or_else(|| Some(title.clone())));
+    // A line the heading already says (`Build: X` above `X`) is not repeated.
+    let repeats = |line: &str| [&heading, &title].iter().any(|t| *t == line || t.ends_with(&format!(": {line}")));
     let mut body: Vec<String> = instructions
         .iter()
-        .filter(|l| Some(*l) != abbreviation.as_ref() && **l != heading && **l != title)
+        .filter(|l| Some(*l) != abbreviation.as_ref() && !repeats(l))
         .cloned()
         .collect();
     let mut length = 0;
@@ -141,7 +143,39 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
     // of this very step; observed steps complete from the game alone.
     let checkable = status != "completed" && crate::application::manual_keys(guide).contains(key);
     json!({"key":key,"track":track,"index":index,"total":total,"heading":heading,"abbreviation":abbreviation,
-        "body":body,"status":status,"event_answer":resolved.is_some(),"checkable":checkable,"images":card_images(params)})
+        "body":body,"status":status,"event_answer":resolved.is_some(),"checkable":checkable,"images":card_images(params),
+        "construction":card_construction(runtime, key)})
+}
+/// Most regions the HUD card lists for one construction step.
+const CARD_REGIONS: usize = 12;
+/// What a construction step asks, region by region, from the Rust
+/// evaluation's construction targets (built level, declared target, queue
+/// membership), so the card can say it in words instead of the author's
+/// shorthand. Regions keep the guide's order; an unknown level stays null.
+fn card_construction(runtime: &Value, key: &str) -> Value {
+    let Some(step) = crate::hud_geometry::rows(&runtime["steps"]).into_iter().find(|r| r["key"] == key) else {
+        return Value::Null;
+    };
+    let targets = crate::hud_geometry::rows(&step["construction"]["targets"]);
+    if targets.is_empty() {
+        return Value::Null;
+    }
+    let mut regions: Vec<(Value, Value, Vec<Value>)> = Vec::new();
+    let mut buildings: Vec<Value> = Vec::new();
+    for t in targets.iter() {
+        if !buildings.contains(&t["building_name"]) {
+            buildings.push(t["building_name"].clone());
+        }
+        let place = if t["province_id"].is_null() { t["state_id"].clone() } else { t["province_id"].clone() };
+        let item = json!({"building":t["building_name"],"current":t["current"],"target":t["target"],"queued":t["queued"]});
+        match regions.iter_mut().find(|(id, _, _)| *id == place) {
+            Some((_, _, items)) => items.push(item),
+            None => regions.push((place, t["state_name"].clone(), vec![item])),
+        }
+    }
+    let count = regions.len();
+    json!({"buildings":buildings,"region_count":count,"regions":regions.into_iter().take(CARD_REGIONS)
+        .map(|(_, name, items)| json!({"name":name,"items":items})).collect::<Vec<_>>()})
 }
 /// Most production lines the HUD card lists.
 const CARD_PRODUCTION: usize = 8;
@@ -249,6 +283,25 @@ mod tests {
         assert_eq!(markers.len(),1);assert_eq!(markers[0]["state_id"],219);assert_eq!(markers[0]["title"],"Mosca");
         packet["state"]["sample"]["country"]=json!("GER");
         assert!(crate::hud_geometry::rows(&hud.project(&packet,&index,1).unwrap()["proposed"]).iter().all(|p|p["panel"]!="construction_map"));
+    }
+    #[test]
+    fn construction_card_says_the_shorthand_once_and_lists_regions_with_levels() {
+        let guide = json!({"tracks":{"operations":[{"key":"build","title":"Build: INFRA+MILs in: Moscow, Kharkov",
+            "action":{"kind":"manual","params":{"instructions":["INFRA+MILs in: Moscow, Kharkov"]}}}]}});
+        let target = |building: &str, state: u64, name: &str, current: Value, goal: Value, queued: bool|
+            json!({"building_name":building,"state_id":state,"state_name":name,"province_id":null,"current":current,"target":goal,"queued":queued});
+        let runtime = json!({"tracks":{"operations":{"next":"build"}},"steps":[{"key":"build","status":"active","construction":{"targets":[
+            target("Infrastruttura",219,"Mosca",json!(4),json!(5),true),target("Fabbrica militare",219,"Mosca",json!(7),Value::Null,false),
+            target("Infrastruttura",221,"Kharkov",Value::Null,json!(5),false)]}}]});
+        let card = step_card(&guide, &runtime);
+        assert_eq!(card["body"], json!([]), "the instruction repeats the heading");
+        let construction = &card["construction"];
+        assert_eq!(construction["buildings"], json!(["Infrastruttura","Fabbrica militare"]));
+        assert_eq!(construction["region_count"], 2);
+        assert_eq!(construction["regions"][0], json!({"name":"Mosca","items":[
+            {"building":"Infrastruttura","current":4,"target":5,"queued":true},
+            {"building":"Fabbrica militare","current":7,"target":null,"queued":false}]}));
+        assert!(construction["regions"][1]["items"][0]["current"].is_null(), "an unobserved level stays unknown");
     }
     #[test]
     fn step_card_is_the_next_operation_with_its_recognized_answer() {
