@@ -36,8 +36,8 @@ test('HUD alone maintains shared observations, releases demand, and keeps missin
    assert.equal(packet.usable,false);assert.deepEqual(packet.proposed,[]);assert.deepEqual(packet.guides,[]);
    await delay(300);
   }
-  // Both the demand lease and the last observation budget expire.
-  await delay(4250);
+  // Both the demand lease (2 s) and the last observation budget (3 s) expire.
+  await delay(5500);
   packet=await snapshot();assert.equal(packet.live_delivery_fresh,false);assert.equal(packet.usable,false);
   await delay(1200);
   packet=await snapshot();assert.ok(Number.isFinite(packet.state_age_ms)&&packet.state_age_ms<2000,'HUD must resume the shared reader');
