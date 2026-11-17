@@ -17,9 +17,21 @@ The rendered main interface is loaded separately; exact live navigation/layout
 and runtime reachability were not verified. No proprietary source, icons or fonts
 are copied. Blitz was not executed; user databases/authentication were not read.
 
+Focused recheck on 2026-11-17: the installed ASAR still has the SHA-256 above.
+Its package manifest names `src/index.js` as the entry point. REA analyzed only
+`src/index.js`, `src/createWindow.js`, and `src/preload.js` (parent evidence
+`ev_1ce929b25569ad3dcedc3f42aba44ce79a6a5bd40a28bc81f8ad6a68f6a67b14`,
+summary `ev_cd3fcae1c0ac73434736bec0363394e626f6c703efeceeea567eaaf4a3f69f14`).
+It identified one static BrowserWindow construction and a context-bridge API;
+the window source references the preload path (view
+`ev_19ab956d8277c5f060454a2b15072c1c67997ffceb005be3b9e35d988bceeed7`).
+This is syntax evidence, not observed execution: 2,734 files were outside the
+selected source scope, and rendered navigation and dynamic channels remain
+unverified.
+
 Adapted behavior: one persistent navigation shell; guide/ZIP library first;
 qualified campaign context; original focus/technology/operational screens;
-discreet game highlights with secondary tray controls. Keep Rust and JavaScript,
+discreet game highlights managed by the desktop application. Keep Rust and JavaScript,
 without adding Electron or an AI strategy engine.
 
 ## Acceptance
@@ -30,11 +42,19 @@ without adding Electron or an AI strategy engine.
 - Wrong-country, stale and missing evidence never become current dashboard data.
 - Selecting a guide uses the existing active-guide API shared with the HUD.
 - Guide and template ZIP slots remain in the existing importer.
-- The native launcher has browser fallback; the HUD retains legacy controls.
-- The installed Edge engine runs in guest app mode, with sync disabled and an
-  app-specific data directory. No browser login or personal profile is required.
+- Since 2026-11-17, `native/desktop` embeds WebView2 in its own resident window;
+  normal launch has no external browser or implicit tray/background mode.
+- The system WebView2 Runtime uses an app-specific data directory. No browser
+  login or personal profile is required. Legacy standalone HUD controls remain
+  available for explicit tooling; normal desktop mode manages a hidden HUD.
+- A repeated launch activates the verified existing window. X closes its owned
+  backend and HUD; minimize keeps the taskbar application running.
 - Verify navigation, empty/live states, language, campaign/guide changes, keyboard
-  access and desktop/tray lifecycle without giving game input or changing saves.
+  access and desktop lifecycle without giving game input or changing saves.
+
+Current implementation and measured qualification: `AGENT_HANDOFF.md`.
+The dated results below describe previous releases, including the retired Edge
+app-mode launcher, and do not describe current desktop ownership.
 
 UI craft uses the Unslop workflow by Damir Sokolovsky (CC BY 4.0),
 <https://heydamir.design/unslop>.

@@ -811,14 +811,17 @@ impl Service {
                 Ok(result)
             }
             ("POST", "/api/overlay") => self.overlay(request),
-            ("POST", "/api/shutdown") => {
+            ("POST", "/api/desktop/identity") | ("POST", "/api/shutdown") => {
                 let input = request.json_fields(&["token"])?;
                 if self
                     .shutdown_token
                     .as_deref()
                     .is_none_or(|token| input["token"].as_str() != Some(token))
                 {
-                    return Err("Shutdown capability not valid for this service".into());
+                    return Err("Desktop capability not valid for this service".into());
+                }
+                if request.path == "/api/desktop/identity" {
+                    return Ok(json!({"engine":"rust-backend","verified":true,"pid":std::process::id()}));
                 }
                 self.stopped.store(true, Ordering::Release);
                 self.wake.notify_all();
@@ -843,7 +846,7 @@ impl Service {
                 self.app("app_projection", &json!({"guide_id":id,"live":live}))
             }
             ("GET", "/api/backend") => Ok(
-                json!({"engine":"rust-backend","schema_version":1,"resident_python":false,"native_hud_protocol":1}),
+                json!({"engine":"rust-backend","schema_version":1,"resident_python":false,"native_hud_protocol":1,"pid":std::process::id()}),
             ),
             _ => Err("Route not implemented in the native host".into()),
         }

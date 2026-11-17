@@ -19,7 +19,11 @@ test('native service import contracts, evidence, collection persistence and camp
  async function prepared(id){const deadline=Date.now()+20000;while(true){const {value}=await api('/api/import/collection?id='+id);if(value.status!=='preparing')return value;if(Date.now()>deadline)throw Error('Collection preparation timed out');await delay(30);}}
  async function imported(id){const deadline=Date.now()+20000;while(true){const {value}=await api('/api/import/collection?id='+id);assert.notEqual(value.status,'failed',value.error);if(value.auto_finished===true)return value;if(Date.now()>deadline)throw Error('Automatic import timed out');await delay(30);}}
  try{
-  await start(1);const original=(await api('/api/guide/active')).value,originalRun=(await api('/api/guide/progress?id=original')).value.run_id;
+  await start(1);
+  assert.equal((await api('/api/backend')).value.pid,child.pid);
+  assert.equal((await api('/api/desktop/identity',{token:'wrong'})).status,400);
+  assert.deepEqual((await api('/api/desktop/identity',{token:'a'.repeat(64)})).value,{engine:'rust-backend',verified:true,pid:child.pid});
+  const original=(await api('/api/guide/active')).value,originalRun=(await api('/api/guide/progress?id=original')).value.run_id;
   // Each run exposes the stable operation identities of its own pinned definition.
   const manifest=(await api('/api/guide/manifest?id=original')).value;
   assert.equal(manifest.run_id,originalRun);assert.equal(manifest.definition.status,'pinned');assert.equal(manifest.definition.manifest,'bound');

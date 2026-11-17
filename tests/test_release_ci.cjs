@@ -12,14 +12,14 @@ function commands(options,env={}){
 }
 test('CI executes every native suite with release semantics and isolated fast codegen',()=>{
  const ci=commands({_:[],ci:true}),normal=commands({_:[]});
- assert.equal(ci.length,8);assert.equal(normal.length,8);
+ assert.equal(ci.length,9);assert.equal(normal.length,9);
  assert.deepEqual(ci.map(c=>Array.from(c.args)),normal.map(c=>Array.from(c.args)));
  for(let i=0;i<ci.length;i++){
   assert.ok(ci[i].args.includes('--release'));assert.ok(ci[i].args.includes('--locked'));
   assert.equal(ci[i].env.CARGO_PROFILE_RELEASE_LTO,'false');
   assert.equal(ci[i].env.CARGO_PROFILE_RELEASE_CODEGEN_UNITS,'16');
   assert.notEqual(ci[i].env.CARGO_TARGET_DIR,normal[i].env.CARGO_TARGET_DIR);
-  assert.match(ci[i].env.CARGO_TARGET_DIR,/rust-ci-(?:backend|core)-tests-target$/);
+  assert.match(ci[i].env.CARGO_TARGET_DIR,/rust-ci-(?:backend|core|desktop)-tests-target$/);
   assert.equal(normal[i].env.CARGO_PROFILE_RELEASE_LTO,undefined);
  }
  assert.notEqual(ci[0].env.CARGO_TARGET_DIR,ci[6].env.CARGO_TARGET_DIR,'standalone cdylib outputs must not overwrite backend dependencies');
@@ -37,7 +37,7 @@ test('release workflow retains verification gates and exact compiled-resource ca
  for(const input of ['native/**','src/hoi4companion/*.json','src/hoi4companion/*.md','scripts/build-*.ps1'])assert.ok(exact.includes(input),input);
  assert.match(workflow,/steps\.toolchain\.outputs\.key/);
  assert.match(workflow,/compression-level: 0/);
- for(const profile of ['native/backend/Cargo.toml','native/observer/Cargo.toml']){
+ for(const profile of ['native/backend/Cargo.toml','native/observer/Cargo.toml','native/desktop/Cargo.toml']){
   const text=fs.readFileSync(path.join(ROOT,profile),'utf8');
   assert.match(text,/lto = true/);assert.match(text,/codegen-units = 1/);
  }

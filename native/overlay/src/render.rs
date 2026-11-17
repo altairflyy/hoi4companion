@@ -262,7 +262,7 @@ fn hwnd(value: isize) -> HWND { HWND(value as *mut core::ffi::c_void) }
 fn wide(text: &str) -> Vec<u16> { text.encode_utf16().chain(Some(0)).collect() }
 
 impl Renderer {
-    pub fn new(discreet:bool,prefs_path:std::path::PathBuf) -> Result<Self, String> {
+    pub fn new(discreet:bool,managed:bool,prefs_path:std::path::PathBuf) -> Result<Self, String> {
         let shared=Arc::new(Mutex::new(Shared { excluded:true, ..Shared::default() }));
         let paused=Arc::new(AtomicBool::new(false));
         let exit=Arc::new(AtomicBool::new(false));
@@ -271,7 +271,7 @@ impl Renderer {
         let (s,p,e)=(shared.clone(),paused.clone(),exit.clone());
         let events=wake.clone();
         let thread=thread::Builder::new().name("overlay-window".into()).spawn(move || {
-            let result=unsafe { run(s,p,e.clone(),events,discreet,prefs_path,&ready) };
+            let result=unsafe { run(s,p,e.clone(),events,discreet,managed,prefs_path,&ready) };
             if let Err(error)=result { let _=ready.send(Err(error)); }
             e.store(true,Ordering::Release);
         }).map_err(|e|e.to_string())?;
@@ -1047,7 +1047,7 @@ unsafe extern "system" fn window_proc(window:HWND,message:u32,wparam:WPARAM,lpar
 }
 
 unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBool>,
-    wake:Arc<Wake>,discreet:bool,prefs_path:std::path::PathBuf,
+    wake:Arc<Wake>,discreet:bool,managed:bool,prefs_path:std::path::PathBuf,
               ready:&mpsc::SyncSender<Result<(isize,isize),String>>)->Result<(),String> {
     unsafe {
         CoInitializeEx(None,COINIT_APARTMENTTHREADED).ok().map_err(|e|e.to_string())?;
@@ -1104,10 +1104,10 @@ unsafe fn run(shared:Arc<Mutex<Shared>>,paused:Arc<AtomicBool>,exit:Arc<AtomicBo
             uFlags:NIF_MESSAGE|NIF_ICON|NIF_TIP,uCallbackMessage:TRAY,..Default::default()};
         let tip=wide("HOI4 Companion");tray.szTip[..tip.len()].copy_from_slice(&tip);
         tray.hIcon=LoadIconW(None,IDI_APPLICATION).unwrap_or_default();
-        let tray_added=discreet && Shell_NotifyIconW(NIM_ADD,&tray).as_bool();
+        let tray_added=discreet && !managed && Shell_NotifyIconW(NIM_ADD,&tray).as_bool();
         if let Ok(mut s)=ui.shared.lock(){s.tray_controls=tray_added;}
         // Keep the legacy panel visible if notification-area registration fails.
-        if !tray_added {let _=ShowWindow(control,SW_SHOWNOACTIVATE);}
+        if !tray_added && !managed {let _=ShowWindow(control,SW_SHOWNOACTIVATE);}
         ready.send(Ok((control.0 as isize,overlay.0 as isize))).map_err(|e|e.to_string())?;
         let mut message=MSG::default();
         loop {

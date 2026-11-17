@@ -13,10 +13,6 @@ crate-type = ["rlib", "cdylib"]
 name = "hoi4-backend"
 path = "src/main.rs"
 
-[[bin]]
-name = "hoi4-desktop"
-path = "src/desktop_main.rs"
-
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }

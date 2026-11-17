@@ -36,17 +36,19 @@ struct Options {
     capture_access_check:bool,
     native_protocol_check:bool,
     discreet:bool,
+    managed:bool,
     status:PathBuf,
 }
 fn options()->Result<Options,String> {
     let mut result=Options {ui_language:"english".into(),port:8766,guide:String::new(),start:false,
-        proof:None,ocr_image:None,ocr_scale:2,ocr_repeat:3,ocr_prepared:false,prepare_dir:None,capture_access_check:false,native_protocol_check:false,discreet:false,
+        proof:None,ocr_image:None,ocr_scale:2,ocr_repeat:3,ocr_prepared:false,prepare_dir:None,capture_access_check:false,native_protocol_check:false,discreet:false,managed:false,
         status:PathBuf::from(".local/overlay-status.json")};
     let mut args=std::env::args().skip(1);
     while let Some(arg)=args.next() {
         match arg.as_str() {
             "--native-protocol-check"=>result.native_protocol_check=true,
             "--discreet"=>result.discreet=true,
+            "--managed"=>result.managed=true,
             "--ui-language"=>result.ui_language=args.next().ok_or("Missing interface language")?,
             "--port"=>result.port=args.next().ok_or("Missing port")?.parse().map_err(|_|"Invalid port")?,
             "--guide"=>result.guide=args.next().ok_or("Missing guide")?,
@@ -315,7 +317,7 @@ fn run(options:Options)->Result<(),String> {
     if options.ocr_image.is_some(){return benchmark(&options);}
     let Some(_instance)=singleton()? else {return Ok(());};
     unsafe {let _=SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);}
-    let mut renderer=Renderer::new(options.discreet,card::Prefs::path(&options.status))?;renderer.set_paused(!options.start);
+    let mut renderer=Renderer::new(options.discreet,options.managed,card::Prefs::path(&options.status))?;renderer.set_paused(!options.start);
     let mut bridge=protocol::Bridge::new(options.port)?;
     let mut visual:Option<visual_worker::VisualWorker>=None;
     let mut capture:Option<Capture>=None;let mut target:Option<TargetWindow>=None;

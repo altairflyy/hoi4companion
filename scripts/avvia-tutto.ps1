@@ -13,7 +13,9 @@ $launchArgs=@('--port','8766')
 if($NoBrowser){$launchArgs+='--no-browser'}
 if($Stop){$launchArgs+='--stop'}
 $launchProcess=Start-Process -FilePath $launchNative -ArgumentList $launchArgs -WorkingDirectory $launchRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $launchLocal 'launcher.log') -RedirectStandardError (Join-Path $launchLocal 'launcher-error.log')
-# Wait only for the launcher, not its long-lived server, HUD and browser children.
+# The desktop host is resident. Normal launches release this helper immediately.
+if(-not $Stop -and -not $NoBrowser){Write-Host 'Companion is opening.';return}
+# Explicit headless and stop operations still return their operation result.
 $null=$launchProcess.Handle
 $launchProcess.WaitForExit()
 $launchProcess.Refresh()

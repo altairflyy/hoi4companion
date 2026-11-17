@@ -5,12 +5,15 @@ Portable Windows release: extract the complete ZIP, then open HOI4 Companion.exe
 Source checkout: after building the native components, double-click
 START COMPANION AND HUD.bat.
 
-This starts the Rust server and Rust HUD, then opens the desktop suite.
+This opens the native desktop window and starts its managed Rust server and HUD.
+Microsoft Edge WebView2 Runtime is required (normally present on Windows).
+The application does not open a separate browser window.
 No Python interpreter is needed to run the native Windows distribution.
 FFmpeg, yt-dlp and Node run only while the requested video/source job needs them.
 The command window closes immediately. A native preparation window shows loading
 when a cold start is needed; startup errors appear in a native error dialog.
-An existing server/HUD is reused. Initial game indexing can take several minutes.
+A second launch brings the existing application window forward.
+Initial game indexing can take several minutes.
 Prepared guides are cached locally for subsequent starts. Changes to the program,
 game/mod data, language, vocabulary or references invalidate those cached results.
 Live game data and campaign progress are never restored from this cache.
@@ -29,8 +32,10 @@ Use Resume if the HUD is paused and Close overlay to close it.
 Application: http://127.0.0.1:8766/suite.html
 Import another guide: http://127.0.0.1:8766/importer
 
-Closing the launch window or browser does not stop the background server/HUD.
-To stop the native portable application and its HUD:
+The window's X closes the application and its managed server/HUD.
+Minimize keeps the application running with its taskbar button visible.
+There is no implicit background or tray mode.
+For an explicit command-line stop:
   "HOI4 Companion.exe" --stop
 From the source checkout:
   powershell -NoProfile -File scripts/avvia-tutto.ps1 -Stop
