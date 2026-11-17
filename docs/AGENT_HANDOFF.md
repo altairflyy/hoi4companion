@@ -41,5 +41,5 @@ Updated: 2026-11-17. Read CLAUDE.md, this file and current Git diff before editi
 
 ## Working boundaries / next actions
 - Preserve active guide, campaigns, imports and existing concurrent edits. Do not touch live-building readers for desktop work. User permits closing/installing/restarting Companion/HUD; never close, foreground or control HOI4.
-- Check source status before changes: branch guide-identity-decomposition; current work is uncommitted by request. Do not commit/push or alter agent hooks/configuration.
+- Check source status before changes: branch guide-identity-decomposition; all work is committed locally as of e1d4bfb (2026-11-17, at the user's request). User preference: commit finished work locally in focused commits, then rebuild/restart the app; never push without asking; do not alter agent hooks/configuration.
 - Next: user exercise Desktop shortcut and HUD in gameplay; investigate any concrete issues, with read-only game access. Use isolated profiles and owned child handles for lifecycle regressions. Further optimize cold guide preparation only with correctness-preserving cache evidence.
