@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "messages": {
+    "Shared with {0}": "Condiviso con {0}",
     "Only {0}": "Solo {0}",
     "Shared with {0} nations": "Condiviso con {0} nazioni",
     "Sent by {0}": "Inviato da {0}",

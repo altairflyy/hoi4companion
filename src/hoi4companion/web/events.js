@@ -16,7 +16,7 @@
   const tags=el('span','event-tags');
   const reach=model.scope(event,country),others=(event.receivers||[]).filter(tag=>tag!==country);
   if(reach==='own')tags.append(el('span','event-tag event-tag-own',t('Only {0}',country)));
-  else if(reach==='shared')tags.append(el('span','event-tag event-tag-shared',t('Shared with {0} nations',others.length)));
+  else if(reach==='shared')tags.append(el('span','event-tag event-tag-shared',others.length===1?t('Shared with {0}',others[0]):t('Shared with {0} nations',others.length)));
   const from=model.sender(event,country);
   if(from)tags.append(el('span','event-tag event-tag-sender',t('Sent by {0}',from)));
   else if(model.fromOwn(event,country))tags.append(el('span','event-tag event-tag-own',t('From your focuses or decisions')));
