@@ -542,10 +542,14 @@ fn geography(state: &Value, labels: &Labels) -> Value {
                 {
                     let key = format!("VICTORY_POINTS_{province}");
                     let mut label = labels.names(&key);
+                    let points = items[1].as_str().and_then(|v| v.parse::<f64>().ok()).filter(|v| v.is_finite());
                     if label["name"] != key
                         || label["aliases"].as_array().is_some_and(|a| !a.is_empty())
                     {
                         label["province_id"] = json!(province);
+                        if let Some(points) = points {
+                            label["victory_points"] = json!(points);
+                        }
                         result.insert(province, label);
                     }
                 }
@@ -668,11 +672,20 @@ pub fn operations(source: &mut Source) -> Result<Vec<Value>> {
             }
         }
     }
-    match crate::map_markers::anchors(&source.game,&source.mods) {
-        Ok(anchors)=>for row in rows.iter_mut().filter(|r|r["kind"]=="state") {
-            if let Some(point)=row["id"].as_str().and_then(|id|id.parse::<u64>().ok()).and_then(|id|anchors.get(&id)) {row["geography"]["map_anchor"]=point.clone();}
-        },
-        Err(e)=>source.warnings.push(json!(format!("Map anchors unavailable: {e}"))),
+    let anchors = crate::map_markers::anchors(&source.game,&source.mods).unwrap_or_else(|e| {
+        source.warnings.push(json!(format!("Map anchors unavailable: {e}")));
+        Default::default()
+    });
+    let cities = crate::map_markers::city_points(&source.game,&source.mods).unwrap_or_else(|e| {
+        source.warnings.push(json!(format!("City map positions unavailable: {e}")));
+        Default::default()
+    });
+    for row in rows.iter_mut().filter(|r|r["kind"]=="state") {
+        let building=row["id"].as_str().and_then(|id|id.parse::<u64>().ok()).and_then(|id|anchors.get(&id));
+        if let Some((point,province))=crate::map_markers::state_anchor(&row["geography"]["cities"],&cities,building) {
+            row["geography"]["map_anchor"]=point;
+            if let Some(province)=province {row["geography"]["map_anchor_province"]=json!(province);}
+        }
     }
     let neighbors = match crate::map_topology::neighbors(&source.game, &source.mods) {
         Ok(value) => value,
