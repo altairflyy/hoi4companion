@@ -292,6 +292,32 @@ pub(crate) fn canonical(v: &Value) -> Value {
     }
 }
 #[cfg(test)]
+mod province_fact_tests {
+    use super::*;
+    #[test]
+    fn only_provinces_the_guide_can_read_are_kept() {
+        let fact = |v: Value| json!({"status":"observed","source":"fixture","value":v});
+        let mut state = json!({"usable":true,"facts":{
+            "country.fortifications.items.10.buildings.land_facility":fact(json!(1)),
+            "country.fortifications.items.11.bunker":fact(json!(2)),
+            "country.fortifications.items.12.bunker":fact(json!(0)),
+            "country.fortifications.items.13.bunker":fact(json!(4)),
+            "country.fortifications.items.99.bunker":fact(json!(0)),
+            "fortifications.borders.FIN":fact(json!([13])),
+            "country.states.items.1.infrastructure":fact(json!(3))}});
+        let guide = json!({"tracks":{"operations":[
+            {"key":"a","action":{"kind":"manual","params":{"construction_targets":[{"province_id":10}]}}},
+            {"key":"b","action":{"kind":"manual","params":{"province_ids":[11]}}},
+            {"key":"c","action":{"kind":"manual"},"completion":{"op":"fact","key":"country.fortifications.items.12.bunker","test":"gte","value":1}}]}});
+        keep_guide_provinces(&guide, &mut state);
+        let kept: Vec<&String> = state["facts"].as_object().unwrap().keys().collect();
+        for key in ["items.10.", "items.11.", "items.12.", "items.13.", "fortifications.borders.FIN", "country.states.items.1."] {
+            assert!(kept.iter().any(|k| k.contains(key)), "{key} dropped: {kept:?}");
+        }
+        assert!(!kept.iter().any(|k| k.contains("items.99.")), "unreferenced province kept");
+    }
+}
+#[cfg(test)]
 mod foreign_coverage_tests {
     use super::*;
     #[test]
@@ -365,8 +391,62 @@ pub(crate) fn mode(guide: &Value, state: &Value) -> &'static str {
         "live"
     }
 }
+/// Prefix of the per-province building facts (one per province and building:
+/// about 100k for a full map, megabytes cloned on every evaluation).
+const PROVINCE_FACTS: &str = "country.fortifications.items.";
+/// Provinces whose facts the guide can read: ids its steps name
+/// (`province_id`, `province_ids`, construction targets), province fact keys in
+/// its conditions, and border provinces a border selector expands to.
+fn guide_provinces(guide: &Value, state: &Value) -> BTreeSet<String> {
+    fn walk(value: &Value, ids: &mut BTreeSet<String>) {
+        match value {
+            Value::Object(map) => {
+                for (key, value) in map {
+                    match (key.as_str(), value) {
+                        ("province_id", Value::Number(id)) => {
+                            ids.insert(id.to_string());
+                        }
+                        ("province_ids", Value::Array(list)) => {
+                            ids.extend(list.iter().filter(|v| v.is_number()).map(Value::to_string));
+                        }
+                        _ => {}
+                    }
+                    walk(value, ids);
+                }
+            }
+            Value::Array(list) => list.iter().for_each(|v| walk(v, ids)),
+            Value::String(text) => {
+                if let Some(rest) = text.strip_prefix(PROVINCE_FACTS) {
+                    ids.insert(rest.split('.').next().unwrap_or("").to_owned());
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut ids = BTreeSet::new();
+    walk(guide, &mut ids);
+    for (key, fact) in state["facts"].as_object().into_iter().flatten() {
+        if key.starts_with("fortifications.borders.") {
+            ids.extend(fact["value"].as_array().into_iter().flatten().map(Value::to_string));
+        }
+    }
+    ids
+}
+/// Keeps only the province facts the guide can read. Every reader looks them
+/// up by an explicit province id, so the evaluation is unchanged; it only stops
+/// copying the whole map through every evaluation step.
+fn keep_guide_provinces(guide: &Value, state: &mut Value) {
+    let ids = guide_provinces(guide, state);
+    if let Some(facts) = state["facts"].as_object_mut() {
+        facts.retain(|key, _| {
+            key.strip_prefix(PROVINCE_FACTS)
+                .is_none_or(|rest| ids.contains(rest.split('.').next().unwrap_or("")))
+        });
+    }
+}
 pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
-    let state = state::normalize(input);
+    let mut state = state::normalize(input);
+    keep_guide_provinces(guide, &mut state);
     let mode = mode(guide, &state);
     let result = progress(guide, &state, record)?;
     let status = text(&result[0]);
