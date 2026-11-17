@@ -21,19 +21,34 @@
   const tags=[...new Set((event.triggered_by||[]).filter(s=>s.kind!=='event').map(s=>/^([A-Z][A-Z0-9]{2})_/.exec(s.id||'')?.[1]).filter(Boolean))];
   return tags.length===1&&tags[0]!==country?tags[0]:null;
  }
+ // Who gets an event: 'own' when the scripts send it only to the played
+ // nation, 'shared' when other nations get it too, 'unknown' when the
+ // receivers cannot be traced (possible events).
+ function scope(event,country){
+  const receivers=event.receivers||[];
+  if(!receivers.length)return 'unknown';
+  return receivers.length===1&&receivers[0]===country?'own':'shared';
+ }
+ // True when one of its traced triggers is a focus or decision of the played nation.
+ function fromOwn(event,country){
+  return !!country&&(event.triggered_by||[]).some(s=>s.kind!=='event'&&String(s.id||'').startsWith(country+'_'));
+ }
  function matches(event,query){
   const q=norm(query).trim();if(!q)return true;
   return [event.title,event.id,event.description,...(event.options||[]).map(o=>o.name),...(event.triggered_by||[]).map(s=>s.name)].some(text=>norm(text).includes(q));
  }
  // Events shown for the current filters, in the backend's (alphabetical) order.
- function visible(data,{query='',origin='all',possible=false}={}){
+ function visible(data,{query='',origin='all',possible=false,reach='all'}={}){
+  const country=data?.country||'';
   const list=[...(data?.events||[]),...(possible?(data?.possible||[]).map(e=>({...e,possible:true})):[])];
-  return list.filter(event=>(origin==='all'||origins(event).includes(origin))&&matches(event,query));
+  return list.filter(event=>(origin==='all'||origins(event).includes(origin))&&(reach==='all'||scope(event,country)===reach)&&matches(event,query));
  }
  function counts(data){
-  const result={all:(data?.events||[]).length,possible:(data?.possible||[]).length};
-  for(const kind of [...ORIGINS,'none'])result[kind]=(data?.events||[]).filter(e=>origins(e).includes(kind)).length;
+  const events=data?.events||[],country=data?.country||'';
+  const result={all:events.length,possible:(data?.possible||[]).length};
+  for(const kind of [...ORIGINS,'none'])result[kind]=events.filter(e=>origins(e).includes(kind)).length;
+  for(const kind of ['own','shared'])result[kind]=events.filter(e=>scope(e,country)===kind).length;
   return result;
  }
- return {origins,matches,visible,counts,readable,sender,ORIGINS};
+ return {origins,matches,visible,counts,readable,sender,scope,fromOwn,ORIGINS};
 });

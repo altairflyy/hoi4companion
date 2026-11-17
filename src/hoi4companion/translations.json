@@ -1,6 +1,15 @@
 {
   "schema_version": 1,
   "messages": {
+    "Only {0}": "Solo {0}",
+    "Shared with {0} nations": "Condiviso con {0} nazioni",
+    "Sent by {0}": "Inviato da {0}",
+    "From your focuses or decisions": "Dai tuoi focus o decisioni",
+    "Also received by: ": "Lo ricevono anche: ",
+    "+{0} more": "+{0} altre",
+    "Exclusive and shared": "Esclusivi e condivisi",
+    "Only for {0}": "Solo per {0}",
+    "Shared with other nations": "Condivisi con altre nazioni",
     "the other nation": "l’altra nazione",
     "EVENTS": "EVENTI",
     "Events for": "Eventi per",

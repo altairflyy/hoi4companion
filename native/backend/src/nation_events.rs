@@ -46,6 +46,8 @@ pub fn list(entries: &Value, country: &str) -> Value {
         json!({"id":row["id"],"title":name(row),"description":row.get("description").cloned().unwrap_or(Value::Null),
             "event_type":row["event_type"],"triggered_only":row["triggered_only"],"timed":row["timed"],
             "options":options.get(s(&row["id"])).cloned().unwrap_or_default(),
+            // Every nation the scripts send it to: one entry means exclusive to that nation.
+            "receivers":row["receivers"].as_array().cloned().unwrap_or_default(),
             "triggered_by":row["triggered_by"].as_array().into_iter().flatten().filter_map(Value::as_str).map(source).collect::<Vec<_>>()})
     };
     let mut events = vec![];
@@ -85,6 +87,7 @@ mod tests {
         assert_eq!(purge["title"], "Purga");
         assert_eq!(purge["options"], json!([{"id":"sov.1.a","name":"Fallo","political_power_cost":25}]));
         assert_eq!(purge["triggered_by"], json!([{"kind":"focus","id":"SOV_purge","name":"La Grande Purga"},{"kind":"event","id":"sov.0","name":"sov.0"}]));
+        assert_eq!(purge["receivers"], json!(["SOV"]));
         assert_eq!(readable_id("CZE_soviet_alliance"), "CZE · soviet alliance");
         assert_eq!(result["possible"].as_array().unwrap().iter().map(|e| e["id"].clone()).collect::<Vec<_>>(), [json!("any.1")]);
         assert_eq!(list(&entries, "")["reason"], "country_unknown");
