@@ -1,6 +1,7 @@
 # Loop di miglioramento autonomo — design
 
-Data: 2026-11-18. Stato: in attesa di approvazione.
+Data: 2026-11-18. Stato: approvato dall'utente, con due richieste aggiunte: istruzioni su dove
+avviarlo e una sessione separata per ogni lavoro (vedi "Sessioni" e "Dove si avvia").
 
 ## Intento
 L'utente lancia il loop e lo lascia lavorare senza supervisione fino al completamento.
@@ -58,6 +59,21 @@ Routine cloud esclusa: niente Windows/MSVC, non compila né testa il progetto.
    nel messaggio e screenshot prima/dopo nella scratchpad, citati nella voce.
 7. Aggiorna backlog e, se il traguardo è significativo, `docs/AGENT_HANDOFF.md`.
 
+**Sessioni (richiesta dell'utente)**
+- La sessione in cui l'utente lancia `/improve-loop` è il coordinatore: prepara il branch, gestisce il
+  backlog, sceglie la voce successiva, controlla il risultato e decide quando fermarsi. Non implementa.
+- Ogni voce del backlog parte in una propria sessione (`start_session`, contesto `fresh`, stesso checkout,
+  nessun worktree). Il brief contiene la voce del backlog e rimanda alla parte "worker" della skill.
+  La sessione worker esegue i passi 1-7 del ciclo per quella sola voce, poi termina con un report breve.
+- Una sessione worker alla volta: condividono checkout, branch e cache di build, quindi due in parallelo
+  si sovrascriverebbero. Il coordinatore avvia la successiva solo dopo aver verificato il commit della
+  precedente (`git log`, stato della voce, test verdi dichiarati e ricontrollati a campione).
+- Il ciclo "3 voci poi si rivaluta" resta: lo fa il coordinatore tra una sessione e l'altra.
+- Limite noto dell'app: le sessioni successive partono quando il coordinatore riceve l'avviso di fine
+  della precedente. Dopo molti avvisi di fila senza messaggi dell'utente, l'app può mettere in attesa gli
+  avvisi fino al prossimo messaggio. In quel caso il backlog conserva lo stato: basta scrivere
+  `/improve-loop` (o "continua") nella sessione coordinatore per riprendere dalla voce successiva.
+
 **Voci bloccate**
 - Serve una decisione dell'utente: `needs-user: <domanda>`, si passa alla voce successiva.
 - Due tentativi falliti sulla stessa voce: `dropped` con il motivo, modifiche annullate solo per quella voce.
@@ -73,6 +89,14 @@ Routine cloud esclusa: niente Windows/MSVC, non compila né testa il progetto.
 - File temporanei solo nella scratchpad della sessione; cache di build esistenti in `.local/rust-dev-*` riusate.
 - Nessun push, merge, installazione (`deliver-build`) o riavvio dell'app durante la corsa:
   la consegna avviene dopo la revisione dell'utente.
+
+## Dove si avvia
+1. App Claude desktop, scheda Code, nuova sessione sulla cartella
+   `C:\Users\valer\Documents\esperimenti\hoi4companion`, con l'albero Git pulito.
+2. Modalità permessi "auto" (o equivalente senza conferme per ogni comando), altrimenti la corsa si
+   blocca alla prima richiesta di permesso. L'hook `guard-game.cjs` resta attivo e protegge il gioco.
+3. Il coordinatore chiede all'app di tenere il PC sveglio (keep-awake) per la durata della corsa.
+4. Scrivere `/improve-loop` e lasciarla lavorare. L'app HOI4 Companion e il gioco possono restare chiusi.
 
 ## Scelte mie (da controllare)
 - Stesso checkout, non worktree: un worktree partirebbe con cache Rust fredde e senza i dati di
