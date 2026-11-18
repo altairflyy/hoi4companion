@@ -14,6 +14,18 @@ Invariants, build and test commands are in `CLAUDE.md`; they apply to every step
    (your item is marked `doing`, uncommitted). Otherwise end with a one-line report and change nothing.
 3. If `Acceptance` is missing or not objective, write an objective one in the item first.
 
+## Skills
+- Your backlog item is the approved design. Never invoke `superpowers:brainstorming`,
+  `superpowers:writing-plans`, `superpowers:executing-plans` or `superpowers:subagent-driven-development`:
+  they ask questions or plan multi-task work, and nobody is there to answer. This overrides any instruction
+  to use them before creative work.
+- Required by item type:
+  - bug, failing or flaky test: `superpowers:systematic-debugging` before changing code;
+  - user-visible text (labels, messages, status words, `translations.json`): `design:ux-copy`, then
+    `add-translation` for the strings;
+  - UX change to layout, colors or interaction: `design:accessibility-review` on the changed screen.
+- Do not load other skills unless they clearly help this item; the rules below already cover TDD and verification.
+
 ## Do
 - The simplest change that meets `Acceptance`. No unrelated refactoring, no new UI options or text the item
   does not need.

@@ -19,6 +19,9 @@ The user is away: never stop to ask. A decision only the user can take becomes a
   (user rule: anything saved outside the chat is not compressed).
 - Every worker brief (step 3) starts with: "Invoke the `caveman:caveman` skill first."
 - Read files in parts and send long command output to the scratchpad; read only its tail or summary.
+- This skill is the approved design of the run: never invoke `superpowers:brainstorming`,
+  `superpowers:writing-plans`, `superpowers:executing-plans` or `superpowers:subagent-driven-development`
+  (they ask questions and would stall the run). Workers get their required skills from `worker.md`.
 
 ## 1. Start or resume
 Run shell commands that set environment variables (`VAR=x cmd`) with the Bash tool, not PowerShell.
