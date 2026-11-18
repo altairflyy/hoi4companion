@@ -190,10 +190,18 @@ fn timing(text: &str) -> bool {
 /// will acc…(15PP)" (when, then the answer), "Absolutely Not… + There is a…"
 /// (several answers), and an answer written out in full on its own line.
 pub fn references(line: &str) -> Vec<Reference> {
+    split_references(line).0
+}
+/// The references of a line, and whether they are the whole of its work: false
+/// when the pieces are alternatives ("A… / B…", "A… or B…"), when other work
+/// follows them ("A… + B… & SPA war*") or when a piece was dropped. Only a whole
+/// list may complete the step, and only once every piece is observed.
+fn split_references(line: &str) -> (Vec<Reference>, bool) {
     let re = crate::import_catalog::regex;
+    let mut whole = true;
     let mut text = re(r"^\s*(?:[-•*–]\s+)").replace(line.trim(), "").trim().to_owned();
     if text.contains('\n') {
-        return vec![];
+        return (vec![], true);
     }
     // "On X…: action" / "On X… action": only the action names references.
     if let Some((_, action)) = trigger(&text) {
@@ -206,7 +214,7 @@ pub fn references(line: &str) -> Vec<Reference> {
         } else if timing(left) && !right.is_empty() {
             text = right.to_owned();
         } else if !right.is_empty() {
-            return vec![];
+            return (vec![], true);
         }
     }
     // Trailing notes ("(25PP) (if possible)"): the first cost note counts.
@@ -223,15 +231,22 @@ pub fn references(line: &str) -> Vec<Reference> {
         let piece = rest[..m.end()].trim().to_owned();
         let tail = rest[m.end()..].trim_start();
         own.push(re(r"^\([^()]*\)").find(tail).and_then(|n| note_cost(n.as_str())));
+        let separator = re(r"^(?:\(.*?\)\s*)?(\+|/|,|&|and\b|or\b)?").captures(tail).and_then(|c| c.get(1)).map(|m| m.as_str().to_owned());
         let after = re(r"^(?:\(.*?\)\s*)?(?:\+|/|,|&|and\b|or\b)?\s*")
             .replace(tail, "")
             .into_owned();
         pieces.push(piece);
+        if !after.is_empty() && matches!(separator.as_deref(), Some("/" | "or")) {
+            whole = false;
+        }
         // Text after the last mark that is not itself a reference ends the
         // list; after a single abbreviation it is other work, not an answer.
         if !after.is_empty() && !re(r"(?:…|\.\.\.)").is_match(&after) {
             if pieces.len() == 1 && after.chars().any(char::is_alphanumeric) {
-                return vec![];
+                return (vec![], true);
+            }
+            if after.chars().any(char::is_alphanumeric) {
+                whole = false;
             }
             rest.clear();
             break;
@@ -262,12 +277,16 @@ pub fn references(line: &str) -> Vec<Reference> {
             costs[n - 1] = Some(cost);
         }
     }
-    pieces
+    if pieces.iter().any(|p| p.chars().count() > 90) {
+        whole = false;
+    }
+    let refs = pieces
         .into_iter()
         .zip(costs)
         .filter(|(p, _)| p.chars().count() <= 90)
         .map(|(p, cost)| Reference { text: p, cost })
-        .collect()
+        .collect();
+    (refs, whole)
 }
 /// "(25PP)", "(25 CP)", "(50PPx2)", "(10 AE)": amount, currency, multiplier.
 fn note_cost(note: &str) -> Option<(Cost, u32)> {
@@ -554,7 +573,7 @@ pub fn ground_references(guide: &mut Value, index: &Index) -> Result<()> {
         if row["action"]["kind"] != "manual" || bound(params) || !params["reference_resolution"].is_null() {
             continue;
         }
-        let refs = references(&line);
+        let (refs, whole) = split_references(&line);
         if refs.is_empty() {
             continue;
         }
@@ -619,9 +638,27 @@ pub fn ground_references(guide: &mut Value, index: &Index) -> Result<()> {
             }
             // The lead line of a block holding other work: recognized and
             // shown, never bound, so the block is not completed by it alone.
-            if block {
+            // The same for a line of several actions unless every action is
+            // grounded and is the whole of the line's work: alternatives
+            // ("A… / B…"), an unresolved piece or trailing work ("& SPA war*")
+            // must not let one observed action complete the step.
+            let several = refs.len() > 1;
+            if block || several && (!whole || !unresolved.is_empty()) {
                 let mut recognized = params["reference_resolution"].clone();
-                recognized["scope"] = json!("first_line");
+                recognized["scope"] = json!(if block { "first_line" } else { "line" });
+                recognized["tracked"] = json!(false);
+                row["action"]["params"]["reference_resolution"] = recognized;
+                continue;
+            }
+            let completion_of = |e: &Value, result: &Value| -> Value {
+                if e["kind"] == "event_option" { result["step"]["completion"].clone() } else { result["completion"].clone() }
+            };
+            let completions: Vec<Value> = grounded.iter().map(|(_, e, _, result)| completion_of(e, result)).collect();
+            // Every action of the line has to be observed: a missing
+            // completion for any piece keeps the step manual.
+            if several && completions.iter().any(Value::is_null) {
+                let mut recognized = params["reference_resolution"].clone();
+                recognized["scope"] = json!("line");
                 recognized["tracked"] = json!(false);
                 row["action"]["params"]["reference_resolution"] = recognized;
                 continue;
@@ -634,6 +671,9 @@ pub fn ground_references(guide: &mut Value, index: &Index) -> Result<()> {
                 if !step[field].is_null() {
                     row[field] = step[field].clone();
                 }
+            }
+            if several {
+                row["completion"] = json!({"op":"all","args":completions});
             }
             continue;
         }
@@ -828,6 +868,9 @@ mod tests {
             row("h", "On Expand…done:
 - Deploy & vol
 - Liturgical…"),
+            row("i", "Liturgical…(70PP) + Convoke…(100PP) & GER war"),
+            row("j", "Liturgical…(70PP) / Convoke…(100PP)"),
+            row("k", "Liturgical…(70PP) + Recall Some…"),
         ]}});
         ground_references(&mut guide, &index).unwrap();
         let rows = guide["tracks"]["operations"].as_array().unwrap().clone();
@@ -842,9 +885,22 @@ mod tests {
         assert!(rows[0].get("tracking").is_none());
         // Two names share the prefix: the author's cost note picks one.
         assert_eq!(p(1)["decision_id"], "HUN_take_over_ministry_a");
-        // 3: each action of the line, with its own cost note.
+        // 3: each action of the line, with its own cost note; the step is
+        // complete only once every action is observed.
         assert_eq!(p(2)["decision_id"], "HUN_liturgical_reform");
         assert_eq!(p(2)["reference_resolution"]["also"][0]["id"], "HUN_convoke_council");
+        assert_eq!(rows[2]["completion"]["op"], "all");
+        assert_eq!(rows[2]["completion"]["args"].as_array().map(Vec::len), Some(2));
+        assert_eq!(rows[2]["completion"]["args"][1]["args"][0]["value"], "HUN_convoke_council");
+        // Other work after the actions, alternatives, or an unresolved piece:
+        // recognized and shown, never completed by one observed action.
+        for i in [8, 9, 10] {
+            assert_eq!(p(i)["reference_resolution"]["id"], "HUN_liturgical_reform", "row {i}");
+            assert_eq!(p(i)["reference_resolution"]["tracked"], false, "row {i}");
+            assert_eq!(p(i)["reference_resolution"]["scope"], "line", "row {i}");
+            assert!(p(i)["decision_id"].is_null() && rows[i].get("completion").is_none(), "row {i}");
+        }
+        assert_eq!(p(10)["reference_resolution"]["unresolved"][0]["text"], "Recall Some…");
         // An ambiguous trigger stays unknown with its candidates; the action
         // is still grounded (technologies are common to every nation).
         assert!(rows[3].get("when").is_none());

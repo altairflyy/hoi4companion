@@ -182,7 +182,7 @@
   const isAnswer=r=>!r.kind||r.kind==='event_option';
   if(ref.reference_resolution){const r=ref.reference_resolution;node.append(el('p','operation-copy',isAnswer(r)?HoiI18n.t("Recognized: event answer “{0}” ({1}).",r.option_text||r.option_id,r.event_id):HoiI18n.t("Recognized: {0} “{1}” ({2}).",kindLabel(r.kind),r.name||r.id,r.id)));
    // A block's lead line: recognized only, the block holds other work too.
-   if(r.tracked===false)node.append(el('p','operation-copy',HoiI18n.t("Not tracked automatically: this block also holds other instructions.")));}
+   if(r.tracked===false)node.append(el('p','operation-copy',HoiI18n.t(r.scope==='line'?"Not tracked automatically: confirm every action of this line yourself.":"Not tracked automatically: this block also holds other instructions.")));}
   for(const more of Array.isArray(ref.reference_resolution?.also)?ref.reference_resolution.also:[])node.append(el('p','operation-copy',isAnswer(more)?HoiI18n.t("Also recognized: “{0}” → event answer “{1}” ({2}).",more.text||'',more.option_text||more.option_id,more.event_id):HoiI18n.t("Also recognized: “{0}” → {1} “{2}” ({3}).",more.text||'',kindLabel(more.kind),more.name||more.id,more.id)));
   for(const open of Array.isArray(ref.reference_resolution?.unresolved)?ref.reference_resolution.unresolved:[])node.append(el('p','operation-copy',HoiI18n.t("Not recognized: “{0}”. Possible references: {1}",open.text||'',(open.candidates||[]).map(c=>`${c.name||c.id} (${kindLabel(c.kind)})`).join(' · ')||'—')));
   // The author's trigger ("On X…: …"): the live condition it became, or why

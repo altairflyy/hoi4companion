@@ -283,7 +283,12 @@ pub fn trigger_condition(resolution: &Value) -> (Option<Value>, &'static str, &'
         Some("event") => return (None, relation, "event_firing_not_persistently_observable"),
         _ => return (None, relation, "entity_kind_not_observable"),
     };
-    let done = json!({"op":"fact","key":done,"test":"contains","value":id});
+    let mut done = json!({"op":"fact","key":done,"test":"contains","value":id});
+    // `decisions.executed` lists only recent executions; the decision history
+    // keeps them, so a "before" gate does not reopen once the fact drops out.
+    if let Some(history) = crate::guide_prepare::decision_history_predicate(&done) {
+        done = json!({"op":"any","args":[done,history]});
+    }
     let reached = json!({"op":"any","args":[{"op":"fact","key":active,"test":"contains","value":id},done]});
     let condition = match relation {
         "completed" => done,
@@ -370,6 +375,17 @@ mod tests {
         assert!(c.is_none());
         assert_eq!(why, "event_firing_not_persistently_observable");
         assert_eq!(trigger_condition(&resolve("When GER close to cap", &p)).2, "reference_not_resolved");
+        // A decision counts as done through its history too, so a "before"
+        // gate does not reopen when the recent-execution fact drops out.
+        let decision = vec![Candidate { kind: "decision".into(), id: "HUN_convoke_council".into(), names: vec![words("Convoke the Council")], ordinal: None, source: "catalog" }];
+        let history = json!({"op":"any","args":[
+            {"op":"fact","key":"decisions.executed","test":"contains","value":"HUN_convoke_council"},
+            {"op":"fact","key":"decisions.history.executed","test":"contains","value":"HUN_convoke_council"}]});
+        let (c, _, _) = trigger_condition(&resolve("After Convoke the Council", &decision));
+        assert_eq!(c.unwrap(), history);
+        let (c, relation, _) = trigger_condition(&resolve("Before Convoke the Council", &decision));
+        assert_eq!(relation, "before");
+        assert_eq!(c.unwrap()["arg"]["args"][1], history);
     }
 
     #[test]

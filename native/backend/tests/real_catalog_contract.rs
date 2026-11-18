@@ -117,12 +117,21 @@ fn real_catalog_contract_comparison() {
             ("ITA", "On Strengthen…: Liturgical…(70PP)", "decision_id", "ITA_bop_liturgical_reforms"),
             ("ITA", "Take Over Ministry Of Corp… (50PP)", "decision_id", "ITA_bop_take_over_ministry_of_corporations"),
             ("GER", "Exploit the… (30PP)", "decision_id", "GER_exploit_the_gombos_treaty"),
-            ("GER", "On Coal… Develop Ersatz… (30PP)", "decision_id", "GER_ersatz_material"),
-            ("FRA", "On Intervention…: Allow Volunteer…+ Intervene On… (25PPx2) & SPA war*", "decision_id", "FRA_allow_volunteer_work")] {
+            ("GER", "On Coal… Develop Ersatz… (30PP)", "decision_id", "GER_ersatz_material")] {
             if guide["applies_to"]["country"] == country {
                 for s in a.iter().filter(|s| s["action"]["params"]["instructions"][0] == line) {
                     assert_eq!(s["action"]["params"][key], id, "{country} {line}");
                 }
+            }
+        }
+        // Several actions plus other work ("& SPA war*"): the first action is
+        // recognized, but one observed action never completes the step.
+        if guide["applies_to"]["country"] == "FRA" {
+            for s in a.iter().filter(|s| s["action"]["params"]["instructions"][0] == "On Intervention…: Allow Volunteer…+ Intervene On… (25PPx2) & SPA war*") {
+                let p = &s["action"]["params"];
+                assert_eq!(p["reference_resolution"]["id"], "FRA_allow_volunteer_work");
+                assert_eq!(p["reference_resolution"]["tracked"], false);
+                assert!(p["decision_id"].is_null() && s.get("completion").is_none());
             }
         }
         for (country, line, focus) in [("GER", "On Coal… Develop Ersatz… (30PP)", "GER_coal_liquefaction"), ("SWE", "On “Appeal for…”: pick all decisions except “aristocracy”", "SWE_appeal_for_support"),
@@ -280,7 +289,9 @@ fn event_reference_survey() {
             let refs = references(line);
             let family = if refs.len() > 1 { "3_multi" } else if refs.iter().any(|r| r.text.contains('…') || r.text.contains("...")) { "2_named" } else { "other" };
             let bound = state != "unbound" && state != "candidates";
-            let shown = if p["reference_resolution"]["tracked"] == false { "recognized_block_lead" } else if bound { "bound" } else { state };
+            let shown = if p["reference_resolution"]["tracked"] == false {
+                if p["reference_resolution"]["scope"] == "line" { "recognized_untracked_line" } else { "recognized_block_lead" }
+            } else if bound { "bound" } else { state };
             *buckets.entry(format!("family {family}{} {shown}", if block { "(block)" } else { "" })).or_default() += 1;
             if let Some((left, _)) = &trig {
                 let t = &p["trigger_resolution"];

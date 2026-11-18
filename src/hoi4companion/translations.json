@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "messages": {
+    "Not tracked automatically: confirm every action of this line yourself.": "Non tracciato in automatico: conferma tu ogni azione di questa riga.",
     "Not tracked automatically: this block also holds other instructions.": "Non tracciato in automatico: il blocco contiene anche altre istruzioni.",
     "Recognized: {0} “{1}” ({2}).": "Riconosciuto: {0} «{1}» ({2}).",
     "Also recognized: “{0}” → {1} “{2}” ({3}).": "Riconosciuto anche: «{0}» → {1} «{2}» ({3}).",
