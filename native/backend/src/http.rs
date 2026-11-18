@@ -764,7 +764,7 @@ impl Service {
                 // A guide for another nation says nothing about this one's events.
                 let applies = guide.as_ref().is_some_and(|g| g["country"].as_str().is_none_or(|c| c.is_empty() || c == country));
                 let focuses = guide.as_ref().filter(|_| applies).map(crate::nation_events::guide_focuses).unwrap_or_default();
-                let mut result = self.catalog(|c| Ok(crate::nation_events::list(&c.identity_data()?["entries"], &country, &focuses)))?;
+                let mut result = self.catalog(|c| Ok(crate::nation_events::list(&c.identity_data()?["entries"], &country, &focuses, &c.sources["historical_focuses"])))?;
                 if let Some(guide) = guide {
                     result["guide"] = json!({"id":guide["id"],"title":guide["title"],"country":guide["country"],"applies":applies});
                 }

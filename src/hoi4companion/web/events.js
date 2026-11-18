@@ -18,7 +18,8 @@
   if(guideFocuses.length)tags.append(el('span','event-tag event-tag-guide',t('Guide focus: {0}',guideFocuses[0].name)+(guideFocuses.length>1?' '+t('+{0} more',guideFocuses.length-1):'')));
   const branch=event.branch_focuses||[];
   if(model.guideActive(data)&&event.guide_reach==='other_branch'&&branch.length)tags.append(el('span','event-tag event-tag-branch',t('Branch outside the guide: {0}',branch[0].name)));
-  if(model.guideActive(data)&&event.guide_reach==='foreign')tags.append(el('span','event-tag event-tag-branch',t('From another nation')));
+  const historical=event.historical_focuses||[];
+  if(event.guide_reach==='historical'&&historical.length)tags.append(el('span','event-tag event-tag-historical',t('Historical: {0}',historical[0].name)));
   if(model.guideActive(data)&&event.guide_reach==='anyway')tags.append(el('span','event-tag',t('Comes without focuses')));
   const from=model.sender(event,country);
   if(from)tags.append(el('span','event-tag event-tag-sender',t('Sent by {0}',from)));
@@ -58,6 +59,7 @@
   let status=data.reason==='country_unknown'?t('Waiting for the played nation'):t('{0} events shown',shown.length);
   if(guide&&$('eventsScope').value==='guide'&&data.reason!=='country_unknown')
    status+=' · '+t('{0} from your guide focuses at the top',counts.fromGuide)+' · '+t('{0} hidden: only focuses outside the guide lead to them',counts.otherBranch);
+  if(data.reason!=='country_unknown'&&counts.historical)status+=' · '+t('{0} from other nations’ historical focuses',counts.historical);
   if(data.reason!=='country_unknown'&&counts.foreign)status+=' · '+t('{0} hidden: other nations’ focuses or decisions send them',counts.foreign);
   $('eventsStatus').textContent=status;
   for(const event of shown.slice(0,400))list.append(card(event));

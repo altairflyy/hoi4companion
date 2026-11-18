@@ -49,7 +49,7 @@
   const all=data?.events||[],events=scope==='guide'&&guideActive(data)?all.filter(withGuide):all;
   const result={all:events.filter(own).length,possible:(data?.possible||[]).length,guide:all.filter(withGuide).length,nation:all.filter(own).length,
    fromGuide:all.filter(fromGuide).length,otherBranch:all.filter(e=>e.guide_reach==='other_branch').length,
-   foreign:all.filter(e=>e.guide_reach==='foreign').length};
+   foreign:all.filter(e=>e.guide_reach==='foreign').length,historical:all.filter(e=>e.guide_reach==='historical').length};
   for(const kind of [...ORIGINS,'none'])result[kind]=events.filter(own).filter(e=>origins(e).includes(kind)).length;
   return result;
  }

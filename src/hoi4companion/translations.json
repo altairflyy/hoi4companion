@@ -1,6 +1,8 @@
 {
   "schema_version": 1,
   "messages": {
+    "Historical: {0}": "Storico: {0}",
+    "{0} from other nations’ historical focuses": "{0} da focus storici di altre nazioni",
     "{0} hidden: other nations’ focuses or decisions send them": "{0} nascosti: li inviano focus o decisioni di altre nazioni",
     "From another nation": "Da un’altra nazione",
     "Comes without focuses": "Esce senza focus",

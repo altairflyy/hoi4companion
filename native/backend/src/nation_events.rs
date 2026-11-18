@@ -99,7 +99,10 @@ fn chains(rows: &[Value], country: &str) -> Chains {
 /// fires it (focus/decision/event, named). With a guide's focuses, each event
 /// also names the guide focuses that lead to it (`guide_focuses`, empty when
 /// none does) and says whether the guide can see it (`guide_reach`).
-pub fn list(entries: &Value, country: &str, guide: &[String]) -> Value {
+/// `historical`: focuses the AI takes on its historical path
+/// (catalog source "historical_focuses").
+pub fn list(entries: &Value, country: &str, guide: &[String], historical: &Value) -> Value {
+    let historical: HashSet<&str> = historical.as_array().into_iter().flatten().filter_map(Value::as_str).collect();
     let rows: &[Value] = entries.as_array().map(Vec::as_slice).unwrap_or(&[]);
     if country.len() != 3 {
         return json!({"country":country,"events":[],"possible":[],"reason":"country_unknown"});
@@ -126,13 +129,17 @@ pub fn list(entries: &Value, country: &str, guide: &[String]) -> Value {
         let roots = chains.roots.get(&node).unwrap_or(&empty);
         // "guide": a guide focus leads to it. "anyway": the nation meets it with
         // no focus (on_actions, timed, history, its own free decisions).
-        // "other_branch": only this nation's focuses outside the guide lead to
-        // it. "foreign": it comes from other nations' focuses or decisions.
+        // "historical": another nation's focus on the AI's historical path
+        // leads to it (e.g. GER's Molotov-Ribbentrop pact). "other_branch":
+        // only this nation's focuses outside the guide lead to it. "foreign":
+        // other nations' focuses or decisions off the historical path.
         let own = format!("{country}_");
         let reach = if guide.iter().any(|f| roots.contains(f)) {
             "guide"
         } else if chains.free.contains(&node) {
             "anyway"
+        } else if roots.iter().any(|f| !f.starts_with(&own) && historical.contains(f.as_str())) {
+            "historical"
         } else if !roots.is_empty() && roots.iter().all(|f| f.starts_with(&own)) {
             "other_branch"
         } else {
@@ -150,6 +157,8 @@ pub fn list(entries: &Value, country: &str, guide: &[String]) -> Value {
             "guide_reach":reach,
             // For an event only focuses outside the guide lead to: some of them.
             "branch_focuses":if reach == "other_branch" { roots.iter().take(3).map(|f| source(&format!("focus:{f}"))).collect::<Vec<_>>() } else { vec![] },
+            // For an event of the historical path: the other nations' historical focuses behind it.
+            "historical_focuses":if reach == "historical" { roots.iter().filter(|f| !f.starts_with(&own) && historical.contains(f.as_str())).take(3).map(|f| source(&format!("focus:{f}"))).collect::<Vec<_>>() } else { vec![] },
             "triggered_by":row["triggered_by"].as_array().into_iter().flatten().filter_map(Value::as_str).map(source).collect::<Vec<_>>()})
     };
     let mut events = vec![];
@@ -183,7 +192,7 @@ mod tests {
             {"kind":"event","id":"any.1","name":"Border clash","receivers":[],"receivers_unknown":true,"identity_countries":["SOV","JAP"]},
             {"kind":"event","id":"any.2","name":"Elsewhere","receivers":[],"receivers_unknown":true,"identity_countries":["USA"]},
             {"kind":"focus","id":"SOV_purge","name":"The Great Purge","localized_name":"La Grande Purga"}]);
-        let result = list(&entries, "SOV", &[]);
+        let result = list(&entries, "SOV", &[], &Value::Null);
         assert_eq!(result["events"].as_array().unwrap().len(), 1);
         let purge = &result["events"][0];
         assert_eq!(purge["title"], "Purga");
@@ -192,7 +201,7 @@ mod tests {
         assert_eq!(purge["receivers"], json!(["SOV"]));
         assert_eq!(readable_id("CZE_soviet_alliance"), "CZE · soviet alliance");
         assert_eq!(result["possible"].as_array().unwrap().iter().map(|e| e["id"].clone()).collect::<Vec<_>>(), [json!("any.1")]);
-        assert_eq!(list(&entries, "", &[])["reason"], "country_unknown");
+        assert_eq!(list(&entries, "", &[], &Value::Null)["reason"], "country_unknown");
     }
 
     #[test]
@@ -207,6 +216,7 @@ mod tests {
             {"kind":"event","id":"sov.both","name":"Also on_action","receivers":["SOV"],"triggered_by":["focus:SOV_other","event:sov.pulse"]},
             {"kind":"event","id":"sov.pulse","name":"Monthly","receivers":["SOV"],"triggered_by":[]},
             {"kind":"event","id":"sov.cze","name":"Czech offer","receivers":["SOV"],"triggered_by":["focus:CZE_offer"]},
+            {"kind":"event","id":"sov.hist","name":"Historical Czech move","receivers":["SOV"],"triggered_by":["focus:CZE_historic"]},
             {"kind":"decision","id":"GER_ask","triggered_by":[]},
             {"kind":"event","id":"sov.ger","name":"German request","receivers":["SOV"],"triggered_by":["decision:GER_ask"]},
             {"kind":"event","id":"ita.ai","name":"Italian AI move","receivers":["ITA"],"triggered_by":[]},
@@ -219,7 +229,7 @@ mod tests {
             {"action":{"kind":"select_focus","entity":{"kind":"focus","id":"SOV_pact"}}}]}});
         let guide = guide_focuses(&definition);
         assert_eq!(guide, ["SOV_pact"]);
-        let result = list(&entries, "SOV", &guide);
+        let result = list(&entries, "SOV", &guide, &json!(["CZE_historic"]));
         let by_id = |id: &str| result["events"].as_array().unwrap().iter().find(|e| e["id"] == id).unwrap().clone();
         assert_eq!(by_id("sov.yes")["guide_focuses"], json!([{"kind":"focus","id":"SOV_pact","name":"Pact"}]));
         assert_eq!(by_id("sov.loop")["guide_focuses"].as_array().unwrap().len(), 1, "cycles end");
@@ -236,6 +246,8 @@ mod tests {
         assert_eq!(reach("sov.ger"), "foreign", "another nation's decision sends it");
         assert_eq!(reach("sov.ita"), "foreign", "an event only another nation receives starts it");
         assert_eq!(reach("sov.own"), "anyway", "own decision, always available");
+        assert_eq!(reach("sov.hist"), "historical", "another nation's historical AI focus sends it");
+        assert_eq!(by_id("sov.hist")["historical_focuses"][0]["id"], "CZE_historic");
         assert_eq!(result["guide_focus_count"], 1);
     }
 
@@ -245,7 +257,7 @@ mod tests {
             {"kind":"decision","id":"SOV_mission","triggered_by":["focus:SOV_purge"]},
             {"kind":"event","id":"sov.mission","receivers":["SOV"],"triggered_by":["decision:SOV_mission"]},
             {"kind":"event","id":"sov.timed","receivers":["SOV"],"triggered_by":[],"enabled_by":["focus:SOV_purge"]}]);
-        let result = list(&entries, "SOV", &["SOV_purge".to_owned()]);
+        let result = list(&entries, "SOV", &["SOV_purge".to_owned()], &Value::Null);
         for event in result["events"].as_array().unwrap() {
             assert_eq!(event["guide_order"], 0, "{}", event["id"]);
         }

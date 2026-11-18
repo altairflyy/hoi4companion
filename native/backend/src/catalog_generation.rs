@@ -40,6 +40,45 @@ fn files(
     append(warnings, &value);
     Ok(value["files"].clone())
 }
+/// Focuses the AI takes on its historical path: the `ai_national_focuses`
+/// lists of the AI strategy plans that are historical (file named
+/// "*historical*", or enabled by `is_historical_focus_on = yes` outside NOT).
+/// Static game data, sorted and unique.
+fn historical_focuses(files: &Value, warnings: &mut Vec<Value>) -> Value {
+    fn historical_switch(node: &Value, depth: usize) -> bool {
+        depth < 32
+            && script_document::entries(node).any(|(key, value)| {
+                key == "is_historical_focus_on" && value == "yes"
+                    || key != "NOT" && value.get("entries").is_some() && historical_switch(value, depth + 1)
+            })
+    }
+    let mut ids = std::collections::BTreeSet::new();
+    for path in files.as_array().into_iter().flatten().filter_map(Value::as_str) {
+        let named = Path::new(path).file_name().is_some_and(|n| n.to_string_lossy().to_lowercase().contains("historical"));
+        let root = match script_document::read(Path::new(path)) {
+            Ok(root) => root,
+            Err(error) => {
+                warnings.push(json!(format!("AI strategy plan ({}): {error}", Path::new(path).file_name().unwrap_or_default().to_string_lossy())));
+                continue;
+            }
+        };
+        for (_, plan) in script_document::entries(&root).filter(|(_, v)| v.get("entries").is_some()) {
+            if !named && !blocks(plan, "enable").any(|b| historical_switch(b, 0)) {
+                continue;
+            }
+            for list in blocks(plan, "ai_national_focuses") {
+                for (key, value) in script_document::entries(list) {
+                    // A bare token parses as an unnamed scalar entry.
+                    let id = if key.is_empty() { value.as_str().unwrap_or("") } else { key };
+                    if !id.is_empty() && !id.contains(['=', ' ']) {
+                        ids.insert(id.to_owned());
+                    }
+                }
+            }
+        }
+    }
+    json!(ids)
+}
 fn static_branch(node: &Value) -> Value {
     json!({"entries":script_document::entries(node).map(|(key,value)|{
         let upper=key.to_uppercase();let key=if ["AND","OR","NOT","NAND","NOR"].contains(&upper.as_str()){upper.as_str()}else if ["has_dlc","always"].contains(&key){key}else{"unobserved_runtime_predicate"};
@@ -232,6 +271,7 @@ impl Catalog {
         let mut trees = focus["trees"].clone();
         let mut all_trees = trees.clone();
         let mut continuous = json!({});
+        let mut historical = json!([]);
         let mut scripts = json!({});
         let mut excluded_trees = json!([]);
         let mut technology_definitions = json!({});
@@ -255,6 +295,8 @@ impl Catalog {
             continuous = loaded["focuses"].clone();
             append(&mut warnings, &loaded);
             scripted_names = names(&game, &mods, &mut warnings)?;
+            let plan_files = files(&game, &mods, "common/ai_strategy_plans", ".txt", &mut warnings)?;
+            historical = historical_focuses(&plan_files, &mut warnings);
         }
         append(&mut warnings, &focus);
         if !demo {
@@ -373,7 +415,7 @@ impl Catalog {
             import_index_cache: None,
             research_context_cache: HashMap::new(),
             sources: Arc::new(
-                json!({"settings":settings,"demo":demo,"warnings":warnings,"labels":labels,"reference_labels":reference,"all_trees":all_trees,"trees":trees,"continuous_focuses":continuous,"scripted_names":scripted_names,"scripts":scripts,"dlcs":dlcs,"mod_inventory":mod_inventory,"mod_roots":mods.iter().map(|p|installation::display(p)).collect::<Vec<_>>(),"game_root":if demo&&settings["game_dir"]==""{Value::Null}else{json!(installation::display(&game))},"excluded_trees":excluded_trees,"excluded_focuses":excluded_focuses,"operation_entities":operation_entities,"technologies":technologies,"technology_definitions":technology_definitions,"technology_visuals":technology_visuals,"focus_visuals":focus_visuals}),
+                json!({"settings":settings,"demo":demo,"warnings":warnings,"labels":labels,"reference_labels":reference,"all_trees":all_trees,"trees":trees,"continuous_focuses":continuous,"historical_focuses":historical,"scripted_names":scripted_names,"scripts":scripts,"dlcs":dlcs,"mod_inventory":mod_inventory,"mod_roots":mods.iter().map(|p|installation::display(p)).collect::<Vec<_>>(),"game_root":if demo&&settings["game_dir"]==""{Value::Null}else{json!(installation::display(&game))},"excluded_trees":excluded_trees,"excluded_focuses":excluded_focuses,"operation_entities":operation_entities,"technologies":technologies,"technology_definitions":technology_definitions,"technology_visuals":technology_visuals,"focus_visuals":focus_visuals}),
             ),
             assets,
             identities: None,
@@ -462,5 +504,28 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
             crate::entity_catalog::export(&value["entries"], &owner.sources["reference_labels"])
         }
         _ => Err("Unknown catalog operation".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn historical_focuses_come_from_historical_ai_plans_only() {
+        let dir = std::env::temp_dir().join(format!("hoi4-plans-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let write = |name: &str, text: &str| {
+            let path = dir.join(name);
+            std::fs::write(&path, text).unwrap();
+            path.to_string_lossy().into_owned()
+        };
+        let named = write("GER_historical_strategy_plan.txt", "GER_plan = {\n ai_national_focuses = {\n  GER_rhineland #MAR 36\n  GER_molotov_ribbentrop_pact\n }\n}\n");
+        let switched = write("CHI_plan.txt", "CHI_hist = {\n enable = { is_historical_focus_on = yes }\n ai_national_focuses = { CHI_the_soviet_volunteer_group }\n}\nCHI_alt = {\n enable = { NOT = { is_historical_focus_on = yes } }\n ai_national_focuses = { CHI_alternate }\n}\n");
+        let alternate = write("ITA_alternate_strategy_plan.txt", "ITA_alt = {\n ai_national_focuses = { ITA_other }\n}\n");
+        let mut warnings = vec![];
+        let ids = historical_focuses(&json!([named, switched, alternate]), &mut warnings);
+        std::fs::remove_dir_all(&dir).ok();
+        assert_eq!(ids, json!(["CHI_the_soviet_volunteer_group", "GER_molotov_ribbentrop_pact", "GER_rhineland"]));
+        assert!(warnings.is_empty());
     }
 }
