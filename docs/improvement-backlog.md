@@ -61,9 +61,9 @@ Item format (ids IL-01, IL-02, ... are never reused):
 - Priority: 2 (21 survey lines mention justify; today recognized only, `action_resolution` not_observable; risk: needs a qualified live field)
 - Source: `event_reference_survey` 2026-11-18 (`family other unbound: 48`, `other(block) unbound: 43`, e.g. "justify HUN (31PP)", "Justify BUL ASAP"); `docs/AGENT_HANDOFF.md` "justify/annex/integrate/invade/collab recognized only".
 - Acceptance: first check read-only (code, `docs/foreign-interactions-live.md`, live profiles) whether a qualified live field reports an ongoing or completed war-goal justification against a tag. None: set `dropped: no qualified war-goal field` with the evidence. Exists: bind justify lines via `political_binding::foreign` like `declare_war`, Rust integration test like `each_foreign_part_of_a_line_is_kept_once_observed`, survey `other_bound` 13 -> higher, nothing bound when the field is unknown, backend tests green. Live behavior NOT VERIFIED in game.
-- Status: todo
-- Attempts: 0
-- Notes:
+- Status: dropped: no qualified war-goal field
+- Attempts: 1
+- Notes: Read-only check, no code changed. `native/live/src/country_foreign.rs` `RELATIONS` qualifies 18 relation classes (war, guarantee, non-aggression pact, improve relations, embargo, access rights, subject, lend-lease, naval blockade, market access and similar); none is a war-goal justification. `src/hoi4companion/live-profiles-v1.json` and `live-abi-v1.json` contain no war-goal, justification or claim field; a search for `justif|wargoal|war_goal` in `native/live`, `native/model`, `native/backend/src` and the live profiles finds nothing. `docs/foreign-interactions-live.md` lists only `diplomacy.*` and `intelligence.*` facts, and `docs/events-live.md` states that justifying a war goal is not readable live. Justify lines therefore stay recognized only (`action_resolution` not_observable). Binding them would first need a new native acquisition of the war-goal justification state, qualified on the pinned executable, which is outside this item.
 
 ### IL-05 — Answer before every guide is prepared: active guide first, rest in background
 - Area: performance
