@@ -368,7 +368,7 @@ static NEXT: AtomicU64 = AtomicU64::new(1);
 fn registry() -> &'static Mutex<HashMap<u64, Owner>> {
     REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
 }
-pub(crate) fn with<T>(
+pub fn with<T>(
     handle: Option<u64>,
     apply: impl FnOnce(Option<&mut Assets>) -> Result<T>,
 ) -> Result<T> {

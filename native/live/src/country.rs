@@ -575,7 +575,7 @@ fn fixed(value: u128) -> f64 {
         .parse()
         .expect("bounded decimal")
 }
-pub(crate) fn hex(bytes: &[u8]) -> String {
+pub fn hex(bytes: &[u8]) -> String {
     const HEX: &[u8] = b"0123456789abcdef";
     let mut out = Vec::with_capacity(bytes.len() * 2);
     for b in bytes {
@@ -584,7 +584,7 @@ pub(crate) fn hex(bytes: &[u8]) -> String {
     }
     String::from_utf8(out).expect("hex ASCII")
 }
-pub(crate) fn native_name(memory: &mut impl Memory, base: u64, address: u64) -> Result<String> {
+pub fn native_name(memory: &mut impl Memory, base: u64, address: u64) -> Result<String> {
     Reader {
         d: Decoder { memory, base },
         world: 0,

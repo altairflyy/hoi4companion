@@ -14,7 +14,7 @@ if(args.ci){env.CARGO_PROFILE_RELEASE_LTO='false';env.CARGO_PROFILE_RELEASE_CODE
 // profile (and its cache) for an explicit pre-release check.
 const fast=!args.ci&&!args.dev&&!args.lto;
 if(fast)fastProfile(env);
-const crates=args._.length?args._:['parser','observer','guide-core','catalog-core','tools','storage','model','guides','backend','overlay','desktop'];
+const crates=args._.length?args._:['parser','observer','guide-core','catalog-core','tools','storage','model','guides','hud','live','media','backend','overlay','desktop'];
 for(const crate of crates){
  if(!/^[a-z-]+$/.test(crate)||!fs.existsSync(path.join(ROOT,'native',crate,'Cargo.toml')))throw Error('Unknown crate: '+crate);
  // Root cdylib+rlib outputs have un-hashed names. Standalone core tests use

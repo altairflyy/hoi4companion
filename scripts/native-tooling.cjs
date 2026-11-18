@@ -12,7 +12,7 @@ function fastProfile(env){env.CARGO_PROFILE_RELEASE_LTO='false';env.CARGO_PROFIL
 // crates without LLVM optimization (third-party dependencies stay optimized):
 // measured ~17 s instead of ~59 s after an edit. Their own shared cache keeps
 // the -Dev install build optimized.
-const BACKEND_CRATES=['model','guides','backend'];
+const BACKEND_CRATES=['model','guides','hud','live','media','backend'];
 const BACKEND_TEST_CONFIG=BACKEND_CRATES.flatMap(c=>['--config',`profile.release.package.hoi4companion-${c}.opt-level=0`]);
 function powershell(script,args=[],options={}){return run('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(ROOT,'scripts',script),...args],options);}
 function files(folder){return fs.readdirSync(folder,{withFileTypes:true}).flatMap(entry=>{const p=path.join(folder,entry.name);if(entry.isSymbolicLink())throw Error('Unexpected symbolic link: '+p);return entry.isDirectory()?files(p):[p];});}

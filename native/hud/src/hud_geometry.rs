@@ -2,7 +2,7 @@
 //! native observations; labels, clicks and pixel changes are never evidence.
 use serde_json::{Value, json};
 type Result<T> = std::result::Result<T, String>;
-pub(crate) fn rows(value: &Value) -> &[Value] {
+pub fn rows(value: &Value) -> &[Value] {
     value.as_array().map(Vec::as_slice).unwrap_or(&[])
 }
 fn text(value: &Value) -> &str {
@@ -35,7 +35,7 @@ fn numbers<const N: usize>(v: &Value) -> Result<[f64; N]> {
     }
     Ok(out)
 }
-pub(crate) fn intersect(a: [f64; 4], b: [f64; 4]) -> [f64; 4] {
+pub fn intersect(a: [f64; 4], b: [f64; 4]) -> [f64; 4] {
     let x = a[0].max(b[0]);
     let y = a[1].max(b[1]);
     [
@@ -46,7 +46,7 @@ pub(crate) fn intersect(a: [f64; 4], b: [f64; 4]) -> [f64; 4] {
     ]
 }
 use std::ops::Sub;
-pub(crate) fn anchored(
+pub fn anchored(
     parent: [f64; 16],
     position: [f64; 2],
     size: [f64; 2],
@@ -83,7 +83,7 @@ pub(crate) fn anchored(
         json!({"rect":rect,"clip":clipped,"visible":clipped[2]>0. && clipped[3]>0.,"scale":sx*child}),
     )
 }
-pub(crate) fn sprite(args: &Value) -> Result<Value> {
+pub fn sprite(args: &Value) -> Result<Value> {
     let mut matrix = numbers::<16>(&args["matrix"])?;
     let size = numbers::<2>(&args["size"])?;
     let clip = numbers::<4>(&args["clip"])?;
@@ -109,7 +109,7 @@ fn bbox(v: &Value) -> Option<[f64; 4]> {
         Some([b[0], b[1], b[0] + b[2], b[1] + b[3]])
     }
 }
-pub(crate) fn rectangle(node: &Value, panel: &Value, view: &Value) -> Option<Value> {
+pub fn rectangle(node: &Value, panel: &Value, view: &Value) -> Option<Value> {
     let a = bbox(&node["rect"])?;
     let b = bbox(&node["clip"])?;
     let c = bbox(&panel["clip"])?;
@@ -128,7 +128,7 @@ fn rect(control: &Value, view: &Value, pass: bool) -> Option<Value> {
         rectangle(control, &json!({"clip":control["clip"]}), view)
     }
 }
-pub(crate) fn resource_ready(v: &Value) -> bool {
+pub fn resource_ready(v: &Value) -> bool {
     v.is_object()
         && yes(&v["resources_available"])
         && !present(&v["blocked"])
@@ -145,7 +145,7 @@ fn resource_gate_rejects_unknown_declared_source_rules_and_busy_facilities() {
     v["blocked"]=json!(["compatible_facility_unavailable"]);assert!(!resource_ready(&v));
     v["blocked"]=json!([]);v["resources_available"]=Value::Null;assert!(!resource_ready(&v));
 }
-pub(crate) fn actions(raw: &Value, proposals: &Value, view: &Value, pass: bool) -> Vec<Value> {
+pub fn actions(raw: &Value, proposals: &Value, view: &Value, pass: bool) -> Vec<Value> {
     let obs = &raw["action_ui"];
     let active = text(&raw["active_panel"]);
     if obs["status"] != "observed" || ["focus", "research", "event"].contains(&active) {
@@ -330,7 +330,7 @@ fn variants<'a>(controls: Vec<&'a Value>, target: &Value, picker: bool) -> Vec<&
         })
         .collect()
 }
-pub(crate) fn production(raw: &Value, proposals: &Value, view: &Value, pass: bool) -> Vec<Value> {
+pub fn production(raw: &Value, proposals: &Value, view: &Value, pass: bool) -> Vec<Value> {
     let ui = &raw["production_ui"];
     if ui["status"] != "observed"
         || ["focus", "research", "event"].contains(&text(&raw["active_panel"]))
@@ -460,14 +460,14 @@ pub(crate) fn production(raw: &Value, proposals: &Value, view: &Value, pass: boo
     }
     grouped
 }
-pub(crate) fn navigation(args: &Value) -> Value {
+pub fn navigation(args: &Value) -> Value {
     let pass = yes(&args["passthrough"]);
     json!({"actions":actions(&args["raw"],&args["proposals"],&args["view"],pass),"production":production(&args["raw"],&args["proposals"],&args["view"],pass)})
 }
 
 /// Qualify proposals against one witnessed snapshot and one viewport. A native
 /// failure suspends visual fallback; stale coordinates never survive failure.
-pub(crate) fn admit(raw: &Value, proposals: &Value, view: &Value) -> Result<Value> {
+pub fn admit(raw: &Value, proposals: &Value, view: &Value) -> Result<Value> {
     let mut result = json!({"available":true,"matches":[],"handled_panels":["focus","research","event"],"active_panel":null,"diagnostics":raw.get("diagnostics").cloned().unwrap_or(json!({}))});
     if !yes(&raw["available"]) {
         result["suspend_visual"] = json!(true);

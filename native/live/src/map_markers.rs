@@ -2,7 +2,7 @@
 use crate::{gui_observer::Sample, live::Memory};
 use serde_json::{Value, json};
 type Result<T> = std::result::Result<T, String>;
-pub(crate) fn project(
+pub fn project(
     m: [f64; 16],
     mut p: [f64; 3],
     center: f64,
@@ -39,7 +39,7 @@ pub(crate) fn project(
         && y < size[1] - 8.)
         .then_some([x, y, z])
 }
-pub(crate) fn geometry(
+pub fn geometry(
     memory: &mut impl Memory,
     base: u64,
     profile: &Value,

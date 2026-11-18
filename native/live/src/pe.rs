@@ -1,21 +1,21 @@
 //! Immutable, bounded PE64/RTTI access shared by profile and live readers.
 type Result<T> = std::result::Result<T, String>;
-pub(crate) struct Pe<'a> {
+pub struct Pe<'a> {
     data: &'a [u8],
-    pub(crate) base: u64,
-    pub(crate) sections: Vec<(u64, u64, usize)>,
+    pub base: u64,
+    pub sections: Vec<(u64, u64, usize)>,
 }
 fn raw(data: &[u8], offset: usize, n: usize) -> Result<&[u8]> {
     data.get(offset..offset.checked_add(n).ok_or("Riferimento PE non mappato")?)
         .ok_or_else(|| "Riferimento PE non mappato".into())
 }
-pub(crate) fn number(data: &[u8], offset: usize, n: usize) -> Result<u64> {
+pub fn number(data: &[u8], offset: usize, n: usize) -> Result<u64> {
     let mut bytes = [0; 8];
     bytes[..n].copy_from_slice(raw(data, offset, n)?);
     Ok(u64::from_le_bytes(bytes))
 }
 impl<'a> Pe<'a> {
-    pub(crate) fn new(data: &'a [u8]) -> Result<Self> {
+    pub fn new(data: &'a [u8]) -> Result<Self> {
         let pe = number(data, 0x3c, 4)? as usize;
         if raw(data, pe, 4)? != b"PE\0\0"
             || number(data, pe + 4, 2)? != 0x8664
@@ -44,7 +44,7 @@ impl<'a> Pe<'a> {
             sections,
         })
     }
-    pub(crate) fn bytes(&self, rva: u64, size: usize) -> Result<&[u8]> {
+    pub fn bytes(&self, rva: u64, size: usize) -> Result<&[u8]> {
         for &(start, length, offset) in &self.sections {
             if start <= rva
                 && rva
@@ -56,7 +56,7 @@ impl<'a> Pe<'a> {
         }
         Err("Riferimento PE non mappato".into())
     }
-    pub(crate) fn class_name(&self, rva: u64) -> Result<String> {
+    pub fn class_name(&self, rva: u64) -> Result<String> {
         let location = number(
             self.bytes(rva.checked_sub(8).ok_or("RTTI non riconosciuto")?, 8)?,
             0,

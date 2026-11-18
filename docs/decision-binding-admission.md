@@ -18,7 +18,7 @@ See the frozen [investigation](guide-binding-safety-review.md) for source eviden
 
 ## Implemented boundary
 
-`native/backend/src/decision_admission.rs` runs only in `import_preview.rs`, after
+`native/guides/src/decision_admission.rs` runs only in `import_preview.rs`, after
 existing promotion/binding and before validity/publication. It:
 
 - Evaluates the existing constraint AST conservatively, with independent current

@@ -85,7 +85,7 @@ accuracy remains unscored; a compiled predicate is not proof of correct scope.
 
 ## Where the current pipeline loses structure
 
-Source evidence is in `native/backend/src/word_sources.rs`,
+Source evidence is in `native/model/src/word_sources.rs`,
 `operation_language.rs`, `operation_binding.rs`, `timing_compiler.rs` and
 `runtime_definition.rs`.
 

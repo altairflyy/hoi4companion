@@ -472,6 +472,9 @@ dependencies = [
  "hoi4companion-catalog-core",
  "hoi4companion-guide-core",
  "hoi4companion-guides",
+ "hoi4companion-hud",
+ "hoi4companion-live",
+ "hoi4companion-media",
  "hoi4companion-model",
  "hoi4companion-observer",
  "hoi4companion-parser",
@@ -515,6 +518,93 @@ dependencies = [
  "encoding_rs",
  "hoi4companion-catalog-core",
  "hoi4companion-guide-core",
+ "hoi4companion-model",
+ "hoi4companion-observer",
+ "hoi4companion-parser",
+ "hoi4companion-storage",
+ "hoi4companion-tools",
+ "html-escape",
+ "image",
+ "image_dds",
+ "lol_html",
+ "regex",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "url",
+ "windows",
+ "zip",
+]
+
+[[package]]
+name = "hoi4companion-hud"
+version = "0.1.0"
+dependencies = [
+ "csv",
+ "encoding_rs",
+ "hoi4companion-catalog-core",
+ "hoi4companion-guide-core",
+ "hoi4companion-guides",
+ "hoi4companion-model",
+ "hoi4companion-observer",
+ "hoi4companion-parser",
+ "hoi4companion-storage",
+ "hoi4companion-tools",
+ "html-escape",
+ "image",
+ "image_dds",
+ "lol_html",
+ "regex",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "url",
+ "windows",
+ "zip",
+]
+
+[[package]]
+name = "hoi4companion-live"
+version = "0.1.0"
+dependencies = [
+ "csv",
+ "encoding_rs",
+ "hoi4companion-catalog-core",
+ "hoi4companion-guide-core",
+ "hoi4companion-guides",
+ "hoi4companion-hud",
+ "hoi4companion-model",
+ "hoi4companion-observer",
+ "hoi4companion-parser",
+ "hoi4companion-storage",
+ "hoi4companion-tools",
+ "html-escape",
+ "image",
+ "image_dds",
+ "lol_html",
+ "regex",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "url",
+ "windows",
+ "zip",
+]
+
+[[package]]
+name = "hoi4companion-media"
+version = "0.1.0"
+dependencies = [
+ "csv",
+ "encoding_rs",
+ "hoi4companion-catalog-core",
+ "hoi4companion-guide-core",
+ "hoi4companion-guides",
+ "hoi4companion-hud",
+ "hoi4companion-live",
  "hoi4companion-model",
  "hoi4companion-observer",
  "hoi4companion-parser",

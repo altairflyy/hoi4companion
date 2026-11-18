@@ -26,7 +26,7 @@ For a **new inferred** decision association:
    explicit user choice merely because it appears in compiled JSON.
 
 Suggested implementation location is the operational compilation/admission part
-of `native/backend/src/import_preview.rs` (after the promotion result, before
+of `native/guides/src/import_preview.rs` (after the promotion result, before
 `valid`/publication). Keep any helper local to import admission. The exact alias
 evidence should come from the same native normalizer/vocabulary/index, not a new
 JavaScript or regular-expression imitation of identity matching.

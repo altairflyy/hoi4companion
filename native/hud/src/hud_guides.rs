@@ -2,7 +2,7 @@
 //! the active guide's nation. Static compatibility is supplied by the catalog.
 use serde_json::{Value, json};
 
-pub(crate) fn select(packet: &Value, catalog: &Value) -> Value {
+pub fn select(packet: &Value, catalog: &Value) -> Value {
     let sample = &packet["sample"];
     let country = sample["country"].as_str().filter(|tag| {
         tag.len() == 3 && tag.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())

@@ -28,12 +28,12 @@ pub struct Profile {
     pub shared_focuses: Value,
     pub watch: bool,
 }
-pub(crate) struct Decoder<'a, M> {
-    pub(crate) memory: &'a mut M,
-    pub(crate) base: u64,
+pub struct Decoder<'a, M> {
+    pub memory: &'a mut M,
+    pub base: u64,
 }
 impl<M: Memory> Decoder<'_, M> {
-    pub(crate) fn read(&mut self, a: u64, n: usize) -> Result<Vec<u8>> {
+    pub fn read(&mut self, a: u64, n: usize) -> Result<Vec<u8>> {
         if !(0x10000..0x7fff_ffff_ffff).contains(&a)
             || n > 65536
             || a.checked_add(n as u64)
@@ -47,17 +47,17 @@ impl<M: Memory> Decoder<'_, M> {
         }
         Ok(bytes)
     }
-    pub(crate) fn u(&mut self, a: u64) -> Result<u64> {
+    pub fn u(&mut self, a: u64) -> Result<u64> {
         Ok(u64::from_le_bytes(
             self.read(a, 8)?.try_into().expect("read length"),
         ))
     }
-    pub(crate) fn i(&mut self, a: u64) -> Result<i32> {
+    pub fn i(&mut self, a: u64) -> Result<i32> {
         Ok(i32::from_le_bytes(
             self.read(a, 4)?.try_into().expect("read length"),
         ))
     }
-    pub(crate) fn array(&mut self, a: u64, width: usize, maximum: i32) -> Result<Vec<u64>> {
+    pub fn array(&mut self, a: u64, width: usize, maximum: i32) -> Result<Vec<u64>> {
         let head = self.read(a, 16)?;
         let pointer = u64::from_le_bytes(head[..8].try_into().unwrap());
         let capacity = i32::from_le_bytes(head[8..12].try_into().unwrap());
@@ -80,7 +80,7 @@ impl<M: Memory> Decoder<'_, M> {
             })
             .collect()
     }
-    pub(crate) fn string(&mut self, a: u64) -> Result<String> {
+    pub fn string(&mut self, a: u64) -> Result<String> {
         let head = self.read(a, 32)?;
         let length = u64::from_le_bytes(head[16..24].try_into().unwrap());
         let capacity = u64::from_le_bytes(head[24..32].try_into().unwrap());
@@ -108,21 +108,21 @@ impl<M: Memory> Decoder<'_, M> {
         }
         String::from_utf8(value.to_vec()).map_err(|e| e.to_string())
     }
-    pub(crate) fn kind(&mut self, a: u64) -> Result<(u64, String)> {
+    pub fn kind(&mut self, a: u64) -> Result<(u64, String)> {
         let vtable = self
             .u(a)?
             .checked_sub(self.base)
             .ok_or("RTTI non riconosciuto")?;
         Ok((vtable, self.memory.class_name(vtable)?))
     }
-    pub(crate) fn object(&mut self, a: u64, name: &str) -> Result<u64> {
+    pub fn object(&mut self, a: u64, name: &str) -> Result<u64> {
         if self.kind(a)?.1 != format!(".?AV{name}@@") {
             Err(format!("Tipo nativo inatteso: {name}"))
         } else {
             Ok(a)
         }
     }
-    pub(crate) fn pointer_object(&mut self, a: u64, name: &str) -> Result<u64> {
+    pub fn pointer_object(&mut self, a: u64, name: &str) -> Result<u64> {
         let pointer = self.u(a)?;
         self.object(pointer, name)
     }

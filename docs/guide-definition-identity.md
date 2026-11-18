@@ -205,7 +205,7 @@ Actual results, 2026-11-15:
 Milestone 1 of the order above is implemented; no decomposition, parsing or
 completion semantics changed.
 
-- **Archive** (`native/backend/src/definition_archive.rs`): format 1 envelope
+- **Archive** (`native/guides/src/definition_archive.rs`): format 1 envelope
   `{archive_format, guide_id, compiler_contract, evaluator_contract, source_sha256,
   occurrence_manifest:null, definition}`, canonical sorted JSON, `gd1_` SHA-256.
   **Deviation:** `definition` is the *evaluated* guide (after preparation AND
@@ -246,7 +246,7 @@ and reloaded identically; the live database was not touched.
 Milestone 2 infrastructure; still no active decomposition, parser change or
 evaluation change (`presentation_fixtures` unchanged, `COMPILER_CONTRACT` = 1).
 
-- **Module** `native/backend/src/occurrence_manifest.rs`, stored in the archive
+- **Module** `native/guides/src/occurrence_manifest.rs`, stored in the archive
   field `occurrence_manifest` (format 1) and validated structurally on open.
   Archives from milestone 1 (null manifest) stay evaluable, reported `unavailable`.
 - **Operation identity** `op1_<32 hex>` = digest(guide, compiler contract,
@@ -307,7 +307,7 @@ at least one line is recognized. The 632 persisted containers (622 prepared)
 are therefore the blocks where no line was recognized: re-running recognizers
 on them yields nothing new. Contract 2 adds structure, not new parsing.
 
-**`native/backend/src/decomposition.rs`** (applied after the contract-1
+**`native/guides/src/decomposition.rs`** (applied after the contract-1
 prepare+present, then re-presented with the same catalog):
 - Grammar shared verbatim with promote (line breaks, bullets, inline/ellipsis
   timing; a unit test pins the strings to `operation_language.rs`).
@@ -409,7 +409,7 @@ First game-grounded semantic step. It covers references in TRIGGER position
 (headers, the scope part of `scope: action`, mixed `scope: action:` headers)
 to real national focuses and technologies. No new parser, no external service.
 
-**Entity recognition** (`native/backend/src/entity_resolution.rs`), kept
+**Entity recognition** (`native/guides/src/entity_resolution.rs`), kept
 separate from intent:
 - Candidates come only from real game data: the guide's own grounded steps
   (focus/research/event/decision entity IDs with author title, localized name
@@ -589,7 +589,7 @@ Validation (2026-11-16):
 ## Implemented: automatic checklist upgrade (2026-11-16)
 User decision: updating the app must update open checklists; a "new checklist" is no longer needed to see guide fixes. This replaces the earlier rule that pinned runs never move.
 - When a guide's active run is read (`ensure`) or observed live, `Application::upgrade_run` re-pins it (pinned or legacy) to the current archive through storage op `upgrade`, in one SQLite transaction that also publishes the archive.
-- Progress translation (`native/backend/src/run_upgrade.rs`) is conservative: a confirmation/start moves only to (1) the same key with the same instruction text, (2) the single step of the same Word block with the same text, or (3) every checkable part of a confirmed whole block that is now decomposed. Changed wording is not assumed done.
+- Progress translation (`native/guides/src/run_upgrade.rs`) is conservative: a confirmation/start moves only to (1) the same key with the same instruction text, (2) the single step of the same Word block with the same text, or (3) every checkable part of a confirmed whole block that is now decomposed. Changed wording is not assumed done.
 - The run row keeps the last 8 `previous_definitions` (`definition_ref`, `checks`, `started`); their archives stay referenced (`referenced_definitions`), so earlier progress keeps its meaning and can be restored.
 - The upgrade waits for the game catalog context, so a run is not moved twice during startup (catalog-free, then catalog compile). Inactive guides move when opened.
 - Tests: `native/backend/tests/integration/definition_pinning.rs` (`updating_the_guide_moves_open_checklists_onto_the_new_definition`, `legacy_checklists_also_move_onto_the_current_definition`), `run_upgrade` unit test.

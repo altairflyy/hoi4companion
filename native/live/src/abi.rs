@@ -160,7 +160,7 @@ fn set(value: &mut Value, path: &str, new: Value) -> Result<()> {
     *slot = new;
     Ok(())
 }
-pub(crate) fn qualify(data: &[u8], manifest: &Value) -> Result<Value> {
+pub fn qualify(data: &[u8], manifest: &Value) -> Result<Value> {
     if data.get(..2) != Some(b"MZ") {
         return Err("Invalid PE image".into());
     }

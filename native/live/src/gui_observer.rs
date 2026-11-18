@@ -10,16 +10,16 @@ type Result<T> = std::result::Result<T, String>;
 fn compose_position(local: [f64;16], parent: [f64;16]) -> [f64;16] {
     std::array::from_fn(|i| (0..4).map(|k| local[(i/4)*4+k]*parent[k*4+i%4]).sum())
 }
-pub(crate) struct Sample<'a, M> {
-    pub(crate) memory: &'a mut M,
-    pub(crate) base: u64,
-    pub(crate) profile: &'a Value,
+pub struct Sample<'a, M> {
+    pub memory: &'a mut M,
+    pub base: u64,
+    pub profile: &'a Value,
     witnesses: BTreeMap<(u64, usize), Vec<u8>>,
     visibility: BTreeMap<u64, u8>,
-    pub(crate) used: usize,
+    pub used: usize,
 }
 impl<'a, M: Memory> Sample<'a, M> {
-    pub(crate) fn new(memory: &'a mut M, base: u64, profile: &'a Value) -> Self {
+    pub fn new(memory: &'a mut M, base: u64, profile: &'a Value) -> Self {
         Self {
             memory,
             base,
@@ -29,16 +29,16 @@ impl<'a, M: Memory> Sample<'a, M> {
             used: 0,
         }
     }
-    pub(crate) fn offset(&self, key: &str, default: u64) -> u64 {
+    pub fn offset(&self, key: &str, default: u64) -> u64 {
         self.profile["gui_layout"][key].as_u64().unwrap_or(default)
     }
-    pub(crate) fn offsets(&self, key: &str, default: &[u64]) -> Vec<u64> {
+    pub fn offsets(&self, key: &str, default: &[u64]) -> Vec<u64> {
         self.profile["gui_layout"][key]
             .as_array()
             .map(|a| a.iter().filter_map(Value::as_u64).collect())
             .unwrap_or_else(|| default.to_vec())
     }
-    pub(crate) fn read(&mut self, a: u64, n: usize) -> Result<Vec<u8>> {
+    pub fn read(&mut self, a: u64, n: usize) -> Result<Vec<u8>> {
         self.used = self.used.checked_add(n).ok_or("GUI read limit exceeded")?;
         if self.used > 4 * 1024 * 1024
             || !(0x10000..0x7fff_ffff_ffff).contains(&a)
@@ -61,16 +61,16 @@ impl<'a, M: Memory> Sample<'a, M> {
         }
         Ok(bytes)
     }
-    pub(crate) fn u(&mut self, a: u64) -> Result<u64> {
+    pub fn u(&mut self, a: u64) -> Result<u64> {
         Ok(u64::from_le_bytes(self.read(a, 8)?.try_into().unwrap()))
     }
-    pub(crate) fn i(&mut self, a: u64) -> Result<i32> {
+    pub fn i(&mut self, a: u64) -> Result<i32> {
         Ok(i32::from_le_bytes(self.read(a, 4)?.try_into().unwrap()))
     }
-    pub(crate) fn f(&mut self, a: u64) -> Result<f64> {
+    pub fn f(&mut self, a: u64) -> Result<f64> {
         Ok(f32::from_le_bytes(self.read(a, 4)?.try_into().unwrap()) as f64)
     }
-    pub(crate) fn shown(&mut self, a: u64) -> Result<bool> {
+    pub fn shown(&mut self, a: u64) -> Result<bool> {
         let full = self.witnesses.contains_key(&(a, 1));
         let flag = self.read(a, 1)?[0] & 8;
         if !full {
@@ -85,7 +85,7 @@ impl<'a, M: Memory> Sample<'a, M> {
         }
         Ok(flag != 0)
     }
-    pub(crate) fn verify(&mut self) -> Result<()> {
+    pub fn verify(&mut self) -> Result<()> {
         // Coalesce nearby witnesses without creating dependencies on unused
         // widget flags; each original byte range and visibility mask is checked.
         let mut ranges: Vec<(u64, u64)> = vec![];
@@ -128,7 +128,7 @@ impl<'a, M: Memory> Sample<'a, M> {
         }
         Ok(())
     }
-    pub(crate) fn rtti(&mut self, vtable: u64) -> Result<(String, u32)> {
+    pub fn rtti(&mut self, vtable: u64) -> Result<(String, u32)> {
         let rva = vtable
             .checked_sub(self.base)
             .ok_or("RTTI GUI non riconosciuto")?;
@@ -165,18 +165,18 @@ impl<'a, M: Memory> Sample<'a, M> {
         }
         Ok((String::from_utf8(raw.to_vec()).unwrap(), word(4)))
     }
-    pub(crate) fn typed(&mut self, a: u64, name: &str) -> Result<u64> {
+    pub fn typed(&mut self, a: u64, name: &str) -> Result<u64> {
         let vt = self.u(a)?;
         if self.rtti(vt)? != (format!(".?AV{name}@@"), 0) {
             return Err(format!("Tipo GUI inatteso: {name}"));
         }
         Ok(a)
     }
-    pub(crate) fn ptr(&mut self, a: u64, name: &str) -> Result<u64> {
+    pub fn ptr(&mut self, a: u64, name: &str) -> Result<u64> {
         let v = self.u(a)?;
         self.typed(v, name)
     }
-    pub(crate) fn array(&mut self, a: u64, max: i32) -> Result<Vec<u64>> {
+    pub fn array(&mut self, a: u64, max: i32) -> Result<Vec<u64>> {
         let header = self.read(a, 16)?;
         let pointer = u64::from_le_bytes(header[..8].try_into().unwrap());
         let capacity = i32::from_le_bytes(header[8..12].try_into().unwrap());
@@ -195,7 +195,7 @@ impl<'a, M: Memory> Sample<'a, M> {
             .map(|b| u64::from_le_bytes(*b))
             .collect())
     }
-    pub(crate) fn string(&mut self, a: u64) -> Result<String> {
+    pub fn string(&mut self, a: u64) -> Result<String> {
         let header = self.read(a, 32)?;
         let length = u64::from_le_bytes(header[16..24].try_into().unwrap());
         let cap = u64::from_le_bytes(header[24..].try_into().unwrap());
@@ -217,7 +217,7 @@ impl<'a, M: Memory> Sample<'a, M> {
         }
         Ok(String::from_utf8(bytes[..bytes.len() - 1].to_vec()).unwrap())
     }
-    pub(crate) fn matrix(&mut self, a: u64) -> Result<[f64; 16]> {
+    pub fn matrix(&mut self, a: u64) -> Result<[f64; 16]> {
         self.matrix_at(a,0x90)
     }
     fn matrix_at(&mut self,a:u64,offset:u64)->Result<[f64;16]> {
@@ -241,14 +241,14 @@ impl<'a, M: Memory> Sample<'a, M> {
         let parent=self.matrix(anchor)?;
         Ok(compose_position(compose_position(inner_local,outer_local),parent))
     }
-    pub(crate) fn clip(&mut self, c: u64) -> Result<[f64; 4]> {
+    pub fn clip(&mut self, c: u64) -> Result<[f64; 4]> {
         let b = self.read(c + self.offset("container_clip", 0x1594), 16)?;
         let n: [f64; 4] = std::array::from_fn(|i| {
             i32::from_le_bytes(b[i * 4..i * 4 + 4].try_into().unwrap()) as f64
         });
         Ok([n[0], n[1], n[2] - n[0], n[3] - n[1]])
     }
-    pub(crate) fn container(&mut self, c: u64, root: u64, owner: u64) -> Result<bool> {
+    pub fn container(&mut self, c: u64, root: u64, owner: u64) -> Result<bool> {
         self.typed(c, "CContainerWindow")?;
         if self.u(c + 0x98)? != root || self.u(c + 0x80)? != owner {
             return Err("Proprietario GUI incoerente".into());
@@ -303,7 +303,7 @@ impl<'a, M: Memory> Sample<'a, M> {
         }
         Ok(false)
     }
-    pub(crate) fn sprite(&mut self, a: u64, base: &str) -> Result<u64> {
+    pub fn sprite(&mut self, a: u64, base: &str) -> Result<u64> {
         let vt = self.u(a)?;
         let kind = self.rtti(vt)?;
         if kind == (format!(".?AV{base}@@"), 0) {
@@ -319,7 +319,7 @@ impl<'a, M: Memory> Sample<'a, M> {
         }
         Err("Tipo sprite GUI non qualificato".into())
     }
-    pub(crate) fn bounds(
+    pub fn bounds(
         &mut self,
         sprite: u64,
         parent: u64,
@@ -626,7 +626,7 @@ fn popup_probe<M: Memory>(s: &mut Sample<'_, M>, e: u64, root: u64) -> (bool, Va
     }
     (false, json!(seen))
 }
-pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value) -> Result<Value> {
+pub fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value) -> Result<Value> {
     let profile = &args["profile"];
     let base = args["base"].as_u64().ok_or("Missing GUI module base")?;
     let mut s = Sample::new(memory, base, profile);
@@ -889,7 +889,7 @@ pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value)
     )
 }
 
-pub(crate) fn fixture(args: &Value) -> Result<Value> {
+pub fn fixture(args: &Value) -> Result<Value> {
     struct Sparse {
         bytes: HashMap<u64, u8>,
         classes: Value,

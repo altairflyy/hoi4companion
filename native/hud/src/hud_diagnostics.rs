@@ -4,7 +4,7 @@ use crate::hud_geometry::rows;
 use serde_json::{Value, json};
 /// Diagnostics are descriptive only. Never reuse a different guide/session or
 /// accept an unbounded/status file older than the existing four-second window.
-pub(crate) fn read_status(path: &std::path::Path, guide: &Value, server: &Value) -> Value {
+pub fn read_status(path: &std::path::Path, guide: &Value, server: &Value) -> Value {
     fn unavailable(code: &str, message: &str) -> Value {
         json!({"schema_version":1,"status":"unavailable","code":code,"message":message,"items":[]})
     }
@@ -38,7 +38,7 @@ pub(crate) fn read_status(path: &std::path::Path, guide: &Value, server: &Value)
 fn text(v: &Value) -> &str {
     v.as_str().unwrap_or("")
 }
-pub(crate) fn explain(raw: &Value, proposals: &Value, matches: &[Value]) -> Value {
+pub fn explain(raw: &Value, proposals: &Value, matches: &[Value]) -> Value {
     let mut groups: Vec<Value> = vec![];
     for p in rows(proposals) {
         let panel = text(&p["panel"]);

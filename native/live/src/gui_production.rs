@@ -197,7 +197,7 @@ fn controls(
         json!({"add":add,"picker_open":!pickers.is_empty(),"picker_count":pickers.len(),"equipment":entries,"context":context}),
     )
 }
-pub(crate) fn read(
+pub fn read(
     s: &mut Sample<impl Memory>,
     root: u64,
     bindings: &Value,

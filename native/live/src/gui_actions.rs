@@ -8,7 +8,7 @@ use crate::{
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashSet};
 type Result<T> = std::result::Result<T, String>;
-pub(crate) fn events(
+pub fn events(
     s: &mut Sample<impl Memory>,
     root: u64,
     owners: &Value,
@@ -147,7 +147,7 @@ fn buttons(root: &str) -> &[&str] {
         _ => &[],
     }
 }
-pub(crate) const ROOTS: [&str; 6] = [
+pub const ROOTS: [&str; 6] = [
     "topbar",
     "countrypoliticsview",
     "political_ideas_window",
@@ -278,7 +278,7 @@ impl Walk {
         Ok(())
     }
 }
-pub(crate) fn controls(
+pub fn controls(
     s: &mut Sample<impl Memory>,
     root: u64,
     roots: &Value,
@@ -339,7 +339,7 @@ pub(crate) fn controls(
     })();
     result.unwrap_or_else(|e| json!({"status":"unavailable","panels":{},"controls":[],"reason":e}))
 }
-pub(crate) fn action_roots(s: &mut Sample<impl Memory>, root: u64, seen: &HashSet<u64>) -> Value {
+pub fn action_roots(s: &mut Sample<impl Memory>, root: u64, seen: &HashSet<u64>) -> Value {
     let mut roots = BTreeMap::new();
     let mut candidates: Vec<_> = seen.iter().copied().collect();
     candidates.sort_unstable();

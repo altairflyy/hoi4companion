@@ -54,7 +54,7 @@ fn title_seen(title: &str, keys: &[String]) -> bool {
     };
     keys.iter().any(|k| in_order(k)) || keys.windows(2).any(|w| in_order(&w.concat()))
 }
-pub(crate) fn validate(value: &Value, width: u64, height: u64) -> Result<(), String> {
+pub fn validate(value: &Value, width: u64, height: u64) -> Result<(), String> {
     if value["width"].as_u64() != Some(width)
         || value["height"].as_u64() != Some(height)
         || value["lines"].as_array().is_none_or(|v| v.len() > 20000)
@@ -82,7 +82,7 @@ pub(crate) fn validate(value: &Value, width: u64, height: u64) -> Result<(), Str
     }
     Ok(())
 }
-pub(crate) fn rectangles(ocr: &Value, proposals: &Value) -> Value {
+pub fn rectangles(ocr: &Value, proposals: &Value) -> Value {
     let Some(width) = number(&ocr["width"]).filter(|v| *v > 0. && *v <= 8192.) else {
         return json!([]);
     };

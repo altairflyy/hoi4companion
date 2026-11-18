@@ -11,9 +11,9 @@ use std::sync::{
 };
 const MANIFEST: &str = include_str!("../../../src/hoi4companion/live-profiles-v1.json");
 type Result<T> = std::result::Result<T, String>;
-pub(crate) struct Profile {
-    pub(crate) path: PathBuf,
-    pub(crate) data: Vec<u8>,
+pub struct Profile {
+    pub path: PathBuf,
+    pub data: Vec<u8>,
     metadata: Value,
     classes: Mutex<HashMap<u64, String>>,
 }
@@ -22,7 +22,7 @@ static NEXT: AtomicU64 = AtomicU64::new(1);
 fn registry() -> &'static Mutex<HashMap<u64, Arc<Profile>>> {
     REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
 }
-pub(crate) fn get(handle: u64) -> Result<Arc<Profile>> {
+pub fn get(handle: u64) -> Result<Arc<Profile>> {
     registry()
         .lock()
         .map_err(|_| "Profili eseguibile non disponibili")?
@@ -42,11 +42,13 @@ fn display(path: &Path) -> String {
     }
 }
 impl Profile {
-    pub(crate) fn metadata(&self) -> &Value {
+    pub fn metadata(&self) -> &Value {
         &self.metadata
     }
-    #[cfg(test)]
-    pub(crate) fn for_test(path: &Path) -> Self {
+    /// Test fixture only: a profile over any PE file. Compiled for this crate's
+    /// tests and for dependents' tests through the `test-support` feature.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn for_test(path: &Path) -> Self {
         let path = std::fs::canonicalize(path).unwrap();
         let data = std::fs::read(&path).unwrap();
         let header = number(&data, 0x3c, 4).unwrap() as usize;
@@ -58,7 +60,7 @@ impl Profile {
             classes: Mutex::new(HashMap::new()),
         }
     }
-    pub(crate) fn open(path: &Path, manifest_hash: &str) -> Result<Self> {
+    pub fn open(path: &Path, manifest_hash: &str) -> Result<Self> {
         if manifest_hash != digest(MANIFEST.as_bytes()) {
             return Err("Profili live modificati: ricompilare il backend Rust".into());
         }
@@ -87,7 +89,7 @@ impl Profile {
             classes: Mutex::new(HashMap::new()),
         })
     }
-    pub(crate) fn class_name(&self, rva: u64) -> Result<String> {
+    pub fn class_name(&self, rva: u64) -> Result<String> {
         let mut cache = self
             .classes
             .lock()
@@ -102,7 +104,7 @@ impl Profile {
         Ok(name)
     }
 }
-pub(crate) fn execute(op: &str, args: &Value) -> Result<Value> {
+pub fn execute(op: &str, args: &Value) -> Result<Value> {
     if op == "profile_manifest" {
         return Ok(json!({"schema_version":1,"sha256":digest(MANIFEST.as_bytes())}));
     }

@@ -21,7 +21,7 @@ test('CI executes every native suite with release semantics and isolated fast co
  const withoutConfig=args=>args.filter((a,i)=>a!=='--config'&&args[i-1]!=='--config');
  assert.deepEqual(ci.map(c=>Array.from(c.args)),normal.map(c=>withoutConfig(Array.from(c.args))));
  const split=normal.map(c=>BACKEND_CRATES.includes(path.basename(path.dirname(c.args.find(a=>a.endsWith('Cargo.toml'))))));
- assert.deepEqual(split.filter(Boolean).length,3);
+ assert.deepEqual(split.filter(Boolean).length,BACKEND_CRATES.length);
  assert.deepEqual(normal.map(c=>c.args.includes('--config')),split);
  assert.ok(normal[b].args.includes('profile.release.package.hoi4companion-backend.opt-level=0'));
  assert.ok(!ci[b].args.includes('--config')&&!lto[b].args.includes('--config'),'CI and --lto test the optimized backend');
