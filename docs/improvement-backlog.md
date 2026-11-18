@@ -8,7 +8,7 @@ only its own item. Users read this file to review a run and answer `needs-user` 
 ## Run
 - Branch: auto/improve-2026-11-18
 - Started: 2026-11-18T19:32:15+01:00
-- Resumed: (one line per resume, if any)
+- Resumed: 2026-11-18T19:51:25+01:00
 - Limits: 15 items done / 8 h from Started / 2 attempts per item
 
 <!--
