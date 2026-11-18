@@ -15,6 +15,7 @@ pub mod definition_archive;
 pub mod entity_resolution;
 pub mod event_instructions;
 pub mod event_reach;
+pub mod event_routes;
 pub mod focus_catalog;
 pub mod focus_routes;
 pub mod focus_source_rules;

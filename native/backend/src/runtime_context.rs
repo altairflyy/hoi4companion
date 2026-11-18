@@ -83,6 +83,7 @@ impl Context {
             &self.index,
             &self.source["continuous_focuses"],
             &self.library,
+            &self.source["historical_focuses"],
         )?;
         let mut cache = self
             .compiled
@@ -120,12 +121,12 @@ impl Context {
     /// withdrawal of catalog-contradicted bindings, then decomposition and
     /// grounded triggers.
     pub fn compile_new(&self, source: &Value) -> Result<Value, String> {
-        let prepared = runtime_definition::prepare(source, &self.index, &self.source["continuous_focuses"], &self.library)?;
+        let prepared = runtime_definition::prepare(source, &self.index, &self.source["continuous_focuses"], &self.library, &self.source["historical_focuses"])?;
         let mut presented = self.present(&prepared)?;
         crate::decomposition::withdraw_incompatible_decisions(&mut presented, &self.index)?;
         // Children split from multi-line blocks carry their own event answers.
         let mut decomposed = self.decompose(&presented)?;
-        crate::reference_candidates::ground_references(&mut decomposed, &self.index)?;
+        crate::reference_candidates::ground_references(&mut decomposed, &self.index, &self.source["historical_focuses"])?;
         // Present again so withdrawn bindings and new children get fresh names.
         self.present(&decomposed)
     }

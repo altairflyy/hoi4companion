@@ -81,6 +81,7 @@ pub fn prepare(
     index: &Index,
     continuous: &Value,
     library: &Value,
+    historical: &Value,
 ) -> Result<Value, String> {
     let mut guide = if rows(guide).any(|r| {
         crate::state::truth(&r["research_upgrade"]) && !crate::state::truth(&r["relative_research"])
@@ -147,6 +148,6 @@ pub fn prepare(
     // references are grounded against every nation-compatible entity kind.
     // Neither changes a step key; only live-observed or uncheckable meaning.
     crate::decomposition::withdraw_incompatible_decisions(&mut guide, index)?;
-    crate::reference_candidates::ground_references(&mut guide, index)?;
+    crate::reference_candidates::ground_references(&mut guide, index, historical)?;
     crate::construction_instructions::bind(&guide,index)
 }

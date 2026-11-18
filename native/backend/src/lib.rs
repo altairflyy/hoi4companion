@@ -87,6 +87,7 @@ pub use hoi4companion_guides::decomposition;
 pub use hoi4companion_guides::entity_resolution;
 pub use hoi4companion_guides::reference_candidates;
 pub use hoi4companion_guides::event_reach;
+pub use hoi4companion_guides::event_routes;
 pub use hoi4companion_guides::progress_store;
 #[cfg(windows)]
 mod provider;
@@ -503,6 +504,7 @@ fn execute(handle: u64, request: Request) -> Result<Value, String> {
             &import_catalog::Index::new(&args)?,
             &args["continuous"],
             &args["library"],
+            &args["historical"],
         );
     }
     if request.op == "hud_event_plan" {

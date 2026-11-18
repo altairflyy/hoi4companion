@@ -4,7 +4,7 @@
 //! claimed for a nation, only listed as "possible" when its own trigger names
 //! that nation. Read-only; no live state.
 use serde_json::{Value, json};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
 fn s(v: &Value) -> &str {
     v.as_str().unwrap_or("")
@@ -19,80 +19,8 @@ fn readable_id(id: &str) -> String {
         _ => id.replace('_', " "),
     }
 }
-/// Focus ids a guide definition asks for (its `select_focus` steps), in order.
-pub fn guide_focuses(definition: &Value) -> Vec<String> {
-    let tracks: Vec<&Value> = match &definition["tracks"] {
-        Value::Object(map) => map.values().collect(),
-        Value::Array(list) => list.iter().map(|t| if t["steps"].is_array() { &t["steps"] } else { t }).collect(),
-        _ => vec![],
-    };
-    let mut seen = HashSet::new();
-    tracks.into_iter().flat_map(|steps| steps.as_array().into_iter().flatten())
-        .filter(|step| step["action"]["entity"]["kind"] == "focus")
-        .filter_map(|step| step["action"]["entity"]["id"].as_str())
-        .filter(|id| seen.insert(id.to_owned()))
-        .map(str::to_owned).collect()
-}
-
-/// How events are reached. Links: a focus fires an event (directly or through
-/// a scripted effect) or makes a decision available; a decision or event fires
-/// the next event (other nations' answers included); an event's own trigger
-/// requires a focus. Only what the scripts trace.
-struct Chains {
-    /// Every focus that leads to a node ("event:ID", "decision:ID").
-    roots: HashMap<String, BTreeSet<String>>,
-    /// Nodes the played nation meets without any focus: an event nothing traced
-    /// calls (on_actions, timed, history), a decision always available, and
-    /// what they fire. Another nation's decisions and the uncalled events only
-    /// other nations receive do not start chains here.
-    free: HashSet<String>,
-}
-/// The nation tag an id starts with ("GER_befriend_poland" is GER's).
-fn tag_of(id: &str) -> Option<&str> {
-    id.split_once('_').map(|(tag, _)| tag).filter(|t| t.len() == 3 && t.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()))
-}
-fn chains(rows: &[Value], country: &str) -> Chains {
-    let mut children: HashMap<String, Vec<String>> = HashMap::new();
-    let mut nodes = vec![];
-    let mut foreign = HashSet::new();
-    let mut has_parent = HashSet::new();
-    for row in rows.iter().filter(|r| r["kind"] == "event" || r["kind"] == "decision") {
-        let node = format!("{}:{}", s(&row["kind"]), s(&row["id"]));
-        let required = row["enabled_by"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned);
-        let sources = row["triggered_by"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned);
-        for source in sources.chain(required) {
-            children.entry(source).or_default().push(node.clone());
-            has_parent.insert(node.clone());
-        }
-        let id = s(&row["id"]);
-        let others_only = row["kind"] == "event"
-            && row["receivers"].as_array().is_some_and(|r| !r.is_empty() && !r.iter().any(|t| t == country));
-        if others_only || row["kind"] == "decision" && tag_of(id).is_some_and(|t| t != country) {
-            foreign.insert(node.clone());
-        }
-        nodes.push(node);
-    }
-    let mut roots: HashMap<String, BTreeSet<String>> = HashMap::new();
-    let mut work: Vec<(String, String)> = children.iter().filter_map(|(k, v)| k.strip_prefix("focus:").map(|f| (f.to_owned(), v)))
-        .flat_map(|(f, v)| v.iter().map(move |c| (c.clone(), f.clone()))).collect();
-    while let Some((node, root)) = work.pop() {
-        if !roots.entry(node.clone()).or_default().insert(root.clone()) {
-            continue;
-        }
-        work.extend(children.get(&node).into_iter().flatten().map(|c| (c.clone(), root.clone())));
-    }
-    // Free starts: catalog nodes without a traced parent, and callers the catalog does not know.
-    let known: HashSet<&String> = nodes.iter().collect();
-    let mut stack: Vec<String> = nodes.iter().filter(|n| !has_parent.contains(*n) && !foreign.contains(*n)).cloned()
-        .chain(children.keys().filter(|k| !k.starts_with("focus:") && !known.contains(k)).cloned()).collect();
-    let mut free = HashSet::new();
-    while let Some(node) = stack.pop() {
-        if free.insert(node.clone()) {
-            stack.extend(children.get(&node).into_iter().flatten().cloned());
-        }
-    }
-    Chains { roots, free }
-}
+pub use crate::event_routes::guide_focuses;
+use crate::event_routes::chains;
 
 /// `{country, events:[...], possible:[...]}`: each event with its title,
 /// description, type, timing, options (with political power cost) and what
@@ -102,7 +30,7 @@ fn chains(rows: &[Value], country: &str) -> Chains {
 /// `historical`: focuses the AI takes on its historical path
 /// (catalog source "historical_focuses").
 pub fn list(entries: &Value, country: &str, guide: &[String], historical: &Value) -> Value {
-    let historical: HashSet<&str> = historical.as_array().into_iter().flatten().filter_map(Value::as_str).collect();
+    let historical = crate::event_routes::historical_set(historical);
     let rows: &[Value] = entries.as_array().map(Vec::as_slice).unwrap_or(&[]);
     if country.len() != 3 {
         return json!({"country":country,"events":[],"possible":[],"reason":"country_unknown"});

@@ -338,6 +338,34 @@ fn choose(found: &[Value], cost: Option<Cost>, index: &Index, tag: &str) -> Resu
     }
     Ok(None)
 }
+/// Among several candidates, the only event answer whose event a focus the
+/// guide picks, or another nation's focus on the AI historical path, leads to
+/// (the same traced chains as the suite's events page, `event_routes`).
+/// Candidates the catalog proves the nation cannot receive never count.
+fn reached(found: &[Value], routes: &crate::event_routes::Chains, tag: &str, guide: &[String], historical: &std::collections::HashSet<&str>) -> Option<(Value, &'static str)> {
+    let compatible: Vec<&Value> = found.iter().filter(|c| c["compatible"] != false).collect();
+    if compatible.len() < 2 {
+        return None;
+    }
+    let reach = |event: &str| {
+        if routes.from_guide(event, guide) {
+            Some("event_reached_from_guide_focus")
+        } else if routes.historical_roots(event, tag, historical).next().is_some() {
+            Some("event_reached_from_historical_focus")
+        } else {
+            None
+        }
+    };
+    let kept: Vec<(&Value, &'static str)> = compatible
+        .into_iter()
+        .filter(|c| c["kind"] == "event_option")
+        .filter_map(|c| reach(c["event_id"].as_str().unwrap_or("")).map(|basis| (c, basis)))
+        .collect();
+    match kept.as_slice() {
+        [(one, basis)] => Some(((*one).clone(), basis)),
+        _ => None,
+    }
+}
 /// Decisions, advisors, technologies and ideas whose real name the truncated
 /// abbreviation is a prefix of ("Recall Kocs…", "Albert Speer…", "Small
 /// Caliber Semi…"), with the same nation rules as `candidates_with`: entries
@@ -680,10 +708,17 @@ fn bind(option: &Value, index: &Index, country: &Value) -> Result<Option<Value>>
 /// technologies and ideas named by their abbreviation ("Recall Kocs…(25 CP)",
 /// "Albert Speer…") are bound the same way when no event answer fits, and the
 /// trigger of a "On X…: action" line becomes the step's observable `when`.
-pub fn ground_references(guide: &mut Value, index: &Index) -> Result<()> {
+/// Several event answers are narrowed to the one whose event the guide's own
+/// focuses or other nations' historical AI focuses (`historical`, catalog
+/// source "historical_focuses") lead to.
+pub fn ground_references(guide: &mut Value, index: &Index, historical: &Value) -> Result<()> {
     let country = guide["applies_to"]["country"].clone();
     let scope = guide["applies_to"]["tree_id"].clone();
     let Some(tag) = country.as_str().map(str::to_owned) else { return Ok(()) };
+    let guide_focuses = crate::event_routes::guide_focuses(guide);
+    let historical = crate::event_routes::historical_set(historical);
+    // Traced over the whole catalog, only when a line needs it.
+    let mut routes: Option<crate::event_routes::Chains> = None;
     let names = AnswerNames::new(index);
     let named = AnswerNames::of_kinds(index, NAMED_KINDS);
     // Trigger candidates: the guide's own grounded steps and its focus tree.
@@ -717,7 +752,12 @@ pub fn ground_references(guide: &mut Value, index: &Index) -> Result<()> {
         for reference in &refs {
             let found = candidates_with(&reference.text, index, &country, &scope, Some(&names))?;
             let mut found = found.as_array().cloned().unwrap_or_default();
-            if let Some((option, basis)) = choose(&found, reference.cost, index, &tag)?
+            let mut chosen = choose(&found, reference.cost, index, &tag)?;
+            if chosen.is_none() && found.iter().filter(|c| c["kind"] == "event_option" && c["compatible"] != false).count() > 0 {
+                let routes = routes.get_or_insert_with(|| crate::event_routes::chains(index.rows(), &tag));
+                chosen = reached(&found, routes, &tag, &guide_focuses, &historical);
+            }
+            if let Some((option, basis)) = chosen
                 && let Some(result) = bind(&option, index, &country)?
             {
                 grounded.push((reference, option, basis, result));
@@ -1011,7 +1051,7 @@ mod tests {
             row("j", "Liturgical…(70PP) / Convoke…(100PP)"),
             row("k", "Liturgical…(70PP) + Recall Some…"),
         ]}});
-        ground_references(&mut guide, &index).unwrap();
+        ground_references(&mut guide, &index, &Value::Null).unwrap();
         let rows = guide["tracks"]["operations"].as_array().unwrap().clone();
         let p = |i: usize| rows[i]["action"]["params"].clone();
         // 1: the trigger becomes the observable `when`; 2: the abbreviated
@@ -1061,8 +1101,52 @@ mod tests {
         assert_eq!(rows[7]["when"]["value"], "HUN_expand_the_army");
         // Idempotent: a second pass changes nothing.
         let once = guide.clone();
-        ground_references(&mut guide, &index).unwrap();
+        ground_references(&mut guide, &index, &Value::Null).unwrap();
         assert_eq!(guide, once);
+    }
+    #[test]
+    fn several_event_answers_are_narrowed_to_events_of_guide_or_historical_focuses() {
+        // Every event is received by GER, so each line has several confirmed answers.
+        let event = |id: &str, from: &str| json!({"kind":"event","id":id,"name":id,"receivers":["GER"],"receivers_unknown":false,"triggered_by":[from]});
+        let option = |id: &str, name: &str| json!({"kind":"event_option","id":format!("{id}.a"),"event_id":id,"name":name});
+        let index = Index::new(&json!({"entries":[
+            {"kind":"country","id":"GER","name":"Germany"},
+            {"kind":"focus","id":"GER_picked","name":"Picked","scope":"ger_tree"},
+            {"kind":"focus","id":"GER_skipped","name":"Skipped","scope":"ger_tree"},
+            {"kind":"event","id":"eng_ask.1","name":"English offer","receivers":["ENG"],"receivers_unknown":false,"triggered_by":["focus:ENG_historic"]},
+            event("test_a.1", "focus:GER_picked"), option("test_a.1", "Alpha comes from the guide"),
+            event("test_a.2", "focus:GER_skipped"), option("test_a.2", "Alpha comes from elsewhere"),
+            // Reached through England's answer to its historical focus.
+            event("test_b.1", "event:eng_ask.1"), option("test_b.1", "Bravo answers England"),
+            event("test_b.2", "focus:ITA_offpath"), option("test_b.2", "Bravo answers Italy"),
+            event("test_c.1", "focus:GER_picked"), option("test_c.1", "Charlie one"),
+            event("test_c.2", "focus:ENG_historic"), option("test_c.2", "Charlie two"),
+            event("test_d.1", "focus:GER_skipped"), option("test_d.1", "Delta one"),
+            event("test_d.2", "focus:ITA_offpath"), option("test_d.2", "Delta two"),
+        ]})).unwrap();
+        let row = |key: &str, line: &str| json!({"key":key,"title":line,"tracking":"reminder","action":{"kind":"manual","params":{"instructions":[line]}}});
+        let mut guide = json!({"applies_to":{"country":"GER","tree_id":"ger_tree"},"tracks":{
+            "focus":[{"key":"f","action":{"kind":"select_focus","entity":{"kind":"focus","id":"GER_picked"}}}],
+            "operations":[row("a", "Alpha…"), row("b", "Bravo…"), row("c", "Charlie…"), row("d", "Delta…")]}});
+        ground_references(&mut guide, &index, &json!(["ENG_historic", "GER_skipped"])).unwrap();
+        let rows = guide["tracks"]["operations"].as_array().unwrap().clone();
+        let p = |i: usize| rows[i]["action"]["params"].clone();
+        // One candidate reached from a focus the guide picks: bound.
+        assert_eq!(p(0)["event_option_id"], "test_a.1.a");
+        assert_eq!(p(0)["reference_resolution"]["basis"], "event_reached_from_guide_focus");
+        // One reached from another nation's historical AI focus: bound.
+        assert_eq!(p(1)["event_option_id"], "test_b.1.a");
+        assert_eq!(p(1)["reference_resolution"]["basis"], "event_reached_from_historical_focus");
+        // Two reached, or none reached (the nation's own historical focus
+        // outside the guide does not count): candidates only.
+        for i in [2, 3] {
+            assert!(p(i)["event_option_id"].is_null(), "row {i}");
+            assert_eq!(p(i)["reference_candidates"]["status"], "ambiguous", "row {i}");
+        }
+        // Without historical focuses England's answer is not reached.
+        let mut plain = json!({"applies_to":{"country":"GER","tree_id":"ger_tree"},"tracks":{"operations":[row("b", "Bravo…")]}});
+        ground_references(&mut plain, &index, &Value::Null).unwrap();
+        assert!(plain["tracks"]["operations"][0]["action"]["params"]["event_option_id"].is_null());
     }
     #[test]
     fn written_out_actions_are_bound_only_when_the_whole_line_is_understood() {
@@ -1089,7 +1173,7 @@ mod tests {
             row("i", "Invade the UK (if needed)"),
             row("j", "War Bonds (50PP)"),
         ]}});
-        ground_references(&mut guide, &index).unwrap();
+        ground_references(&mut guide, &index, &Value::Null).unwrap();
         let rows = guide["tracks"]["operations"].as_array().unwrap().clone();
         let p = |i: usize| rows[i]["action"]["params"].clone();
         // A war goal is not read live: recognized with its targets, manual.
@@ -1123,7 +1207,7 @@ mod tests {
         assert_eq!(p(8)["action_resolution"], json!({"status":"not_observable","action":"invade","targets":["ENG"],"text":"Invade ENG"}));
         assert!(p(9)["action_resolution"].is_null() && rows[9].get("completion").is_none());
         let once = guide.clone();
-        ground_references(&mut guide, &index).unwrap();
+        ground_references(&mut guide, &index, &Value::Null).unwrap();
         assert_eq!(guide, once);
     }
     #[test]
