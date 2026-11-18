@@ -27,6 +27,7 @@ Invariants, build and test commands are in `CLAUDE.md`; they apply to every step
    `node scripts/dev-native.cjs build backend` then
    `HOI4_BACKEND_EXE=.local/rust-dev-backend-target/release/hoi4-backend.exe npm test`.
    Never run `scripts/build-backend.ps1`: it installs into `src/hoi4companion/_native/`.
+   Run commands that set environment variables with the Bash tool, not PowerShell.
    Send long output to the scratchpad and read the tail.
 3. Regenerate presentation fixtures only as `CLAUDE.md` says, and read their git diff.
 4. If the diff touches guide evaluation, live state, HUD, web pages, importer or packaging: run the

@@ -8,6 +8,7 @@ only its own item. Users read this file to review a run and answer `needs-user` 
 ## Run
 - Branch: (none yet)
 - Started: (none yet)
+- Resumed: (one line per resume, if any)
 - Limits: 15 items done / 8 h from Started / 2 attempts per item
 
 <!--
@@ -21,6 +22,7 @@ Item format (ids IL-01, IL-02, ... are never reused):
 - Status: todo | doing | done <short-hash> | needs-user: <question> | dropped: <reason>
 - Attempts: 0
 - Notes:
+- Checked: (coordinator, after a green re-run)
 -->
 
 ## Items

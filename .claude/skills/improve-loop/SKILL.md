@@ -14,19 +14,29 @@ The user is away: never stop to ask. A decision only the user can take becomes a
 `needs-user` item and the run goes on.
 
 ## 1. Start or resume
-1. Read `CLAUDE.md`, `docs/AGENT_HANDOFF.md`, the backlog, and run `git status` and `git branch --show-current`.
-2. If the backlog `Branch:` names a branch that exists locally, this is a **resume**:
+Run shell commands that set environment variables (`VAR=x cmd`) with the Bash tool, not PowerShell.
+
+1. Read `CLAUDE.md`, `docs/AGENT_HANDOFF.md`, the backlog, and run `git status`, `git branch --show-current`
+   and `git branch --list "auto/improve-*"`.
+2. Load with ToolSearch, in one `select:` call: `mcp__ccd_host__request_keep_awake`,
+   `mcp__ccd_session__start_session`, `mcp__ccd_session_mgmt__list_sessions`.
+3. It is a **resume** if an `auto/improve-*` branch (current or not) has no `## Run report` content yet in its
+   backlog (`git show <branch>:docs/improvement-backlog.md`); a finished run is never resumed. If several qualify, take
+   the most recent by commit date. Then:
    - if that branch is not current: the tree must be clean (otherwise stop with one line), then `git switch` to it;
-   - an item left `doing` is handled as in step 4 "no commit" (that works on a dirty tree);
+   - an item left `doing`: first call `list_sessions` with `{"linked": true}`; if the session named after the
+     item id is still running, end the turn and wait for its end notice. Otherwise handle it as in step 4
+     "no commit" (that works on a dirty tree);
+   - a `done` item without a `Checked:` line: run the step 4 checks for it now;
    - add a line `- Resumed: <local ISO time>` under `Started:`; the 8 h limit counts from the latest
      `Resumed:` (the user restarting the run is a request to continue);
-   - commit `docs: resume the improvement run`, then continue at step 2 (seeding is skipped if Items exist).
-3. Otherwise this is a **new run**:
+   - commit `docs: resume the improvement run`, then continue at section 2 (seeding is skipped if Items exist).
+4. Otherwise this is a **new run**:
    - the tree must be clean and HEAD on a branch; otherwise stop with one line saying why, before creating anything;
    - `git switch -c auto/improve-<YYYY-MM-DD>` (add `-2`, `-3` if it exists);
    - write `Branch:` and `Started:` (local ISO time) in the backlog and commit `docs: start the improvement run`.
-4. Load `mcp__ccd_host__request_keep_awake` and `mcp__ccd_session__start_session` with ToolSearch
-   (`select:` both in one call). Call keep-awake with `until: "session_idle"`.
+5. Call keep-awake with `until: "session_idle"` and `reason: "Unattended HOI4 Companion improvement run"`.
+   It may lapse while this session waits; each worker session keeps the machine awake during its own turns.
 
 ## 2. Seed the backlog (only when `## Items` is empty)
 Collect candidates, in this order, and keep only those with an objective acceptance check:
@@ -47,7 +57,9 @@ Commit: `docs: seed the improvement backlog`.
 1. Pick the highest-priority `todo` item. None left: go to step 6.
 2. Set `Status: doing`, `Attempts:` +1. Do not commit this change.
 3. Call `start_session` with:
-   - `initiation: "user_asked"`, `context: "fresh"`, `use_worktree: false`; leave `permission_mode` out;
+   - `initiation: "user_asked"`, `context: "fresh"`, `use_worktree: false`, `permission_mode: "auto"`
+     (if the app refuses it because this session is not in auto mode, set the item back to `todo` and
+     `Attempts` -1, and stop with one line: workers would stall on permission prompts);
    - `title`: `<id> <title>` (under 60 chars), `name`: the id in lowercase (`il-03`);
    - `prompt`: the full item block, then: "Follow `.claude/skills/improve-loop/worker.md` for this one item only.";
    - `background`: "Unattended improvement run of HOI4 Companion on branch `<branch>`, coordinated by another session. One worker session per backlog item, one at a time, in the same checkout. The user is away: never ask questions; follow `worker.md`."
@@ -58,12 +70,15 @@ Only one worker session runs at a time: they share the checkout, branch and buil
 ## 4. Check the result
 On the worker's end notice, re-read the item and run `git status` and `git log --oneline -3`.
 - **`done <hash>`**, `<hash>` is `HEAD~1` and HEAD is `docs: mark <id> done`: re-run
-  `node scripts/test-native.cjs <crate>` for each crate under `native/` listed by `git show --stat <hash>`,
+  `node scripts/test-native.cjs <crate>` for each crate under `native/` listed by `git show --name-only <hash>`,
+  plus `backend` whenever any of them is not `overlay` or `desktop` (backend depends on all the others),
   then `node scripts/dev-native.cjs build backend` and
   `HOI4_BACKEND_EXE=.local/rust-dev-backend-target/release/hoi4-backend.exe npm test`
-  (output to the scratchpad, read the tail). Green: accepted. Red: `git revert --no-edit HEAD <hash>`, re-run
-  the same checks (still red: stop, step 5), add the failing test name to `Notes`, and set the status by the
-  attempt rule below (`dropped: tests red after 2 attempts`).
+  (output to the scratchpad, read the tail).
+  Green: add `- Checked: green <local ISO time>` to the item. Red: `git revert --no-edit <hash>` (the code
+  commit only; the `docs: mark` commit keeps the worker's `Attempts` and `Notes`), re-run the same checks (still
+  red: stop, step 5), add the failing test name to `Notes`, and set the status by the attempt rule below
+  (`dropped: tests red after 2 attempts`).
 - **No new commit** (worker crashed, hit a limit, or gave up and wrote `gave up: <reason>` in `Notes`): if the
   tree has changes besides the backlog, stash them without the backlog, so the item's `doing`, `Attempts` and
   `Notes` stay in place:
@@ -81,7 +96,7 @@ Commit backlog changes: `docs: update the improvement backlog`.
 - After every 3 finished items (done, needs-user or dropped), re-rank the remaining `todo` items with what
   changed; add or drop items if the evidence says so.
 - Stop when: 15 items are `done`, or 8 hours passed since the latest `Started:`/`Resumed:`, or no `todo` item is left, or a regression
-  remains after the revert in step 4 (leave the tree at the last green commit).
+  remains after the revert in step 4 (stop right after the revert commit; never reset).
 - Otherwise go to step 3.
 
 ## 6. Finish
