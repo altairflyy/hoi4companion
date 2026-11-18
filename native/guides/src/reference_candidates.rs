@@ -631,7 +631,7 @@ fn ground_trigger(row: &mut Value, candidates: &[crate::entity_resolution::Candi
     if !(left.contains('…') || left.contains("...")) || !row["action"]["params"]["trigger_resolution"].is_null() || real_when(row) {
         return;
     }
-    let resolution = crate::entity_resolution::resolve(&left, candidates);
+    let resolution = crate::entity_resolution::resolve_trigger(&left, candidates);
     let (condition, relation, verification) = crate::entity_resolution::trigger_condition(&resolution);
     let entity = &resolution["entity"];
     let name = index
@@ -647,6 +647,12 @@ fn ground_trigger(row: &mut Value, candidates: &[crate::entity_resolution::Candi
     }
     if resolution["candidates"].is_array() {
         record["candidates"] = resolution["candidates"].clone();
+    }
+    // An equal best match settled by the guide's own steps keeps the other
+    // tied entities visible.
+    if resolution["disambiguation"].is_string() {
+        record["disambiguation"] = resolution["disambiguation"].clone();
+        record["candidates"] = resolution["alternatives"].clone();
     }
     if let Some(condition) = condition {
         row["when"] = condition;

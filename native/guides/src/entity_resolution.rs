@@ -207,6 +207,20 @@ fn match_name(reference: &[Token], name: &[String]) -> Option<(u32, usize, usize
 }
 
 pub fn resolve(text: &str, candidates: &[Candidate]) -> Value {
+    resolve_with(text, candidates, false)
+}
+
+/// Resolution of a reference in TRIGGER position ("On Seek…: …"). Like
+/// `resolve`, except that equal best matches are settled when exactly one of
+/// them is a focus, technology or decision that the same guide names as a
+/// step (source `guide`): the author abbreviates the steps of their own plan.
+/// Two or more tied guide steps, or a tied guide step of another kind, stay
+/// `ambiguous`.
+pub fn resolve_trigger(text: &str, candidates: &[Candidate]) -> Value {
+    resolve_with(text, candidates, true)
+}
+
+fn resolve_with(text: &str, candidates: &[Candidate], prefer_guide_step: bool) -> Value {
     let reference = tokens(text);
     let mut scored: Vec<(u32, &Candidate, usize, usize, &'static str)> = vec![];
     for c in candidates {
@@ -223,15 +237,36 @@ pub fn resolve(text: &str, candidates: &[Candidate]) -> Value {
     };
     let tied: Vec<_> = scored.iter().filter(|s| s.0 == top.0).cloned().collect();
     let distinct: std::collections::HashSet<_> = tied.iter().map(|s| (&s.1.kind, &s.1.id)).collect();
-    let (score, c, s, e, how) = top.clone();
-    let residual: Vec<String> = reference.iter().enumerate().filter(|(i, _)| *i < s || *i >= e).map(|(_, t)| t.word.clone()).collect();
+    let residual_of = |s: usize, e: usize| -> Vec<String> {
+        reference.iter().enumerate().filter(|(i, _)| *i < s || *i >= e).map(|(_, t)| t.word.clone()).collect()
+    };
+    let mut chosen = top.clone();
+    let mut disambiguation = None;
     if distinct.len() > 1 {
-        return json!({"status":"ambiguous","reason":"equal_best_candidates","text":text,"candidates":list(&tied),"residual_words":residual});
+        let steps: Vec<_> = tied.iter().filter(|t| t.1.source == "guide").collect();
+        let observable = |t: &&(u32, &Candidate, usize, usize, &'static str)| matches!(t.1.kind.as_str(), "focus" | "technology" | "decision");
+        match steps.as_slice() {
+            [only] if prefer_guide_step && observable(only) => {
+                chosen = (*only).clone();
+                disambiguation = Some("unique_guide_step");
+            }
+            _ => {
+                return json!({"status":"ambiguous","reason":"equal_best_candidates","text":text,"candidates":list(&tied),
+                    "residual_words":residual_of(top.2, top.3)});
+            }
+        }
     }
+    let (score, c, s, e, how) = chosen;
+    let residual = residual_of(s, e);
+    let others: Vec<_> = scored.iter().filter(|o| !(o.1.kind == c.kind && o.1.id == c.id)).cloned().collect();
     let matched: Vec<&str> = reference[s..e].iter().map(|t| t.raw.as_str()).collect();
-    json!({"status":"resolved","text":text,"entity":{"kind":c.kind,"id":c.id},"match":how,"score":score,
+    let mut out = json!({"status":"resolved","text":text,"entity":{"kind":c.kind,"id":c.id},"match":how,"score":score,
         "matched_text":matched.join(" "),"residual_words":residual,"source":c.source,"ordinal":c.ordinal,
-        "alternatives":list(&scored[1..])})
+        "alternatives":list(&others)});
+    if let Some(how) = disambiguation {
+        out["disambiguation"] = json!(how);
+    }
+    out
 }
 
 /// Closed-class words that may surround an entity reference in trigger
@@ -359,6 +394,33 @@ mod tests {
         let mut q = pool();
         q.push(Candidate { kind: "event".into(), id: "ita.15".into(), names: vec![words("Rhineland")], ordinal: None, source: "catalog" });
         assert_eq!(resolve("On Rhineland:", &q)["status"], "ambiguous", "focus vs event with the same name");
+    }
+
+    #[test]
+    fn a_trigger_prefix_tied_between_entities_resolves_only_to_a_unique_guide_step() {
+        let catalog = |id: &str, title: &str| Candidate { kind: "focus".into(), id: id.into(), names: vec![words(title)], ordinal: None, source: "catalog" };
+        // One tied focus is a step of the guide, the other only in its tree.
+        let mut p = pool();
+        p.push(catalog("ITA_seek_glory", "Seek Glory"));
+        assert_eq!(resolve("On Seek…", &p)["status"], "ambiguous", "plain resolution is unchanged");
+        let r = resolve_trigger("On Seek…", &p);
+        assert_eq!((r["status"].as_str(), id(&r)), (Some("resolved"), "ITA_seek_peace"));
+        assert_eq!(r["disambiguation"], "unique_guide_step");
+        assert_eq!(r["alternatives"][0]["id"], "ITA_seek_glory");
+        let (c, relation, why) = trigger_condition(&r);
+        assert_eq!((relation, why), ("reached", "observable"));
+        assert!(c.is_some());
+        // Two tied steps of the guide stay ambiguous.
+        let mut q = pool();
+        q.push(focus("ITA_seek_glory", "Seek Glory", 40));
+        assert_eq!(resolve_trigger("On Seek…", &q)["status"], "ambiguous");
+        // A unique guide step that is an event is not observable: stays ambiguous.
+        let mut e = vec![catalog("GER_rhineland", "Rhineland")];
+        e.push(Candidate { kind: "event".into(), id: "ger.15".into(), names: vec![words("Rhineland")], ordinal: Some(4), source: "guide" });
+        assert_eq!(resolve_trigger("On Rhineland:", &e)["status"], "ambiguous");
+        // No guide step among the tied candidates: stays ambiguous.
+        let f = vec![catalog("ITA_seek_peace", "Seek Peace"), catalog("ITA_seek_glory", "Seek Glory")];
+        assert_eq!(resolve_trigger("On Seek…", &f)["status"], "ambiguous");
     }
 
     #[test]

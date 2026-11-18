@@ -142,11 +142,23 @@ fn real_catalog_contract_comparison() {
                 }
             }
         }
-        // An ambiguous abbreviation ("On Strengthen…": four Italian focuses) stays unknown.
+        // An abbreviation shared by several focuses ("On Strengthen…": five
+        // Italian focuses) resolves only because exactly one of them is a step
+        // of the same guide; the others stay listed as candidates.
         if guide["applies_to"]["country"] == "ITA" {
             for s in a.iter().filter(|s| s["action"]["params"]["instructions"][0] == "On Strengthen…: Liturgical…(70PP)") {
-                assert_eq!(s["action"]["params"]["trigger_resolution"]["status"], "unknown");
-                assert!(s.get("when").is_none());
+                let t = &s["action"]["params"]["trigger_resolution"];
+                assert_eq!((t["status"].as_str(), t["disambiguation"].as_str()), (Some("compiled"), Some("unique_guide_step")));
+                assert_eq!(t["entity"]["id"], "ITA_strengthen_the_papacy");
+                assert_eq!(s["when"]["args"][1]["value"], "ITA_strengthen_the_papacy");
+            }
+        }
+        // Two tied focuses that are both steps of the guide ("On Expand…done":
+        // Expand Aviation Institutes, Expand the Agitprop) stay unknown.
+        if guide["applies_to"]["country"] == "SOV" {
+            for s in a.iter().filter(|s| s["action"]["params"]["instructions"][0].as_str().is_some_and(|l| l.starts_with("On Expand…done:"))) {
+                assert_eq!(s["action"]["params"]["trigger_resolution"]["resolution_status"], "ambiguous");
+                assert!(s["action"]["params"]["trigger_resolution"]["entity"].is_null());
             }
         }
         for s in a.iter().filter(|s| !s["action"]["params"]["reference_resolution"].is_null()) {
@@ -300,6 +312,11 @@ fn event_reference_survey() {
                 *buckets.entry(format!("trigger reason {status}")).or_default() += 1;
                 eprintln!("TRIG {country} {} [{status}] {left} -> {} {} when={}", s["key"], t["entity"]["id"].as_str().unwrap_or("-"), t["relation"].as_str().unwrap_or(""),
                     s["when"].to_string().chars().take(160).collect::<String>());
+                if t["candidates"].is_array() {
+                    let ids: Vec<String> = t["candidates"].as_array().into_iter().flatten()
+                        .map(|c| format!("{}:{}({})", c["kind"].as_str().unwrap_or(""), c["id"].as_str().unwrap_or(""), c["source"].as_str().unwrap_or(""))).collect();
+                    eprintln!("TRIGCAND {country} {} {} | {}", s["key"], t["disambiguation"].as_str().unwrap_or("-"), ids.join(", "));
+                }
             }
             eprintln!("FAM {country} {} {family} block={block} trig={} [{state}] | {}", s["key"], trig.is_some(), line.chars().take(100).collect::<String>());
             if p["reference_resolution"].is_object() && !p["event_option_id"].is_string() || p["reference_resolution"]["also"].is_array() {
