@@ -2,8 +2,9 @@
 //! scripts (read-only). Events rarely say who gets them; the effects that
 //! fire them do. Sources: national focuses (owner = the nations of their
 //! focus tree), decisions (owner = tags in their allowed/visible/available
-//! blocks) and, transitively, event options/immediate effects (owner = the
-//! receivers of that event). A call inside `TAG = { ... }` targets that tag;
+//! blocks, or, for one allowed to nobody, the nations whose `activate_*` call
+//! makes it available) and, transitively, event options/immediate effects
+//! (owner = the receivers of that event). A call inside `TAG = { ... }` targets that tag;
 //! any other scope change (every_/random_/FROM/states/...) or a news event
 //! makes the receiver unknown. An event is filterable only when its known
 //! receivers are complete (no unknown caller).
@@ -96,7 +97,11 @@ fn conditions(node: &Value, out: &mut BTreeSet<String>, depth: usize) {
 }
 /// A call target that is not an event: a decision made available or a country flag set.
 fn gate(id: &str) -> bool {
-    id.starts_with("decision:") || id.starts_with("flag:")
+    id.starts_with("decision:") || id.starts_with("flag:") || id.starts_with("tooltip:")
+}
+/// Key under `unlocks`: a decision shown by a tooltip counts like an activated one there.
+fn unlock_key(id: String) -> String {
+    id.strip_prefix("tooltip:").map(str::to_owned).unwrap_or(id)
 }
 
 fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String, Receiver)>, depth: usize, effects: &Effects) {
@@ -126,7 +131,9 @@ fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String,
             _ if ACTIVATES.contains(&key) => {
                 let id = value.as_str().map(str::to_owned).unwrap_or_else(|| scalar(value, "decision").to_owned());
                 if !id.is_empty() {
-                    out.push((format!("decision:{id}"), receiver.clone()));
+                    // A tooltip only shows the decision: it unlocks it for the events page but activates nothing.
+                    let tooltip = if key == "unlock_decision_tooltip" { "tooltip:" } else { "" };
+                    out.push((format!("{tooltip}decision:{id}"), receiver.clone()));
                 }
                 continue;
             }
@@ -139,12 +146,15 @@ fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String,
         if value.get("entries").is_none() {
             continue;
         }
+        // Control keywords are case-insensitive in the game files (`IF`, `ELSE_IF`, `ElSE`, `Hidden_effect`).
+        let lower = key.to_ascii_lowercase();
         let next = if is_tag(key) {
             Receiver::Tag(key.to_owned())
         } else if key.chars().all(|c| c.is_ascii_digit()) {
             // random_list weights keep the scope; a bare number is a state scope.
-            if parent == "random_list" { receiver.clone() } else { Receiver::Unknown }
-        } else if matches!(key, "ROOT" | "if" | "else_if" | "else" | "hidden_effect" | "random_list" | "AND" | "OR"
+            if parent.eq_ignore_ascii_case("random_list") { receiver.clone() } else { Receiver::Unknown }
+        } else if matches!(key, "ROOT" | "AND" | "OR")
+            || matches!(lower.as_str(), "if" | "else_if" | "else" | "hidden_effect" | "random_list"
             | "complete_effect" | "remove_effect" | "timeout_effect" | "cancel_effect" | "completion_reward"
             | "select_effect" | "option" | "immediate" | "effect")
         {
@@ -181,6 +191,30 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
         }
     }
     let effects = &effects;
+    // Decisions no nation is allowed to take by itself (`allowed = { always = no }`,
+    // no tag): only an `activate_*` call makes them available, so their owners
+    // are the nations those calls target. Each is an internal "decision:ID" node
+    // of the event chains below; one no traced caller activates stays unknown.
+    let mut activated: HashSet<String> = HashSet::new();
+    let mut edges: Vec<(String, String, Receiver)> = vec![];
+    let mut gated: HashSet<String> = HashSet::new();
+    for root in decision_docs {
+        for (_, group) in entries(root).filter(|(_, v)| v.get("entries").is_some()) {
+            for (decision_id, decision) in entries(group).filter(|(_, v)| v.get("entries").is_some()) {
+                let mut owners = BTreeSet::new();
+                for key in ["allowed", "visible", "available"] {
+                    for block in blocks(decision, key) {
+                        tags(block, &mut owners, 0);
+                    }
+                }
+                let never = blocks(decision, "allowed").any(|b| entries(b).any(|(k, v)| k == "always" && v.as_str() == Some("no")));
+                if never && owners.is_empty() {
+                    gated.insert(format!("decision:{decision_id}"));
+                }
+            }
+        }
+    }
+    let gated = &gated;
     // Nations a country flag is set on: a named tag, or the owners of the
     // focus/decision; (flag, event) when an event sets it on its own receiver.
     let mut flag_tags: HashMap<String, BTreeSet<String>> = HashMap::new();
@@ -229,7 +263,11 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
                 for (id, to) in out {
                     if gate(&id) {
                         flag_owner(&id, &to, owners.as_ref(), &mut flag_tags);
-                        reach.unlocks.entry(id).or_default().insert(source.clone());
+                        if gated.contains(&id) {
+                            activated.insert(id.clone());
+                            seed(id.clone(), to.clone(), owners.as_ref(), &mut reach);
+                        }
+                        reach.unlocks.entry(unlock_key(id)).or_default().insert(source.clone());
                         continue;
                     }
                     reach.sources.entry(id.clone()).or_default().insert(source.clone());
@@ -252,22 +290,34 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
                 if !needs.is_empty() {
                     reach.unlocks.entry(format!("decision:{decision_id}")).or_default().extend(needs);
                 }
+                let node = format!("decision:{decision_id}");
                 let mut out = vec![];
                 calls(decision, "decision", &Receiver::Owner, &mut out, 0, effects);
                 for (id, to) in out {
                     if gate(&id) {
                         flag_owner(&id, &to, Some(&owners), &mut flag_tags);
-                        reach.unlocks.entry(id).or_default().insert(format!("decision:{decision_id}"));
+                        if gated.contains(&id) {
+                            activated.insert(id.clone());
+                            if gated.contains(&node) {
+                                edges.push((node.clone(), id.clone(), to.clone()));
+                            } else {
+                                seed(id.clone(), to.clone(), Some(&owners), &mut reach);
+                            }
+                        }
+                        reach.unlocks.entry(unlock_key(id)).or_default().insert(node.clone());
                         continue;
                     }
-                    reach.sources.entry(id.clone()).or_default().insert(format!("decision:{decision_id}"));
-                    seed(id, to, Some(&owners), &mut reach);
+                    reach.sources.entry(id.clone()).or_default().insert(node.clone());
+                    if gated.contains(&node) {
+                        edges.push((node.clone(), id, to));
+                    } else {
+                        seed(id, to, Some(&owners), &mut reach);
+                    }
                 }
             }
         }
     }
     // Event chains: an event's effects reach the receivers of that event.
-    let mut edges: Vec<(String, String, Receiver)> = vec![];
     for root in event_docs {
         for (kind, event) in entries(root).filter(|(k, v)| ["country_event", "news_event"].contains(k) && v.get("entries").is_some()) {
             let id = scalar(event, "id").to_owned();
@@ -291,15 +341,19 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
             let mut out = vec![];
             calls(event, "event", &Receiver::Owner, &mut out, 0, effects);
             let (unlocked, out): (Vec<_>, Vec<_>) = out.into_iter().partition(|(to, _)| gate(to));
-            for (gated, to) in unlocked {
-                if gated.starts_with("flag:") {
+            for (unlocked, to) in unlocked {
+                if unlocked.starts_with("flag:") {
                     if to == Receiver::Owner {
-                        flag_events.push((gated.clone(), id.clone()));
+                        flag_events.push((unlocked.clone(), id.clone()));
                     } else {
-                        flag_owner(&gated, &to, None, &mut flag_tags);
+                        flag_owner(&unlocked, &to, None, &mut flag_tags);
                     }
                 }
-                reach.unlocks.entry(gated).or_default().insert(format!("event:{id}"));
+                if gated.contains(&unlocked) {
+                    activated.insert(unlocked.clone());
+                    edges.push((id.clone(), unlocked.clone(), to));
+                }
+                reach.unlocks.entry(unlock_key(unlocked)).or_default().insert(format!("event:{id}"));
             }
             for (to, _) in &out {
                 reach.sources.entry(to.clone()).or_default().insert(format!("event:{id}"));
@@ -321,6 +375,7 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
     reach.unlocks.values_mut().for_each(resolve);
     reach.requires.retain(|_, v| !v.is_empty());
     reach.unlocks.retain(|_, v| !v.is_empty());
+    reach.unknown.extend(gated.iter().filter(|d| !activated.contains(*d)).cloned());
     for _ in 0..64 {
         let mut changed = false;
         for (from, to, r) in &edges {
@@ -342,9 +397,20 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
             }
         }
         if !changed {
-            break;
+            // A decision allowed to nobody that an event with no traced
+            // receiver activates (on_action, timed event) may reach any nation.
+            for (from, to, r) in &edges {
+                if *r == Receiver::Owner && gated.contains(to) && !reach.receivers.contains_key(from) && !reach.unknown.contains(from) {
+                    changed |= reach.unknown.insert(to.clone());
+                }
+            }
+            if !changed {
+                break;
+            }
         }
     }
+    reach.receivers.retain(|k, _| !k.starts_with("decision:"));
+    reach.unknown.retain(|k| !k.starts_with("decision:"));
     // An event nothing calls (timed, mean_time_to_happen) whose trigger needs
     // a country flag reaches the nations that flag is set on.
     for (flag, event) in &flag_events {
@@ -459,5 +525,85 @@ mod tests {
         assert_eq!(set(&r.receivers, "spr.seize"), ["SOV"], "a timed event reaches the nation its flag is set on");
         assert_eq!(set(&r.requires, "spr.seize"), ["event:spr.gold"]);
         assert_eq!(set(&r.receivers, "sov.trial"), ["SOV"], "flag set by a SOV focus");
+    }
+
+    #[test]
+    fn upper_case_control_blocks_keep_the_scope() {
+        // hungary_wuw.txt: `IF = { limit = {...} country_event = { id = WW_hungary.30 } }`.
+        let tree = node(vec![("focus_tree", node(vec![
+            ("country", node(vec![("modifier", node(vec![("tag", json!("HUN"))]))])),
+            ("focus", node(vec![("id", json!("HUN_sanction")), ("completion_reward", node(vec![
+                ("IF", node(vec![("limit", node(vec![("always", json!("yes"))])), ("country_event", node(vec![("id", json!("hun.30"))]))])),
+                ("ELSE_IF", node(vec![("Hidden_effect", node(vec![("country_event", json!("hun.31"))]))])),
+                ("ElSE", node(vec![("country_event", json!("hun.32"))])),
+            ]))])),
+        ]))]);
+        let r = compute(&[tree], &[], &[], &[]);
+        for id in ["hun.30", "hun.31", "hun.32"] {
+            assert_eq!(r.receivers.get(id).cloned().unwrap_or_default().into_iter().collect::<Vec<_>>(), ["HUN"], "{id}");
+            assert!(!r.unknown.contains(id), "{id}");
+        }
+    }
+
+    #[test]
+    fn a_mission_allowed_to_nobody_reaches_the_nations_that_activate_it() {
+        // GER.txt: `GER_fourth_silesian_uprising_mission` has `allowed = { always = no }`
+        // and is activated by event wtt_germany.1 (fired by a GER focus); its
+        // timeout_effect fires wuw_GER_civil_war.5.
+        let tree = node(vec![("focus_tree", node(vec![
+            ("country", node(vec![("modifier", node(vec![("tag", json!("GER"))]))])),
+            ("focus", node(vec![("id", json!("GER_civil_war")), ("completion_reward", node(vec![("country_event", node(vec![("id", json!("ger.1"))]))]))])),
+        ]))]);
+        let decisions = node(vec![("cat", node(vec![
+            ("GER_uprising_mission", node(vec![("allowed", node(vec![("always", json!("no"))])),
+                ("timeout_effect", node(vec![("country_event", node(vec![("id", json!("ger.civil.5"))]))]))])),
+            // Activated only under a scope the files do not resolve: unknown.
+            ("GER_mefo_mission", node(vec![("allowed", node(vec![("always", json!("no"))])),
+                ("timeout_effect", node(vec![("country_event", json!("ger.mefo"))]))])),
+            // Never activated by any traced caller: unknown, as before.
+            ("GER_orphan_mission", node(vec![("allowed", node(vec![("always", json!("no"))])),
+                ("timeout_effect", node(vec![("country_event", json!("ger.orphan"))]))])),
+            // Allowed to every nation (no tag, not `always = no`): stays unknown.
+            ("open_decision", node(vec![("complete_effect", node(vec![("country_event", json!("any.open"))]))])),
+            ("open_activator", node(vec![("allowed", node(vec![("tag", json!("ITA"))])),
+                ("complete_effect", node(vec![("activate_decision", json!("open_decision"))]))])),
+        ]))]);
+        let events = node(vec![("country_event", node(vec![("id", json!("ger.1")), ("option", node(vec![
+            ("IF", node(vec![("activate_mission", json!("GER_uprising_mission"))])),
+            ("random_other_country", node(vec![("activate_mission", json!("GER_mefo_mission"))])),
+        ]))]))]);
+        let r = compute(&[tree], &[decisions], &[events], &[]);
+        let set = |id: &str| r.receivers.get(id).cloned().unwrap_or_default().into_iter().collect::<Vec<_>>();
+        assert_eq!(set("ger.civil.5"), ["GER"]);
+        assert!(!r.unknown.contains("ger.civil.5"));
+        assert!(r.unknown.contains("ger.mefo") && set("ger.mefo").is_empty());
+        assert!(r.unknown.contains("ger.orphan") && set("ger.orphan").is_empty());
+        assert!(r.unknown.contains("any.open"), "a decision open to every nation stays unknown");
+        assert_eq!(r.sources["ger.civil.5"].iter().collect::<Vec<_>>(), ["decision:GER_uprising_mission"]);
+        assert!(r.receivers.keys().chain(r.unknown.iter()).all(|k| !k.starts_with("decision:")), "decision nodes stay internal");
+    }
+
+    #[test]
+    fn a_mission_also_activated_by_an_untraced_event_or_only_by_a_tooltip_stays_unknown() {
+        let tree = node(vec![("focus_tree", node(vec![
+            ("country", node(vec![("modifier", node(vec![("tag", json!("GER"))]))])),
+            ("focus", node(vec![("id", json!("GER_a")), ("completion_reward", node(vec![
+                ("activate_mission", json!("GER_shared_mission")),
+                ("unlock_decision_tooltip", json!("GER_tooltip_mission")),
+            ]))])),
+        ]))]);
+        let decisions = node(vec![("cat", node(vec![
+            ("GER_shared_mission", node(vec![("allowed", node(vec![("always", json!("no"))])),
+                ("timeout_effect", node(vec![("country_event", json!("ger.shared"))]))])),
+            ("GER_tooltip_mission", node(vec![("allowed", node(vec![("always", json!("no"))])),
+                ("timeout_effect", node(vec![("country_event", json!("ger.tooltip"))]))])),
+        ]))]);
+        // Nothing traced fires this event (an on_action or a timed event), yet it activates the mission.
+        let events = node(vec![("country_event", node(vec![("id", json!("any.untraced")), ("option", node(vec![
+            ("activate_mission", json!("GER_shared_mission"))]))]))]);
+        let r = compute(&[tree], &[decisions], &[events], &[]);
+        assert!(r.unknown.contains("ger.shared"), "an untraced activator keeps the receivers open");
+        assert!(r.unknown.contains("ger.tooltip"), "a tooltip does not activate the decision");
+        assert_eq!(r.unlocks["decision:GER_tooltip_mission"].iter().collect::<Vec<_>>(), ["focus:GER_a"], "the tooltip still unlocks it for the events page");
     }
 }

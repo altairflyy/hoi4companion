@@ -301,6 +301,13 @@ fn event_reference_survey() {
     let library = request(0, "reference_library_manifest", json!({"root":data.join("reference-library")})).unwrap();
     let list = guides["guides"].as_array().unwrap();
     let definitions = compile_in_parallel(&root, &settings, &library, list);
+    // Traced receivers of every event (event_reach), to count the candidate
+    // events of these lines that no traced caller delivers to a known nation.
+    let catalog = Catalog(request(0, "catalog_open", json!({"settings":settings,"vocabulary_path":root.join("src/hoi4companion/guide_language.json")})).unwrap().as_u64().unwrap());
+    let entities = request(0, "catalog_entities", json!({"handle":catalog.0})).unwrap();
+    let reach: BTreeMap<String, (Value, Value)> = entities["entries"].as_array().unwrap().iter().filter(|r| r["kind"] == "event")
+        .map(|r| (r["id"].as_str().unwrap_or("").to_owned(), (r["receivers"].clone(), r["receivers_unknown"].clone()))).collect();
+    let mut candidate_events: BTreeMap<(String, String), &'static str> = BTreeMap::new();
     let mut buckets: BTreeMap<String, usize> = BTreeMap::new();
     let only = std::env::var("HOI4_SURVEY_COUNTRY").ok();
     for (guide, compiled) in list.iter().zip(&definitions) {
@@ -310,6 +317,14 @@ fn event_reference_survey() {
             let text = p["instructions"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" ⏎ ")).unwrap_or_default();
             if !(text.contains('…') || text.contains("...")) {
                 continue;
+            }
+            for c in p["reference_candidates"]["candidates"].as_array().into_iter().flatten() {
+                let event = if c["kind"] == "event" { c["id"].as_str() } else { c["event_id"].as_str() };
+                let Some(event) = event.filter(|e| !e.is_empty() && ["event", "event_option"].contains(&c["kind"].as_str().unwrap_or(""))) else { continue };
+                let (receivers, unknown) = reach.get(event).cloned().unwrap_or((json!([]), json!(false)));
+                let traced = receivers.as_array().is_some_and(|r| !r.is_empty());
+                let class = match (traced, unknown == true) { (false, _) => "no_receiver", (true, true) => "incomplete", (true, false) => "complete" };
+                candidate_events.insert((country.clone(), event.to_owned()), class);
             }
             let state = if p["event_option_id"].is_string() { if p["reference_resolution"].is_object() { "event_grounded" } else { "event_bound" } }
                 else if p["reference_resolution"].is_object() { "named_grounded" }
@@ -357,6 +372,13 @@ fn event_reference_survey() {
                     p["reference_candidates"]["candidates"].as_array().map(|c| c.iter().take(3).map(|x| format!("{}:{}", x["kind"].as_str().unwrap_or(""), x["id"].as_str().unwrap_or(""))).collect::<Vec<_>>().join(",")).unwrap_or_default());
             }
         }
+    }
+    // Candidate events by tracing: "no_receiver" (no traced caller names a
+    // nation), "incomplete" (some callers untraced), "complete".
+    for ((country, event), class) in &candidate_events {
+        eprintln!("CANDEV {country} {event} {class} receivers={} unknown={}", reach.get(event).map(|r| r.0.to_string()).unwrap_or_default(),
+            reach.get(event).map(|r| r.1.to_string()).unwrap_or_default());
+        *buckets.entry(format!("candidate events {class}")).or_default() += 1;
     }
     eprintln!("event reference survey: {buckets:#?}");
 }
