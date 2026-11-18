@@ -182,6 +182,10 @@ impl ArchiveJob {
         compile_archive(&self.id, &self.guide, self.source.as_ref(), self.associations.as_ref(), self.context.as_ref())
     }
 }
+/// The nation a guide is written for.
+fn guide_country(guide: &Value) -> Option<&str> {
+    guide["applies_to"]["country"].as_str().or(guide["country"].as_str()).filter(|c| !c.is_empty())
+}
 fn campaign(state: &Value) -> Option<&str> {
     if state["usable"] != true {
         return None;
@@ -213,6 +217,8 @@ pub struct Application {
     active_revision: u64,
     /// Nation the active guide was last matched to (see `follow_played_nation`).
     followed_country: Option<String>,
+    /// Last guide selected for each nation (saved with the selection).
+    chosen_by_country: BTreeMap<String, String>,
     revision: u64,
     observation_revision: u64,
     bound_context: Option<(u64, u64, u64, u64, u64)>,
@@ -260,6 +266,7 @@ impl Application {
             selection_path: args["selection_path"].as_str().map(PathBuf::from),
             active_revision: 0,
             followed_country: None,
+            chosen_by_country: BTreeMap::new(),
             revision: 0,
             observation_revision: 0,
             bound_context: None,
@@ -307,6 +314,13 @@ impl Application {
                         && result.guides.contains_key(text(&saved["guide_id"]))
                     {
                         result.active = Some(text(&saved["guide_id"]).into());
+                    }
+                    if let Ok(saved) = serde_json::from_slice::<Value>(&data) {
+                        for (country, id) in saved["by_country"].as_object().into_iter().flatten() {
+                            if let Some(id) = id.as_str().filter(|id| result.guides.contains_key(*id)) {
+                                result.chosen_by_country.insert(country.clone(), id.to_owned());
+                            }
+                        }
                     }
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -798,8 +812,9 @@ impl Application {
         self.active_revision
     }
     /// When the played nation changes (or is first read), a guide written for
-    /// another nation gives way to one for the played nation: the one with the
-    /// most recent checklist in this campaign, else the first by title. A
+    /// another nation gives way to one for the played nation: the guide last
+    /// selected for that nation, else the one with the most recent checklist
+    /// in this campaign, else the first by title. A
     /// guide picked by hand afterwards stays until the nation changes again.
     /// Nothing changes without a qualified observation or a fitting guide.
     fn follow_played_nation(&mut self) -> Result<()> {
@@ -815,20 +830,20 @@ impl Application {
         self.followed_country = Some(country.clone());
         let identity = state::normalize(&json!({"usable":true,"source":self.live["source"],"sample":{"country":country,"focus_tree_id":self.live["sample"]["focus_tree_id"]}}));
         let fits = |guide: &Value| {
-            let scope = &guide["applies_to"];
-            scope["country"].as_str().or(guide["country"].as_str()) == Some(country.as_str())
-                && crate::guide_prepare::mode(&json!({"applies_to":scope}), &identity) == "live"
+            guide_country(guide) == Some(country.as_str())
+                && crate::guide_prepare::mode(&json!({"applies_to":guide["applies_to"]}), &identity) == "live"
         };
         if self.active.as_ref().and_then(|id| self.guides.get(id)).is_some_and(fits) {
             return Ok(());
         }
         let runs = self.runs.call("metadata", json!({}))?;
         let campaign_id = campaign(&self.live).map(str::to_owned);
+        let chosen = self.chosen_by_country.get(&country);
         let mut candidates: Vec<(&String, &Value)> = self.guides.iter().filter(|(_, g)| fits(g)).collect();
         candidates.sort_by_key(|(id, guide)| {
             let run = &runs[id.as_str()];
             let here = campaign_id.is_some() && run["campaign_id"].as_str() == campaign_id.as_deref() && run["country"] == country;
-            (std::cmp::Reverse(if here { run["last_tick"].as_u64().unwrap_or(0) + 1 } else { 0 }), guide["title"].as_str().unwrap_or("").to_lowercase())
+            (chosen != Some(*id), std::cmp::Reverse(if here { run["last_tick"].as_u64().unwrap_or(0) + 1 } else { 0 }), guide["title"].as_str().unwrap_or("").to_lowercase())
         });
         let Some(best) = candidates.first().map(|(id, _)| (*id).clone()) else {
             return Ok(());
@@ -889,6 +904,9 @@ impl Application {
                     .ok_or("Invalid guide selection")?,
             ))?;
             if self.active.as_ref() != Some(&id) {
+                if let Some(country) = guide_country(&self.guides[&id]) {
+                    self.chosen_by_country.insert(country.to_owned(), id.clone());
+                }
                 if let Some(path) = &self.selection_path {
                     if let Some(parent) = path.parent() {
                         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -898,7 +916,7 @@ impl Application {
                         use std::io::Write;
                         let mut file =
                             std::fs::File::create(&temporary).map_err(|e| e.to_string())?;
-                        file.write_all(json!({"guide_id":id}).to_string().as_bytes())
+                        file.write_all(json!({"guide_id":id,"by_country":self.chosen_by_country}).to_string().as_bytes())
                             .map_err(|e| e.to_string())?;
                         file.sync_all().map_err(|e| e.to_string())?;
                         drop(file);
@@ -1225,6 +1243,13 @@ mod observation_tests {
         // A nation without any guide leaves the selection alone.
         app.accept(playing("NOR")).unwrap();
         assert_eq!(app.active.as_deref(), Some("sov-a"));
+        // The guide last selected for a nation comes back with that nation.
+        app.accept(playing("SOV")).unwrap();
+        app.active(Some(&json!({"guide_id":"sov-b"}))).unwrap();
+        app.accept(playing("ROM")).unwrap();
+        assert_eq!(app.active.as_deref(), Some("rom"));
+        app.accept(playing("SOV")).unwrap();
+        assert_eq!(app.active.as_deref(), Some("sov-b"));
     }
     #[test]
     fn accepted_observations_keep_only_provinces_a_definition_or_border_names() {
