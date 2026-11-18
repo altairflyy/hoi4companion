@@ -168,7 +168,7 @@ pub fn targets(
             }
             continue;
         }
-        if row["tracking"] == "reminder" && !(prepare_events && bindings.get(key).is_some())
+        if row["tracking"] == "reminder" && !((prepare_events || events["status"] != "observed") && bindings.get(key).is_some())
             || !["ready", "active", "unverifiable"].contains(&status)
             || status == "unverifiable" && reason != "manual_confirmation_required"
         {
@@ -219,11 +219,14 @@ pub fn targets(
             let live_visible = visible
                 .iter()
                 .any(|e| a(&e["option_ids"]).contains(&binding["option_id"]));
-            if !prepare_events && !live_visible {
+            // Without a qualified event reader the answer is still proposed, but
+            // only exact on-screen text (event title and answer) can place it.
+            let ocr_only = events["status"] != "observed";
+            if !prepare_events && !live_visible && !ocr_only {
                 continue;
             }
             let mut proposal = binding.clone();
-            for(k,v)in json!({"status":status,"country":country,"watch":prepare_events,"instances":visible.iter().filter_map(|e|e["instance_id"].as_str()).collect::<Vec<_>>(),"live_visible":live_visible}).as_object().unwrap(){proposal[k]=v.clone();}
+            for(k,v)in json!({"status":status,"country":country,"watch":prepare_events,"instances":visible.iter().filter_map(|e|e["instance_id"].as_str()).collect::<Vec<_>>(),"live_visible":live_visible,"ocr_only":ocr_only&&!live_visible}).as_object().unwrap(){proposal[k]=v.clone();}
             result.push(proposal);
             seen.insert(("event".into(), identity.into()));
             continue;

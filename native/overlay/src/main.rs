@@ -112,6 +112,9 @@ fn native_observation_time(started:Instant,received:Instant,geometry:&Value)->Op
     (received.duration_since(observed)<Duration::from_millis(750)).then_some(observed)
 }
 fn native_route(snapshot:&Value,geometry:&Value)->bool {
+    // An event popup whose answer geometry is not qualified: its answers can
+    // only be located by exact OCR of the captured frame.
+    if geometry["event_popup"]=="unqualified"{return false;}
     if geometry["suspend_visual"]==true{return true;}
     if snapshot["proposed"].as_array().is_some_and(|rows|rows.iter().any(|r|r["panel"]=="construction_map")){return true;}
     if geometry["native_available"]!=true{return false;}

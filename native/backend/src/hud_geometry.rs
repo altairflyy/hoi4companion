@@ -482,6 +482,13 @@ pub(crate) fn admit(raw: &Value, proposals: &Value, view: &Value) -> Result<Valu
         result["error"] = json!("Processo o risoluzione GUI non corrispondenti");
         return Ok(result);
     }
+    // A popup whose answer geometry is not qualified covers the view: nothing
+    // underneath is highlighted; the HUD may locate its answers by exact OCR.
+    if raw["event_popup"] == "unqualified" {
+        result["active_panel"] = json!("event");
+        result["event_popup"] = json!("unqualified");
+        return Ok(result);
+    }
     let windows: Vec<_> = rows(&raw["event_windows"])
         .iter()
         .filter(|w| yes(&w["visible"]))
@@ -673,4 +680,20 @@ pub(crate) fn admit(raw: &Value, proposals: &Value, view: &Value) -> Result<Valu
     result["explanations"] = crate::hud_diagnostics::explain(raw, proposals, &matches);
     result["matches"] = json!(matches);
     Ok(result)
+}
+
+#[cfg(test)]
+mod popup_tests {
+    use super::*;
+    #[test]
+    fn an_unqualified_event_popup_hides_everything_underneath() {
+        let raw = json!({"available":true,"pid":7,"resolution":[1920,1080],"country":"SOV","active_panel":"focus","event_popup":"unqualified",
+            "panels":{"focus":{"visible":true}},"nodes":[],"event_windows":[]});
+        let proposals = json!([{"key":"f","panel":"focus","identity":"SOV_x","country":"SOV"}]);
+        let result = admit(&raw, &proposals, &json!([1,7,0,0,1920,1080])).unwrap();
+        assert_eq!(result["active_panel"], "event");
+        assert_eq!(result["event_popup"], "unqualified");
+        assert_eq!(result["matches"], json!([]));
+        assert!(result.get("suspend_visual").is_none(), "the HUD falls back to OCR, not to nothing");
+    }
 }

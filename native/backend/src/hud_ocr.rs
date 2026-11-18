@@ -13,6 +13,47 @@ struct Line {
 fn number(v: &Value) -> Option<f64> {
     v.as_f64().filter(|v| v.is_finite())
 }
+/// An event title is on screen: exactly, or, when the game fills script
+/// placeholders ("[TUR.GetNameDefCap] prende il controllo del Bosforo!"), every
+/// literal part in order on one line or two consecutive lines. The literal
+/// parts must carry at least 8 letters, so a title made of placeholders never
+/// matches.
+fn title_seen(title: &str, keys: &[String]) -> bool {
+    if !title.contains('[') {
+        let key = text_key(title);
+        return !key.is_empty() && keys.contains(&key);
+    }
+    let mut fragments = vec![];
+    let mut literal = String::new();
+    let mut depth = 0;
+    for c in title.chars() {
+        match c {
+            '[' => {
+                depth += 1;
+                fragments.push(text_key(&std::mem::take(&mut literal)));
+            }
+            ']' if depth > 0 => depth -= 1,
+            _ if depth == 0 => literal.push(c),
+            _ => {}
+        }
+    }
+    fragments.push(text_key(&literal));
+    fragments.retain(|f| f.chars().count() >= 3);
+    if fragments.iter().map(|f| f.chars().count()).sum::<usize>() < 8 {
+        return false;
+    }
+    let in_order = |key: &str| {
+        let mut rest = key;
+        fragments.iter().all(|f| match rest.find(f.as_str()) {
+            Some(at) => {
+                rest = &rest[at + f.len()..];
+                true
+            }
+            None => false,
+        })
+    };
+    keys.iter().any(|k| in_order(k)) || keys.windows(2).any(|w| in_order(&w.concat()))
+}
 pub(crate) fn validate(value: &Value, width: u64, height: u64) -> Result<(), String> {
     if value["width"].as_u64() != Some(width)
         || value["height"].as_u64() != Some(height)
@@ -103,13 +144,11 @@ pub(crate) fn rectangles(ocr: &Value, proposals: &Value) -> Value {
             {
                 continue;
             }
-            let titles: Vec<_> = std::iter::once(&proposal["event_title"])
+            let seen = std::iter::once(&proposal["event_title"])
                 .chain(rows(&proposal["event_titles"]).iter())
                 .filter_map(Value::as_str)
-                .map(text_key)
-                .filter(|s| !s.is_empty())
-                .collect();
-            if !keys.iter().any(|key| titles.contains(key)) {
+                .any(|title| title_seen(title, &keys));
+            if !seen {
                 continue;
             }
         } else if panel == "focus" {
@@ -219,4 +258,40 @@ pub(crate) fn rectangles(ocr: &Value, proposals: &Value) -> Value {
                 .all(|other| other["identity"] == item["identity"]))
             .collect::<Vec<_>>()
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn line(text: &str, x: f64, y: f64) -> Value {
+        json!({"text":text,"words":[{"x":x,"y":y,"width":20. * text.len() as f64 / 2.,"height":20.}]})
+    }
+    fn answer(title: &str) -> Value {
+        json!({"key":"word-0008","panel":"event","identity":"bftb_turkey.4:bftb_turkey.4.a","event_id":"bftb_turkey.4",
+            "option_id":"bftb_turkey.4.a","labels":["Mobilitare immediatamente le forze armate!"],
+            "event_title":title,"event_titles":[title],"watch":false,"live_visible":false,"ocr_only":true})
+    }
+    #[test]
+    fn an_event_answer_is_placed_by_its_title_and_exact_label_even_with_placeholders() {
+        let ocr = json!({"width":1920,"height":1080,"lines":[
+            line("La Turchia prende il controllo del Bosforo!", 700., 200.),
+            line("Mobilitare immediatamente le forze armate!", 720., 700.),
+            line("Questo circo farsesco conta poco per noi.", 720., 760.)]});
+        let found = rectangles(&ocr, &json!([answer("[TUR.GetNameDefCap] prende il controllo del Bosforo!")]));
+        assert_eq!(found.as_array().unwrap().len(), 1);
+        assert_eq!(found[0]["basis"], "exact_unique_ocr");
+        assert!(found[0]["rect"][1].as_f64().unwrap() > 690.);
+        // Another popup with the same answer text: its title does not match.
+        let other = json!({"width":1920,"height":1080,"lines":[line("Un altro evento", 700., 200.), line("Mobilitare immediatamente le forze armate!", 720., 700.)]});
+        assert_eq!(rectangles(&other, &json!([answer("[TUR.GetNameDefCap] prende il controllo del Bosforo!")])), json!([]));
+        // A title made only of placeholders never matches.
+        assert_eq!(rectangles(&ocr, &json!([answer("[FROM.GetName] [ROOT.GetName]")])), json!([]));
+    }
+    #[test]
+    fn titles_match_in_order_across_two_lines() {
+        let keys = vec![text_key("La Turchia prende il"), text_key("controllo del Bosforo!")];
+        assert!(title_seen("[TUR.GetNameDefCap] prende il controllo del Bosforo!", &keys));
+        assert!(!title_seen("[TUR.GetNameDefCap] controllo del Bosforo! prende il", &keys));
+        assert!(title_seen("Il Patto Molotov-Ribbentrop", &[text_key("Il Patto Molotov-Ribbentrop")]));
+    }
 }

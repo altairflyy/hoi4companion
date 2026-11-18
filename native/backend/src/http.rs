@@ -1184,6 +1184,7 @@ impl Service {
                     "active_panel",
                     "suspend_visual",
                     "explanations",
+                    "event_popup",
                 ] {
                     if let Some(v) = value.get(key) {
                         result[key] = v.clone();

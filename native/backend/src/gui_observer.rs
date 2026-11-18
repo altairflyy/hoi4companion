@@ -782,16 +782,17 @@ pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value)
         return Err("Viste sovrapposte: geometria non esclusiva".into());
     }
     let resolution = resolution.ok_or("Missing GUI resolution")?;
-    // Current profiles deliberately withhold unqualified popup choice offsets.
-    // Every known visible popup suppresses geometry instead of guessing.
+    // Current profiles deliberately withhold unqualified popup choice offsets:
+    // a visible popup yields no native answer geometry, only the fact that a
+    // popup covers the view (answers may then be located by exact OCR).
+    let mut event_popup = Value::Null;
     if profile["gui_layout"].is_object() {
         for event in rows(&bindings["events"]) {
             let e = event.as_u64().ok_or("Invalid event candidate")?;
             let c = s.u(e + s.offset("view_container", 0x578))?;
             if s.container(c, root, e + 40)? {
-                return Err(
-                    "Evento in primo piano: geometria risposte non ancora qualificata".into(),
-                );
+                event_popup = json!("unqualified");
+                break;
             }
         }
     }
@@ -841,7 +842,7 @@ pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value)
         _=>Value::Null,
     };
     Ok(
-        json!({"available":true,"source":"native_gui","session_id":session,"pid":args["pid"],"process_created":args["created"],"country":country,"scope":scope,"resolution":resolution,"active_panel":active.first(),"panels":panels,"nodes":nodes,"tabs":tabs,"events":{"status":panels["event"]["status"],"visible_ids":event_data["visible_ids"]},"event_windows":event_data["event_windows"],"action_ui":action_data,"production_ui":production_data,"diagnostics":{"bytes":s.used}}),
+        json!({"available":true,"source":"native_gui","session_id":session,"pid":args["pid"],"process_created":args["created"],"country":country,"scope":scope,"resolution":resolution,"active_panel":active.first(),"event_popup":event_popup,"panels":panels,"nodes":nodes,"tabs":tabs,"events":{"status":panels["event"]["status"],"visible_ids":event_data["visible_ids"]},"event_windows":event_data["event_windows"],"action_ui":action_data,"production_ui":production_data,"diagnostics":{"bytes":s.used}}),
     )
 }
 

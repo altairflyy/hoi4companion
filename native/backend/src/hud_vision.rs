@@ -647,6 +647,10 @@ impl Vision {
             .collect();
         matches.retain(|m| !keys.contains(&m["key"].to_string()));
         matches.extend(visual);
+        // An event popup on screen takes priority over everything under it.
+        if matches.iter().any(|m| m["panel"] == "event") {
+            matches.retain(|m| m["panel"] == "event");
+        }
         let matches = json!(matches);
         self.cached = Some((key, matches.clone()));
         Ok(
