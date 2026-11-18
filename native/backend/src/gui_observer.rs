@@ -602,6 +602,23 @@ impl<M: Memory> Memory for Sample<'_, M> {
     }
 }
 
+/// Whether an event window's popup is shown. Its container is the field
+/// holding a CContainerWindow owned by this window (owner `e + 40`) under the
+/// game GUI root: the profile's offset first, else the first such field in
+/// the window's first 0x800 bytes. Unreadable or foreign fields are skipped.
+fn popup_visible<M: Memory>(s: &mut Sample<'_, M>, e: u64, root: u64) -> bool {
+    let preferred = s.offset("view_container", 0x578);
+    for off in std::iter::once(preferred).chain((0..0x800).step_by(8).filter(|o| *o != preferred)) {
+        let Ok(c) = s.u(e + off) else { continue };
+        if !(0x10000..0x7fff_ffff_ffff).contains(&c) {
+            continue;
+        }
+        if let Ok(shown) = s.container(c, root, e + 40) {
+            return shown;
+        }
+    }
+    false
+}
 pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value) -> Result<Value> {
     let profile = &args["profile"];
     let base = args["base"].as_u64().ok_or("Missing GUI module base")?;
@@ -787,10 +804,14 @@ pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value)
     // popup covers the view (answers may then be located by exact OCR).
     let mut event_popup = Value::Null;
     if profile["gui_layout"].is_object() {
-        for event in rows(&bindings["events"]) {
-            let e = event.as_u64().ok_or("Invalid event candidate")?;
-            let c = s.u(e + s.offset("view_container", 0x578))?;
-            if s.container(c, root, e + 40)? {
+        // A separate, unwitnessed sample: the popup is only a routing hint
+        // (OCR must still find its exact title and answer), and a candidate
+        // that does not fit this layout must not fail the observation.
+        let mut probe = Sample::new(&mut *s.memory, base, profile);
+        for event in rows(&bindings["events"]).iter().take(64) {
+            if let Some(e) = event.as_u64()
+                && popup_visible(&mut probe, e, root)
+            {
                 event_popup = json!("unqualified");
                 break;
             }
