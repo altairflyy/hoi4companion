@@ -70,10 +70,9 @@ Item format (ids IL-01, IL-02, ... are never reused):
 - Priority: 3 (every new backend exe re-prepares 50 guides, ~41 s before the app answers; high risk: startup concurrency)
 - Source: `docs/AGENT_HANDOFF.md` "Not done: compiled-guide cache still keyed by the backend binary hash … Better next step: ready immediately, prepare active guide first, rest in background." Code: `native/backend/src/http.rs` startup (`[startup] guides ready`), `Application::prepare_context`.
 - Acceptance: new Rust integration test: with several guides and a cold compiled cache, the server answers `/api/guide/projection` for the active guide before the other guides finish, and a guide not yet prepared is reported as preparing/unavailable (never evaluated or shown as done) until ready. Measure time to ready on a copy of the data dir in the scratchpad (`HOI4COMPANION_DATA_DIR`, never the real `.local` user data), before -> after in Notes. Backend tests and JS suite green. If the UI behavior while preparing needs a product decision, set needs-user with the options.
-- Status: todo
-- Attempts: 0
-- Notes:
-
+- Status: done 47d0f77
+- Attempts: 1
+- Notes: Startup prepares only the active guide; the rest join the registry from a background thread (`Application::set_context_first` / `apply_pending`, `Service::prepare_pending_guides`). A pending guide is absent from `/api/guides` and its projection answers 400 "Guide still being prepared: try again in a few seconds"; campaign binding and following the played nation wait while any guide is pending or failed (fail closed, from invariant review). UI shows the shorter list for ~33 s with no new UI; no product decision needed. Tests: integration `startup_preparation::the_server_answers_for_the_active_guide_before_the_other_guides_are_prepared`, unit `pending_guides_stay_unavailable_until_prepared_for_the_current_catalog`; backend crate all pass (lib 45, integration 104), JS 460 pass / 3 skipped / 0 fail against the dev-built backend. Measured on a scratch copy of the data dir (50 guides, real catalog, cold compiled cache, no HOI4 running), HEAD a2f5c6f vs this change: ready file 44.75 s -> 14.18 s (14.40 s rerun); first active-guide projection 50.1 s -> 21.1 s; all guides ready 44.4 s -> 47.6 s, a non-active guide projection 54.9 s -> 51.7 s (400 "being prepared" before). NOT verified in game.
 ### IL-06 — Speed up the real-catalog event reference survey
 - Area: harness
 - Priority: 4 (228 s per run slows every guide-reference item; low risk, test-only)
