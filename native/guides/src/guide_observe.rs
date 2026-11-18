@@ -89,6 +89,18 @@ fn definitions(guide: &Value) -> Value {
         }
     }
     for row in steps {
+        // A line naming several foreign actions ("REL ENG, FRA"): each part is
+        // its own durable milestone, kept once observed while the step applies.
+        if row["tracking"] != "reminder" && row["completion"]["op"] == "all" {
+            for part in list(&row["action"]["params"]["foreign_parts"]) {
+                let Some(node) = guide_prepare::foreign_predicate(&part) else { continue };
+                let token = guide_prepare::foreign_token(&row["key"], &node);
+                let legacy=json!({"op":"any","args":[node,{"op":"fact","key":"guide.campaign.milestones","test":"contains","value":token}]});
+                if list(&row["completion"]["args"]).contains(&legacy) {
+                    result[&token] = json!({"step":row["key"],"token":token,"condition":node,"foreign_interaction":true,"part":true});
+                }
+            }
+        }
         let Some(node) = guide_prepare::foreign_predicate(&row["action"]["params"]) else {
             continue;
         };
@@ -169,7 +181,9 @@ fn campaign(guide: &Value, state: &Value, record: &mut Value, milestones: &Value
                 continue;
             }
         }
-        if completed.contains(text(&milestone["step"]))
+        // A part is kept on its own observation: the step completes only once
+        // every part is kept or observed, so it cannot wait for "completed".
+        if (milestone["part"] == true || completed.contains(text(&milestone["step"])))
             && check(&milestone["condition"], state)? == Some(true)
         {
             observed["country"] = evaluation["country"].clone();

@@ -315,6 +315,51 @@ fn event_reference_survey() {
     eprintln!("event reference survey: {buckets:#?}");
 }
 
+/// Written-out actions on existing single-line steps ("REL UK, FRA (40PP)",
+/// "war on GRE", "Justify HUN"): what was bound or recognized, for review.
+#[test]
+fn written_action_survey() {
+    if std::env::var("HOI4_REAL_CATALOG").as_deref() != Ok("1") {
+        return eprintln!("written action survey skipped (set HOI4_REAL_CATALOG=1)");
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let data = root.join(".local");
+    let settings: Value = serde_json::from_slice(&std::fs::read(data.join("settings.json")).unwrap()).unwrap();
+    let guides = request(0, "guide_repository", json!({"directories":[data.join("guides")],"association_directory":data.join("guide-associations")})).unwrap();
+    let library = request(0, "reference_library_manifest", json!({"root":data.join("reference-library")})).unwrap();
+    let catalog = Catalog(request(0, "catalog_open", json!({"settings":settings,"vocabulary_path":root.join("src/hoi4companion/guide_language.json")})).unwrap().as_u64().unwrap());
+    let mut buckets: BTreeMap<String, usize> = BTreeMap::new();
+    let verbs = ["rel ", "improve relations", "justify", "annex", "integrate", "invade", "collab", "war on", "war with", "war against", "declare war", "guarantee", "embargo", "lend"];
+    let written = |line: &str| {
+        let action = hoi4companion_backend::reference_candidates::trigger(line).map(|t| t.1).unwrap_or_else(|| line.trim().trim_start_matches(|c: char| "-•*– ".contains(c)).to_owned());
+        let action = action.to_lowercase();
+        verbs.iter().any(|v| action.starts_with(v))
+    };
+    for guide in guides["guides"].as_array().unwrap() {
+        let country = guide["applies_to"]["country"].as_str().unwrap_or("?").to_owned();
+        let compiled = request(0, "catalog_runtime_guide", json!({"handle":catalog.0,"guide":guide,"library":library})).unwrap()["definition"].clone();
+        for s in steps(&compiled) {
+            let p = &s["action"]["params"];
+            let line = p["instructions"].as_array().filter(|a| a.len() == 1).and_then(|a| a[0].as_str()).unwrap_or("");
+            let act = &p["action_resolution"];
+            if act.is_null() && !(s["action"]["kind"] == "manual" && !line.contains('\n') && written(line)) {
+                continue;
+            }
+            let state = match act["status"].as_str() {
+                Some("bound") if p["foreign_parts"].is_array() => "bound_several",
+                Some("bound") => "bound_one",
+                Some("not_observable") => "recognized_not_observable",
+                _ if p["operation_id"].is_string() => "already_bound",
+                _ => "not_understood",
+            };
+            *buckets.entry(state.into()).or_default() += 1;
+            eprintln!("ACT {country} {} [{state}] {} | {}", s["key"], line.chars().take(110).collect::<String>(),
+                if act.is_null() { String::new() } else { format!("{} {}", act["action"].as_str().unwrap_or(""), if act["actions"].is_array() { act["actions"].to_string() } else { act["targets"].to_string() }) });
+        }
+    }
+    eprintln!("written action survey: {buckets:#?}");
+}
+
 #[test]
 fn event_reference_probe() {
     if std::env::var("HOI4_REAL_CATALOG").as_deref() != Ok("1") {

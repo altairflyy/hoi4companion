@@ -468,6 +468,11 @@ pub struct Input {
     pub research_options: Value,
     #[serde(default)]
     pub foreign_tokens: BTreeMap<String, String>,
+    /// A step naming several foreign actions: one milestone token per part.
+    /// Until every part is kept, the step's live completion is admitted only
+    /// while the step applies, like a single foreign action.
+    #[serde(default)]
+    pub foreign_part_tokens: BTreeMap<String, Vec<String>>,
     #[serde(default)]
     pub selectors: BTreeMap<String, Vec<Value>>,
 }
@@ -884,11 +889,10 @@ impl CompiledGuide {
         }
         for &i in &self.topology {
             let step = &self.rows[i].1;
+            let kept = |token: &String| input.state.contains("guide.campaign.milestones", token);
             if mode == "live"
-                && input
-                    .foreign_tokens
-                    .get(&step.key)
-                    .is_some_and(|token| !input.state.contains("guide.campaign.milestones", token))
+                && (input.foreign_tokens.get(&step.key).is_some_and(|token| !kept(token))
+                    || input.foreign_part_tokens.get(&step.key).is_some_and(|tokens| !tokens.iter().all(kept)))
                 && let Some(denied) = self.admission(step, input, &results)
             {
                 results[i]

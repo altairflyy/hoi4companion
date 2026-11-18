@@ -502,6 +502,7 @@ pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
     let production = production_context::context(guide, &construction[0], &baseline_context);
     let mut selectors = json!({});
     let mut foreign = json!({});
+    let mut foreign_parts = json!({});
     let mut explicit = vec![];
     for step in rows(guide) {
         if step.get("depends_on").is_some() || step.get("depends_on_started").is_some() {
@@ -512,6 +513,12 @@ pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
         if let Some(predicate) = foreign_predicate(params) {
             foreign[key] = json!(foreign_token(&step["key"], &predicate));
         }
+        // Several foreign actions on one line: each part's token, so the live
+        // admission gate runs until every part is kept.
+        let parts: Vec<Value> = list(&params["foreign_parts"]).iter().filter_map(foreign_predicate).map(|p| json!(foreign_token(&step["key"], &p))).collect();
+        if !parts.is_empty() {
+            foreign_parts[key] = json!(parts);
+        }
         if state::truth(&params["production_revision"]) {
             let default = [params.clone()];
             let targets = params
@@ -521,7 +528,7 @@ pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
             selectors[key]=json!(targets.iter().map(|p|production_context::selector_for(&json!({"action":{"params":p}})).map(|s|json!({"identity":production_context::selector_identity(&s),"category":s["category"]}))).collect::<Vec<_>>());
         }
     }
-    let payload = json!({"schema_version":1,"state":production[0],"original_state":state,"progress_status":status,"run_id":result[1],"checks":checks,"started":started,"explicit_dependencies":explicit,"construction":construction[1],"production":production[1],"research_bindings":if status=="accepted"&&record["research_bindings"].is_object(){record["research_bindings"].clone()}else{json!({})},"research_options":if status=="accepted"{record.get("research_options").cloned().unwrap_or_else(||json!({}))}else{json!({})},"foreign_tokens":foreign,"selectors":selectors});
+    let payload = json!({"schema_version":1,"state":production[0],"original_state":state,"progress_status":status,"run_id":result[1],"checks":checks,"started":started,"explicit_dependencies":explicit,"construction":construction[1],"production":production[1],"research_bindings":if status=="accepted"&&record["research_bindings"].is_object(){record["research_bindings"].clone()}else{json!({})},"research_options":if status=="accepted"{record.get("research_options").cloned().unwrap_or_else(||json!({}))}else{json!({})},"foreign_tokens":foreign,"foreign_part_tokens":foreign_parts,"selectors":selectors});
     let mut definition = json!({});
     for field in ["id", "applies_to", "dependency_policy", "phases", "tracks"] {
         if let Some(v) = guide.get(field) {

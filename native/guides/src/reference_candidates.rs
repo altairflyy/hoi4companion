@@ -486,6 +486,128 @@ pub fn trigger(line: &str) -> Option<(String, String)> {
 }
 /// The step's only instruction, or the first line of a multi-line block
 /// (true): the block's lead line, whose trigger scopes the whole block.
+/// Community country abbreviations the game's names do not contain.
+fn country_aliases(text: &str) -> String {
+    let re = crate::import_catalog::regex;
+    // "the USSR", "the UK": the article is not part of the name.
+    let text = re(r"(?i)\bthe\s+(USSR|UK|US)\b").replace_all(text, "$1");
+    let text = re(r"\bUSSR\b").replace_all(&text, "SOV");
+    let text = re(r"\bUS\b").replace_all(&text, "USA");
+    re(r"\bUK\b").replace_all(&text, "ENG").into_owned()
+}
+/// What a written-out action asks, once its trigger and bullet are removed.
+fn action_text(line: &str) -> String {
+    let text = trigger(line).map(|t| t.1).unwrap_or_else(|| crate::import_catalog::regex(r"^\s*(?:[-•*–]\s+)").replace(line.trim(), "").trim().to_owned());
+    country_aliases(text.trim())
+}
+/// Actions the game state read live cannot show: recognized with their
+/// targets so the card says what is asked, never tracked.
+fn unobservable_action(text: &str, index: &Index) -> Result<Option<Value>> {
+    let re = crate::import_catalog::regex;
+    // Trailing notes ("(50PP)", "(if needed)") do not change what is asked;
+    // the line is only recognized here, never tracked.
+    let text = re(r"(?:\s*\([^()]*\))+\s*$").replace(text, "").trim().to_owned();
+    let Some(hit) = re(r"(?i)^(justify(?:\s+(?:a\s+)?war\s*goals?)?|annex|integrate|invade|collabs?(?:oration)?(?:\s+government)?)\s+(?:(?:on|against|in)\s+)?(.+)$").captures(&text) else {
+        return Ok(None);
+    };
+    let verb = hit[1].to_lowercase();
+    let action = match verb.split_whitespace().next().unwrap_or("") {
+        "justify" => "justify_war_goal",
+        "annex" => "annex",
+        "integrate" => "integrate",
+        "invade" => "invade",
+        _ => "collaboration_government",
+    };
+    let mut targets = vec![];
+    for part in re(r"\s*(?:,|&|\band\b)\s*").split(&hit[2]) {
+        let found = index.query(json!({"op":"resolve_country","query":part}))?;
+        let Some(tag) = found.as_str().filter(|t| !t.is_empty()) else { return Ok(None) };
+        targets.push(tag.to_owned());
+    }
+    Ok((!targets.is_empty()).then(|| json!({"status":"not_observable","action":action,"targets":targets,"text":text})))
+}
+/// "REL ENG, FRA, GER (40PP)": one action on several countries, rewritten as
+/// one clause per country ("REL ENG, REL FRA, REL GER (40PP)") so the foreign
+/// parser reads it. Every item after the verb must be a country.
+fn one_action_on_several(text: &str, index: &Index) -> Result<Option<String>> {
+    let re = crate::import_catalog::regex;
+    let cost = re(r"\s*\(\d+\s*PP\)\s*$").find(text).map(|m| m.as_str().trim().to_owned());
+    let body = re(r"\s*\(\d+\s*PP\)\s*$").replace(text, "").trim().to_owned();
+    let Some(first) = re(r"\s*(?:,|&|\band\b)\s*").find(&body) else { return Ok(None) };
+    let head = body[..first.start()].trim();
+    let Some(space) = head.rfind(char::is_whitespace) else { return Ok(None) };
+    let verb = head[..space].trim();
+    let mut targets = vec![head[space..].trim().to_owned()];
+    targets.extend(re(r"\s*(?:,|&|\band\b)\s*").split(&body[first.end()..]).map(|t| t.trim().to_owned()));
+    for t in &targets {
+        if !index.query(json!({"op":"resolve_country","query":t}))?.as_str().is_some_and(|s| !s.is_empty()) {
+            return Ok(None);
+        }
+    }
+    let mut out = targets.iter().map(|t| format!("{verb} {t}")).collect::<Vec<_>>().join(", ");
+    if let Some(cost) = cost {
+        out = format!("{out} {cost}");
+    }
+    Ok(Some(out))
+}
+/// A written-out foreign action on an existing single-line step ("REL ENG,
+/// FRA (40PP)", "war on GRE"): bound through the foreign-interaction binding
+/// when the whole line parses, every target resolving to a country; several
+/// targets complete only when each one is observed, each kept as its own
+/// durable milestone. Unobservable actions are recognized only.
+fn ground_action(row: &mut Value, line: &str, index: &Index) -> Result<()> {
+    if row.get("completion").is_some() {
+        return Ok(());
+    }
+    let text = action_text(line);
+    if text.is_empty() {
+        return Ok(());
+    }
+    let parsed = match crate::command_families::foreign(&text, index)? {
+        Some(items) => Some(items),
+        None => match one_action_on_several(&text, index)? {
+            Some(expanded) => crate::command_families::foreign(&expanded, index)?,
+            None => None,
+        },
+    };
+    if let Some(items) = parsed {
+        let items = items.as_array().cloned().unwrap_or_default();
+        let mut parts = vec![];
+        for item in &items {
+            let mut probe = row.clone();
+            for (k, v) in item["params"].as_object().into_iter().flatten() {
+                probe["action"]["params"][k] = v.clone();
+            }
+            let result = crate::political_binding::foreign(&probe, index)?;
+            if result["bound"] != true {
+                return Ok(());
+            }
+            parts.push(result["step"].clone());
+        }
+        let describe: Vec<Value> = parts
+            .iter()
+            .map(|s| json!({"action":s["action"]["params"]["mission_id"].as_str().unwrap_or_else(|| s["action"]["params"]["operation_id"].as_str().unwrap_or("")),"target":s["action"]["params"]["target_country"]}))
+            .collect();
+        let resolution = json!({"status":"bound","actions":describe,"text":text});
+        if let [single] = parts.as_slice() {
+            *row = single.clone();
+            row["action"]["params"]["action_resolution"] = resolution;
+        } else if !parts.is_empty() {
+            row["completion"] = json!({"op":"all","args":parts.iter().map(|s| s["completion"].clone()).collect::<Vec<_>>()});
+            row["started_when"] = json!({"op":"any","args":parts.iter().map(|s| s["started_when"].clone()).collect::<Vec<_>>()});
+            row["action"]["params"]["foreign_parts"] = json!(parts.iter().map(|s| s["action"]["params"].clone()).collect::<Vec<_>>());
+            row["action"]["params"]["action_resolution"] = resolution;
+        }
+        if let Some(map) = row.as_object_mut() {
+            map.remove("tracking");
+        }
+        return Ok(());
+    }
+    if let Some(recognized) = unobservable_action(&text, index)? {
+        row["action"]["params"]["action_resolution"] = recognized;
+    }
+    Ok(())
+}
 fn first_line(row: &Value) -> Option<(String, bool)> {
     let text = row["action"]["params"]["instructions"].as_array().filter(|a| a.len() == 1).and_then(|a| a[0].as_str())?;
     let mut lines = text.lines().map(str::trim).filter(|l| !l.is_empty());
@@ -575,6 +697,11 @@ pub fn ground_references(guide: &mut Value, index: &Index) -> Result<()> {
         }
         let (refs, whole) = split_references(&line);
         if refs.is_empty() {
+            // No abbreviation: the line may still be a written-out action
+            // ("Justify HUN, YUG (60PP)", "REL UK, FRA (40PP)", "war on GRE").
+            if !block {
+                ground_action(row, &line, index)?;
+            }
             continue;
         }
         // Each reference: an event answer first (the authors' main use), else
@@ -675,6 +802,12 @@ pub fn ground_references(guide: &mut Value, index: &Index) -> Result<()> {
             if several {
                 row["completion"] = json!({"op":"all","args":completions});
             }
+            continue;
+        }
+        // Nothing bound and no abbreviation: a written-out line that is not a
+        // name ("war on GRE") may still be an action.
+        if !block && refs.iter().all(|r| !truncated(&r.text)) {
+            ground_action(row, &line, index)?;
             continue;
         }
         // Nothing bound: show what the first truncated reference could mean.
@@ -921,6 +1054,68 @@ mod tests {
         // A block's leading trigger scopes the whole block.
         assert_eq!(rows[7]["when"]["value"], "HUN_expand_the_army");
         // Idempotent: a second pass changes nothing.
+        let once = guide.clone();
+        ground_references(&mut guide, &index).unwrap();
+        assert_eq!(guide, once);
+    }
+    #[test]
+    fn written_out_actions_are_bound_only_when_the_whole_line_is_understood() {
+        let index = Index::new(&json!({"entries":[
+            {"kind":"country","id":"ROM","name":"Romania"},
+            {"kind":"country","id":"HUN","name":"Hungary"},
+            {"kind":"country","id":"YUG","name":"Yugoslavia"},
+            {"kind":"country","id":"GRE","name":"Greece"},
+            {"kind":"country","id":"ENG","name":"United Kingdom"},
+            {"kind":"country","id":"FRA","name":"France"},
+            {"kind":"focus","id":"ROM_force_abdication","name":"Force Abdication","scope":"rom_tree"}
+        ]})).unwrap();
+        let row = |key: &str, line: &str| json!({"key":key,"title":line,"tracking":"reminder","action":{"kind":"manual","params":{"instructions":[line]}}});
+        let mut guide = json!({"applies_to":{"country":"ROM","tree_id":"rom_tree"},"tracks":{"operations":[
+            row("a", "On Force…: Justify HUN, YUG (60PP)"),
+            row("b", "REL UK, FRA (40PP)"),
+            row("c", "ASAP: war on GRE"),
+            row("d", "War on GRE, HUN (at the same time)"),
+            row("e", "On Force…: Annex YUG"),
+            row("f", "Justify & Spy FRA (Leba)"),
+            row("g", "war on GRE
+- push to Athens"),
+            row("h", "REL ENG & HUN (20PP)"),
+            row("i", "Invade the UK (if needed)"),
+            row("j", "War Bonds (50PP)"),
+        ]}});
+        ground_references(&mut guide, &index).unwrap();
+        let rows = guide["tracks"]["operations"].as_array().unwrap().clone();
+        let p = |i: usize| rows[i]["action"]["params"].clone();
+        // A war goal is not read live: recognized with its targets, manual.
+        assert_eq!(p(0)["action_resolution"]["status"], "not_observable");
+        assert_eq!(p(0)["action_resolution"]["action"], "justify_war_goal");
+        assert_eq!(p(0)["action_resolution"]["targets"], json!(["HUN", "YUG"]));
+        assert!(rows[0].get("completion").is_none());
+        assert_eq!(rows[0]["when"]["args"][1]["value"], "ROM_force_abdication");
+        // Several foreign actions: each its own durable part, all required.
+        assert_eq!(rows[1]["completion"]["op"], "all");
+        assert_eq!(p(1)["foreign_parts"].as_array().map(Vec::len), Some(2));
+        assert_eq!(p(1)["foreign_parts"][0]["target_country"], "ENG");
+        assert_eq!(p(1)["action_resolution"]["actions"][1], json!({"action":"improve_relations","target":"FRA"}));
+        assert!(rows[1].get("tracking").is_none());
+        // One war declared by the player (outgoing record), kept as a milestone.
+        assert_eq!(p(2)["operation_id"], "declare_war");
+        assert_eq!(p(2)["target_country"], "GRE");
+        let war = &rows[2]["completion"]["args"][0];
+        assert_eq!(war["args"][1], json!({"op":"fact","key":"diplomacy.outgoing","test":"contains","value":"war:GRE"}));
+        assert_eq!(rows[2]["completion"]["args"][1]["key"], "guide.campaign.milestones");
+        // Extra words, unresolved targets or a block: left as they were.
+        for i in [3, 5, 6] {
+            assert!(p(i)["action_resolution"].is_null() && rows[i].get("completion").is_none(), "row {i}");
+            assert_eq!(rows[i]["tracking"], "reminder", "row {i}");
+        }
+        assert_eq!(p(4)["action_resolution"]["action"], "annex");
+        assert!(rows[4].get("completion").is_none());
+        // "&" lists targets too; "the UK" is ENG; a trailing note does not
+        // stop a recognition that is never tracked; a law is not an action.
+        assert_eq!(p(7)["foreign_parts"][1]["target_country"], "HUN");
+        assert_eq!(p(8)["action_resolution"], json!({"status":"not_observable","action":"invade","targets":["ENG"],"text":"Invade ENG"}));
+        assert!(p(9)["action_resolution"].is_null() && rows[9].get("completion").is_none());
         let once = guide.clone();
         ground_references(&mut guide, &index).unwrap();
         assert_eq!(guide, once);

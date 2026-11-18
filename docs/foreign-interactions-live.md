@@ -106,3 +106,18 @@ There is no new diplomatic/operative button geometry or HUD alignment claim.
 
 Evidence and test results are recorded in the
 [follow-up audit](audits/2026-11-06-foreign-interactions.md).
+
+## Declared wars (2026-11-18)
+
+`declare_war` ("war on X", "declare war on X", "guerra a X") is a relation
+action like the others: the step is done once a qualified `war:X` record exists
+in `diplomacy.outgoing`, the war the player declared. A war X declared on the
+player, or one joined through a faction, is not taken as the player declaring
+it. The observation is kept as a campaign milestone, so the step stays done
+after the peace. An invasion or a capitulation is not inferred from a war.
+
+## Written-out actions on existing checklists (2026-11-18)
+
+`reference_candidates::ground_action` reads the action part (after a trigger
+such as "On X…:" or "ASAP:") of an existing single-line manual step. Details
+and real-catalog numbers in `docs/events-live.md`.

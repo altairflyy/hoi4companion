@@ -500,6 +500,64 @@ fn foreign_guide() -> Value {
 }
 
 #[test]
+fn each_foreign_part_of_a_line_is_kept_once_observed() {
+    // "REL ITA, war on GER" on one existing step: each part is its own durable
+    // milestone, so the step completes once both were seen, even after the
+    // improvement of relations ends.
+    use hoi4companion_guides::guide_prepare::{foreign_predicate, foreign_token};
+    let parts = [json!({"category":"politics","operation_id":"improve_relations","target_country":"ITA"}),
+        json!({"category":"politics","operation_id":"declare_war","target_country":"GER"})];
+    let legacy = |p: &Value| {
+        let node = foreign_predicate(p).unwrap();
+        json!({"op":"any","args":[node,{"op":"fact","key":"guide.campaign.milestones","test":"contains","value":foreign_token(&json!("line"),&node)}]})
+    };
+    let guide = json!({"schema_version":1,"id":"g","title":"G","dependency_policy":"explicit","applies_to":{"country":"ROM"},"tracks":{"operations":[
+        {"key":"line","action":{"kind":"manual","params":{"foreign_parts":parts}},"completion":{"op":"all","args":[legacy(&parts[0]),legacy(&parts[1])]}}]}});
+    let state = |improving: Value, outgoing: Value| json!({"schema_version":1,"usable":true,"session_id":"s","facts":{"country":observed(json!("ROM")),
+        "diplomacy.countries":observed(json!(["ITA","GER"])),"diplomacy.improving_relations":observed(improving),
+        "diplomacy.outgoing":observed(outgoing),"diplomacy.incoming":observed(json!([]))}});
+    let observe = |state: &Value, record: &Value| {
+        request(0, "guide_observe", json!({"guide":guide,"state":state,"record":record,"runs":{}})).unwrap()["record"].clone()
+    };
+    let record = json!({"schema_version":1,"guide_id":"g","run_id":"x","session_id":"s","country":"ROM","checks":{}});
+    // Relations improving, no war yet: one part kept, the step is not done.
+    let first = state(json!(["ITA"]), json!([]));
+    let record = observe(&first, &record);
+    assert_eq!(record["campaign_conditions"]["milestones"].as_object().map(|m| m.len()), Some(1));
+    assert_ne!(eval(&guide, &first, &record)["steps"][0]["status"], "completed");
+    // Later the improvement ended and the war started: both parts kept.
+    let later = state(json!([]), json!(["war:GER"]));
+    let record = observe(&later, &record);
+    assert_eq!(record["campaign_conditions"]["milestones"].as_object().map(|m| m.len()), Some(2));
+    assert_eq!(eval(&guide, &later, &record)["steps"][0]["status"], "completed");
+    // Without the kept parts, the same state never completes the step.
+    let fresh = json!({"schema_version":1,"guide_id":"g","run_id":"x","session_id":"s","country":"ROM","checks":{}});
+    assert_ne!(eval(&guide, &later, &fresh)["steps"][0]["status"], "completed");
+    // While the step does not apply (its trigger false or unknown, or skipped),
+    // relations that already exist neither complete it nor are kept.
+    let both = state(json!(["ITA"]), json!(["war:GER"]));
+    let trigger = json!({"op":"fact","key":"focus.completed","test":"contains","value":"ROM_trigger"});
+    for (field, focuses) in [("when", Some(json!([]))), ("when", None), ("skip_when", Some(json!(["ROM_trigger"])))] {
+        let mut gated = guide.clone();
+        gated["tracks"]["operations"][0][field] = trigger.clone();
+        let mut now = both.clone();
+        if let Some(focuses) = focuses {
+            now["facts"]["focus.completed"] = observed(focuses);
+        }
+        let result = eval(&gated, &now, &fresh);
+        assert_ne!(result["steps"][0]["status"], "completed", "{field} {}", now["facts"]["focus.completed"]);
+        let kept = request(0, "guide_observe", json!({"guide":gated,"state":now,"record":fresh,"runs":{}})).unwrap()["record"].clone();
+        assert!(kept["campaign_conditions"]["milestones"].as_object().is_none_or(|m| m.is_empty()), "{field}: no part kept");
+    }
+    // The same line with its trigger true is admitted and both parts are kept.
+    let mut gated = guide.clone();
+    gated["tracks"]["operations"][0]["when"] = trigger;
+    let mut now = both;
+    now["facts"]["focus.completed"] = observed(json!(["ROM_trigger"]));
+    assert_eq!(eval(&gated, &now, &fresh)["steps"][0]["status"], "completed");
+}
+
+#[test]
 fn mission_evidence_cannot_complete_a_future_conditional_action() {
     let mut wire = foreign_wire();
     wire["sample"]["completed_focuses"] = json!([]);

@@ -94,6 +94,12 @@
     "stop_lend_lease": [
       "stop lend lease",
       "cancel lend lease"
+    ],
+    "declare_war": [
+      "declare war",
+      "war",
+      "dichiarare guerra",
+      "guerra"
     ]
   },
   "relation_actions": {
@@ -136,6 +142,11 @@
       "kind": "lend_lease",
       "direction": "outgoing",
       "present": false
+    },
+    "declare_war": {
+      "kind": "war",
+      "direction": "outgoing",
+      "present": true
     }
   }
 }
