@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),{spawnSync}=require('node:child_process');
-const {ROOT,fastProfile,BACKEND_TEST_CONFIG}=require('./native-tooling.cjs');
+const {ROOT,fastProfile,BACKEND_CRATES,BACKEND_TEST_CONFIG}=require('./native-tooling.cjs');
 const usage='Usage: node scripts/dev-native.cjs <check|build|test> <crate> [cargo arguments...]\nExample: node scripts/dev-native.cjs test backend --lib some_test';
 function plan(argv,baseEnv=process.env){
  const [action,crate,...extra]=argv;
@@ -11,8 +11,11 @@ function plan(argv,baseEnv=process.env){
  const local=path.join(ROOT,'.local/toolchains/cargo/bin/cargo.exe'),cargo=fs.existsSync(local)?local:'cargo';
  const env={...baseEnv};
  if(cargo===local){env.CARGO_HOME=path.join(ROOT,'.local/toolchains/cargo');env.RUSTUP_HOME=path.join(ROOT,'.local/toolchains/rustup');}
- const family=crate==='desktop'?'desktop':crate==='backend'||crate==='overlay'?'backend':'core';
- const backendTests=action==='test'&&crate==='backend';
+ // Crates split out of the backend build with its dependency features, so they
+ // share its cache family: building them in the core cache would overwrite the
+ // un-hashed cdylib outputs of catalog-core and friends with another variant.
+ const family=crate==='desktop'?'desktop':BACKEND_CRATES.includes(crate)||crate==='overlay'?'backend':'core';
+ const backendTests=action==='test'&&BACKEND_CRATES.includes(crate);
  env.CARGO_TARGET_DIR=path.join(ROOT,'.local',backendTests?'rust-dev-backend-tests-target':`rust-dev-${family}-target`);
  fastProfile(env);
  return {cargo,env,args:[action,...(backendTests?BACKEND_TEST_CONFIG:[]),'--release','--locked','--manifest-path',path.join(ROOT,'native',crate,'Cargo.toml'),...extra]};

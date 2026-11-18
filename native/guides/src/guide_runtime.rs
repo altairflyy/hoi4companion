@@ -45,7 +45,7 @@ pub fn evaluate(guide: &Value, state: &Value, progress: &Value) -> Result<Value>
     let input: Input = serde_json::from_value(prepared[1].clone()).map_err(|e| e.to_string())?;
     compiled.evaluate(&input)
 }
-pub(crate) fn choices(guide: &Value, state: &Value, progress: &Value) -> Result<Value> {
+pub fn choices(guide: &Value, state: &Value, progress: &Value) -> Result<Value> {
     let prepared = crate::guide_prepare::prepare(guide, state, progress)?;
     let compiled = compiled(&prepared[0])?;
     let input: Input = serde_json::from_value(prepared[1].clone()).map_err(|e| e.to_string())?;

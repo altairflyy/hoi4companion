@@ -19,13 +19,13 @@ pub struct Runs {
     store: progress::Store,
     path: Option<PathBuf>,
     revision: i64,
-    pub(crate) generation: u64,
+    pub generation: u64,
     /// Archive payloads by ID: loaded from SQLite or awaiting publication.
     archives: HashMap<String, Arc<str>>,
     /// IDs already committed in `guide_definitions` (memory stores: none).
     persisted: HashSet<String>,
 }
-pub(crate) fn new_id() -> Result<String> {
+pub fn new_id() -> Result<String> {
     #[cfg(windows)]
     {
         let id =

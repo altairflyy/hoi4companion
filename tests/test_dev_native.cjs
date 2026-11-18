@@ -12,7 +12,9 @@ test('fast native builds isolate optimized incremental outputs from release and 
  assert.ok(!p.args.includes('--config'));
  const t=plan(['test','backend','--lib']);
  assert.match(t.env.CARGO_TARGET_DIR,/rust-dev-backend-tests-target$/);
- assert.deepEqual(t.args.slice(1,3),['--config','profile.release.package.hoi4companion-backend.opt-level=0']);
+ assert.ok(t.args.includes('profile.release.package.hoi4companion-backend.opt-level=0'));
+ assert.ok(plan(['test','guides']).args.includes('profile.release.package.hoi4companion-guides.opt-level=0'));
+ assert.match(plan(['test','model']).env.CARGO_TARGET_DIR,/rust-dev-backend-tests-target$/);
  assert.ok(!plan(['test','overlay']).args.includes('--config'));
  for(const arg of ['--target-dir=elsewhere','--profile','--release','--config=foo'])assert.throws(()=>plan(['build','backend',arg]));
  assert.throws(()=>plan(['build','../backend']));

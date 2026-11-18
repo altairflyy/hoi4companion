@@ -102,7 +102,7 @@ fn named_text(text: &str) -> String {
     regex(r"(?i)^ASAP(?:\s*:\s*|\s+)").replace(text, "").trim().to_owned()
 }
 /// Reuse the existing literal-name grammar for import provenance, including cost suffixes.
-pub(crate) fn named_query(text: &str) -> Option<String> {
+pub fn named_query(text: &str) -> Option<String> {
     regex(NAMED_PATTERN).captures(&named_text(text)).map(|hit|hit[1].trim().to_owned())
 }
 pub fn named(text: &str, index: &Index, country: &Value) -> Result<Option<Value>> {

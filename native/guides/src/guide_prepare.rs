@@ -195,14 +195,14 @@ fn progress(guide: &Value, state: &Value, value: &Value) -> Result<Value> {
         .collect::<serde_json::Map<_, _>>();
     Ok(json!(["accepted", value["run_id"], checks, started]))
 }
-pub(crate) fn decision_history_predicate(node: &Value) -> Option<Value> {
+pub fn decision_history_predicate(node: &Value) -> Option<Value> {
     let key=match text(&node["key"]) {
         "decisions.executed"=>"decisions.history.executed", "decisions.completed"=>"decisions.history.completed",
         "decisions.targeted.executed"=>"decisions.targeted.history.executed", "decisions.targeted.completed"=>"decisions.targeted.history.completed", _=>return None,
     };
     Some(json!({"op":"fact","key":key,"test":"contains","value":node["value"]}))
 }
-pub(crate) fn foreign_predicate(params: &Value) -> Option<Value> {
+pub fn foreign_predicate(params: &Value) -> Option<Value> {
     // Existing durable milestones also retain positively observed decision
     // evidence; the generated predicate includes the exact optional target.
     if params["decision_id"].is_string() {
@@ -278,7 +278,7 @@ pub(crate) fn foreign_predicate(params: &Value) -> Option<Value> {
     }
     None
 }
-pub(crate) fn canonical(v: &Value) -> Value {
+pub fn canonical(v: &Value) -> Value {
     match v {
         Value::Object(m) => Value::Object(
             m.iter()
@@ -355,7 +355,7 @@ mod foreign_coverage_tests {
         assert!(foreign_predicate(&json!({"operation_id":"unrecognized","target_country":"OTH"})).is_none());
     }
 }
-pub(crate) fn foreign_token(key: &Value, node: &Value) -> String {
+pub fn foreign_token(key: &Value, node: &Value) -> String {
     let json = canonical(&json!([key, node])).to_string();
     let mut ascii = String::new();
     for c in json.chars() {
@@ -370,7 +370,7 @@ pub(crate) fn foreign_token(key: &Value, node: &Value) -> String {
     }
     format!("foreign:{:x}", Sha256::digest(ascii.as_bytes()))
 }
-pub(crate) fn mode(guide: &Value, state: &Value) -> &'static str {
+pub fn mode(guide: &Value, state: &Value) -> &'static str {
     let country = fact_value(state, "country");
     let tree = fact_value(state, "focus.tree");
     let scope = &guide["applies_to"];
@@ -408,7 +408,7 @@ fn guide_provinces(guide: &Value, state: &Value) -> BTreeSet<String> {
 }
 /// Provinces a definition names: `province_id`, `province_ids` (step params and
 /// construction targets) and province fact keys in its conditions.
-pub(crate) fn named_provinces(guide: &Value) -> BTreeSet<String> {
+pub fn named_provinces(guide: &Value) -> BTreeSet<String> {
     fn walk(value: &Value, ids: &mut BTreeSet<String>) {
         match value {
             Value::Object(map) => {

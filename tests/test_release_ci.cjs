@@ -1,11 +1,11 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
-const {ROOT,fastProfile,BACKEND_TEST_CONFIG}=require('../scripts/native-tooling.cjs');
+const {ROOT,fastProfile,BACKEND_CRATES,BACKEND_TEST_CONFIG}=require('../scripts/native-tooling.cjs');
 function commands(options,env={}){
  const calls=[],process={env,exitCode:0};
  vm.runInNewContext(fs.readFileSync(path.join(ROOT,'scripts/test-native.cjs'),'utf8'),{process,require(name){
   if(name==='node:child_process')return {spawnSync:(file,args,settings)=>{calls.push({file,args:Array.from(args),env:{...settings.env}});return {status:0}}};
-  if(name==='./native-tooling.cjs')return {ROOT,options:()=>options,fastProfile,BACKEND_TEST_CONFIG};
+  if(name==='./native-tooling.cjs')return {ROOT,options:()=>options,fastProfile,BACKEND_CRATES,BACKEND_TEST_CONFIG};
   return require(name);
  }});
  return calls;
@@ -20,7 +20,9 @@ test('CI executes every native suite with release semantics and isolated fast co
  // Local backend tests add only the unoptimized-backend config; everything else matches CI.
  const withoutConfig=args=>args.filter((a,i)=>a!=='--config'&&args[i-1]!=='--config');
  assert.deepEqual(ci.map(c=>Array.from(c.args)),normal.map(c=>withoutConfig(Array.from(c.args))));
- assert.deepEqual(normal.map(c=>c.args.includes('--config')),normal.map((c,i)=>i===b));
+ const split=normal.map(c=>BACKEND_CRATES.includes(path.basename(path.dirname(c.args.find(a=>a.endsWith('Cargo.toml'))))));
+ assert.deepEqual(split.filter(Boolean).length,3);
+ assert.deepEqual(normal.map(c=>c.args.includes('--config')),split);
  assert.ok(normal[b].args.includes('profile.release.package.hoi4companion-backend.opt-level=0'));
  assert.ok(!ci[b].args.includes('--config')&&!lto[b].args.includes('--config'),'CI and --lto test the optimized backend');
  assert.deepEqual(ci.map(c=>Array.from(c.args)),lto.map(c=>Array.from(c.args)));

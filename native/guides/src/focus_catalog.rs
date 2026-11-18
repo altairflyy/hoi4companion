@@ -45,7 +45,7 @@ fn number(value: &str, default: f64) -> Value {
             .unwrap_or(default)
     )
 }
-pub(crate) fn build(node: &Value, labels: &Value, source: &str, joint: bool) -> Option<Value> {
+pub fn build(node: &Value, labels: &Value, source: &str, joint: bool) -> Option<Value> {
     let fields = &node["projection"];
     let typed = fields["kind"] == "focus";
     let field = |key: &str| {
@@ -280,7 +280,7 @@ pub fn load(files: &Value, labels: &Value, continuous: bool) -> Result<Value, St
 
 /// Effective, tree-scoped shared definitions for the native owner check. Local
 /// focuses and shared definitions not actually expanded into a tree are absent.
-pub(crate) fn shared_members(trees: &Value) -> Value {
+pub fn shared_members(trees: &Value) -> Value {
     Value::Object(trees.as_object().into_iter().flatten().map(|(tree, value)| {
         let members = value["focuses"].as_object().into_iter().flatten()
             .filter(|(_, focus)| focus["shared_definition"] == true)

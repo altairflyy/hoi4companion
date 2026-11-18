@@ -33,7 +33,7 @@ pub const EVALUATOR_CONTRACT: u64 = 1;
 const SUPPORTED_COMPILER: &[u64] = &[1, 2, 3, 4];
 const SUPPORTED_EVALUATOR: &[u64] = &[1];
 
-pub(crate) fn sorted(v: &Value) -> Value {
+pub fn sorted(v: &Value) -> Value {
     match v {
         Value::Object(m) => Value::Object(
             m.iter()

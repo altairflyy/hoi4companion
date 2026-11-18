@@ -435,7 +435,7 @@ pub fn doctrine(step: &Value, index: &Index, country: &Value) -> Result<Value, S
     }
     Ok(json!({"step":step,"reason":"doctrine_selection_unobserved"}))
 }
-pub(crate) fn foreign_tasks() -> &'static Value {
+pub fn foreign_tasks() -> &'static Value {
     use std::sync::OnceLock;
     static DATA: OnceLock<Value> = OnceLock::new();
     DATA.get_or_init(|| {

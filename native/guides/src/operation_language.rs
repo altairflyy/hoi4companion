@@ -22,7 +22,7 @@ fn change(row: &Value, keys: Value, actions: usize, unknown: bool) -> Value {
 fn base_key(key: &str) -> String {
     regex(r"(?:--operation-\d+)+$").replace(key, "").to_string()
 }
-pub(crate) fn generated(guide: &str, key: &str, text: &str) -> Vec<Value> {
+pub fn generated(guide: &str, key: &str, text: &str) -> Vec<Value> {
     let base = base_key(key);
     let mut keys = vec![key];
     if base != key {
@@ -271,7 +271,7 @@ fn production_signature(params: &Value) -> Value {
 /// The same timing-condition compiler `promote` uses for a guide (catalog
 /// timing rules, then a unique focus-name prefix). Used by contract-2
 /// decomposition so headers are compiled exactly as promoted pieces are.
-pub(crate) fn compile_condition(guide: &Value, index: &Index, text: &str) -> Result<Option<Value>> {
+pub fn compile_condition(guide: &Value, index: &Index, text: &str) -> Result<Option<Value>> {
     let context = Context {
         index,
         id: s(&guide["id"]).into(),

@@ -52,7 +52,7 @@ pub fn metadata(name: &str) -> Value {
 }
 // Persisted design IDs predate the Rust backend. Preserve Python's sorted,
 // ASCII-escaped JSON digest so existing guide references retain their identity.
-pub(crate) fn legacy_json(v: &Value) -> String {
+pub fn legacy_json(v: &Value) -> String {
     match v {
         Value::Object(m) => {
             let mut keys = m.keys().collect::<Vec<_>>();
@@ -123,7 +123,7 @@ fn validate_image(raw: &[u8]) -> Result<()> {
     reader.decode().map_err(|_| "Invalid reference image")?;
     Ok(())
 }
-pub(crate) fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
+pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
     static NEXT: AtomicU64 = AtomicU64::new(1);
     let temp = path.with_extension(format!(
         "{}-{}.tmp",
@@ -297,7 +297,7 @@ pub fn image(root: &Path, id: &str) -> Result<(Vec<u8>, String)> {
     ))
 }
 /// Add a reviewed collection without replacing pre-existing user references.
-pub(crate) fn merge(root: &Path, staged: &Path) -> Result<Value> {
+pub fn merge(root: &Path, staged: &Path) -> Result<Value> {
     let mut result = manifest(root);
     let incoming = manifest(staged);
     std::fs::create_dir_all(root).map_err(|e|e.to_string())?;
@@ -316,7 +316,7 @@ pub(crate) fn merge(root: &Path, staged: &Path) -> Result<Value> {
     atomic_write(&root.join("manifest.json"), &serde_json::to_vec(&result).map_err(|e|e.to_string())?)?;
     Ok(result)
 }
-pub(crate) fn document_file(root:&Path,id:&str)->Result<(Vec<u8>,String)>{
+pub fn document_file(root:&Path,id:&str)->Result<(Vec<u8>,String)>{
     if !regex(r"^[a-f0-9]{64}$").is_match(id){return Err("Invalid document identity".into())}
     let data=manifest(root);let row=data["documents"].as_array().unwrap().iter().find(|r|r["id"]==id).ok_or("Reference document not found")?;
     let path=root.join(id).canonicalize().map_err(|e|e.to_string())?;

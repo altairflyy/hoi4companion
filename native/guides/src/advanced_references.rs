@@ -5,15 +5,15 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::HashSet, io::Cursor};
 type Result<T> = std::result::Result<T, String>;
-pub(crate) fn id(bytes: &[u8]) -> String {
+pub fn id(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
-pub(crate) fn is_advanced(path: &str) -> bool {
+pub fn is_advanced(path: &str) -> bool {
     path.split('/')
         .any(|p| regex(r"(?i)^advanced guides\b").is_match(p))
         || path.to_lowercase().ends_with("/mio_queues.txt")
 }
-pub(crate) fn category(path: &str) -> &'static str {
+pub fn category(path: &str) -> &'static str {
     let p = path.to_lowercase();
     if p.contains("mio") {
         "mios"
@@ -39,7 +39,7 @@ pub(crate) fn category(path: &str) -> &'static str {
         "general"
     }
 }
-pub(crate) fn mio_queues(raw: &[u8]) -> Result<Vec<Value>> {
+pub fn mio_queues(raw: &[u8]) -> Result<Vec<Value>> {
     if raw.len() > 2_000_000 {
         return Err("MIO queue file exceeds 2 MB".into());
     }
@@ -97,7 +97,7 @@ pub(crate) fn mio_queues(raw: &[u8]) -> Result<Vec<Value>> {
     }
     Ok(rows)
 }
-pub(crate) fn export_mios(rows: &[Value], existing: Option<&[u8]>) -> Result<Value> {
+pub fn export_mios(rows: &[Value], existing: Option<&[u8]>) -> Result<Value> {
     let mut combined = if let Some(raw) = existing {
         mio_queues(raw)?
     } else {
@@ -164,7 +164,7 @@ pub(crate) fn export_mios(rows: &[Value], existing: Option<&[u8]>) -> Result<Val
         json!({"filename":"mio_queues.txt","text":text,"existing":previous,"added":added,"renamed":renamed,"count":verified.len(),"relative_path":"session_persistence/mio_queues.txt"}),
     )
 }
-pub(crate) fn export_from_documents(docs: Option<&str>, rows: &[Value]) -> Result<Value> {
+pub fn export_from_documents(docs: Option<&str>, rows: &[Value]) -> Result<Value> {
     use std::io::Read;
     let mut existing = None;
     if let Some(docs) = docs.filter(|s| !s.is_empty()) {
@@ -197,7 +197,7 @@ pub(crate) fn export_from_documents(docs: Option<&str>, rows: &[Value]) -> Resul
     result["existing_file_observed"] = json!(existing.is_some());
     Ok(result)
 }
-pub(crate) fn document(name: &str, raw: &[u8]) -> Result<Value> {
+pub fn document(name: &str, raw: &[u8]) -> Result<Value> {
     let (text, _, _) = word_sources::content(raw)?;
     let mut tiers = vec![];
     let mut active: Option<Value> = None;
@@ -226,7 +226,7 @@ pub(crate) fn document(name: &str, raw: &[u8]) -> Result<Value> {
         json!({"id":id(raw),"name":title,"category":category(name),"kind":"document","text":text,"tiers":tiers,"images":[],"evidence":"authored_reference"}),
     )
 }
-pub(crate) fn embedded_images(raw: &[u8]) -> Result<Vec<Vec<u8>>> {
+pub fn embedded_images(raw: &[u8]) -> Result<Vec<Vec<u8>>> {
     let mut archive = word_sources::archive(Cursor::new(raw))?;
     let names = archive
         .file_names()
@@ -252,7 +252,7 @@ fn xml(source: &str) -> Result<roxmltree::Document<'_>> {
     )
     .map_err(|e| e.to_string())
 }
-pub(crate) fn workbook(name: &str, raw: &[u8]) -> Result<Value> {
+pub fn workbook(name: &str, raw: &[u8]) -> Result<Value> {
     let mut archive = word_sources::archive(Cursor::new(raw))?;
     let mut shared = vec![];
     if archive

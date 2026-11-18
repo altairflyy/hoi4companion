@@ -79,7 +79,7 @@ pub fn unique(values: impl IntoIterator<Item = Value>) -> Vec<Value> {
 }
 /// Only catalog-qualified state buildings enter the regional live map. A
 /// province-only building must never acquire a fabricated regional zero.
-pub(crate) fn building_scopes(rows: &Value) -> Value {
+pub fn building_scopes(rows: &Value) -> Value {
     let mut scopes = std::collections::BTreeMap::<String, Option<String>>::new();
     for row in rows.as_array().into_iter().flatten().filter(|r| r["kind"] == "building") {
         let Some(id) = row["id"].as_str() else { continue };
@@ -110,7 +110,7 @@ mod building_scope_tests {
 /// Request only purchases actually declared by installed guides. An empty
 /// catalog country list means unknown/global applicability, not a request to
 /// price every installed idea. Native qualification still supplies the price.
-pub(crate) fn political_cost_ids<'a>(rows:&Value,guides:impl IntoIterator<Item=&'a Value>)->Value {
+pub fn political_cost_ids<'a>(rows:&Value,guides:impl IntoIterator<Item=&'a Value>)->Value {
     let mut catalog=std::collections::BTreeMap::<(&str,&str),Vec<&Value>>::new();
     for row in rows.as_array().into_iter().flatten() {
         if let (Some(kind),Some(id))=(row["kind"].as_str(),row["id"].as_str()) {
@@ -714,17 +714,17 @@ pub fn operations(source: &mut Source) -> Result<Vec<Value>> {
             }
         }
     }
-    let anchors = crate::map_markers::anchors(&source.game,&source.mods).unwrap_or_else(|e| {
+    let anchors = crate::map_anchors::anchors(&source.game,&source.mods).unwrap_or_else(|e| {
         source.warnings.push(json!(format!("Map anchors unavailable: {e}")));
         Default::default()
     });
-    let cities = crate::map_markers::city_points(&source.game,&source.mods).unwrap_or_else(|e| {
+    let cities = crate::map_anchors::city_points(&source.game,&source.mods).unwrap_or_else(|e| {
         source.warnings.push(json!(format!("City map positions unavailable: {e}")));
         Default::default()
     });
     for row in rows.iter_mut().filter(|r|r["kind"]=="state") {
         let building=row["id"].as_str().and_then(|id|id.parse::<u64>().ok()).and_then(|id|anchors.get(&id));
-        if let Some((point,province))=crate::map_markers::state_anchor(&row["geography"]["cities"],&cities,building) {
+        if let Some((point,province))=crate::map_anchors::state_anchor(&row["geography"]["cities"],&cities,building) {
             row["geography"]["map_anchor"]=point;
             if let Some(province)=province {row["geography"]["map_anchor_province"]=json!(province);}
         }

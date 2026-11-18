@@ -83,7 +83,7 @@ fn named(query: &str, context: &str, vocabulary: &Value) -> Option<Value> {
         })
         .cloned()
 }
-pub(crate) fn chains(
+pub fn chains(
     matches: &[String],
     by_id: &Techs,
     family_ids: Option<&BTreeSet<String>>,

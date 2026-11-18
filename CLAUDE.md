@@ -25,11 +25,11 @@ powershell -NoProfile -File scripts/avvia-tutto.ps1     # start; add -Stop to st
 ```bash
 npm test                                  # all tests/test_*.cjs
 node --test tests/test_guide_model.cjs    # one JS file
-node scripts/test-native.cjs [crate] [--dev|--lto]   # cargo test --release --locked, fast non-LTO profile; --lto = production profile; crates: parser observer guide-core catalog-core tools storage model backend overlay desktop
+node scripts/test-native.cjs [crate] [--dev|--lto]   # cargo test --release --locked, fast non-LTO profile; --lto = production profile; crates: parser observer guide-core catalog-core tools storage model guides backend overlay desktop
 node scripts/dev-native.cjs test backend --test integration guide_evaluation::   # one backend integration module
 ```
 - **Fast local loop:** local `test-native.cjs`, `dev-native.cjs` and the `-Dev` build switch (`build-backend.ps1 -Dev`, `build-overlay.ps1 -Dev`) share `.local/rust-dev-<backend|core|desktop>-target`: optimized, incremental, no LTO. The deliver-build skill uses `-Dev` by default (`--release` for LTO). Packaging always builds with the production LTO profile; never package `-Dev` output. Put the crate before flags: `test-native.cjs backend --lto`.
-- **Local backend tests are unoptimized for the backend crate only** (`opt-level=0` via `--config`, dependencies stay optimized, cache `.local/rust-dev-backend-tests-target`): about 17 s instead of 59 s after a one-line edit (measured with `test-native.cjs backend`). Semantics are unchanged (release profile: no debug assertions or overflow checks). CI (`--ci`) and `--lto` still test the optimized backend.
+- **Local tests of `model`, `guides` and `backend` are unoptimized for those crates only** (`opt-level=0` via `--config`, dependencies stay optimized, cache `.local/rust-dev-backend-tests-target`; their builds use the backend cache family, never the core one): about 17 s instead of 59 s after a one-line edit (measured with `test-native.cjs backend`). Semantics are unchanged (release profile: no debug assertions or overflow checks). CI (`--ci`) and `--lto` still test the optimized backend.
 - **Rebuild the backend after Rust changes:** `tests/test_native_service.cjs` runs `src/hoi4companion/_native/hoi4-backend.exe` (or `HOI4_BACKEND_EXE`). Without a rebuild it tests a stale binary. It is skipped when not on win32.
 - **Filtered Rust tests:** prefer `node scripts/dev-native.cjs test <crate> [cargo args]`, which uses the same cache as local `test-native.cjs`. Raw `cargo test` needs the same `CARGO_TARGET_DIR` and `CARGO_PROFILE_RELEASE_*` variables, or everything rebuilds from scratch.
 - **Backend integration tests are one executable:** `native/backend/tests/integration/main.rs` declares each former `tests/<name>.rs` as a module, so a change links one test binary, not thirteen. Add new integration tests as modules there.
@@ -38,7 +38,7 @@ node scripts/dev-native.cjs test backend --test integration guide_evaluation::  
 
 ## Architecture
 - `native/` holds independent crates, each with its own `Cargo.lock` and no shared workspace. `backend` depends on all of them except `overlay` and `desktop`.
-- `model` (split out of `backend`): game state, catalogs, schemas and text sources. `backend` re-exports each moved module at its crate root (`pub use hoi4companion_model::state;`), so `crate::state::…` paths are unchanged. A module may move to a lower crate only with everything it uses (compiler-checked); FFI modules with `no_mangle` exports stay in `backend`.
+- `model` and `guides` (split out of `backend`; `guides` depends on `model`): `model` holds game state, catalogs, schemas and text sources; `guides` holds guide preparation, binding, language, decomposition, references, map anchors and progress storage. `backend` re-exports each moved module at its crate root (`pub use hoi4companion_model::state;`; `guides` does the same for `model`), so `crate::state::…` paths are unchanged. A module may move to a lower crate only with everything it uses (compiler-checked); FFI modules with `no_mangle` exports stay in `backend`.
 - `backend` has two binaries: `hoi4-backend` (HTTP/SSE server, routes in `http.rs`) and `hoi4-desktop` (the GUI launcher behind `HOI4 Companion.exe`).
 - `overlay` (`hoi4-overlay`) is a separate Direct2D HUD process. It has no guide logic of its own and uses the backend's active guide through `/api/overlay`.
 - `tools` runs external tools (FFmpeg, yt-dlp, Node, CWTools) inside Job Objects. `cwtools` is an F#/.NET host with pinned vendored sources.

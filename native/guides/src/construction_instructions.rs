@@ -2,7 +2,7 @@
 use crate::{import_catalog::Index, geography::Geography, construction_binding};
 use serde_json::{Value,json};
 fn s(v:&Value)->&str { v.as_str().unwrap_or("") }
-pub(crate) fn bind(guide:&Value,index:&Index)->Result<Value,String>{
+pub fn bind(guide:&Value,index:&Index)->Result<Value,String>{
     let mut guide=guide.clone();
     let geography=Geography::new(index.rows());
     let pattern=crate::import_catalog::regex(r"(?i)^\s*(?:build|construct)\s*:?\s+(.+?)\s+in\s*:?\s+(.+?)\s*$");

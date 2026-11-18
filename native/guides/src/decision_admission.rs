@@ -12,7 +12,7 @@ fn arr(v: &Value) -> &[Value] {
 }
 
 /// Independent current/original identities: a guide country is NOT an original_tag fact.
-pub(crate) fn ownership(
+pub fn ownership(
     node: &Value,
     current: Option<&str>,
     original: Option<&str>,
