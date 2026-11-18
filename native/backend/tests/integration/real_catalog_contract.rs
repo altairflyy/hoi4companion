@@ -307,6 +307,14 @@ fn event_reference_survey() {
     let entities = request(0, "catalog_entities", json!({"handle":catalog.0})).unwrap();
     let reach: BTreeMap<String, (Value, Value)> = entities["entries"].as_array().unwrap().iter().filter(|r| r["kind"] == "event")
         .map(|r| (r["id"].as_str().unwrap_or("").to_owned(), (r["receivers"].clone(), r["receivers_unknown"].clone()))).collect();
+    // Event answers whose own trigger names who must be human- or AI-played.
+    let guarded: Vec<(String, &Value)> = entities["entries"].as_array().unwrap().iter()
+        .filter(|r| r["kind"] == "event_option" && !r["player_requirement"].is_null())
+        .flat_map(|r| [&r["name"], &r["localized_name"]].into_iter().filter_map(Value::as_str)
+            .map(|n| hoi4companion_backend::reference_candidates::normalize(n)).filter(|n| !n.is_empty()).collect::<std::collections::BTreeSet<_>>()
+            .into_iter().map(move |n| (n, r)))
+        .collect();
+    eprintln!("GUARDED options in catalog: {}", entities["entries"].as_array().unwrap().iter().filter(|r| r["kind"] == "event_option" && !r["player_requirement"].is_null()).count());
     let mut candidate_events: BTreeMap<(String, String), &'static str> = BTreeMap::new();
     let mut buckets: BTreeMap<String, usize> = BTreeMap::new();
     let only = std::env::var("HOI4_SURVEY_COUNTRY").ok();
@@ -343,6 +351,17 @@ fn event_reference_survey() {
             let header = line.strip_suffix(':').filter(|h| block && (h.contains('…') || h.contains("...")) && ["on ", "when ", "at ", "after ", "before ", "around ", "once ", "in ", "on:"].iter().any(|w| h.to_lowercase().starts_with(w))).map(|h| (h.trim().to_owned(), String::new()));
             let trig = trigger(line).filter(|(left, _)| left.contains('…') || left.contains("...")).or(header);
             let refs = references(line);
+            // Event answers matching a truncated reference that a single-player
+            // game where the human plays the guide's nation can never show.
+            for r in refs.iter().filter(|r| r.text.contains('…') || r.text.contains("...")) {
+                let q = hoi4companion_backend::reference_candidates::normalize(&hoi4companion_backend::reference_candidates::query(&r.text));
+                for (name, row) in &guarded {
+                    if name.starts_with(&q) && !hoi4companion_backend::reference_candidates::single_player(&row["player_requirement"], &country, reach.get(row["event_id"].as_str().unwrap_or("")).is_some_and(|(r, _)| r.as_array().is_some_and(|r| r.iter().any(|t| t == country.as_str())))) {
+                        *buckets.entry("single-player dropped answers".into()).or_default() += 1;
+                        eprintln!("SPDROP {country} {} | {} -> {} «{}» requirement={}", s["key"], r.text, row["id"].as_str().unwrap_or(""), row["name"].as_str().unwrap_or(""), row["player_requirement"]);
+                    }
+                }
+            }
             let family = if refs.len() > 1 { "3_multi" } else if refs.iter().any(|r| r.text.contains('…') || r.text.contains("...")) { "2_named" } else { "other" };
             let bound = state != "unbound" && state != "candidates";
             let shown = if p["reference_resolution"]["tracked"] == false {

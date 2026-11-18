@@ -870,6 +870,17 @@ pub fn ground_references(guide: &mut Value, index: &Index, historical: &Value) -
     Ok(())
 }
 
+/// Whether an event answer can show in a single-player game where the human
+/// plays `actor`, from the catalog's `player_requirement` (what the option's
+/// own trigger certainly requires, "ROOT" being the receiving nation): false
+/// when another nation named by its tag must be human-played, or the actor
+/// must be the AI, by its tag or as ROOT when the catalog proves the actor
+/// receives the event (`received`; otherwise ROOT may be another nation).
+/// No requirement read: true (unknown stays unknown).
+pub fn single_player(requirement: &Value, actor: &str, received: bool) -> bool {
+    let tags = |key: &str| requirement[key].as_array().into_iter().flatten().filter_map(Value::as_str).collect::<Vec<_>>();
+    !tags("human").iter().any(|t| *t != "ROOT" && *t != actor) && !tags("ai").iter().any(|t| *t == actor || received && *t == "ROOT")
+}
 pub fn candidates(text: &str, index: &Index, country: &Value, scope: &Value) -> Result<Value> {
     candidates_with(text, index, country, scope, None)
 }
@@ -920,6 +931,9 @@ fn candidates_with(text: &str, index: &Index, country: &Value, scope: &Value, na
                 }
                 if receives.contains(&true) {
                     ownership = Some(true);
+                }
+                if kind == "event_option" && !single_player(&row["player_requirement"], actor, receives.contains(&true)) {
+                    continue;
                 }
             }
         }
@@ -1147,6 +1161,46 @@ mod tests {
         let mut plain = json!({"applies_to":{"country":"GER","tree_id":"ger_tree"},"tracks":{"operations":[row("b", "Bravo…")]}});
         ground_references(&mut plain, &index, &Value::Null).unwrap();
         assert!(plain["tracks"]["operations"][0]["action"]["params"]["event_option_id"].is_null());
+    }
+    #[test]
+    fn event_answers_a_single_player_game_cannot_show_are_dropped() {
+        // Every event is received by GER: several confirmed answers per line.
+        let event = |id: &str| json!({"kind":"event","id":id,"name":id,"receivers":["GER"],"receivers_unknown":false});
+        let option = |id: &str, name: &str, players: Value| json!({"kind":"event_option","id":format!("{id}.a"),"event_id":id,"name":name,"player_requirement":players});
+        let index = Index::new(&json!({"entries":[
+            {"kind":"country","id":"GER","name":"Germany"},
+            // poland.2102.b needs Danzig human-played: never in single player.
+            event("test_a.1"), option("test_a.1", "Perhaps they deserve some autonomy.", json!({"human":["DNZ"],"ai":[]})),
+            event("test_a.2"), option("test_a.2", "Perhaps they have a point", Value::Null),
+            // The guide's own nation human-played: kept, so still two answers.
+            event("test_b.1"), option("test_b.1", "Bravo by the player", json!({"human":["GER","ROOT"],"ai":[]})),
+            event("test_b.2"), option("test_b.2", "Bravo by anyone", Value::Null),
+            // The receiving nation must be the AI: dropped.
+            event("test_c.1"), option("test_c.1", "Charlie for the AI", json!({"human":[],"ai":["ROOT"]})),
+            event("test_c.2"), option("test_c.2", "Charlie for anyone", Value::Null),
+            // A trigger not understood for certain (no requirement read): kept.
+            event("test_d.1"), option("test_d.1", "Delta unsure", Value::Null),
+            event("test_d.2"), option("test_d.2", "Delta other", Value::Null),
+            // The receiver must be the AI, but the catalog does not prove the
+            // guide's nation receives the event: ROOT may be another nation, kept.
+            {"kind":"event","id":"test_e.1","name":"test_e.1"}, option("test_e.1", "Echo for the AI", json!({"human":[],"ai":["ROOT"]})),
+            {"kind":"event","id":"test_e.2","name":"test_e.2"}, option("test_e.2", "Echo for anyone", Value::Null),
+        ]})).unwrap();
+        let row = |key: &str, line: &str| json!({"key":key,"title":line,"tracking":"reminder","action":{"kind":"manual","params":{"instructions":[line]}}});
+        let mut guide = json!({"applies_to":{"country":"GER","tree_id":"ger_tree"},"tracks":{
+            "operations":[row("a", "Perhaps They…"), row("b", "Bravo…"), row("c", "Charlie…"), row("d", "Delta…"), row("e", "Echo…")]}});
+        ground_references(&mut guide, &index, &Value::Null).unwrap();
+        let rows = guide["tracks"]["operations"].as_array().unwrap().clone();
+        let p = |i: usize| rows[i]["action"]["params"].clone();
+        assert_eq!(p(0)["event_option_id"], "test_a.2.a");
+        assert_eq!(p(0)["reference_resolution"]["basis"], "event_received_by_nation");
+        assert_eq!(p(2)["event_option_id"], "test_c.2.a");
+        // Two answers left (unconfirmed ones for row 4): not bound.
+        for i in [1, 3, 4] {
+            assert!(p(i)["event_option_id"].is_null(), "row {i}");
+            assert_eq!(p(i)["reference_candidates"]["status"], "ambiguous", "row {i}");
+            assert_eq!(p(i)["reference_candidates"]["candidates"].as_array().map(Vec::len), Some(2), "row {i}");
+        }
     }
     #[test]
     fn written_out_actions_are_bound_only_when_the_whole_line_is_understood() {

@@ -145,3 +145,74 @@ pub fn origins(node: &Value) -> Option<BTreeSet<String>> {
         None
     }
 }
+/// Countries an event option's own `trigger` blocks certainly require to be
+/// played by a human (`is_ai = no`) or by the AI (`is_ai = yes`):
+/// `{"human":[..],"ai":[..]}`, "ROOT" standing for the country receiving the
+/// event. Only tests reached from the trigger root through AND blocks and
+/// country-tag or ROOT scopes are read, so each one is a necessary condition;
+/// OR, NOT, `if`, other scopes and any other value add nothing. Null when
+/// nothing is certain.
+pub fn players(triggers: &[&Value]) -> Value {
+    fn visit(node: &Value, scope: &str, human: &mut BTreeSet<String>, ai: &mut BTreeSet<String>, depth: usize) {
+        if depth > 32 {
+            return;
+        }
+        for (key, value) in entries(node) {
+            if key == "is_ai" {
+                match value.as_str() {
+                    Some("no") => human.insert(scope.into()),
+                    Some("yes") => ai.insert(scope.into()),
+                    _ => false,
+                };
+            } else if value.get("entries").is_none() {
+                continue;
+            } else if key.eq_ignore_ascii_case("AND") {
+                visit(value, scope, human, ai, depth + 1);
+            } else if key.eq_ignore_ascii_case("ROOT") {
+                visit(value, "ROOT", human, ai, depth + 1);
+            } else if tag(key) && key.as_bytes()[0].is_ascii_uppercase() && !key.eq_ignore_ascii_case("NOT") {
+                visit(value, key, human, ai, depth + 1);
+            }
+        }
+    }
+    let (mut human, mut ai) = (BTreeSet::new(), BTreeSet::new());
+    for trigger in triggers {
+        visit(trigger, "ROOT", &mut human, &mut ai, 0);
+    }
+    if human.is_empty() && ai.is_empty() {
+        Value::Null
+    } else {
+        json!({"human":human,"ai":ai})
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::players;
+    use serde_json::{Value, json};
+
+    /// A parsed script block from `[key, value]` pairs.
+    fn block(pairs: Value) -> Value {
+        json!({"entries": pairs})
+    }
+
+    #[test]
+    fn players_reads_is_ai_only_through_and_and_country_scopes() {
+        // poland.2102.b: another nation must be human-played.
+        let danzig = block(json!([["DNZ", block(json!([["is_ai", "no"]]))]]));
+        assert_eq!(players(&[&danzig]), json!({"human":["DNZ"],"ai":[]}));
+        // The receiving country itself, directly and through ROOT and AND.
+        let own = block(json!([["is_ai", "yes"], ["AND", block(json!([["ROOT", block(json!([["is_ai", "no"]]))]]))]]));
+        assert_eq!(players(&[&own]), json!({"human":["ROOT"],"ai":["ROOT"]}));
+        // OR, NOT, other scopes and state ids are not certain requirements.
+        let unsure = block(json!([
+            ["OR", block(json!([["DNZ", block(json!([["is_ai", "no"]]))], ["has_war", "yes"]]))],
+            ["NOT", block(json!([["is_ai", "yes"]]))],
+            ["FROM", block(json!([["is_ai", "no"]]))],
+            ["807", block(json!([["is_ai", "no"]]))],
+            ["is_ai", "maybe"],
+        ]));
+        assert_eq!(players(&[&unsure]), Value::Null);
+        assert_eq!(players(&[]), Value::Null);
+    }
+}

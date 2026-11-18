@@ -340,6 +340,12 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
                     row["political_power_cost"] = json!(cost);
                 }
                 row.as_object_mut().unwrap().extend(json!({"kind":"event_option","id":key,"event_id":id,"country_condition":recipient::combine("all",blocks(option,"trigger").map(|b|recipient::condition(b,"all",false,0)).collect())}).as_object().unwrap().clone());
+                // Who must be human- or AI-played for the answer to show
+                // ("DNZ = { is_ai = no }"): lets a single-player guide drop it.
+                let players = recipient::players(&blocks(option, "trigger").collect::<Vec<_>>());
+                if !players.is_null() {
+                    row["player_requirement"] = players;
+                }
                 rows.push(row);
             }
         }
