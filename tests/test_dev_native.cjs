@@ -7,6 +7,13 @@ test('fast native builds isolate optimized incremental outputs from release and 
  assert.match(plan(['test','parser']).env.CARGO_TARGET_DIR,/rust-dev-core-target$/);
  assert.match(plan(['build','desktop']).env.CARGO_TARGET_DIR,/rust-dev-desktop-target$/);
  assert.deepEqual(p.args.slice(-2),['--bin','hoi4-backend']);
+ // Only backend TESTS build the backend crate unoptimized, in their own cache;
+ // the backend build installed by -Dev stays optimized.
+ assert.ok(!p.args.includes('--config'));
+ const t=plan(['test','backend','--lib']);
+ assert.match(t.env.CARGO_TARGET_DIR,/rust-dev-backend-tests-target$/);
+ assert.deepEqual(t.args.slice(1,3),['--config','profile.release.package.hoi4companion-backend.opt-level=0']);
+ assert.ok(!plan(['test','overlay']).args.includes('--config'));
  for(const arg of ['--target-dir=elsewhere','--profile','--release','--config=foo'])assert.throws(()=>plan(['build','backend',arg]));
  assert.throws(()=>plan(['build','../backend']));
 });

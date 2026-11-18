@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),{spawnSync}=require('node:child_process');
-const {ROOT,options,fastProfile}=require('./native-tooling.cjs'),args=options(),local=path.join(ROOT,'.local/toolchains/cargo/bin/cargo.exe');
+const {ROOT,options,fastProfile,BACKEND_TEST_CONFIG}=require('./native-tooling.cjs'),args=options(),local=path.join(ROOT,'.local/toolchains/cargo/bin/cargo.exe');
 if(args.ci&&args.dev)throw Error('CI validation requires release test semantics');
 if(args.lto&&(args.ci||args.dev))throw Error('--lto cannot be combined with --ci or --dev');
 const cargo=fs.existsSync(local)?local:'cargo',env={...process.env};
@@ -20,7 +20,7 @@ for(const crate of crates){
  // Root cdylib+rlib outputs have un-hashed names. Standalone core tests use
  // a second shared cache so they cannot overwrite backend dependency artifacts.
  const family=crate==='desktop'?'desktop':crate==='backend'||crate==='overlay'?'backend':'core';
- env.CARGO_TARGET_DIR=path.join(ROOT,'.local',args.ci?`rust-ci-${family}-tests-target`:fast?`rust-dev-${family}-target`:family==='desktop'?'rust-desktop-target':family==='backend'?'rust-backend-target':'rust-core-tests-target');
- const command=['test','--locked','--manifest-path',path.join(ROOT,'native',crate,'Cargo.toml')];if(!args.dev)command.push('--release');
+ env.CARGO_TARGET_DIR=path.join(ROOT,'.local',args.ci?`rust-ci-${family}-tests-target`:fast?(crate==='backend'?'rust-dev-backend-tests-target':`rust-dev-${family}-target`):family==='desktop'?'rust-desktop-target':family==='backend'?'rust-backend-target':'rust-core-tests-target');
+ const command=['test','--locked','--manifest-path',path.join(ROOT,'native',crate,'Cargo.toml')];if(!args.dev)command.push('--release');if(fast&&crate==='backend')command.splice(1,0,...BACKEND_TEST_CONFIG);
  const result=spawnSync(cargo,command,{cwd:ROOT,env,stdio:'inherit',windowsHide:true});if(result.error)throw result.error;if(result.status){process.exitCode=result.status;break;}
 }

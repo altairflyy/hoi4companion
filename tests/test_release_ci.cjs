@@ -1,11 +1,11 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
-const {ROOT,fastProfile}=require('../scripts/native-tooling.cjs');
+const {ROOT,fastProfile,BACKEND_TEST_CONFIG}=require('../scripts/native-tooling.cjs');
 function commands(options,env={}){
  const calls=[],process={env,exitCode:0};
  vm.runInNewContext(fs.readFileSync(path.join(ROOT,'scripts/test-native.cjs'),'utf8'),{process,require(name){
   if(name==='node:child_process')return {spawnSync:(file,args,settings)=>{calls.push({file,args:Array.from(args),env:{...settings.env}});return {status:0}}};
-  if(name==='./native-tooling.cjs')return {ROOT,options:()=>options,fastProfile};
+  if(name==='./native-tooling.cjs')return {ROOT,options:()=>options,fastProfile,BACKEND_TEST_CONFIG};
   return require(name);
  }});
  return calls;
@@ -13,7 +13,12 @@ function commands(options,env={}){
 test('CI executes every native suite with release semantics and isolated fast codegen',()=>{
  const ci=commands({_:[],ci:true}),normal=commands({_:[]}),lto=commands({_:[],lto:true});
  assert.equal(ci.length,9);assert.equal(normal.length,9);assert.equal(lto.length,9);
- assert.deepEqual(ci.map(c=>Array.from(c.args)),normal.map(c=>Array.from(c.args)));
+ // Local backend tests add only the unoptimized-backend config; everything else matches CI.
+ const withoutConfig=args=>args.filter((a,i)=>a!=='--config'&&args[i-1]!=='--config');
+ assert.deepEqual(ci.map(c=>Array.from(c.args)),normal.map(c=>withoutConfig(Array.from(c.args))));
+ assert.deepEqual(normal.map(c=>c.args.includes('--config')),[false,false,false,false,false,false,true,false,false]);
+ assert.ok(normal[6].args.includes('profile.release.package.hoi4companion-backend.opt-level=0'));
+ assert.ok(!ci[6].args.includes('--config')&&!lto[6].args.includes('--config'),'CI and --lto test the optimized backend');
  assert.deepEqual(ci.map(c=>Array.from(c.args)),lto.map(c=>Array.from(c.args)));
  for(let i=0;i<ci.length;i++){
   assert.ok(ci[i].args.includes('--release'));assert.ok(ci[i].args.includes('--locked'));
@@ -24,7 +29,7 @@ test('CI executes every native suite with release semantics and isolated fast co
   // Local default: fast non-LTO profile in the dev cache shared with dev-native.
   assert.equal(normal[i].env.CARGO_PROFILE_RELEASE_LTO,'false');
   assert.equal(normal[i].env.CARGO_PROFILE_RELEASE_INCREMENTAL,'true');
-  assert.match(normal[i].env.CARGO_TARGET_DIR,/rust-dev-(?:backend|core|desktop)-target$/);
+  assert.match(normal[i].env.CARGO_TARGET_DIR,/rust-dev-(?:backend|core|desktop|backend-tests)-target$/);
   // --lto: production profile and caches, untouched.
   assert.equal(lto[i].env.CARGO_PROFILE_RELEASE_LTO,undefined);
   assert.doesNotMatch(lto[i].env.CARGO_TARGET_DIR,/rust-(?:ci|dev)-/);

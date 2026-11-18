@@ -20,3 +20,5 @@ The same cache and profile serve:
 - `build-backend.ps1 -Dev` and `build-overlay.ps1 -Dev`, which install development binaries into `_native` (the deliver-build skill does this by default; `--release` for LTO).
 
 Backend integration tests are one executable, `native/backend/tests/integration/main.rs`, with each test file as a module: a change links one test binary instead of thirteen.
+
+Backend tests (`test-native.cjs backend` and `dev-native.cjs test backend`) also compile the backend crate itself at `opt-level=0` (dependencies stay optimized) in `.local/rust-dev-backend-tests-target`. Measured after a one-line edit: `test-native.cjs backend` 17 s instead of 59 s (282 tests); test execution itself 2.2 s instead of 1.4 s. The release profile still applies, so debug assertions and overflow checks stay off as in the shipped build. CI and `--lto` test the optimized backend. Measured but not adopted: `opt-level=1` (54 s), 256 codegen units (65 s), `rust-lld` (no gain).
