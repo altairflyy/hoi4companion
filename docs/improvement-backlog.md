@@ -51,9 +51,9 @@ Item format (ids IL-01, IL-02, ... are never reused):
 - Priority: 2 (a flaky test makes every improve-loop check unreliable; cheap)
 - Source: `docs/AGENT_HANDOFF.md` "Prior startup/import test was intermittent; no unrelated root-cause fix claimed."
 - Acceptance: identify the test by running the native-service / startup / import test files with `HOI4_BACKEND_EXE=.local/rust-dev-backend-target/release/hoi4-backend.exe node --test <file>` at least 10 times each; record failures before. After the fix: 10/10 consecutive passes of that file and one full `npm test` green. If no failure appears in 20 runs, set `dropped: not reproducible in 20 runs` with the evidence in Notes.
-- Status: todo
-- Attempts: 0
-- Notes:
+- Status: done f70b01f
+- Attempts: 1
+- Notes: Before: 20 sequential runs each against the dev backend: `test_native_service.cjs` 19 pass / 1 fail; `test_importer_model`, `test_importer_view`, `test_focus_loading`, `test_decision_admission_http`, `test_live_stream` 20/20 each. The failure was `assert.ok((await api('/api/guides')).value.guides.some(row=>row.id===JSON.parse(saved).id))` right after the second start. Root cause (instrumented copy of the test): the guide file the test deletes to simulate an interrupted import is the same guide as `saved` (`word-a2493e7bf6d8f233`, the only file in `guides/`). After restart, `resume_collections` republishes it in a background collection job, and the test queried `/api/guides` before awaiting that job, so the request sometimes won the race. The backend behaves as designed (the guide catalog cache key includes `definition_generation`, which `put_guide` bumps, so no stale listing). Fix in the test only: assert the guide after `imported(auto.value.id)` reports completion. Why tests missed it: the race is timing-dependent and the test itself was the defect; the reordered assertion now checks the intended contract (the resumed import restores the guide). After: 30/30 consecutive passes of `test_native_service.cjs`; full `npm test` 460 pass / 0 fail / 3 skipped (463).
 
 ### IL-04 — Observe "justify <TAG>" war-goal lines if a qualified live field exists
 - Area: guides
