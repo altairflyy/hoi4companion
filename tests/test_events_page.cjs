@@ -47,3 +47,9 @@ test('the guide view hides other branches and lists guide events first',()=>{
  assert.deepEqual(model.visible({...data,guide_focus_count:0}).map(e=>e.id),['a','b','e','h','c'],'without a guide every event shows, except those of other nations');
  const html=require('node:fs').readFileSync('src/hoi4companion/web/events.html','utf8');assert.match(html,/id="eventsScope"/);
 });
+
+test('focus names fall back to a readable id when the game name is a placeholder',()=>{
+ assert.equal(model.focusName({id:'GER_molotov_ribbentrop_pact',name:'[GER.GetMolotovRibbentropName]'}),'GER · molotov ribbentrop pact');
+ assert.equal(model.focusName({id:'CHI_x',name:'Il gruppo di volontari'}),'Il gruppo di volontari');
+ assert.equal(model.focusName({id:'generic_focus'}),'generic focus');
+});

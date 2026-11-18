@@ -15,11 +15,11 @@
   const summary=el('summary');summary.append(el('span','event-title',read(event.title)||event.id));
   const tags=el('span','event-tags');
   const guideFocuses=event.guide_focuses||[];
-  if(guideFocuses.length)tags.append(el('span','event-tag event-tag-guide',t('Guide focus: {0}',guideFocuses[0].name)+(guideFocuses.length>1?' '+t('+{0} more',guideFocuses.length-1):'')));
+  if(guideFocuses.length)tags.append(el('span','event-tag event-tag-guide',t('Guide focus: {0}',model.focusName(guideFocuses[0]))+(guideFocuses.length>1?' '+t('+{0} more',guideFocuses.length-1):'')));
   const branch=event.branch_focuses||[];
-  if(model.guideActive(data)&&event.guide_reach==='other_branch'&&branch.length)tags.append(el('span','event-tag event-tag-branch',t('Branch outside the guide: {0}',branch[0].name)));
+  if(model.guideActive(data)&&event.guide_reach==='other_branch'&&branch.length)tags.append(el('span','event-tag event-tag-branch',t('Branch outside the guide: {0}',model.focusName(branch[0]))));
   const historical=event.historical_focuses||[];
-  if(event.guide_reach==='historical'&&historical.length)tags.append(el('span','event-tag event-tag-historical',t('Historical: {0}',historical[0].name)));
+  if(event.guide_reach==='historical'&&historical.length)tags.append(el('span','event-tag event-tag-historical',t('Historical: {0}',model.focusName(historical[0]))));
   if(model.guideActive(data)&&event.guide_reach==='anyway')tags.append(el('span','event-tag',t('Comes without focuses')));
   const from=model.sender(event,country);
   if(from)tags.append(el('span','event-tag event-tag-sender',t('Sent by {0}',from)));
@@ -28,7 +28,7 @@
   if(event.possible)tags.append(el('span','event-tag event-tag-possible',t('Possible')));
   summary.append(tags);item.append(summary);
   if(event.description)item.append(el('p','event-description',read(event.description)));
-  if(guideFocuses.length>1){const p=el('p','event-sources');p.append(el('strong','',t('Guide focuses that lead to it: ')),guideFocuses.map(s=>s.name).join(' · '));item.append(p);}
+  if(guideFocuses.length>1){const p=el('p','event-sources');p.append(el('strong','',t('Guide focuses that lead to it: ')),guideFocuses.map(model.focusName).join(' · '));item.append(p);}
   const sources=event.triggered_by||[];
   if(sources.length){const p=el('p','event-sources');p.append(el('strong','',t('Triggered by: ')),sources.map(s=>`${t(originLabel[s.kind]||'Source')} · ${s.name}`).join(' · '));item.append(p);}
   else item.append(el('p','event-sources',event.possible?t('Its callers cannot be traced in the scripts; its trigger names this nation.'):t('No focus, decision or event of the scripts calls it directly (it may come from on_actions).')));

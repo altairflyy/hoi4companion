@@ -21,6 +21,13 @@
   const tags=[...new Set((event.triggered_by||[]).filter(s=>s.kind!=='event').map(s=>/^([A-Z][A-Z0-9]{2})_/.exec(s.id||'')?.[1]).filter(Boolean))];
   return tags.length===1&&tags[0]!==country?tags[0]:null;
  }
+ // A focus name to show: the game's name, or its id made readable when the
+ // name is a script placeholder ("[GER.GetMolotovRibbentropName]").
+ function focusName(focus){
+  const name=String(focus?.name||'');
+  if(name&&!name.includes('['))return name;
+  return String(focus?.id||'').replace(/^([A-Z][A-Z0-9]{2})_/,'$1 · ').replace(/_/g,' ');
+ }
  // True when a focus of the active guide leads to the event (backend-traced).
  const fromGuide=event=>(event.guide_focuses||[]).length>0;
  // The guide can meet the event: a guide focus leads to it, or the nation
@@ -53,5 +60,5 @@
   for(const kind of [...ORIGINS,'none'])result[kind]=events.filter(own).filter(e=>origins(e).includes(kind)).length;
   return result;
  }
- return {origins,matches,visible,counts,readable,sender,fromGuide,withGuide,guideActive,ORIGINS};
+ return {origins,matches,visible,counts,readable,sender,focusName,fromGuide,withGuide,guideActive,ORIGINS};
 });
