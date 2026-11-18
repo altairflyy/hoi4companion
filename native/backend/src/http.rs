@@ -154,6 +154,9 @@ pub struct Service {
     stopped: AtomicBool,
     shutdown_token: Option<String>,
     began: Instant,
+    /// Guides left to prepare after startup (catalog context, their input,
+    /// startup instant), taken by `prepare_pending_guides`.
+    pending_guides: Mutex<Option<(Arc<crate::runtime_context::Context>, Value, Instant)>>,
 }
 fn timestamp() -> String {
     let seconds = SystemTime::now()
@@ -303,18 +306,22 @@ impl Service {
         let catalog_args = config.get("catalog").cloned();
         let mut catalog = catalog_args.as_ref().map(Catalog::open).transpose()?;
         eprintln!("[startup] catalog ready in {:.3}s",startup.elapsed().as_secs_f64());
+        // Only the active guide is prepared before the server answers; the
+        // others follow in the background (`prepare_pending_guides`).
+        let mut pending_guides = None;
         if let Some(catalog) = catalog.as_mut() {
-            app.set_context(crate::runtime_context::Context::new(
+            let context = crate::runtime_context::Context::new(
                 catalog,
                 crate::reference_library::manifest(&references),
-            )?)?;
+            )?;
+            pending_guides = app.set_context_first(context.clone())?.map(|input| (context, input));
         }
+        eprintln!("[startup] active guide ready in {:.3}s",startup.elapsed().as_secs_f64());
         let ui_language = catalog
             .as_ref()
             .and_then(|c| c.sources["settings"]["ui_language"].as_str())
             .unwrap_or("english")
             .to_owned();
-        eprintln!("[startup] guides ready in {:.3}s",startup.elapsed().as_secs_f64());
         let provider = if let Some(mut spec) = config.get("provider").cloned() {
             if let Some(c) = &catalog {
                 spec["shared_focuses"] = crate::focus_catalog::shared_members(&c.sources["all_trees"]);
@@ -391,7 +398,23 @@ impl Service {
                 .filter(|s| s.len() == 64 && s.bytes().all(|c| c.is_ascii_hexdigit()))
                 .map(str::to_owned),
             began: Instant::now(),
+            pending_guides: Mutex::new(pending_guides.map(|(context, input)| (context, input, startup))),
         });
+        // "manual" is a test hook: the other guides wait for an explicit
+        // `prepare_pending_guides` call.
+        if result.pending_guides.lock().is_ok_and(|p| p.is_none()) {
+            eprintln!("[startup] guides ready in {:.3}s", startup.elapsed().as_secs_f64());
+        } else if config["guide_preparation"] != "manual" {
+            let weak = Arc::downgrade(&result);
+            thread::Builder::new()
+                .name("hoi4-guide-preparation".into())
+                .spawn(move || {
+                    if let Some(owner) = weak.upgrade() {
+                        owner.prepare_pending_guides();
+                    }
+                })
+                .map_err(|e| e.to_string())?;
+        }
         result.resume_collections();
         if let Ok(mut app) = result.application.lock() {
             app.compile_archives_in_background();
@@ -878,7 +901,7 @@ impl Service {
     }
     fn guide_catalog(&self) -> Result<Value> {
         let stamp = self.app("app_overlay_stamp", &json!({}))?;
-        let key = json!([self.analysis_generation.load(Ordering::Acquire),stamp["server"],stamp["definition"]]);
+        let key = json!([self.analysis_generation.load(Ordering::Acquire),stamp["server"],stamp["definition"],stamp["registry"]]);
         let mut cache = self.guide_catalog_cache.lock().map_err(|_| "Guide catalog cache unavailable")?;
         if let Some((previous, value)) = cache.as_ref() && *previous == key {
             return Ok(value.clone());
@@ -1414,6 +1437,34 @@ impl Service {
                 .map_err(|e| e.to_string()),
             None => Ok(None),
         })
+    }
+    /// Prepares the guides startup left pending, off the application lock, and
+    /// makes them available. A catalog reload meanwhile already prepared them
+    /// again: `apply_pending` then discards this result.
+    pub fn prepare_pending_guides(&self) {
+        let Some((context, input, startup)) = self.pending_guides.lock().ok().and_then(|mut p| p.take()) else {
+            return;
+        };
+        let prepared = match Application::prepare_guides(&input, &context) {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                eprintln!("[startup] guide preparation failed: {error}");
+                if let Ok(mut app) = self.application.lock() {
+                    app.fail_pending(&error);
+                }
+                return;
+            }
+        };
+        for (id, guide) in &prepared {
+            if let Err(error) = guide {
+                eprintln!("[startup] guide {id} unavailable: {error}");
+            }
+        }
+        if let Ok(mut app) = self.application.lock() {
+            app.apply_pending(&context, prepared);
+        }
+        eprintln!("[startup] guides ready in {:.3}s", startup.elapsed().as_secs_f64());
+        let _ = self.invalidate();
     }
     fn invalidate(&self) -> Result<()> {
         self.hud_epoch.fetch_add(1,Ordering::AcqRel);
@@ -2115,7 +2166,11 @@ fn wake_accept(port: u16) -> std::io::Result<TcpStream> {
     )
 }
 pub fn serve(config: Value, port: u16, ready: Option<PathBuf>) -> Result<()> {
-    let service = Service::open(&config)?;
+    serve_service(Service::open(&config)?, port, ready)
+}
+/// Serves an opened service until it is closed (port 0: any free port, written
+/// to `ready` with the rest of the server identity).
+pub fn serve_service(service: Arc<Service>, port: u16, ready: Option<PathBuf>) -> Result<()> {
     let listener =
         TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).map_err(|e| e.to_string())?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();

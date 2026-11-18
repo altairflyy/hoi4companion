@@ -242,7 +242,16 @@ pub struct Application {
     /// keyed by the run store generation (bumped by every committed change).
     /// Rebuilding it read every checklist on every observation (~0.5 s).
     live_runs: Option<(u64, Value)>,
+    /// Guides whose definition for the current catalog is still being prepared
+    /// in the background (startup prepares the active guide first). They stay
+    /// out of `guides`, so they cannot be selected, evaluated or bound until
+    /// ready; `Some(error)` means their preparation failed.
+    preparing: BTreeMap<String, Option<String>>,
+    /// Bumped when background-prepared guides join the registry.
+    registry_generation: u64,
 }
+/// Error reported for a guide whose definition is still being prepared.
+pub const GUIDE_PREPARING: &str = "Guide still being prepared: try again in a few seconds";
 pub(crate) struct PreparedContext {
     pub(crate) generation: u64,
     pub(crate) guides: Map<String, Value>,
@@ -278,6 +287,8 @@ impl Application {
             archived_guides: HashMap::new(),
             readable_provinces: None,
             live_runs: None,
+            preparing: BTreeMap::new(),
+            registry_generation: 0,
         };
         for guide in args["guides"].as_array().into_iter().flatten() {
             if result.guides.contains_key(text(&guide["id"])) {
@@ -361,6 +372,8 @@ impl Application {
         }
         self.definition_generation += 1;
         self.sources.insert(id.clone(), source);
+        // Prepared here for the current catalog: a background result is stale.
+        self.preparing.remove(&id);
         self.guides.insert(id, guide.clone());
         self.refresh_political_cost_ids();
         Ok(guide)
@@ -403,17 +416,17 @@ impl Application {
             json!({"generation":self.definition_generation,"definitions":self.context_definitions()?}),
         )
     }
-    pub(crate) fn prepare_context(
+    /// Prepares every definition of `input` for `context`, one result per guide
+    /// in input order.
+    pub(crate) fn prepare_guides(
         input: &Value,
-        context: Arc<crate::runtime_context::Context>,
-    ) -> Result<PreparedContext> {
+        context: &Arc<crate::runtime_context::Context>,
+    ) -> Result<Vec<(String, Result<Value>)>> {
         let sources = input["definitions"]
             .as_array()
             .ok_or("Missing guide definitions")?;
-        // Guides are independent: prepare them on several threads. Results keep
-        // the input order and the first failing guide in that order wins, as in
-        // the sequential version. Half the cores (at most 8) so a running game
-        // keeps CPU while the companion starts.
+        // Guides are independent: prepare them on several threads. Half the
+        // cores (at most 8) so a running game keeps CPU while the companion starts.
         let workers = std::thread::available_parallelism()
             .map(|n| (n.get() / 2).clamp(1, 8))
             .unwrap_or(1)
@@ -431,12 +444,96 @@ impl Application {
                 });
             }
         });
-        let guides = results
-            .into_iter()
-            .map(|guide| {
-                let guide = guide.ok_or("Guide preparation did not finish")??;
-                Ok((text(&guide["id"]).to_owned(), guide))
+        Ok(sources
+            .iter()
+            .zip(results)
+            .map(|(source, guide)| {
+                let guide = guide.unwrap_or_else(|| Err("Guide preparation did not finish".into()));
+                (text(&source["id"]).to_owned(), guide)
             })
+            .collect())
+    }
+    /// Startup: prepares only the active guide now, so the server can answer
+    /// for it at once, and returns the input of the other guides for
+    /// `apply_pending` (`None` when nothing is left). Until then they are
+    /// reported as being prepared and are never selected, evaluated or bound.
+    pub(crate) fn set_context_first(
+        &mut self,
+        context: Arc<crate::runtime_context::Context>,
+    ) -> Result<Option<Value>> {
+        let input = self.context_input()?;
+        let (first, rest): (Vec<Value>, Vec<Value>) = input["definitions"]
+            .as_array()
+            .ok_or("Missing guide definitions")?
+            .iter()
+            .cloned()
+            .partition(|source| self.active.as_deref() == Some(text(&source["id"])));
+        if first.is_empty() || rest.is_empty() {
+            self.set_context(context)?;
+            return Ok(None);
+        }
+        let generation = input["generation"].clone();
+        let prepared = Self::prepare_context(&json!({"generation":generation,"definitions":first}), context)?;
+        self.check_context(&prepared)?;
+        self.apply_context(prepared);
+        self.preparing = rest.iter().map(|source| (text(&source["id"]).to_owned(), None)).collect();
+        Ok(Some(json!({"generation":generation,"definitions":rest})))
+    }
+    /// Adds guides prepared in the background (see `set_context_first`), only
+    /// for the catalog they were prepared for and while still pending: a
+    /// catalog reload or a re-imported guide replaced them meanwhile. A failed
+    /// guide stays unavailable with its error.
+    pub(crate) fn apply_pending(
+        &mut self,
+        context: &Arc<crate::runtime_context::Context>,
+        prepared: Vec<(String, Result<Value>)>,
+    ) {
+        if !self.context.as_ref().is_some_and(|current| Arc::ptr_eq(current, context)) {
+            return;
+        }
+        for (id, guide) in prepared {
+            let Some(state) = self.preparing.get_mut(&id) else { continue };
+            match guide {
+                Ok(guide) => {
+                    self.preparing.remove(&id);
+                    self.guides.insert(id, guide);
+                }
+                Err(error) => *state = Some(error),
+            }
+        }
+        // Keep the registry order of a full preparation (source order).
+        let mut guides = std::mem::take(&mut self.guides);
+        self.guides = self.sources.keys().filter_map(|id| guides.remove_entry(id)).collect();
+        self.guides.extend(guides);
+        self.refresh_political_cost_ids();
+        // New registry content without a source change: the definition
+        // generation stays, so a catalog reload preparing meanwhile still
+        // applies; caches keyed by the registry generation refresh.
+        self.registry_generation += 1;
+        self.readable_provinces = None;
+        self.revision += 1;
+    }
+    /// True while some guide is still being prepared in the background or
+    /// its preparation failed: such a guide has no current definition, so
+    /// binding and following the played nation wait (fail closed).
+    pub(crate) fn still_preparing(&self) -> bool {
+        !self.preparing.is_empty()
+    }
+    /// Background preparation failed as a whole: every pending guide stays
+    /// unavailable with `error` until the next catalog reload.
+    pub(crate) fn fail_pending(&mut self, error: &str) {
+        for state in self.preparing.values_mut() {
+            state.get_or_insert_with(|| error.to_owned());
+        }
+    }
+    pub(crate) fn prepare_context(
+        input: &Value,
+        context: Arc<crate::runtime_context::Context>,
+    ) -> Result<PreparedContext> {
+        // The first failing guide in input order wins, as in the sequential version.
+        let guides = Self::prepare_guides(input, &context)?
+            .into_iter()
+            .map(|(id, guide)| Ok((id, guide?)))
             .collect::<Result<Map<String, Value>>>()?;
         Ok(PreparedContext {
             generation: input["generation"]
@@ -454,6 +551,8 @@ impl Application {
     }
     pub(crate) fn apply_context(&mut self, prepared: PreparedContext) {
         self.guides = prepared.guides;
+        self.preparing.clear();
+        self.readable_provinces = None;
         self.context = Some(prepared.context);
         self.refresh_political_cost_ids();
         self.revision += 1;
@@ -468,10 +567,10 @@ impl Application {
         Ok(())
     }
     pub(crate) fn can_add_guide(&self, id: &str) -> Result<()> {
-        if self.guides.contains_key(id) {
+        if self.guides.contains_key(id) || self.preparing.contains_key(id) {
             return Err("Guida già presente: scegli un nuovo ID per una revisione".into());
         }
-        if self.guides.len() >= 4096 {
+        if self.guides.len() + self.preparing.len() >= 4096 {
             return Err("Guide registry limit exceeded".into());
         }
         Ok(())
@@ -479,6 +578,9 @@ impl Application {
     fn identity(&self, id: Option<&str>) -> Result<String> {
         let id = id.or(self.active.as_deref()).ok_or("No guide available")?;
         if !self.guides.contains_key(id) {
+            if let Some(state) = self.preparing.get(id) {
+                return Err(state.clone().unwrap_or_else(|| GUIDE_PREPARING.into()));
+            }
             return Err("Guide not found".into());
         }
         Ok(id.into())
@@ -696,7 +798,9 @@ impl Application {
         // to its current definition. While those are still compiling in the
         // background, wait: progress stays unverified meanwhile, and the read
         // loop keeps delivering observations instead of stalling.
-        if self.background_archives && !self.cold_archive_ids()?.is_empty() {
+        // A guide still being prepared has no current definition yet: binding
+        // now would leave its checklist unpinned. Wait for it the same way.
+        if self.still_preparing() || self.background_archives && !self.cold_archive_ids()?.is_empty() {
             return Ok(());
         }
         let changed = if let Some(id) = campaign(&self.live) {
@@ -840,7 +944,9 @@ impl Application {
     /// guide picked by hand afterwards stays until the nation changes again.
     /// Nothing changes without a qualified observation or a fitting guide.
     fn follow_played_nation(&mut self) -> Result<()> {
-        if self.live["usable"] != true {
+        // Wait until every guide can be chosen: picking among the ready ones
+        // could replace the guide the user last chose for this nation.
+        if self.live["usable"] != true || self.still_preparing() {
             return Ok(());
         }
         let Some(country) = self.live["sample"]["country"].as_str().filter(|c| c.len() == 3).map(str::to_owned) else {
@@ -1165,7 +1271,7 @@ impl Application {
         // checklist/history. Keep all qualification witnesses, without DB reads.
         "app_hud_context"=>Ok(json!({"usable":self.live["usable"],"status":self.live["status"],"source":self.live["source"],"sample":{"country":self.live["sample"]["country"],"focus_tree_id":self.live["sample"]["focus_tree_id"],"session_id":self.live["sample"]["session_id"]}})),
         "app_overlay_packet"=>{let id=self.identity(None)?;let packet=self.projection(Some(&id),true)?;Ok(packet)},
-        "app_overlay_stamp"=>Ok(json!({"server":self.server,"guide":self.active,"selection":self.active_revision,"definition":self.definition_generation,"progress":self.revision,"observation":self.observation_revision})),
+        "app_overlay_stamp"=>Ok(json!({"server":self.server,"guide":self.active,"selection":self.active_revision,"definition":self.definition_generation,"registry":self.registry_generation,"progress":self.revision,"observation":self.observation_revision})),
         "app_state"=>self.accept(args["value"].clone()),
         "app_active"=>self.active(args.get("update")),
         "app_progress"=>self.progress(args["guide_id"].as_str(),args["run_id"].as_str(),args.get("update")),

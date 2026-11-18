@@ -262,4 +262,30 @@ mod tests {
         let first=sequential.prepare_presented(&broken["definitions"][7]).unwrap_err();
         assert_eq!(crate::application::Application::prepare_context(&broken,empty_context()).err(),Some(first),"the first failing guide in order is reported");
     }
+    #[test]
+    fn pending_guides_stay_unavailable_until_prepared_for_the_current_catalog(){
+        use crate::application::{Application,GUIDE_PREPARING};
+        let guide=|id:&str,default:bool|json!({"id":id,"title":id,"default":default,"tracks":{"operations":[{"key":"one","action":{"kind":"manual"}}]}});
+        let mut app=Application::open(&json!({"guides":[guide("a",false),guide("b",true),guide("c",false)]})).unwrap();
+        let context=empty_context();
+        let rest=app.set_context_first(context.clone()).unwrap().expect("the other guides are left pending");
+        assert!(app.still_preparing());
+        assert!(app.projection(Some("b"),false).is_ok());
+        assert_eq!(app.projection(Some("a"),false).err().as_deref(),Some(GUIDE_PREPARING));
+        let prepared=Application::prepare_guides(&rest,&context).unwrap();
+        // Prepared for a catalog that was replaced meanwhile: discarded.
+        app.apply_pending(&empty_context(),prepared.clone());
+        assert!(app.projection(Some("a"),false).is_err());
+        // A failed preparation keeps them unavailable and binding waiting.
+        let mut failed=Application::open(&json!({"guides":[guide("a",false),guide("b",true)]})).unwrap();
+        failed.set_context_first(context.clone()).unwrap().unwrap();
+        failed.fail_pending("broken");
+        assert!(failed.still_preparing());
+        assert_eq!(failed.projection(Some("a"),false).err().as_deref(),Some("broken"));
+        app.apply_pending(&context,prepared);
+        assert!(!app.still_preparing());
+        assert!(app.projection(Some("a"),false).unwrap()["evaluation"].is_object());
+        let ids:Vec<String>=app.request("app_guides",&json!({})).unwrap().as_array().unwrap().iter().map(|g|g["id"].as_str().unwrap().to_owned()).collect();
+        assert_eq!(ids,["a","b","c"],"registry order is the source order");
+    }
 }

@@ -14,3 +14,4 @@ mod guide_identity_diagnostics;
 mod occurrence_identity;
 mod presentation_fixtures;
 mod real_catalog_contract;
+mod startup_preparation;
