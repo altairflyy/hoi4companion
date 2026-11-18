@@ -48,7 +48,8 @@ Invariants, build and test commands are in `CLAUDE.md`; they apply to every step
 - **Needs a user decision** (product or architecture choice, ambiguous intent): undo only your own changes
   (`git restore` / `git clean` on the files you changed or created), set `Status: needs-user: <one clear
   question with the options>`, commit the backlog as `docs: <id> needs a user decision`.
-- **Cannot make it work:** leave the tree as it is and end; the coordinator stashes it and counts the attempt.
+- **Cannot make it work:** write `gave up: <reason>` in your item's `Notes`, leave the tree as it is (commit
+  nothing) and end; the coordinator stashes your changes and counts the attempt.
 - Update `docs/AGENT_HANDOFF.md` only for a significant milestone, in the same docs commit.
 - End with a 3-line report: what changed, tests run and their result, final status.
 

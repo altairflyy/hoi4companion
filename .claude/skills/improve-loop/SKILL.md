@@ -16,12 +16,15 @@ The user is away: never stop to ask. A decision only the user can take becomes a
 ## 1. Start or resume
 1. Read `CLAUDE.md`, `docs/AGENT_HANDOFF.md`, the backlog, and run `git status` and `git branch --show-current`.
 2. If the backlog `Branch:` names a branch that exists locally, this is a **resume**:
-   - check it out if it is not current (only with a clean tree; otherwise stop with one line);
-   - an item left `doing` is handled as in step 4 "no commit", then continue at step 3.
+   - if that branch is not current: the tree must be clean (otherwise stop with one line), then `git switch` to it;
+   - an item left `doing` is handled as in step 4 "no commit" (that works on a dirty tree);
+   - add a line `- Resumed: <local ISO time>` under `Started:`; the 8 h limit counts from the latest
+     `Resumed:` (the user restarting the run is a request to continue);
+   - commit `docs: resume the improvement run`, then continue at step 2 (seeding is skipped if Items exist).
 3. Otherwise this is a **new run**:
    - the tree must be clean and HEAD on a branch; otherwise stop with one line saying why, before creating anything;
    - `git switch -c auto/improve-<YYYY-MM-DD>` (add `-2`, `-3` if it exists);
-   - write `Branch:` and `Started:` (local ISO time) in the backlog.
+   - write `Branch:` and `Started:` (local ISO time) in the backlog and commit `docs: start the improvement run`.
 4. Load `mcp__ccd_host__request_keep_awake` and `mcp__ccd_session__start_session` with ToolSearch
    (`select:` both in one call). Call keep-awake with `until: "session_idle"`.
 
@@ -58,20 +61,26 @@ On the worker's end notice, re-read the item and run `git status` and `git log -
   `node scripts/test-native.cjs <crate>` for each crate under `native/` listed by `git show --stat <hash>`,
   then `node scripts/dev-native.cjs build backend` and
   `HOI4_BACKEND_EXE=.local/rust-dev-backend-target/release/hoi4-backend.exe npm test`
-  (output to the scratchpad, read the tail). Green: accepted. Red: `git revert --no-edit HEAD <hash>`, add the
-  failing test name to `Notes`, `Status: todo` (attempt 1) or `dropped: tests red after 2 attempts`.
-- **No new commit** (worker crashed, hit a limit or stopped): if the tree is dirty,
-  `git stash push -u -m "improve-loop <id> attempt <n>"` (never discard). `Status: todo` if `Attempts` < 2,
-  else `dropped: no result after 2 attempts`. Name the stash in `Notes`.
+  (output to the scratchpad, read the tail). Green: accepted. Red: `git revert --no-edit HEAD <hash>`, re-run
+  the same checks (still red: stop, step 5), add the failing test name to `Notes`, and set the status by the
+  attempt rule below (`dropped: tests red after 2 attempts`).
+- **No new commit** (worker crashed, hit a limit, or gave up and wrote `gave up: <reason>` in `Notes`): if the
+  tree has changes besides the backlog, stash them without the backlog, so the item's `doing`, `Attempts` and
+  `Notes` stay in place:
+  `git stash push -u -m "improve-loop <id> attempt <n>" -- . ":(exclude)docs/improvement-backlog.md"`
+  (never discard). Name the stash in `Notes`; set the status by the attempt rule (`dropped: no result after 2 attempts`).
 - **`needs-user: …`** or **`dropped: …`** written by the worker: accept it; the tree must be clean (stash it as above if not).
 - Anything else (commits not matching the item, a different branch checked out): switch back to the run
-  branch, stash leftovers, `dropped: worker left an inconsistent state`.
+  branch, stash leftovers as above, `dropped: worker left an inconsistent state`.
+
+**Attempt rule:** `Attempts` is the number of worker sessions started for the item (step 3 adds 1 before each).
+After a failed attempt: `Attempts` < 2 means `Status: todo`; otherwise `Status: dropped: <reason>`.
 Commit backlog changes: `docs: update the improvement backlog`.
 
 ## 5. Next or stop
 - After every 3 finished items (done, needs-user or dropped), re-rank the remaining `todo` items with what
   changed; add or drop items if the evidence says so.
-- Stop when: 15 items are `done`, or 8 hours passed since `Started:`, or no `todo` item is left, or a regression
+- Stop when: 15 items are `done`, or 8 hours passed since the latest `Started:`/`Resumed:`, or no `todo` item is left, or a regression
   remains after the revert in step 4 (leave the tree at the last green commit).
 - Otherwise go to step 3.
 
