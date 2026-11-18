@@ -244,8 +244,8 @@ pub struct Application {
     live_runs: Option<(u64, Value)>,
 }
 pub(crate) struct PreparedContext {
-    generation: u64,
-    guides: Map<String, Value>,
+    pub(crate) generation: u64,
+    pub(crate) guides: Map<String, Value>,
     context: Arc<crate::runtime_context::Context>,
 }
 impl Application {
@@ -407,12 +407,34 @@ impl Application {
         input: &Value,
         context: Arc<crate::runtime_context::Context>,
     ) -> Result<PreparedContext> {
-        let guides = input["definitions"]
+        let sources = input["definitions"]
             .as_array()
-            .ok_or("Missing guide definitions")?
-            .iter()
-            .map(|source| {
-                let guide = Self::revision(context.prepare_presented(source)?)?;
+            .ok_or("Missing guide definitions")?;
+        // Guides are independent: prepare them on several threads. Results keep
+        // the input order and the first failing guide in that order wins, as in
+        // the sequential version. Half the cores (at most 8) so a running game
+        // keeps CPU while the companion starts.
+        let workers = std::thread::available_parallelism()
+            .map(|n| (n.get() / 2).clamp(1, 8))
+            .unwrap_or(1)
+            .min(sources.len().max(1));
+        let next = std::sync::atomic::AtomicUsize::new(0);
+        let mut results: Vec<Option<Result<Value>>> = (0..sources.len()).map(|_| None).collect();
+        let done = std::sync::Mutex::new(&mut results);
+        std::thread::scope(|scope| {
+            for _ in 0..workers {
+                scope.spawn(|| loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let Some(source) = sources.get(i) else { break };
+                    let guide = context.prepare_presented(source).and_then(Self::revision);
+                    done.lock().unwrap_or_else(|e| e.into_inner())[i] = Some(guide);
+                });
+            }
+        });
+        let guides = results
+            .into_iter()
+            .map(|guide| {
+                let guide = guide.ok_or("Guide preparation did not finish")??;
                 Ok((text(&guide["id"]).to_owned(), guide))
             })
             .collect::<Result<Map<String, Value>>>()?;

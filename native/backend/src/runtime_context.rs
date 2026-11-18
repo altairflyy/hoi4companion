@@ -227,4 +227,39 @@ mod tests {
         assert_eq!(context.present(&guide).unwrap()["title"],"Second");
         assert_eq!(context.presented.lock().unwrap().len(),2);
     }
+    fn empty_context()->Arc<Context>{
+        let source=Arc::new(json!({"operation_entities":[]}));
+        Arc::new(Context {
+            index:Index::new(&json!({"entries":[]})).unwrap(),
+            presentation:guide_enrich::Presentation::new(source.clone(),crate::import_catalog::language()),
+            source,library:json!({"documents":[]}),compiled:Mutex::new(HashMap::new()),
+            presented:Mutex::new(HashMap::new()),prepared_cache:None,research_start:Mutex::new(HashMap::new()),
+        })
+    }
+    #[test]
+    fn parallel_context_preparation_matches_the_sequential_result_and_order(){
+        let sources:Vec<Value>=(0..40).map(|i|crate::guide_schema::normalize(&json!({"id":format!("g{:02}",39-i),"title":format!("Guide {i}"),
+            "tracks":{"operations":[{"key":"one","action":{"kind":"manual"}},{"key":"two","action":{"kind":"manual"}}]}})).unwrap()).collect();
+        let input=json!({"generation":3,"definitions":sources});
+        let prepared=crate::application::Application::prepare_context(&input,empty_context()).unwrap();
+        assert_eq!(prepared.generation,3);
+        let ids:Vec<&String>=prepared.guides.keys().collect();
+        let expected:Vec<String>=(0..40).map(|i|format!("g{:02}",39-i)).collect();
+        assert_eq!(ids,expected.iter().collect::<Vec<_>>(),"input order is kept");
+        let sequential=empty_context();
+        for source in input["definitions"].as_array().unwrap(){
+            let mut guide=sequential.prepare_presented(source).unwrap();
+            let id=guide["id"].as_str().unwrap().to_owned();
+            guide.as_object_mut().unwrap().remove("runtime_definition_revision");
+            let mut parallel=prepared.guides[&id].clone();
+            assert_eq!(parallel["runtime_engine"],"rust-guide-core");
+            parallel.as_object_mut().unwrap().remove("runtime_definition_revision");
+            parallel.as_object_mut().unwrap().remove("runtime_engine");
+            assert_eq!(parallel,guide,"guide {id} is prepared exactly as sequentially");
+        }
+        let mut broken=input.clone();
+        broken["definitions"][7]=json!("not a guide");broken["definitions"][30]=json!(42);
+        let first=sequential.prepare_presented(&broken["definitions"][7]).unwrap_err();
+        assert_eq!(crate::application::Application::prepare_context(&broken,empty_context()).err(),Some(first),"the first failing guide in order is reported");
+    }
 }
