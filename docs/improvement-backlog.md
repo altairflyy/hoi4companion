@@ -105,3 +105,34 @@ Item format (ids IL-01, IL-02, ... are never reused):
 - Notes: Before: done = "Completed"/"Done" (Completata/Completato); in progress = "In progress"/"IN PROGRESS"; waiting = "Waiting"/"WAITING"/"Upcoming" (In attesa/IN ATTESA/Più avanti); unknown = "Unverifiable"/"Unverified"/"State not verified"/"state not verified" plus inline "unverifiable" translated as plural "non verificabili". After: Completed/Completata, In progress/In corso, Waiting/In attesa, Unverifiable/Non verificabile (inline "non verificabile"). Guide marker badges stay upper case via CSS `text-transform` on `.guide-node-label`. Six obsolete keys removed (1703 -> 1697 messages); the "unverifiable" value was edited in place because the add-translation script only adds keys. "Done" stays as the manual confirmation button (an action, not a status). Researched/Researching stay as game terms on the technology page. No standalone "manual" status word exists. Test `tests/test_status_labels.cjs` (20 label sites, 4 tests). Verified: `npm test` with dev backend 464 pass / 0 fail / 3 skipped; `test-native.cjs overlay` 54 pass, `backend` 149 pass; invariant-reviewer: no violations. Visual check NOT VERIFIED (app not running).
 
 ## Run report
+Run 2026-11-18 19:32 -> 23:43 (+01:00), branch `auto/improve-2026-11-18`. Stopped because no `todo` item was left. 8 items: 6 done, 1 needs-user, 1 dropped.
+
+**Improvements by area**
+- Functional (guides): IL-01 `de1aff0`: an ambiguous "On X…" trigger prefix resolves only when exactly one tied candidate is a step of the same guide. Survey: ambiguous 17 -> 9, compiled 52 -> 58. IL-08 `4433c5f`: event receivers are traced through upper-case `IF`/`ELSE_IF` blocks and through missions allowed to nobody, using their `activate_*` callers. Candidate events without a receiver 40 -> 37, `event_grounded` 28 -> 30. HUN "They can not…" now binds `WW_hungary.30.b`.
+- Technical (performance): IL-05 `47d0f77`: the backend answers after preparing only the active guide; the other guides are prepared in the background, are hidden until ready, and campaign binding waits for them. Cold cache, 50 guides: ready 44.75 s -> 14.18 s.
+- UX `[ux-review]`: IL-07 `9e6b3fa`: each status uses one label: Completed/Completata, In progress/In corso, Waiting/In attesa, Unverifiable/Non verificabile. Six obsolete keys removed. New test `tests/test_status_labels.cjs`. Visual check NOT VERIFIED (app not running).
+
+**Harness changes**
+- IL-03 `f70b01f`: the intermittent `tests/test_native_service.cjs` case now waits for the resumed import. Before 19/20 passes, after 30/30.
+- IL-06 `3e9b44d`: the real-catalog `event_reference_survey` compiles guides in parallel: 222 s -> 91-92 s, identical summary.
+- During the run the user changed the improve-loop skill (`1ac5745`, `b7a3b52`, `b5e27be`): foreground commands, caveman style, skills by item type.
+- Friction seen: the app refuses to start a worker in a turn woken by a background command; this cost two restarts at the start of the run.
+
+**Skills and tools**: one worker session per item (start_session, auto mode), `invariant-reviewer` agent in the workers, `add-translation` for IL-07, real-catalog survey as the measure for guide items.
+
+**Tests** (final, HEAD `3b30f01`)
+- PASS: `node scripts/test-native.cjs` all crates: 418 pass, 0 fail, 3 ignored.
+- PASS: `node scripts/dev-native.cjs build backend`, then `npm test` with that backend: 464 pass, 0 fail, 3 skipped (467).
+- PASS: each done item was re-checked green by the coordinator right after its worker ended.
+- NOT VERIFIED: live game behavior of IL-01, IL-05 and IL-08; IL-07 screens.
+
+**Commits**: `git log --oneline fccc285..HEAD` (26 commits; code commits `de1aff0`, `f70b01f`, `47d0f77`, `3e9b44d`, `4433c5f`, `9e6b3fa`). Nothing pushed or merged.
+
+**needs-user**
+- IL-02: no candidate line has exactly one reachable event, so the rule binds nothing. Options: (a) drop IL-02; (b) a riskier narrowing to events reached through the guide's own focuses (needs a guard, otherwise it picks `mtg_britain.100.b` for ENG "We shall…"); (c) another rule. IL-08 changed the evidence a little: re-measure before choosing (b).
+
+**Dropped**: IL-04: no qualified live field reports a war-goal justification, so "justify TAG" lines stay recognized only.
+
+**Stashes left**: none.
+
+**Next priority**: decide IL-02; exercise the faster startup (IL-05) in the installed app after a `deliver-build`; then the remaining 37 candidate events without a receiver.
