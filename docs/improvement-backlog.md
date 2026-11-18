@@ -73,6 +73,8 @@ Item format (ids IL-01, IL-02, ... are never reused):
 - Status: done 47d0f77
 - Attempts: 1
 - Notes: Startup prepares only the active guide; the rest join the registry from a background thread (`Application::set_context_first` / `apply_pending`, `Service::prepare_pending_guides`). A pending guide is absent from `/api/guides` and its projection answers 400 "Guide still being prepared: try again in a few seconds"; campaign binding and following the played nation wait while any guide is pending or failed (fail closed, from invariant review). UI shows the shorter list for ~33 s with no new UI; no product decision needed. Tests: integration `startup_preparation::the_server_answers_for_the_active_guide_before_the_other_guides_are_prepared`, unit `pending_guides_stay_unavailable_until_prepared_for_the_current_catalog`; backend crate all pass (lib 45, integration 104), JS 460 pass / 3 skipped / 0 fail against the dev-built backend. Measured on a scratch copy of the data dir (50 guides, real catalog, cold compiled cache, no HOI4 running), HEAD a2f5c6f vs this change: ready file 44.75 s -> 14.18 s (14.40 s rerun); first active-guide projection 50.1 s -> 21.1 s; all guides ready 44.4 s -> 47.6 s, a non-active guide projection 54.9 s -> 51.7 s (400 "being prepared" before). NOT verified in game.
+- Checked: green 2026-11-18T22:59:09+01:00
+
 ### IL-06 — Speed up the real-catalog event reference survey
 - Area: harness
 - Priority: 4 (228 s per run slows every guide-reference item; low risk, test-only)
