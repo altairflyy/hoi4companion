@@ -181,6 +181,24 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
         }
     }
     let effects = &effects;
+    // Nations a country flag is set on: a named tag, or the owners of the
+    // focus/decision; (flag, event) when an event sets it on its own receiver.
+    let mut flag_tags: HashMap<String, BTreeSet<String>> = HashMap::new();
+    let mut flag_events: Vec<(String, String)> = vec![];
+    // Flags each event's own trigger requires, before they are resolved.
+    let mut event_flags: HashMap<String, Vec<String>> = HashMap::new();
+    let flag_owner = |flag: &str, to: &Receiver, owners: Option<&BTreeSet<String>>, flag_tags: &mut HashMap<String, BTreeSet<String>>| {
+        if !flag.starts_with("flag:") {
+            return;
+        }
+        match to {
+            Receiver::Tag(t) => {
+                flag_tags.entry(flag.to_owned()).or_default().insert(t.clone());
+            }
+            Receiver::Owner => flag_tags.entry(flag.to_owned()).or_default().extend(owners.into_iter().flatten().cloned()),
+            Receiver::Unknown => {}
+        }
+    };
     let seed = |id: String, to: Receiver, owners: Option<&BTreeSet<String>>, reach: &mut Reach| match to {
         Receiver::Tag(t) => {
             reach.receivers.entry(id).or_default().insert(t);
@@ -210,6 +228,7 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
                 let source = format!("focus:{}", scalar(focus, "id"));
                 for (id, to) in out {
                     if gate(&id) {
+                        flag_owner(&id, &to, owners.as_ref(), &mut flag_tags);
                         reach.unlocks.entry(id).or_default().insert(source.clone());
                         continue;
                     }
@@ -237,6 +256,7 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
                 calls(decision, "decision", &Receiver::Owner, &mut out, 0, effects);
                 for (id, to) in out {
                     if gate(&id) {
+                        flag_owner(&id, &to, Some(&owners), &mut flag_tags);
                         reach.unlocks.entry(id).or_default().insert(format!("decision:{decision_id}"));
                         continue;
                     }
@@ -261,14 +281,25 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
             for block in blocks(event, "trigger") {
                 conditions(block, &mut needs, 0);
             }
+            let flags: Vec<String> = needs.iter().filter(|k| k.starts_with("flag:")).cloned().collect();
+            if !flags.is_empty() {
+                event_flags.insert(id.clone(), flags);
+            }
             if !needs.is_empty() {
                 reach.requires.entry(id.clone()).or_default().extend(needs);
             }
             let mut out = vec![];
             calls(event, "event", &Receiver::Owner, &mut out, 0, effects);
             let (unlocked, out): (Vec<_>, Vec<_>) = out.into_iter().partition(|(to, _)| gate(to));
-            for (decision, _) in unlocked {
-                reach.unlocks.entry(decision).or_default().insert(format!("event:{id}"));
+            for (gated, to) in unlocked {
+                if gated.starts_with("flag:") {
+                    if to == Receiver::Owner {
+                        flag_events.push((gated.clone(), id.clone()));
+                    } else {
+                        flag_owner(&gated, &to, None, &mut flag_tags);
+                    }
+                }
+                reach.unlocks.entry(gated).or_default().insert(format!("event:{id}"));
             }
             for (to, _) in &out {
                 reach.sources.entry(to.clone()).or_default().insert(format!("event:{id}"));
@@ -312,6 +343,21 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
         }
         if !changed {
             break;
+        }
+    }
+    // An event nothing calls (timed, mean_time_to_happen) whose trigger needs
+    // a country flag reaches the nations that flag is set on.
+    for (flag, event) in &flag_events {
+        let set = reach.receivers.get(event).cloned().unwrap_or_default();
+        flag_tags.entry(flag.clone()).or_default().extend(set);
+    }
+    for (event, flags) in &event_flags {
+        if reach.receivers.contains_key(event) || reach.unknown.contains(event) {
+            continue;
+        }
+        let set: BTreeSet<String> = flags.iter().flat_map(|f| flag_tags.get(f).into_iter().flatten().cloned()).collect();
+        if !set.is_empty() {
+            reach.receivers.insert(event.clone(), set);
         }
     }
     reach
@@ -393,6 +439,12 @@ mod tests {
             ("country_event", node(vec![("id", json!("sov.trial")),
                 ("trigger", node(vec![("has_country_flag", json!("SOV_trial_flag")),
                     ("NOT", node(vec![("has_country_flag", json!("SOV_never"))]))]))])),
+            // Spain sets a flag on SOV; a timed event nothing calls needs it.
+            ("country_event", node(vec![("id", json!("spr.gold")), ("option", node(vec![
+                ("SOV", node(vec![("set_country_flag", json!("SPR_gold_flag_sov"))]))]))])),
+            ("country_event", node(vec![("id", json!("spr.seize")),
+                ("trigger", node(vec![("has_country_flag", json!("SPR_gold_flag_sov"))])),
+                ("mean_time_to_happen", node(vec![("days", json!("30"))]))])),
         ]);
         let r = compute(&[tree], &[decisions], &[events], &[effects]);
         let set = |m: &HashMap<String, BTreeSet<String>>, id: &str| m.get(id).cloned().unwrap_or_default().into_iter().collect::<Vec<_>>();
@@ -404,5 +456,8 @@ mod tests {
         assert_eq!(set(&r.requires, "sov.timed"), ["focus:SOV_purge"]);
         assert_eq!(set(&r.requires, "sov.trial"), ["focus:SOV_purge"], "a required flag stands for what sets it");
         assert!(r.unlocks.keys().all(|k| !k.starts_with("flag:")));
+        assert_eq!(set(&r.receivers, "spr.seize"), ["SOV"], "a timed event reaches the nation its flag is set on");
+        assert_eq!(set(&r.requires, "spr.seize"), ["event:spr.gold"]);
+        assert_eq!(set(&r.receivers, "sov.trial"), ["SOV"], "flag set by a SOV focus");
     }
 }
