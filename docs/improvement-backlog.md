@@ -6,8 +6,8 @@ starts one worker session per item and checks the result. Each worker session ch
 only its own item. Users read this file to review a run and answer `needs-user` items.
 
 ## Run
-- Branch: (none yet)
-- Started: (none yet)
+- Branch: auto/improve-2026-11-18
+- Started: 2026-11-18T19:32:15+01:00
 - Resumed: (one line per resume, if any)
 - Limits: 15 items done / 8 h from Started / 2 attempts per item
 
