@@ -48,9 +48,16 @@ fn fold(c: char) -> char {
         c => c,
     }
 }
+/// A game name without its inline icons and colour codes.
+fn strip_markup(text: &str) -> String {
+    crate::import_catalog::regex(r"£[^\s£]*£?|§[A-Za-z!]").replace_all(text, " ").into_owned()
+}
 /// Lowercase accent-free words joined by single spaces. Apostrophes vanish
 /// ("That’s" = "thats"); every other non-alphanumeric character separates.
 pub fn normalize(text: &str) -> String {
+    // Game markup is not part of a name: inline icons ("£BoP_right_texticon
+    // Take Over Ministry of Corporations") and colour codes ("§Y…§!").
+    let text = strip_markup(text);
     let mut out = String::new();
     let mut gap = false;
     for c in text.chars().flat_map(char::to_lowercase).map(fold) {
@@ -74,12 +81,21 @@ fn truncated(text: &str) -> bool {
     t.ends_with('…') || t.ends_with("...")
 }
 
-/// Normalized event-answer names (name, localized name, aliases) by catalog row.
+/// Entity kinds besides event answers that an author abbreviation may name
+/// and that an existing binding observes live. Focuses are listed only so a
+/// focus with the same name keeps the reference ambiguous.
+pub const NAMED_KINDS: &[&str] = &["decision", "advisor", "technology", "idea", "focus"];
+
+/// Normalized names (name, localized name, aliases) by catalog row, for the
+/// given entity kinds (event answers by default).
 pub struct AnswerNames(Vec<(String, usize)>);
 impl AnswerNames {
     pub fn new(index: &Index) -> Self {
+        Self::of_kinds(index, &["event_option"])
+    }
+    pub fn of_kinds(index: &Index, kinds: &[&str]) -> Self {
         let mut names = vec![];
-        for (i, row) in index.rows().iter().enumerate().filter(|(_, r)| r["kind"] == "event_option") {
+        for (i, row) in index.rows().iter().enumerate().filter(|(_, r)| r["kind"].as_str().is_some_and(|k| kinds.contains(&k))) {
             let all = [&row["name"], &row["localized_name"]]
                 .into_iter()
                 .chain(row["aliases"].as_array().into_iter().flatten());
@@ -132,17 +148,37 @@ fn event_affinity(event_id: &str, index: &Index, country: &str) -> Result<bool> 
     Ok(namespace.iter().any(|w| names.contains(w)))
 }
 fn bound(params: &Value) -> bool {
-    ["decision_id", "event_option_id", "advisor_id", "law_id", "idea_id", "operation_id", "production_targets", "building_id"]
+    ["decision_id", "event_option_id", "advisor_id", "law_id", "idea_id", "operation_id", "production_targets", "building_id", "technology_id"]
         .iter()
         .any(|k| !params[*k].is_null())
 }
 
+/// An author cost note: amount and currency (PP political power, CP command
+/// power, AE/NE army/navy experience).
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct Cost {
+    pub amount: f64,
+    pub unit: &'static str,
+}
+impl Cost {
+    /// The catalog field holding this currency's real cost, when the catalog has one.
+    fn field(&self) -> Option<&'static str> {
+        match self.unit {
+            "PP" => Some("political_power_cost"),
+            "CP" => Some("command_power_cost"),
+            _ => None,
+        }
+    }
+    fn matches(&self, row: &Value) -> bool {
+        self.field().and_then(|f| row[f].as_f64()) == Some(self.amount)
+    }
+}
 /// One author reference inside an instruction line.
 #[derive(Debug, PartialEq)]
 pub struct Reference {
     pub text: String,
-    /// The author's "(NNPP)" note, when it belongs to this reference alone.
-    pub cost: Option<f64>,
+    /// The author's cost note ("(25PP)", "(25 CP)"), when it belongs to this reference.
+    pub cost: Option<Cost>,
 }
 /// Timing lead-ins whose right side is the instruction ("On Expand…done: X").
 fn timing(text: &str) -> bool {
@@ -159,6 +195,10 @@ pub fn references(line: &str) -> Vec<Reference> {
     if text.contains('\n') {
         return vec![];
     }
+    // "On X…: action" / "On X… action": only the action names references.
+    if let Some((_, action)) = trigger(&text) {
+        text = action;
+    }
     if let Some(colon) = text.find(':') {
         let (left, right) = (text[..colon].trim(), text[colon + 1..].trim());
         if truncated(left) && !timing(left) {
@@ -169,17 +209,22 @@ pub fn references(line: &str) -> Vec<Reference> {
             return vec![];
         }
     }
-    let cost_note = re(r"(?i)\((\d{1,4})\s*PP\)");
-    let costs: Vec<f64> = cost_note.captures_iter(&text).filter_map(|c| c[1].parse().ok()).collect();
+    // Trailing notes ("(25PP) (if possible)"): the first cost note counts.
+    let trailing = re(r"(?:\s*\([^()]*\))+\s*$").find(&text).map(|m| m.as_str().to_owned()).unwrap_or_default();
+    let tail_cost = re(r"\([^()]*\)").find_iter(&trailing).find_map(|m| note_cost(m.as_str()));
     let text = re(r"(?:\s*\([^()]*\))+\s*$").replace(&text, "").trim().to_owned();
     let text = re(r"(?i)\s+event$").replace(&text, "").trim().to_owned();
     // Several answers: split after each truncation mark followed by more text.
     let mut pieces = vec![];
+    // The cost note written right after a piece ("Liturgical…(70PP) + …").
+    let mut own: Vec<Option<(Cost, u32)>> = vec![];
     let mut rest = text.clone();
     while let Some(m) = re(r"(?:…|\.\.\.)").find(&rest) {
         let piece = rest[..m.end()].trim().to_owned();
+        let tail = rest[m.end()..].trim_start();
+        own.push(re(r"^\([^()]*\)").find(tail).and_then(|n| note_cost(n.as_str())));
         let after = re(r"^(?:\(.*?\)\s*)?(?:\+|/|,|&|and\b|or\b)?\s*")
-            .replace(rest[m.end()..].trim_start(), "")
+            .replace(tail, "")
             .into_owned();
         pieces.push(piece);
         // Text after the last mark that is not itself a reference ends the
@@ -200,16 +245,45 @@ pub fn references(line: &str) -> Vec<Reference> {
             pieces.push(full.to_owned());
         }
     }
-    let single = pieces.len() == 1 && costs.len() == 1;
+    // Which piece a cost note belongs to: a note right after a piece is its
+    // own; the trailing note belongs to a single piece, to the last piece when
+    // every other piece has its own note, or to each of N pieces when it says
+    // "xN" ("Prepare For…& Ignite… (50PPx2)"). A note after several pieces
+    // without "xN" may be their sum ("A… + B… (150PP)") and decides nothing.
+    let n = pieces.len();
+    own.resize(n, None);
+    let mut costs: Vec<Option<Cost>> = own.iter().map(|c| c.and_then(|(c, times)| (times == 1).then_some(c))).collect();
+    if let Some((cost, times)) = tail_cost {
+        if n == 1 && times == 1 {
+            costs[0] = Some(cost);
+        } else if n > 1 && times as usize == n && own.iter().all(Option::is_none) {
+            costs = vec![Some(cost); n];
+        } else if n > 1 && times == 1 && own[n - 1].is_none() && own[..n - 1].iter().all(Option::is_some) {
+            costs[n - 1] = Some(cost);
+        }
+    }
     pieces
         .into_iter()
-        .filter(|p| p.chars().count() <= 90)
-        .map(|p| Reference { text: p, cost: if single { costs.first().copied() } else { None } })
+        .zip(costs)
+        .filter(|(p, _)| p.chars().count() <= 90)
+        .map(|(p, cost)| Reference { text: p, cost })
         .collect()
+}
+/// "(25PP)", "(25 CP)", "(50PPx2)", "(10 AE)": amount, currency, multiplier.
+fn note_cost(note: &str) -> Option<(Cost, u32)> {
+    let hit = crate::import_catalog::regex(r"(?i)^\(\s*(\d{1,4})\s*(PP|CP|AE|NE)\s*(?:x\s*(\d))?\s*\)$").captures(note.trim())?;
+    let unit = match hit[2].to_uppercase().as_str() {
+        "PP" => "PP",
+        "CP" => "CP",
+        "AE" => "AE",
+        _ => "NE",
+    };
+    let times = hit.get(3).and_then(|t| t.as_str().parse().ok()).unwrap_or(1);
+    Some((Cost { amount: hit[1].parse().ok()?, unit }, times))
 }
 
 /// A single event answer the nation can give, chosen from the candidates.
-fn choose(found: &[Value], cost: Option<f64>, index: &Index, tag: &str) -> Result<Option<(Value, &'static str)>> {
+fn choose(found: &[Value], cost: Option<Cost>, index: &Index, tag: &str) -> Result<Option<(Value, &'static str)>> {
     let compatible: Vec<&Value> = found.iter().filter(|c| c["compatible"] != false).collect();
     let options: Vec<&Value> = compatible.iter().copied().filter(|c| c["kind"] == "event_option").collect();
     // Prefer what the nation can provably receive; the author's cost note must
@@ -217,7 +291,7 @@ fn choose(found: &[Value], cost: Option<f64>, index: &Index, tag: &str) -> Resul
     // namespace names the nation.
     let confirmed: Vec<&Value> = options.iter().copied().filter(|c| c["compatible"] == true).collect();
     let costed: Vec<&Value> = cost
-        .map(|c| options.iter().copied().filter(|o| o["political_power_cost"].as_f64() == Some(c)).collect())
+        .map(|c| options.iter().copied().filter(|o| c.matches(o)).collect())
         .unwrap_or_default();
     if let [one] = costed.as_slice() {
         return Ok(Some(((*one).clone(), "political_power_cost_matches")));
@@ -245,6 +319,200 @@ fn choose(found: &[Value], cost: Option<f64>, index: &Index, tag: &str) -> Resul
     }
     Ok(None)
 }
+/// Decisions, advisors, technologies and ideas whose real name the truncated
+/// abbreviation is a prefix of ("Recall Kocs…", "Albert Speer…", "Small
+/// Caliber Semi…"), with the same nation rules as `candidates_with`: entries
+/// the catalog proves unavailable to the nation are dropped, an advisor of
+/// another nation's character file is dropped, a country-tagged ID of
+/// another nation is dropped. `compatible` is true only when the catalog
+/// proves the nation can use it. Focuses of the guide's own tree are kept
+/// (kind "focus") so the caller can see a same-named focus.
+fn named_candidates(text: &str, index: &Index, names: &AnswerNames, tag: &str, scope: &Value) -> Vec<Value> {
+    if !truncated(text) {
+        return vec![];
+    }
+    let mut out: Vec<Value> = vec![];
+    for row in names.rows(index, text) {
+        let (kind, id) = (row["kind"].as_str().unwrap_or(""), row["id"].as_str().unwrap_or(""));
+        if id.is_empty() || out.iter().any(|o| o["kind"] == kind && o["id"] == id) {
+            continue;
+        }
+        if kind == "focus" {
+            if scope.is_string() && (row["scope"] == *scope || row["tree_id"] == *scope) {
+                out.push(json!({"kind":kind,"id":id,"name":row["name"],"compatible":true}));
+            }
+            continue;
+        }
+        let ownership = if row["country_condition"].is_null() {
+            None
+        } else {
+            crate::decision_admission::ownership(&row["country_condition"], Some(tag), None, 0)
+        };
+        if ownership == Some(false) {
+            continue;
+        }
+        let prefix = id.split(['_', '.']).next().unwrap_or("");
+        let tagged = prefix.len() == 3 && prefix.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit());
+        if tagged && prefix != tag && kind != "technology" {
+            continue;
+        }
+        let mut compatible = ownership == Some(true) || (tagged && prefix == tag);
+        if kind == "advisor" {
+            let countries: Vec<&str> = row["countries"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
+            if !countries.is_empty() && !countries.contains(&tag) {
+                continue;
+            }
+            compatible |= countries.contains(&tag);
+        }
+        let name = row["name"].as_str().map(|n| strip_markup(n).split_whitespace().collect::<Vec<_>>().join(" "));
+        out.push(json!({"kind":kind,"id":id,"name":name,"political_power_cost":row["political_power_cost"],
+            "command_power_cost":row["command_power_cost"],"targeted":row["targeted"],
+            "compatible":if compatible { json!(true) } else { Value::Null }}));
+    }
+    out
+}
+/// A single named entity the nation can use: never beside a same-named
+/// focus of the guide's tree; the author's cost note must not contradict the
+/// real cost and, when several names fit, picks exactly one; otherwise one
+/// candidate the catalog proves usable (technologies are common to every
+/// nation). Anything else stays a list of candidates.
+fn choose_named(found: &[Value], cost: Option<Cost>) -> Option<(Value, &'static str)> {
+    if found.iter().any(|c| c["kind"] == "focus") {
+        return None;
+    }
+    let costed = |c: &Value| ["political_power_cost", "command_power_cost"].iter().any(|f| c[*f].is_number());
+    let contradicted = |c: &Value| cost.is_some_and(|k| k.field().is_some() && costed(c) && !k.matches(c));
+    let fit: Vec<&Value> = found.iter().filter(|c| !contradicted(c)).collect();
+    if let Some(k) = cost {
+        let exact: Vec<&Value> = fit.iter().copied().filter(|c| k.matches(c)).collect();
+        if let [one] = exact.as_slice() {
+            return Some(((*one).clone(), "cost_matches"));
+        }
+    }
+    if found.len() != 1 || fit.len() != 1 {
+        return None;
+    }
+    let one = fit[0];
+    if one["compatible"] == true {
+        Some((one.clone(), "unique_name_for_nation"))
+    } else if one["kind"] == "technology" {
+        Some((one.clone(), "unique_technology_name"))
+    } else {
+        None
+    }
+}
+/// Bind a named entity through the existing bindings: decisions, advisors
+/// and ideas via `political_binding` (live decision/advisor/idea facts),
+/// technologies via the research facts. Returns the bound step, only when it
+/// carries a live-observable condition.
+fn bind_named(row: &Value, entity: &Value, index: &Index, country: &Value) -> Result<Option<Value>> {
+    let id = entity["id"].clone();
+    let mut probe = row.clone();
+    if probe["action"].get("params").is_none() {
+        probe["action"]["params"] = json!({});
+    }
+    let expected = match entity["kind"].as_str() {
+        Some("technology") => {
+            probe["action"]["params"]["technology_id"] = id.clone();
+            probe["started_when"] = json!({"op":"fact","key":"research.active","test":"contains","value":id});
+            probe["completion"] = json!({"op":"fact","key":"research.completed","test":"contains","value":id});
+            return Ok(Some(probe));
+        }
+        Some("decision") => ("decision_id", "decision_identity_resolved"),
+        Some("advisor") => ("advisor_id", "politics_live_advisor"),
+        Some("idea") => ("idea_id", "politics_live_idea"),
+        _ => return Ok(None),
+    };
+    probe["action"]["params"][expected.0] = id;
+    let result = crate::political_binding::bind(&probe, index, country, false)?;
+    let step = &result["step"];
+    let live = step["completion"].is_object() || step["started_when"].is_object();
+    Ok((result["reason"] == expected.1 && live).then(|| step.clone()))
+}
+
+/// The trigger of a "trigger: action" line ("On Expand…done: …", "On
+/// Picking Reaffirm…: …", "When … / After … / Around …: …"), with its action.
+///
+/// The trigger ends at the colon, or, without a colon right after it, at its
+/// first truncation mark ("On Coal… Develop Ersatz… (30PP)"), keeping a
+/// closing quote, a "done" and a parenthetical that follow the mark ("On The
+/// National… (or when JAP war on CHI): …" keeps the alternative inside the
+/// trigger, so it is not mistaken for a plain focus condition).
+pub fn trigger(line: &str) -> Option<(String, String)> {
+    let re = crate::import_catalog::regex;
+    let text = re(r"^\s*(?:[-•*–]\s+)").replace(line.trim(), "").trim().to_owned();
+    if text.contains('\n') || !timing(&text) {
+        return None;
+    }
+    let colon = text.find(':');
+    let mark = re(r"…|\.\.\.").find(&text).map(|m| m.end());
+    let by_colon = match (colon, mark) {
+        (Some(c), Some(m)) if m <= c => {
+            let between = &text[m..c];
+            !re(r"…|\.\.\.").is_match(between) && between.chars().count() <= 30
+        }
+        (Some(_), _) => true,
+        _ => false,
+    };
+    let (left, right) = if by_colon {
+        let c = colon?;
+        (text[..c].trim().to_owned(), text[c + 1..].trim().to_owned())
+    } else {
+        let m = mark?;
+        let tail = re(r#"^(?:\s*[”"’'])?(?:\s*done\b)?(?:\s*\([^()]*\))?"#).find(&text[m..]).map_or(0, |t| t.end());
+        let end = m + tail;
+        (text[..end].trim().to_owned(), text[end..].trim().trim_start_matches(':').trim().to_owned())
+    };
+    (!right.is_empty() && left.chars().count() <= 80).then_some((left, right))
+}
+/// The step's only instruction, or the first line of a multi-line block
+/// (true): the block's lead line, whose trigger scopes the whole block.
+fn first_line(row: &Value) -> Option<(String, bool)> {
+    let text = row["action"]["params"]["instructions"].as_array().filter(|a| a.len() == 1).and_then(|a| a[0].as_str())?;
+    let mut lines = text.lines().map(str::trim).filter(|l| !l.is_empty());
+    let first = lines.next()?.to_owned();
+    Some((first, lines.next().is_some()))
+}
+/// A real `when` the step already has (not promote's unknown placeholder).
+fn real_when(row: &Value) -> bool {
+    row.get("when").is_some_and(|w| !(w["op"] == "fact" && w["key"].as_str().is_some_and(|k| k.starts_with("guide.conditions."))))
+}
+/// Family 1: the author's trigger ("On Expand…done: …") resolved against the
+/// guide's grounded focuses/technologies/decisions and its focus tree
+/// (`entity_resolution`, the contract 3 rules). An observable condition
+/// becomes the step's `when` (only where it has none or promote's unknown
+/// placeholder); otherwise the step records why it stays unknown.
+fn ground_trigger(row: &mut Value, candidates: &[crate::entity_resolution::Candidate], index: &Index) {
+    let Some((line, block)) = first_line(row) else { return };
+    // A block may open with a bare header ("On Organize…:") over its lines.
+    let header = line.strip_suffix(':').map(str::trim).filter(|h| block && timing(h) && !h.contains(':'));
+    let Some(left) = trigger(&line).map(|t| t.0).or(header.map(str::to_owned)) else { return };
+    if !(left.contains('…') || left.contains("...")) || !row["action"]["params"]["trigger_resolution"].is_null() || real_when(row) {
+        return;
+    }
+    let resolution = crate::entity_resolution::resolve(&left, candidates);
+    let (condition, relation, verification) = crate::entity_resolution::trigger_condition(&resolution);
+    let entity = &resolution["entity"];
+    let name = index
+        .rows()
+        .iter()
+        .find(|r| r["kind"] == entity["kind"] && r["id"] == entity["id"])
+        .map(|r| r["name"].clone())
+        .unwrap_or(Value::Null);
+    let mut record = json!({"text":left,"status":if condition.is_some() { "compiled" } else { "unknown" },"relation":relation,
+        "verification":verification,"resolution_status":resolution["status"]});
+    if entity.is_object() {
+        record["entity"] = json!({"kind":entity["kind"],"id":entity["id"],"name":name});
+    }
+    if resolution["candidates"].is_array() {
+        record["candidates"] = resolution["candidates"].clone();
+    }
+    if let Some(condition) = condition {
+        row["when"] = condition;
+    }
+    row["action"]["params"]["trigger_resolution"] = record;
+}
+
 fn bind(option: &Value, index: &Index, country: &Value) -> Result<Option<Value>> {
     let event_id = option["event_id"].as_str().unwrap_or("");
     if event_id.is_empty() {
@@ -261,58 +529,110 @@ fn bind(option: &Value, index: &Index, country: &Value) -> Result<Option<Value>>
 /// political binding (live observation of the event popup, HUD option
 /// highlight) and keep everything else a manually tracked instruction with
 /// its candidates visible. With several answers on one line the first one
-/// found is bound and the others are listed with it.
+/// found is bound and the others are listed with it. Decisions, advisors,
+/// technologies and ideas named by their abbreviation ("Recall Kocs…(25 CP)",
+/// "Albert Speer…") are bound the same way when no event answer fits, and the
+/// trigger of a "On X…: action" line becomes the step's observable `when`.
 pub fn ground_references(guide: &mut Value, index: &Index) -> Result<()> {
     let country = guide["applies_to"]["country"].clone();
     let scope = guide["applies_to"]["tree_id"].clone();
     let Some(tag) = country.as_str().map(str::to_owned) else { return Ok(()) };
     let names = AnswerNames::new(index);
+    let named = AnswerNames::of_kinds(index, NAMED_KINDS);
+    // Trigger candidates: the guide's own grounded steps and its focus tree.
+    let triggers = crate::entity_resolution::merge(
+        crate::entity_resolution::guide_candidates(guide),
+        crate::entity_resolution::catalog_candidates(index.rows(), guide),
+    );
     let tracks = guide["tracks"].as_object_mut().ok_or("Missing guide tracks")?;
     for row in tracks.values_mut().filter_map(Value::as_array_mut).flatten() {
+        if row["action"]["kind"] == "manual" {
+            ground_trigger(row, &triggers, index);
+        }
         let params = &row["action"]["params"];
-        let Some(line) = params["instructions"].as_array().filter(|a| a.len() == 1).and_then(|a| a[0].as_str()) else { continue };
+        let Some((line, block)) = first_line(row) else { continue };
         if row["action"]["kind"] != "manual" || bound(params) || !params["reference_resolution"].is_null() {
             continue;
         }
-        let refs = references(line);
+        let refs = references(&line);
         if refs.is_empty() {
             continue;
         }
-        let mut answers = vec![];
+        // Each reference: an event answer first (the authors' main use), else
+        // a decision, advisor, technology or idea named by its abbreviation.
+        let mut grounded: Vec<(&Reference, Value, &'static str, Value)> = vec![];
         let mut unresolved = vec![];
         for reference in &refs {
             let found = candidates_with(&reference.text, index, &country, &scope, Some(&names))?;
-            let found = found.as_array().cloned().unwrap_or_default();
-            match choose(&found, reference.cost, index, &tag)? {
-                Some((option, basis)) => {
-                    if let Some(result) = bind(&option, index, &country)? {
-                        answers.push((reference, option, basis, result));
-                        continue;
-                    }
-                    unresolved.push((reference, found));
-                }
-                None => unresolved.push((reference, found)),
+            let mut found = found.as_array().cloned().unwrap_or_default();
+            if let Some((option, basis)) = choose(&found, reference.cost, index, &tag)?
+                && let Some(result) = bind(&option, index, &country)?
+            {
+                grounded.push((reference, option, basis, result));
+                continue;
             }
+            let entities = named_candidates(&reference.text, index, &named, &tag, &scope);
+            // A compatible event answer with the same words keeps it ambiguous.
+            if !found.iter().any(|c| c["kind"] == "event_option" && c["compatible"] != false)
+                && let Some((entity, basis)) = choose_named(&entities, reference.cost)
+                && let Some(step) = bind_named(row, &entity, index, &country)?
+            {
+                grounded.push((reference, entity, basis, step));
+                continue;
+            }
+            // Named prefix matches lead the list shown on the card.
+            for entity in entities.into_iter().rev() {
+                if !found.iter().any(|c| c["kind"] == entity["kind"] && c["id"] == entity["id"]) {
+                    found.insert(0, entity);
+                }
+            }
+            unresolved.push((reference, found));
         }
-        if let Some((reference, option, basis, result)) = answers.first() {
-            let mut params = result["step"]["action"]["params"].clone();
-            for keep in ["instructions", "source_action"] {
+        let describe = |r: &Reference, e: &Value, basis: &str| {
+            if e["kind"] == "event_option" {
+                json!({"text":r.text,"basis":basis,"kind":"event_option","id":e["id"],"name":e["name"],"event_id":e["event_id"],"option_id":e["id"],"option_text":e["name"]})
+            } else {
+                json!({"text":r.text,"basis":basis,"kind":e["kind"],"id":e["id"],"name":e["name"]})
+            }
+        };
+        if let Some((reference, entity, basis, result)) = grounded.first() {
+            let step = if entity["kind"] == "event_option" { &result["step"] } else { result };
+            let mut params = step["action"]["params"].clone();
+            for keep in ["instructions", "source_action", "trigger_resolution"] {
                 if !row["action"]["params"][keep].is_null() {
                     params[keep] = row["action"]["params"][keep].clone();
                 }
             }
-            let also: Vec<Value> = answers[1..].iter().map(|(r, o, b, _)| json!({"text":r.text,"basis":b,"event_id":o["event_id"],"option_id":o["id"],"option_text":o["name"]})).collect();
-            params["reference_resolution"] = json!({"basis":basis,"text":reference.text,"event_id":option["event_id"],"option_id":option["id"],"option_text":option["name"]});
+            params["reference_resolution"] = describe(reference, entity, basis);
+            let also: Vec<Value> = grounded[1..].iter().map(|(r, e, b, _)| describe(r, e, b)).collect();
             if !also.is_empty() {
                 params["reference_resolution"]["also"] = json!(also);
+            }
+            // References of the same line that stay unresolved are listed too.
+            let open: Vec<Value> = unresolved
+                .iter()
+                .filter(|(r, _)| truncated(&r.text))
+                .map(|(r, f)| json!({"text":r.text,"candidates":f.iter().filter(|c| c["compatible"] != false).take(4).cloned().collect::<Vec<_>>()}))
+                .collect();
+            if !open.is_empty() {
+                params["reference_resolution"]["unresolved"] = json!(open);
+            }
+            // The lead line of a block holding other work: recognized and
+            // shown, never bound, so the block is not completed by it alone.
+            if block {
+                let mut recognized = params["reference_resolution"].clone();
+                recognized["scope"] = json!("first_line");
+                recognized["tracked"] = json!(false);
+                row["action"]["params"]["reference_resolution"] = recognized;
+                continue;
             }
             row["action"]["params"] = params;
             if let Some(map) = row.as_object_mut() {
                 map.remove("tracking");
             }
             for field in ["completion", "started_when"] {
-                if !result["step"][field].is_null() {
-                    row[field] = result["step"][field].clone();
+                if !step[field].is_null() {
+                    row[field] = step[field].clone();
                 }
             }
             continue;
@@ -405,13 +725,68 @@ fn candidates_with(text: &str, index: &Index, country: &Value, scope: &Value, na
 mod tests {
     use super::*;
     fn texts(line: &str) -> Vec<(String, Option<f64>)> {
-        references(line).into_iter().map(|r| (r.text, r.cost)).collect()
+        references(line).into_iter().map(|r| (r.text, r.cost.map(|c| c.amount))).collect()
+    }
+    fn units(line: &str) -> Vec<Option<&'static str>> {
+        references(line).into_iter().map(|r| r.cost.map(|c| c.unit)).collect()
+    }
+    #[test]
+    fn several_actions_keep_their_own_cost_notes() {
+        assert_eq!(texts("Liturgical…(70PP) + Convoke…(100PP)"), [("Liturgical…".into(), Some(70.0)), ("Convoke…".into(), Some(100.0))]);
+        assert_eq!(texts("Prepare For…& Ignite… (50PPx2)"), [("Prepare For…".into(), Some(50.0)), ("Ignite…".into(), Some(50.0))]);
+        // A note after several pieces may be their sum: it decides nothing.
+        assert_eq!(texts("Absolutely Not… + There is a… (150PP)"), [("Absolutely Not…".into(), None), ("There is a…".into(), None)]);
+        // "x3" over two pieces does not fit either.
+        assert_eq!(texts("A thing… + Other… (50PPx3)"), [("A thing…".into(), None), ("Other…".into(), None)]);
+        assert_eq!(units("- Recall Kocs…(25 CP)"), [Some("CP")]);
+        assert_eq!(units("Take Over Ministry Of Corp… (50PP)"), [Some("PP")]);
+        assert_eq!(texts("Take Over Ministry Of Corp… (50PP)"), [("Take Over Ministry Of Corp…".into(), Some(50.0))]);
+    }
+    #[test]
+    fn trigger_lines_split_into_trigger_and_action() {
+        assert_eq!(trigger("On Expand…done: We will acc…(15PP)"), Some(("On Expand…done".into(), "We will acc…(15PP)".into())));
+        assert_eq!(trigger("- On Picking Reaffirm…: Albert Speer…").map(|t| t.0), Some("On Picking Reaffirm…".into()));
+        assert_eq!(trigger("On “Appeal for…”: Liturgical…(70PP)").map(|t| t.1), Some("Liturgical…(70PP)".into()));
+        assert_eq!(trigger("Around Expand Later…: Small Caliber Semi…").map(|t| t.0), Some("Around Expand Later…".into()));
+        // Without a colon the trigger ends at its truncation mark.
+        assert_eq!(trigger("On Coal… Develop Ersatz… (30PP)"), Some(("On Coal…".into(), "Develop Ersatz… (30PP)".into())));
+        assert_eq!(texts("On Coal… Develop Ersatz… (30PP)"), [("Develop Ersatz…".into(), Some(30.0))]);
+        assert_eq!(trigger("After The People’s… Force deploy").map(|t| t.0), Some("After The People’s…".into()));
+        assert_eq!(trigger("On “Push Past…” War on: Costa Rica").map(|t| t.0), Some("On “Push Past…” War on".into()));
+        // An alternative written after the mark stays part of the trigger.
+        assert_eq!(trigger("On The National… (or when JAP war on CHI, if at least 160PP): Justify Gibraltar (24PP)").map(|t| t.0),
+            Some("On The National… (or when JAP war on CHI, if at least 160PP)".into()));
+        assert_eq!(trigger("On Military…done/ before claim expire: Invade FRA").map(|t| t.0), Some("On Military…done/ before claim expire".into()));
+        // No trigger: an answer then other work, or a plain line.
+        assert!(trigger("Which By God…: CW setup").is_none());
+        assert!(trigger("Recall Kocs…(25 CP)").is_none());
+        assert!(trigger("On X:").is_none());
+    }
+    fn names(entries: &[(&str, &str, &str)]) -> Vec<Value> {
+        entries.iter().map(|(k, id, c)| json!({"kind":k,"id":id,"name":id,"compatible":if *c == "y" { json!(true) } else { Value::Null },
+            "political_power_cost":if id.ends_with("50") { json!(50.0) } else { Value::Null }})).collect()
+    }
+    #[test]
+    fn a_named_entity_is_bound_only_when_unique_and_usable() {
+        let pp = |n: f64| Some(Cost { amount: n, unit: "PP" });
+        assert_eq!(choose_named(&names(&[("decision", "ITA_liturgical", "y")]), None).map(|c| c.1), Some("unique_name_for_nation"));
+        // Unprovable decisions and ideas stay candidates; technologies are common.
+        assert!(choose_named(&names(&[("decision", "liturgical", "")]), None).is_none());
+        assert_eq!(choose_named(&names(&[("technology", "small_caliber_semi", "")]), None).map(|c| c.1), Some("unique_technology_name"));
+        // Two names: only the author's cost note can pick one.
+        let two = names(&[("decision", "ITA_take_over_50", "y"), ("decision", "ITA_take_over_other", "y")]);
+        assert!(choose_named(&two, None).is_none());
+        assert_eq!(choose_named(&two, pp(50.0)).map(|c| c.0["id"].clone()), Some(json!("ITA_take_over_50")));
+        // A cost note the real cost contradicts never binds.
+        assert!(choose_named(&names(&[("decision", "ITA_take_over_50", "y")]), pp(25.0)).is_none());
+        // A same-named focus of the guide's tree keeps it ambiguous.
+        assert!(choose_named(&names(&[("decision", "ITA_expand_lateran", "y"), ("focus", "ITA_expand_lateran_treaty", "y")]), None).is_none());
     }
     #[test]
     fn author_line_shapes_yield_their_answers() {
         assert_eq!(texts("Mobilize The…"), [("Mobilize The…".into(), None)]);
         assert_eq!(texts("We will seize…(25PP) (if possible)"), [("We will seize…".into(), Some(25.0))]);
-        assert_eq!(texts("- Recall Kocs…(25 CP)"), [("Recall Kocs…".into(), None)]);
+        assert_eq!(texts("- Recall Kocs…(25 CP)"), [("Recall Kocs…".into(), Some(25.0))]);
         assert_eq!(texts("They will not… event (50PP)"), [("They will not…".into(), Some(50.0))]);
         assert_eq!(texts("Which By God…: CW setup*,spy Madrid"), [("Which By God…".into(), None)]);
         assert_eq!(texts("On Expand…done: We will acc…(15PP)"), [("We will acc…".into(), Some(15.0))]);
@@ -426,10 +801,82 @@ mod tests {
         assert!(texts("Line one\nLine two").is_empty());
     }
     #[test]
+    fn triggers_names_and_several_actions_are_grounded_on_existing_steps() {
+        let index = Index::new(&json!({"entries":[
+            {"kind":"country","id":"HUN","name":"Hungary"},
+            {"kind":"focus","id":"HUN_expand_the_army","name":"Expand the Army","scope":"hun_tree"},
+            {"kind":"focus","id":"HUN_seek_allies","name":"Seek Allies","scope":"hun_tree"},
+            {"kind":"focus","id":"HUN_seek_glory","name":"Seek Glory","scope":"hun_tree"},
+            {"kind":"decision","id":"HUN_recall_kocsard_janky","name":"Recall Kocsárd Janky to Active Service","command_power_cost":25.0,"targeted":false},
+            {"kind":"decision","id":"HUN_liturgical_reform","name":"Liturgical Reform","political_power_cost":70.0,"targeted":false},
+            {"kind":"decision","id":"HUN_convoke_council","name":"Convoke the Council","political_power_cost":100.0,"targeted":false},
+            {"kind":"decision","id":"HUN_take_over_ministry_a","name":"Take Over Ministry Of Corporations","political_power_cost":50.0,"targeted":false},
+            {"kind":"decision","id":"HUN_take_over_ministry_b","name":"Take Over Ministry Of Corporate Affairs","political_power_cost":25.0,"targeted":false},
+            {"kind":"decision","id":"ROM_recall_someone","name":"Recall Somebody","targeted":false},
+            {"kind":"technology","id":"small_caliber_semi_auto","name":"Small Caliber Semi-Automatic Rifles"}
+        ]})).unwrap();
+        let row = |key: &str, line: &str| json!({"key":key,"title":line,"tracking":"reminder","action":{"kind":"manual","params":{"instructions":[line]}}});
+        let mut guide = json!({"applies_to":{"country":"HUN","tree_id":"hun_tree"},"tracks":{"operations":[
+            row("a", "On Expand…done: Recall Kocs…(25 CP)"),
+            row("b", "Take Over Ministry Of Corp… (50PP)"),
+            row("c", "Liturgical…(70PP) + Convoke…(100PP)"),
+            row("d", "On Seek…: Small Caliber Semi…"),
+            row("e", "Recall Some…"),
+            row("f", "On Expand… & GER down: Liturgical…"),
+            row("g", "Recall Kocs…(25 CP)
+- Deploy & vol"),
+            row("h", "On Expand…done:
+- Deploy & vol
+- Liturgical…"),
+        ]}});
+        ground_references(&mut guide, &index).unwrap();
+        let rows = guide["tracks"]["operations"].as_array().unwrap().clone();
+        let p = |i: usize| rows[i]["action"]["params"].clone();
+        // 1: the trigger becomes the observable `when`; 2: the abbreviated
+        // decision is bound through political_binding, its CP cost checked.
+        assert_eq!(rows[0]["when"], json!({"op":"fact","key":"focus.completed","test":"contains","value":"HUN_expand_the_army"}));
+        assert_eq!(p(0)["trigger_resolution"]["status"], "compiled");
+        assert_eq!(p(0)["decision_id"], "HUN_recall_kocsard_janky");
+        assert_eq!(p(0)["reference_resolution"]["basis"], "cost_matches");
+        assert_eq!(rows[0]["completion"]["args"][0]["value"], "HUN_recall_kocsard_janky");
+        assert!(rows[0].get("tracking").is_none());
+        // Two names share the prefix: the author's cost note picks one.
+        assert_eq!(p(1)["decision_id"], "HUN_take_over_ministry_a");
+        // 3: each action of the line, with its own cost note.
+        assert_eq!(p(2)["decision_id"], "HUN_liturgical_reform");
+        assert_eq!(p(2)["reference_resolution"]["also"][0]["id"], "HUN_convoke_council");
+        // An ambiguous trigger stays unknown with its candidates; the action
+        // is still grounded (technologies are common to every nation).
+        assert!(rows[3].get("when").is_none());
+        assert_eq!(p(3)["trigger_resolution"]["status"], "unknown");
+        assert_eq!(p(3)["trigger_resolution"]["resolution_status"], "ambiguous");
+        assert_eq!(p(3)["technology_id"], "small_caliber_semi_auto");
+        assert_eq!(rows[3]["completion"]["key"], "research.completed");
+        // Another nation's decision is never bound.
+        assert!(p(4)["decision_id"].is_null());
+        // A second condition in the trigger is not understood: no `when`.
+        assert!(rows[5].get("when").is_none());
+        assert_eq!(p(5)["trigger_resolution"]["verification"], "residual_condition_not_understood");
+        // The lead line of a block with other work is recognized, not bound.
+        assert_eq!(p(6)["reference_resolution"]["id"], "HUN_recall_kocsard_janky");
+        assert_eq!(p(6)["reference_resolution"]["tracked"], false);
+        assert!(p(6)["decision_id"].is_null() && rows[6].get("completion").is_none());
+        assert_eq!(rows[6]["tracking"], "reminder");
+        // A block's leading trigger scopes the whole block.
+        assert_eq!(rows[7]["when"]["value"], "HUN_expand_the_army");
+        // Idempotent: a second pass changes nothing.
+        let once = guide.clone();
+        ground_references(&mut guide, &index).unwrap();
+        assert_eq!(guide, once);
+    }
+    #[test]
     fn normalization_ignores_case_accents_and_punctuation() {
         assert_eq!(normalize("Which, by God, …"), "which by god");
         assert_eq!(normalize("That’s Capitalism!"), "thats capitalism");
         assert_eq!(normalize("Österreich"), "osterreich");
+        assert_eq!(normalize("£BoP_right_texticon Take Over Ministry of Corporations"), "take over ministry of corporations");
+        assert_eq!(normalize("§YRome§!"), "rome");
+        assert_eq!(strip_markup("£BoP_right_texticon Take Over Ministry").trim(), "Take Over Ministry");
         assert!(normalize("A New Bismarckjugend should be top priority").starts_with(&normalize(&query("A New Bismarck…"))));
     }
 }

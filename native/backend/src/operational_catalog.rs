@@ -384,6 +384,22 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
                 let targeted = ["targets", "target_array", "target_trigger", "target_root_trigger"]
                     .iter().any(|k| crate::script_document::first(node,k).is_some()) || scalar(node,"state_target") == "yes";
                 row.as_object_mut().unwrap().extend(json!({"kind":"decision","id":id,"group":category,"country_condition":condition,"targeted":targeted,"operational_criteria":crate::focus_source_rules::operational(&[group,node])}).as_object().unwrap().clone());
+                // Real cost, so an author note ("(50PP)", "(25 CP)") can be
+                // checked: the numeric `cost` (political power), and the
+                // command power the completion effect removes.
+                if let Ok(cost) = scalar(node, "cost").parse::<f64>()
+                    && cost > 0.0
+                {
+                    row["political_power_cost"] = json!(cost);
+                }
+                let command: f64 = blocks(node, "complete_effect")
+                    .flat_map(|effect| entries(effect).filter(|(k, _)| *k == "add_command_power").filter_map(|(_, v)| v.as_str()?.parse::<f64>().ok()))
+                    .filter(|v| *v < 0.0)
+                    .map(|v| -v)
+                    .sum();
+                if command > 0.0 {
+                    row["command_power_cost"] = json!(command);
+                }
                 rows.push(row);
             }
         }

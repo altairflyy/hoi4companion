@@ -110,6 +110,36 @@ fn real_catalog_contract_comparison() {
                 }
             }
         }
+        // Abbreviated decisions (cost note checked against the real cost) and
+        // focus triggers on existing single-line steps (precision checked by
+        // hand against the game's names).
+        for (country, line, key, id) in [("HUN", "Recall Kocs…(25 CP)", "decision_id", "HUN_recall_kocsard_janky_to_active_service"),
+            ("ITA", "On Strengthen…: Liturgical…(70PP)", "decision_id", "ITA_bop_liturgical_reforms"),
+            ("ITA", "Take Over Ministry Of Corp… (50PP)", "decision_id", "ITA_bop_take_over_ministry_of_corporations"),
+            ("GER", "Exploit the… (30PP)", "decision_id", "GER_exploit_the_gombos_treaty"),
+            ("GER", "On Coal… Develop Ersatz… (30PP)", "decision_id", "GER_ersatz_material"),
+            ("FRA", "On Intervention…: Allow Volunteer…+ Intervene On… (25PPx2) & SPA war*", "decision_id", "FRA_allow_volunteer_work")] {
+            if guide["applies_to"]["country"] == country {
+                for s in a.iter().filter(|s| s["action"]["params"]["instructions"][0] == line) {
+                    assert_eq!(s["action"]["params"][key], id, "{country} {line}");
+                }
+            }
+        }
+        for (country, line, focus) in [("GER", "On Coal… Develop Ersatz… (30PP)", "GER_coal_liquefaction"), ("SWE", "On “Appeal for…”: pick all decisions except “aristocracy”", "SWE_appeal_for_support"),
+            ("USA", "On Picking Reaffirm…:  Plan invasion of VEN from PUE (3 groups if possible)", "USA_reinforce_monroe_doctrine"), ("ITA", "On Depose…: collab ROM", "ITA_depose_mussolini")] {
+            if guide["applies_to"]["country"] == country {
+                for s in a.iter().filter(|s| s["action"]["params"]["instructions"][0] == line) {
+                    assert_eq!(s["when"]["args"][1]["value"], focus, "{country} {line}");
+                }
+            }
+        }
+        // An ambiguous abbreviation ("On Strengthen…": four Italian focuses) stays unknown.
+        if guide["applies_to"]["country"] == "ITA" {
+            for s in a.iter().filter(|s| s["action"]["params"]["instructions"][0] == "On Strengthen…: Liturgical…(70PP)") {
+                assert_eq!(s["action"]["params"]["trigger_resolution"]["status"], "unknown");
+                assert!(s.get("when").is_none());
+            }
+        }
         for s in a.iter().filter(|s| !s["action"]["params"]["reference_resolution"].is_null()) {
             eprintln!("GROUNDED {} {} -> {} «{}» basis={} also={}", guide["applies_to"]["country"].as_str().unwrap_or(""), s["action"]["params"]["instructions"][0], s["action"]["params"]["reference_resolution"]["option_id"], s["action"]["params"]["reference_resolution"]["option_text"].as_str().unwrap_or(""), s["action"]["params"]["reference_resolution"]["basis"], s["action"]["params"]["reference_resolution"]["also"]);
         }
@@ -232,10 +262,39 @@ fn event_reference_survey() {
                 continue;
             }
             let state = if p["event_option_id"].is_string() { if p["reference_resolution"].is_object() { "event_grounded" } else { "event_bound" } }
+                else if p["reference_resolution"].is_object() { "named_grounded" }
                 else if p["reference_candidates"].is_object() { "candidates" }
-                else if ["decision_id", "advisor_id", "law_id", "idea_id", "operation_id"].iter().any(|k| p[*k].is_string()) || s["action"]["entity"]["id"].is_string() { "other_bound" }
+                else if ["decision_id", "advisor_id", "law_id", "idea_id", "operation_id", "technology_id"].iter().any(|k| p[*k].is_string()) || s["action"]["entity"]["id"].is_string() { "other_bound" }
                 else { "unbound" };
             *buckets.entry(state.into()).or_default() += 1;
+            // Family of the line: 1 trigger "On X…: …", 3 several actions,
+            // 2 a single abbreviated name. A trigger line also counts in the
+            // family of its action part when that names references.
+            use hoi4companion_backend::reference_candidates::{references, trigger};
+            let whole = p["instructions"].as_array().filter(|a| a.len() == 1).and_then(|a| a[0].as_str()).unwrap_or("");
+            // A block is read by its lead line (its trigger scopes the block).
+            let block = whole.lines().filter(|l| !l.trim().is_empty()).count() > 1;
+            let line = whole.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
+            let header = line.strip_suffix(':').filter(|h| block && (h.contains('…') || h.contains("...")) && ["on ", "when ", "at ", "after ", "before ", "around ", "once ", "in ", "on:"].iter().any(|w| h.to_lowercase().starts_with(w))).map(|h| (h.trim().to_owned(), String::new()));
+            let trig = trigger(line).filter(|(left, _)| left.contains('…') || left.contains("...")).or(header);
+            let refs = references(line);
+            let family = if refs.len() > 1 { "3_multi" } else if refs.iter().any(|r| r.text.contains('…') || r.text.contains("...")) { "2_named" } else { "other" };
+            let bound = state != "unbound" && state != "candidates";
+            let shown = if p["reference_resolution"]["tracked"] == false { "recognized_block_lead" } else if bound { "bound" } else { state };
+            *buckets.entry(format!("family {family}{} {shown}", if block { "(block)" } else { "" })).or_default() += 1;
+            if let Some((left, _)) = &trig {
+                let t = &p["trigger_resolution"];
+                let status = match t["status"].as_str() { Some("compiled") => "compiled".to_owned(), Some(_) => format!("unknown:{}/{}", t["verification"].as_str().unwrap_or(""), t["resolution_status"].as_str().unwrap_or("")), None => "none".to_owned() };
+                *buckets.entry(format!("family 1_trigger{} {}", if block { "(block)" } else { "" }, status.split(':').next().unwrap_or(""))).or_default() += 1;
+                *buckets.entry(format!("trigger reason {status}")).or_default() += 1;
+                eprintln!("TRIG {country} {} [{status}] {left} -> {} {} when={}", s["key"], t["entity"]["id"].as_str().unwrap_or("-"), t["relation"].as_str().unwrap_or(""),
+                    s["when"].to_string().chars().take(160).collect::<String>());
+            }
+            eprintln!("FAM {country} {} {family} block={block} trig={} [{state}] | {}", s["key"], trig.is_some(), line.chars().take(100).collect::<String>());
+            if p["reference_resolution"].is_object() && !p["event_option_id"].is_string() || p["reference_resolution"]["also"].is_array() {
+                eprintln!("NAMED {country} {} | {} -> {}:{} «{}» basis={} also={} open={}", s["key"], text.chars().take(120).collect::<String>(), p["reference_resolution"]["kind"].as_str().unwrap_or(""),
+                    p["reference_resolution"]["id"].as_str().unwrap_or(""), p["reference_resolution"]["name"].as_str().unwrap_or(""), p["reference_resolution"]["basis"], p["reference_resolution"]["also"], p["reference_resolution"]["unresolved"]);
+            }
             if only.as_deref().is_none_or(|c| c == country) && state != "event_bound" && state != "other_bound" {
                 eprintln!("EVREF {country} {} [{state}] kind={} | {} | cand={}", s["key"], s["action"]["kind"], text.chars().take(140).collect::<String>(),
                     p["reference_candidates"]["candidates"].as_array().map(|c| c.iter().take(3).map(|x| format!("{}:{}", x["kind"].as_str().unwrap_or(""), x["id"].as_str().unwrap_or(""))).collect::<Vec<_>>().join(",")).unwrap_or_default());

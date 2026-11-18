@@ -1,6 +1,15 @@
 {
   "schema_version": 1,
   "messages": {
+    "Not tracked automatically: this block also holds other instructions.": "Non tracciato in automatico: il blocco contiene anche altre istruzioni.",
+    "Recognized: {0} “{1}” ({2}).": "Riconosciuto: {0} «{1}» ({2}).",
+    "Also recognized: “{0}” → {1} “{2}” ({3}).": "Riconosciuto anche: «{0}» → {1} «{2}» ({3}).",
+    "Not recognized: “{0}”. Possible references: {1}": "Non riconosciuto: «{0}». Riferimenti possibili: {1}",
+    "Applies when {0} “{1}” is completed.": "Vale al completamento di {0} «{1}».",
+    "Applies until {0} “{1}” is started.": "Vale fino all'avvio di {0} «{1}».",
+    "Applies when {0} “{1}” is started or completed.": "Vale dall'avvio o dal completamento di {0} «{1}».",
+    "Condition “{0}” is not recognized automatically: check it yourself.": "Condizione «{0}» non riconosciuta in automatico: verificala tu.",
+    "advisor": "consigliere",
     "Historical: {0}": "Storico: {0}",
     "{0} from other nations’ historical focuses": "{0} da focus storici di altre nazioni",
     "{0} hidden: other nations’ focuses or decisions send them": "{0} nascosti: li inviano focus o decisioni di altre nazioni",

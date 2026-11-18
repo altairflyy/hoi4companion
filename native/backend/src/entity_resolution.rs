@@ -278,6 +278,8 @@ pub fn trigger_condition(resolution: &Value) -> (Option<Value>, &'static str, &'
     let (active, done) = match resolution["entity"]["kind"].as_str() {
         Some("focus") => ("focus.active", "focus.completed"),
         Some("technology") => ("research.active", "research.completed"),
+        // The live decision facts political_binding already observes.
+        Some("decision") => ("decisions.active", "decisions.executed"),
         Some("event") => return (None, relation, "event_firing_not_persistently_observable"),
         _ => return (None, relation, "entity_kind_not_observable"),
     };
