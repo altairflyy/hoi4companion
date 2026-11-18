@@ -16,6 +16,10 @@ The user is away: never stop to ask. A decision only the user can take becomes a
 ## 1. Start or resume
 Run shell commands that set environment variables (`VAR=x cmd`) with the Bash tool, not PowerShell.
 
+Run every command in the foreground (Bash `timeout` up to 600000 ms); never use `run_in_background`, Monitor
+or wakeups. The app lets this session start a worker only in a turn that began from a user message or from a
+worker's end notice; a turn woken by a finished background command cannot start one.
+
 1. Read `CLAUDE.md`, `docs/AGENT_HANDOFF.md`, the backlog, and run `git status`, `git branch --show-current`
    and `git branch --list "auto/improve-*"`.
 2. Load with ToolSearch, in one `select:` call: `mcp__ccd_host__request_keep_awake`,
