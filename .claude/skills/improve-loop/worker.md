@@ -5,6 +5,9 @@ The user is away: never ask questions. A coordinator session checks your result 
 Invariants, build and test commands are in `CLAUDE.md`; they apply to every step here.
 
 ## Before
+0. Invoke the `caveman:caveman` skill and keep caveman style for every chat message. Files, code comments,
+   commit messages and the backlog stay in full sentences. Read files in parts; send long command output to
+   the scratchpad and read only its tail.
 1. Read `CLAUDE.md`, `docs/README.md` and the `docs/` file for the subsystem you touch, and your item in
    `docs/improvement-backlog.md`.
 2. The current branch must be the backlog's `Branch:`, and `git status` must show only the backlog file

@@ -13,6 +13,13 @@ Invariants, build and test commands are in `CLAUDE.md`; they apply to every step
 The user is away: never stop to ask. A decision only the user can take becomes a
 `needs-user` item and the run goes on.
 
+## Token economy
+- Before anything else, invoke the `caveman:caveman` skill and keep caveman style for every chat message
+  and status line of the run. Files, code comments, commit messages and the backlog stay in full sentences
+  (user rule: anything saved outside the chat is not compressed).
+- Every worker brief (step 3) starts with: "Invoke the `caveman:caveman` skill first."
+- Read files in parts and send long command output to the scratchpad; read only its tail or summary.
+
 ## 1. Start or resume
 Run shell commands that set environment variables (`VAR=x cmd`) with the Bash tool, not PowerShell.
 
@@ -65,7 +72,7 @@ Commit: `docs: seed the improvement backlog`.
      (if the app refuses it because this session is not in auto mode, set the item back to `todo` and
      `Attempts` -1, and stop with one line: workers would stall on permission prompts);
    - `title`: `<id> <title>` (under 60 chars), `name`: the id in lowercase (`il-03`);
-   - `prompt`: the full item block, then: "Follow `.claude/skills/improve-loop/worker.md` for this one item only.";
+   - `prompt`: "Invoke the `caveman:caveman` skill first.", the full item block, then: "Follow `.claude/skills/improve-loop/worker.md` for this one item only.";
    - `background`: "Unattended improvement run of HOI4 Companion on branch `<branch>`, coordinated by another session. One worker session per backlog item, one at a time, in the same checkout. The user is away: never ask questions; follow `worker.md`."
 4. End the turn. Do not poll: the app continues this session when the worker ends.
 
