@@ -614,6 +614,8 @@ fn run(options:Options)->Result<(),String> {
                 "matches":last_matches,"ocr_ms":ocr_ms,"matching_ms":matching_ms,"iteration_ms":started.elapsed().as_secs_f64()*1000.,
                 "frames_observed":total_frames,"ocr_calls":total_ocr,"frame_generation":frame_generation,
                 "evidence_cache_hits":evidence_cache_hits,
+                // Unresolved frames carry the recognized text (no image) for diagnosis.
+                "ocr_language":cached_ocr.as_ref().map(|p:&ocr::OcrPage|p.language.clone()),"ocr_lines":if last_matches.is_empty(){cached_ocr.as_ref().map(|p:&ocr::OcrPage|p.lines.iter().take(80).map(|l|l.text.clone()).collect::<Vec<_>>())}else{None},
                 "frame_age_ms":verified_at.elapsed().as_secs_f64()*1000.,"visual_pending":visual.as_ref().is_some_and(|worker|worker.busy()),"memory_access":false,"proof_saved":proof_saved}));
             last_status=Instant::now();
         }
