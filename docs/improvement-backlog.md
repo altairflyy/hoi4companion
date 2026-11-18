@@ -21,7 +21,7 @@ Item format (ids IL-01, IL-02, ... are never reused):
 - Acceptance: <objective check: command + expected result, or measured number before -> target>
 - Status: todo | doing | done <short-hash> | needs-user: <question> | dropped: <reason>
 - Attempts: 0
-- Notes:
+- Notes: Rule in  (used only by ); unit test . Survey before -> after: ambiguous 17 -> 9, compiled 52 -> 58, residual_condition_not_understood/resolved 2 -> 4. Newly compiled, hand-checked against game English names and the line's action: ITA "On Power…: Economist" -> ITA_power_to_the_king "Power to the King" (tied: Power Plants in Terni); ITA "On Seek…: Expand Lateran…" -> ITA_seek_papal_support "Seek Papal Support" (tied: Seek British Military Cooperation); ITA "On Strengthen…: Liturgical…" -> ITA_strengthen_the_papacy "Strengthen the Papacy" (tied: four other Strengthen focuses); POL "On Pan-Slavic…: justify HUN" -> POL_pan_slavism "Pan-Slavic Revanchism" (tied: POL_pan_slavic_revanchism, same English name); SPR "On The War…: Push north" -> SPA_the_war_in_the_north "The War in the North" (tied: The War of Vengeance); AUS "On Bring…: ... Annex HUN" -> AUS_bring_hungary_back_into_the_fold "Bring Hungary Back Into the Fold". Two now resolved but still unknown for their extra condition: AUS "On Reform The… & GER down" (Reform the Central Powers), SPR "On The National… (or when JAP war on CHI…)" (The National-Syndicalist State). Still ambiguous with two or more tied guide steps: SOV "Expand…done" (x2 lines), NOR "Expand…", AUS "Bring…" (x2), GER "Expand…", ENG "Imperial…", GER "Establish…", GER "Liberate…".  updated (ITA Strengthen now compiled; SOV Expand…done asserted ambiguous) and green; survey now prints tied candidates (TRIGCAND). test-native guides 69 pass, backend all pass; JS 460 pass / 0 fail / 3 skipped with dev-built backend; invariant-reviewer: no violations. NOT VERIFIED in game.
 - Checked: (coordinator, after a green re-run)
 -->
 
@@ -32,8 +32,8 @@ Item format (ids IL-01, IL-02, ... are never reused):
 - Priority: 1 (17 trigger lines stay unknown only because the prefix matches several entities; moderate risk, Rust-only)
 - Source: `event_reference_survey` 2026-11-18: `trigger reason unknown:reference_not_resolved/ambiguous: 17` (e.g. ITA "On Power…", "On Seek…", "On Strengthen…", POL "On Pan-Slavic…", SOV "On Expand…done"); `docs/events-live.md` "Still open: … ambiguous prefixes".
 - Acceptance: `HOI4_REAL_CATALOG=1 node scripts/dev-native.cjs test backend --test integration real_catalog_contract::event_reference_survey -- --nocapture` -> `reference_not_resolved/ambiguous` 17 -> lower and `trigger reason compiled` 52 -> higher. A prefix is resolved only when exactly one candidate is a focus (or decision/tech) that the same guide names as a step; otherwise it stays unknown. Every newly compiled trigger hand-checked against the game English name and listed in Notes. New Rust unit test for the rule (unique match among guide steps resolves, two matches stay unknown). `real_catalog_contract_comparison` (HOI4_REAL_CATALOG=1) and `node scripts/test-native.cjs backend` green.
-- Status: todo
-- Attempts: 0
+- Status: done de1aff0
+- Attempts: 1
 - Notes:
 
 ### IL-02 — Narrow event-answer lines with several candidates to events the guide nation can receive
