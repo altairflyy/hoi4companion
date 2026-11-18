@@ -1,4 +1,4 @@
-param([switch]$NoInstall)
+param([switch]$NoInstall,[switch]$Dev)
 $ErrorActionPreference='Stop'
 $projectRoot=Split-Path -Parent $PSScriptRoot
 $localCargo=Join-Path $projectRoot '.local\toolchains\cargo\bin\cargo.exe'
@@ -8,7 +8,12 @@ if(Test-Path -LiteralPath $localCargo){
     $env:RUSTUP_HOME=Join-Path $projectRoot '.local\toolchains\rustup'
 }else{$cargo=(Get-Command cargo -ErrorAction Stop).Source}
 # Keep the lightweight desktop artifacts separate from the backend cache.
-$env:CARGO_TARGET_DIR=Join-Path $projectRoot '.local\rust-desktop-target'
+if($Dev){
+    # Development install: optimized, incremental, no whole-program LTO, in the
+    # cache shared with dev-native and local test-native. Never package these.
+    $env:CARGO_PROFILE_RELEASE_LTO='false';$env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS='16';$env:CARGO_PROFILE_RELEASE_INCREMENTAL='true'
+}
+$env:CARGO_TARGET_DIR=Join-Path $projectRoot $(if($Dev){'.local\rust-dev-desktop-target'}else{'.local\rust-desktop-target'})
 & $cargo build --release --locked --manifest-path (Join-Path $projectRoot 'native\desktop\Cargo.toml')
 if($LASTEXITCODE -ne 0){throw 'Rust desktop build failed'}
 $executable=Join-Path $env:CARGO_TARGET_DIR 'release\hoi4-desktop.exe'

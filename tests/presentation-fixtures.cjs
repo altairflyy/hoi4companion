@@ -1,7 +1,7 @@
 'use strict';
 // Guide evaluations produced by the Rust backend for browser presentation tests.
 // Inputs and their expected values live in fixtures/presentation-cases.json; the
-// evaluations are written by native/backend/tests/presentation_fixtures.rs.
+// evaluations are written by native/backend/tests/integration/presentation_fixtures.rs.
 const cases=require('./fixtures/presentation-cases.json'),evaluations=require('./fixtures/presentation-evaluations.json');
 const names=cases.map(c=>c.name);
 if(names.length!==Object.keys(evaluations).length||names.some(name=>!Object.hasOwn(evaluations,name)))

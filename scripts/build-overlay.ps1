@@ -1,4 +1,4 @@
-param([switch]$NoInstall,[string]$OutputDirectory)
+param([switch]$NoInstall,[string]$OutputDirectory,[switch]$Dev)
 $ErrorActionPreference='Stop'
 function Get-Sha256([string]$Path){
     $stream=[System.IO.File]::OpenRead($Path)
@@ -18,7 +18,12 @@ if(Test-Path -LiteralPath $localCargo){
 }else{
     $cargo=(Get-Command cargo -ErrorAction Stop).Source
 }
-$env:CARGO_TARGET_DIR=Join-Path $projectRoot '.local\rust-backend-target'
+if($Dev){
+    # Development install: optimized, incremental, no whole-program LTO, in the
+    # cache shared with dev-native and local test-native. Never package these.
+    $env:CARGO_PROFILE_RELEASE_LTO='false';$env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS='16';$env:CARGO_PROFILE_RELEASE_INCREMENTAL='true'
+}
+$env:CARGO_TARGET_DIR=Join-Path $projectRoot $(if($Dev){'.local\rust-dev-backend-target'}else{'.local\rust-backend-target'})
 & $cargo build --release --locked --manifest-path (Join-Path $projectRoot 'native\overlay\Cargo.toml')
 if($LASTEXITCODE -ne 0){throw 'Rust overlay build failed'}
 $executable=Join-Path $env:CARGO_TARGET_DIR 'release\hoi4-overlay.exe'

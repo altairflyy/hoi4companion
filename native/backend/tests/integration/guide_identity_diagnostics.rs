@@ -4,7 +4,7 @@ use hoi4companion_backend::request;
 use serde_json::{json, Value};
 
 fn fixture() -> Value {
-    serde_json::from_str(include_str!("../../../tests/fixtures/guide-identity-diagnostics.json")).unwrap()
+    serde_json::from_str(include_str!("../../../../tests/fixtures/guide-identity-diagnostics.json")).unwrap()
 }
 fn guide(text: &str, f: &Value) -> Value {
     json!({"id":"identity-diagnostic","dependency_policy":"explicit",

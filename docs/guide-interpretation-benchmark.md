@@ -249,7 +249,7 @@ Files added by this investigation:
 | `scripts/benchmark-guides.cjs` | Offline corpus diagnostics, source correlation, sampling, approved assertions and comparison |
 | `scripts/benchmark-guide-sources.ps1` | Independent, bounded original Word ZIP/XML extraction |
 | `native/backend/examples/guide_benchmark.rs` | Read-only current Rust static-preparation snapshot through existing interfaces |
-| `native/backend/tests/guide_benchmark_contracts.rs` | Four current-behavior diagnostic contracts |
+| `native/backend/tests/integration/guide_benchmark_contracts.rs` | Four current-behavior diagnostic contracts |
 | `tests/test_guide_benchmark.cjs` | Diagnostic correctness and frozen-sample safeguards |
 | `tests/test_guide_benchmark_sources.cjs` | Original extraction, coordinates, duplicate entries and unsafe-XML rejection |
 | `tests/fixtures/guide-benchmark-baseline.json` | Frozen corpus/per-guide counters, all prepared step identities and input fingerprints |

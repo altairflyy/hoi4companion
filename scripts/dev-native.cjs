@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),{spawnSync}=require('node:child_process');
-const {ROOT}=require('./native-tooling.cjs');
+const {ROOT,fastProfile}=require('./native-tooling.cjs');
 const usage='Usage: node scripts/dev-native.cjs <check|build|test> <crate> [cargo arguments...]\nExample: node scripts/dev-native.cjs test backend --lib some_test';
 function plan(argv,baseEnv=process.env){
  const [action,crate,...extra]=argv;
@@ -13,7 +13,7 @@ function plan(argv,baseEnv=process.env){
  if(cargo===local){env.CARGO_HOME=path.join(ROOT,'.local/toolchains/cargo');env.RUSTUP_HOME=path.join(ROOT,'.local/toolchains/rustup');}
  const family=crate==='desktop'?'desktop':crate==='backend'||crate==='overlay'?'backend':'core';
  env.CARGO_TARGET_DIR=path.join(ROOT,'.local',`rust-dev-${family}-target`);
- env.CARGO_PROFILE_RELEASE_LTO='false';env.CARGO_PROFILE_RELEASE_CODEGEN_UNITS='16';env.CARGO_PROFILE_RELEASE_INCREMENTAL='true';
+ fastProfile(env);
  return {cargo,env,args:[action,'--release','--locked','--manifest-path',path.join(ROOT,'native',crate,'Cargo.toml'),...extra]};
 }
 if(require.main===module){

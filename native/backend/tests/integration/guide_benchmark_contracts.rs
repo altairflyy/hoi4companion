@@ -1,7 +1,7 @@
 //! Observed current parser contracts; these are not assertions of ideal behavior.
 use hoi4companion_backend::request;
 use serde_json::{Value, json};
-fn fixture() -> Value { serde_json::from_str(include_str!("../../../tests/fixtures/guide-benchmark-contract-cases.json")).unwrap() }
+fn fixture() -> Value { serde_json::from_str(include_str!("../../../../tests/fixtures/guide-benchmark-contract-cases.json")).unwrap() }
 fn guide(text: &str) -> Value {
     json!({"id":"bench","dependency_policy":"explicit","applies_to":{"country":"GER"},"tracks":{"operations":[{"key":"word-0001","tracking":"reminder","action":{"kind":"manual","params":{"instructions":[text]}}}]}})
 }

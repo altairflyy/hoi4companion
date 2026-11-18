@@ -24,7 +24,7 @@ into production, but the step does not read it. The user also wants better contr
   (`small_plane_airframe` archetype `equipment_ids`) filtered by `variant_names` ["I-16", "Polikarpov I-16", "fighter_equipment_1"].
 - `native/backend/src/production_context.rs`: unmatched targets carry `reason` and `near_lines`. These are shown on the guide card
   (`web/action-plan.js` observations, `translations.json`). The HUD step card does NOT show them yet.
-- Tests: `native/backend/tests/guide_evaluation.rs` (`soviet_lines`, `bind_fighter`). That session reported
+- Tests: `native/backend/tests/integration/guide_evaluation.rs` (`soviet_lines`, `bind_fighter`). That session reported
   `test-native.cjs backend` all pass and `npm test` 437/1 skipped. I did not re-run them.
 - Docs: `docs/production-guide-monitoring.md#national-model-names-and-unmatched-targets-2026-11-16`.
 - Do not mix these changes up with the other uncommitted work in the same tree: the HUD template images

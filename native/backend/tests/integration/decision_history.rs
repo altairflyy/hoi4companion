@@ -35,7 +35,7 @@ impl Drop for TestDatabase {
 }
 #[test]
 fn campaign_decision_history_projection_matches_browser_contract() {
-    let fixture:Value=serde_json::from_str(include_str!("../../../tests/fixtures/decision-history.json")).unwrap();
+    let fixture:Value=serde_json::from_str(include_str!("../../../../tests/fixtures/decision-history.json")).unwrap();
     for row in fixture["cases"].as_array().unwrap() {
         let mut guide=fixture["guide"].clone();let mut state=fixture["state"].clone();let mut progress=fixture["progress"].clone();
         for (source,target) in [("history_country","country"),("history_session","session_id")] {if let Some(v)=row.get(source){progress["decision_history"][target]=v.clone();}}
@@ -53,7 +53,7 @@ fn campaign_decision_history_projection_matches_browser_contract() {
 }
 #[test]
 fn malformed_history_identifiers_match_browser_rejection() {
-    let fixture:Value=serde_json::from_str(include_str!("../../../tests/fixtures/decision-history.json")).unwrap();
+    let fixture:Value=serde_json::from_str(include_str!("../../../../tests/fixtures/decision-history.json")).unwrap();
     for row in fixture["invalid_histories"].as_array().unwrap() {
         let mut progress=fixture["progress"].clone();
         let mut entry=progress["decision_history"]["entries"]["test:country:GER"].clone();
@@ -67,7 +67,7 @@ fn malformed_history_identifiers_match_browser_rejection() {
 }
 #[test]
 fn durable_history_survives_restart_and_disk_conflict_rolls_back_without_guide() {
-    let fixture:Value=serde_json::from_str(include_str!("../../../tests/fixtures/decision-history.json")).unwrap();
+    let fixture:Value=serde_json::from_str(include_str!("../../../../tests/fixtures/decision-history.json")).unwrap();
     let database=TestDatabase::new();
     let path=&database.0;
     assert!(!path.exists(),"test must never overwrite existing state");

@@ -251,7 +251,7 @@ risks; this small first change is deliberately not a universal resolver redesign
 - `tests/fixtures/guide-gold-review-v1.json`: independent 60-case proposed review.
 - `native/catalog-core/tests/binding_safety_diagnostics.rs`: three tests against
   the real current resolver's ambiguity, country and event-parent behavior.
-- `native/backend/tests/guide_identity_diagnostics.rs` and
+- `native/backend/tests/integration/guide_identity_diagnostics.rs` and
   `tests/fixtures/guide-identity-diagnostics.json`: four pure-Rust diagnostic tests
   of positional reuse and progress acceptance; no real progress DB writes.
 - `tests/test_guide_binding_safety.cjs`: six shadow-policy, preservation,

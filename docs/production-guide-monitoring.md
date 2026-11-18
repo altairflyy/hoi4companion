@@ -249,5 +249,5 @@ recipes keep reporting through `design_check`. The guide card
 (`action-plan.js` `observations`, shown by `guide.js`) prints one status line per
 target from these fields: detected with count/target, or why it is not
 detected. JS never matches lines itself. Tests:
-`native/backend/tests/guide_evaluation.rs` (`national_fighter_name_*`,
+`native/backend/tests/integration/guide_evaluation.rs` (`national_fighter_name_*`,
 `unmatched_production_targets_state_why`), `tests/test_action_plan.cjs`.

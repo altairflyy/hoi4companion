@@ -255,7 +255,7 @@ fn sqlite_reload_keeps_run_data_and_its_archived_definition() {
 #[test]
 fn proposed_occurrences_preserve_unicode_quotes_scope_and_duplicate_identity() {
     let f: Value = serde_json::from_str(include_str!(
-        "../../../tests/fixtures/guide-definition-identity-cases.json"
+        "../../../../tests/fixtures/guide-definition-identity-cases.json"
     ))
     .unwrap();
     let text = f["source"]["text"].as_str().unwrap();

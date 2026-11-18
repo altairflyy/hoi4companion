@@ -1,4 +1,4 @@
-param([switch]$NoInstall)
+param([switch]$NoInstall,[switch]$Dev)
 $ErrorActionPreference='Stop'
 function Get-Sha256([string]$Path){
     $stream=[System.IO.File]::OpenRead($Path)
@@ -16,12 +16,17 @@ if(Test-Path -LiteralPath $localCargo){
     $env:CARGO_HOME=Join-Path $projectRoot '.local\toolchains\cargo'
     $env:RUSTUP_HOME=Join-Path $projectRoot '.local\toolchains\rustup'
 }else{$cargo=(Get-Command cargo -ErrorAction Stop).Source}
-$env:CARGO_TARGET_DIR=Join-Path $projectRoot '.local\rust-backend-target'
+if($Dev){
+    # Development install: optimized, incremental, no whole-program LTO, in the
+    # cache shared with dev-native and local test-native. Never package these.
+    $env:CARGO_PROFILE_RELEASE_LTO='false';$env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS='16';$env:CARGO_PROFILE_RELEASE_INCREMENTAL='true'
+}
+$env:CARGO_TARGET_DIR=Join-Path $projectRoot $(if($Dev){'.local\rust-dev-backend-target'}else{'.local\rust-backend-target'})
 & $cargo build --release --locked --lib --bin hoi4-backend --manifest-path (Join-Path $projectRoot 'native\backend\Cargo.toml')
 if($LASTEXITCODE -ne 0){throw 'Rust backend build failed'}
 $library=Join-Path $env:CARGO_TARGET_DIR 'release\hoi4companion_backend.dll'
 $hostExecutable=Join-Path $env:CARGO_TARGET_DIR 'release\hoi4-backend.exe'
-$desktopExecutable=& (Join-Path $PSScriptRoot 'build-desktop.ps1') -NoInstall
+$desktopExecutable=& (Join-Path $PSScriptRoot 'build-desktop.ps1') -NoInstall -Dev:$Dev
 if($NoInstall){Write-Output $library;Write-Output $hostExecutable;Write-Output $desktopExecutable;return}
 $destination=Join-Path $projectRoot 'src\hoi4companion\_native\hoi4companion_backend.dll'
 New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null

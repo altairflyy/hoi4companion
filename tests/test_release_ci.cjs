@@ -1,29 +1,38 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
-const {ROOT}=require('../scripts/native-tooling.cjs');
+const {ROOT,fastProfile}=require('../scripts/native-tooling.cjs');
 function commands(options,env={}){
  const calls=[],process={env,exitCode:0};
  vm.runInNewContext(fs.readFileSync(path.join(ROOT,'scripts/test-native.cjs'),'utf8'),{process,require(name){
   if(name==='node:child_process')return {spawnSync:(file,args,settings)=>{calls.push({file,args:Array.from(args),env:{...settings.env}});return {status:0}}};
-  if(name==='./native-tooling.cjs')return {ROOT,options:()=>options};
+  if(name==='./native-tooling.cjs')return {ROOT,options:()=>options,fastProfile};
   return require(name);
  }});
  return calls;
 }
 test('CI executes every native suite with release semantics and isolated fast codegen',()=>{
- const ci=commands({_:[],ci:true}),normal=commands({_:[]});
- assert.equal(ci.length,9);assert.equal(normal.length,9);
+ const ci=commands({_:[],ci:true}),normal=commands({_:[]}),lto=commands({_:[],lto:true});
+ assert.equal(ci.length,9);assert.equal(normal.length,9);assert.equal(lto.length,9);
  assert.deepEqual(ci.map(c=>Array.from(c.args)),normal.map(c=>Array.from(c.args)));
+ assert.deepEqual(ci.map(c=>Array.from(c.args)),lto.map(c=>Array.from(c.args)));
  for(let i=0;i<ci.length;i++){
   assert.ok(ci[i].args.includes('--release'));assert.ok(ci[i].args.includes('--locked'));
   assert.equal(ci[i].env.CARGO_PROFILE_RELEASE_LTO,'false');
   assert.equal(ci[i].env.CARGO_PROFILE_RELEASE_CODEGEN_UNITS,'16');
   assert.notEqual(ci[i].env.CARGO_TARGET_DIR,normal[i].env.CARGO_TARGET_DIR);
   assert.match(ci[i].env.CARGO_TARGET_DIR,/rust-ci-(?:backend|core|desktop)-tests-target$/);
-  assert.equal(normal[i].env.CARGO_PROFILE_RELEASE_LTO,undefined);
+  // Local default: fast non-LTO profile in the dev cache shared with dev-native.
+  assert.equal(normal[i].env.CARGO_PROFILE_RELEASE_LTO,'false');
+  assert.equal(normal[i].env.CARGO_PROFILE_RELEASE_INCREMENTAL,'true');
+  assert.match(normal[i].env.CARGO_TARGET_DIR,/rust-dev-(?:backend|core|desktop)-target$/);
+  // --lto: production profile and caches, untouched.
+  assert.equal(lto[i].env.CARGO_PROFILE_RELEASE_LTO,undefined);
+  assert.doesNotMatch(lto[i].env.CARGO_TARGET_DIR,/rust-(?:ci|dev)-/);
  }
  assert.notEqual(ci[0].env.CARGO_TARGET_DIR,ci[6].env.CARGO_TARGET_DIR,'standalone cdylib outputs must not overwrite backend dependencies');
+ assert.notEqual(normal[0].env.CARGO_TARGET_DIR,normal[6].env.CARGO_TARGET_DIR,'standalone cdylib outputs must not overwrite backend dependencies');
  assert.throws(()=>commands({_:[],ci:true,dev:true}),/release test semantics/);
+ assert.throws(()=>commands({_:[],lto:true,dev:true}),/--lto cannot be combined/);
 });
 test('release workflow retains verification gates and exact compiled-resource cache identity',()=>{
  const workflow=fs.readFileSync(path.join(ROOT,'.github/workflows/windows-release.yml'),'utf8');
