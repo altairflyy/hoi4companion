@@ -35,12 +35,16 @@ pub(crate) fn events(
         }
         s.typed(event, "CEvent")?;
         let id = s.string(event + 0x20)?;
-        let position = s.ptr(c + 0x15F0, "C2dPositionObject")?;
+        // Container offsets come from the profile's GUI layout (reference
+        // build defaults); the size follows the clip rectangle.
+        let outer = s.offset("container_outer", 0x15F0);
+        let clip_at = s.offset("container_clip", 0x1594);
+        let position = s.ptr(c + outer, "C2dPositionObject")?;
         if [s.i(position + 0x130)?, s.i(position + 0x134)?] != resolution {
             return Err("Risoluzione evento differente dal contesto GUI".into());
         }
         let matrix = s.matrix(position)?;
-        let size = [s.i(c + 0x15AC)? as f64, s.i(c + 0x15B0)? as f64];
+        let size = [s.i(c + clip_at + 0x18)? as f64, s.i(c + clip_at + 0x1C)? as f64];
         let mut popup = anchored(matrix, [0., 0.], size, 1., screen)?;
         let pc: [f64; 4] = std::array::from_fn(|i| popup["clip"][i].as_f64().unwrap());
         let clip = intersect(pc, s.clip(c)?);
@@ -56,7 +60,7 @@ pub(crate) fn events(
             continue;
         }
         let definitions = s.array(event + 0x368, 256)?;
-        let grid = s.ptr(owner + 0x1280, "CStandardGridBox")?;
+        let grid = s.ptr(owner + s.offset("event_grid", 0x1280), "CStandardGridBox")?;
         if s.u(grid + 0x68)? != root || s.u(grid + 0x50)? != owner + 56 {
             return Err("Griglia scelte di un altro evento".into());
         }
@@ -66,9 +70,9 @@ pub(crate) fn events(
             s.typed(row, "CStandardGridBoxItem")?;
             let item = s.ptr(row + 0x10, "CContainerWindow")?;
             let shown = s.container(item, root, owner + 56)?;
-            let parent = s.ptr(item + 0x15F0, "C2dPositionObject")?;
+            let parent = s.ptr(item + outer, "C2dPositionObject")?;
             let matrix = s.matrix(parent)?;
-            let buttons = s.array(item + 0x10D8, 64)?;
+            let buttons = s.array(item + s.offset("container_drags", 0x10D8), 64)?;
             if buttons.is_empty() {
                 return Err("Scelta evento priva di pulsante nativo".into());
             }
@@ -84,13 +88,16 @@ pub(crate) fn events(
                     return Err("Scelta estranea all’evento visualizzato".into());
                 }
                 row_options.insert(option);
-                if s.u(button + 0x110)? != parent {
+                if s.u(button + s.offset("drag_anchor", 0x110))? != parent {
                     return Err("Ancoraggio pulsante evento non qualificato".into());
                 }
-                let sprite = s.u(button + 0x118)?;
+                let sprite = s.u(button + s.offset("drag_sprite", 0x118))?;
                 let mut bounds = s.bounds(sprite, parent, matrix, clip)?;
-                bounds["visible"] =
-                    json!(bounds["visible"] == true && shown && s.shown(button + 0x75)?);
+                // The button's own visibility flag is qualified only on the
+                // reference layout; elsewhere the shown row container and the
+                // clipped bounds decide.
+                let own = if s.profile["gui_layout"].is_object() { true } else { s.shown(button + 0x75)? };
+                bounds["visible"] = json!(bounds["visible"] == true && shown && own);
                 row_nodes.push(bounds);
             }
             if row_options.len() != 1 {

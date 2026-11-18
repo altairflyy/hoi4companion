@@ -52,6 +52,7 @@
         "drag_sprite": 288,
         "button_sprite": 248,
         "button_anchor": 440,
+        "event_grid": 5120,
         "container_drags": 4696,
         "container_buttons": 4768,
         "container_icons": 4824,

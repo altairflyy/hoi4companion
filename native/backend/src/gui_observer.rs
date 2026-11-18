@@ -829,7 +829,18 @@ pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value)
         }
     }
     let event_data = if profile["gui_layout"].is_object() {
-        json!({"status":"unavailable","event_windows":[],"nodes":[],"visible_ids":[]})
+        // Answer geometry from the same typed tree as the reference build, with
+        // this layout's container offsets (probed read-only on this build). A
+        // mismatch withholds native answers; the popup then falls back to OCR.
+        match crate::gui_actions::events(&mut s, root, &bindings["events"], &args["event_ids"], resolution) {
+            Ok(found) => {
+                if !rows(&found["event_windows"]).is_empty() {
+                    event_popup = Value::Null;
+                }
+                found
+            }
+            Err(_) => json!({"status":"unavailable","event_windows":[],"nodes":[],"visible_ids":[]}),
+        }
     } else {
         crate::gui_actions::events(
             &mut s,
