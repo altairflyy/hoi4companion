@@ -73,8 +73,10 @@ test('native service import contracts, evidence, collection persistence and camp
   const manifestFile=path.join(root,'collections',auto.value.id,'manifest.json'),interrupted=json(manifestFile);interrupted.auto_finished=false;interrupted.import_stage='saving';
   const interruptedGuide=interrupted.items.find(row=>row.status==='installed');interruptedGuide.status='ready';
   const interruptedFile=guideFiles.find(name=>json(path.join(root,'guides',name)).id===interruptedGuide.guide_id);assert.ok(interruptedFile);fs.unlinkSync(path.join(root,'guides',interruptedFile));write(manifestFile,interrupted);
-  await start(2);const restored=(await api('/api/import/collections')).value.collections;assert.equal(restored.length,4);assert.equal(restored.find(row=>row.id===id).counts.installed,1);assert.equal((await api('/api/reference-library')).value.designs.length,1);assert.ok((await api('/api/guides')).value.guides.some(row=>row.id===JSON.parse(saved).id));
-  assert.equal((await imported(auto.value.id)).import_stage,'complete');
+  await start(2);const restored=(await api('/api/import/collections')).value.collections;assert.equal(restored.length,4);assert.equal(restored.find(row=>row.id===id).counts.installed,1);assert.equal((await api('/api/reference-library')).value.designs.length,1);
+  // The deleted file above is the same guide as `saved`; the restart republishes it in a background
+  // collection job, so the registry holds it only once that job reports completion.
+  assert.equal((await imported(auto.value.id)).import_stage,'complete');assert.ok((await api('/api/guides')).value.guides.some(row=>row.id===JSON.parse(saved).id));
   const restoredActive=(await api('/api/guide/active')).value;assert.equal(restoredActive.guide_id,original.guide_id);assert.equal(restoredActive.revision,original.revision);assert.equal(restoredActive.title,original.title);assert.notEqual(restoredActive.server_id,original.server_id);
   assert.equal((await api('/api/guide/progress?id=original')).value.run_id,originalRun);assert.equal(json(path.join(root,'guides',interruptedFile)).id,interruptedGuide.guide_id);
   assert.equal((await api('/api/shutdown',{token:'invalid'})).status,400);assert.equal((await api('/api/backend')).status,200);
