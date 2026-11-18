@@ -211,6 +211,8 @@ pub struct Application {
     default: Option<String>,
     selection_path: Option<PathBuf>,
     active_revision: u64,
+    /// Nation the active guide was last matched to (see `follow_played_nation`).
+    followed_country: Option<String>,
     revision: u64,
     observation_revision: u64,
     bound_context: Option<(u64, u64, u64, u64, u64)>,
@@ -257,6 +259,7 @@ impl Application {
             default: None,
             selection_path: args["selection_path"].as_str().map(PathBuf::from),
             active_revision: 0,
+            followed_country: None,
             revision: 0,
             observation_revision: 0,
             bound_context: None,
@@ -787,8 +790,51 @@ impl Application {
         if changed {
             self.observation_revision = self.observation_revision.wrapping_add(1);
         }
+        self.follow_played_nation()?;
         self.bind()?;
         Ok(self.live.clone())
+    }
+    pub fn active_revision(&self) -> u64 {
+        self.active_revision
+    }
+    /// When the played nation changes (or is first read), a guide written for
+    /// another nation gives way to one for the played nation: the one with the
+    /// most recent checklist in this campaign, else the first by title. A
+    /// guide picked by hand afterwards stays until the nation changes again.
+    /// Nothing changes without a qualified observation or a fitting guide.
+    fn follow_played_nation(&mut self) -> Result<()> {
+        if self.live["usable"] != true {
+            return Ok(());
+        }
+        let Some(country) = self.live["sample"]["country"].as_str().filter(|c| c.len() == 3).map(str::to_owned) else {
+            return Ok(());
+        };
+        if self.followed_country.as_deref() == Some(country.as_str()) {
+            return Ok(());
+        }
+        self.followed_country = Some(country.clone());
+        let identity = state::normalize(&json!({"usable":true,"source":self.live["source"],"sample":{"country":country,"focus_tree_id":self.live["sample"]["focus_tree_id"]}}));
+        let fits = |guide: &Value| {
+            let scope = &guide["applies_to"];
+            scope["country"].as_str().or(guide["country"].as_str()) == Some(country.as_str())
+                && crate::guide_prepare::mode(&json!({"applies_to":scope}), &identity) == "live"
+        };
+        if self.active.as_ref().and_then(|id| self.guides.get(id)).is_some_and(fits) {
+            return Ok(());
+        }
+        let runs = self.runs.call("metadata", json!({}))?;
+        let campaign_id = campaign(&self.live).map(str::to_owned);
+        let mut candidates: Vec<(&String, &Value)> = self.guides.iter().filter(|(_, g)| fits(g)).collect();
+        candidates.sort_by_key(|(id, guide)| {
+            let run = &runs[id.as_str()];
+            let here = campaign_id.is_some() && run["campaign_id"].as_str() == campaign_id.as_deref() && run["country"] == country;
+            (std::cmp::Reverse(if here { run["last_tick"].as_u64().unwrap_or(0) + 1 } else { 0 }), guide["title"].as_str().unwrap_or("").to_lowercase())
+        });
+        let Some(best) = candidates.first().map(|(id, _)| (*id).clone()) else {
+            return Ok(());
+        };
+        self.active(Some(&json!({"guide_id":best})))?;
+        Ok(())
     }
     pub fn invalidate_observation(&mut self) {
         self.live = json!({"usable":false,"status":"disconnected","sample":null,"error":"Installation generation changed; awaiting a qualified observation"});
@@ -1152,6 +1198,33 @@ mod observation_tests {
         app.runs.call("update",json!({"guide_id":"one","checks":{"note":true}})).unwrap();
         assert_ne!(app.runs.generation, generation);
         assert_eq!(app.live_packet().unwrap()["guide_states"]["one"]["note"], true);
+    }
+    #[test]
+    fn the_active_guide_follows_the_played_nation_until_picked_by_hand() {
+        let make = |id: &str, title: &str, country: &str| json!({"id":id,"title":title,"applies_to":{"country":country},"tracks":{"operations":[{"key":"note","action":{"kind":"manual"}}]}});
+        let mut app = Application::open(&json!({"guides":[make("rom","Romania","ROM"),make("sov-b","Soviet B","SOV"),make("sov-a","Soviet A","SOV")]})).unwrap();
+        app.active(Some(&json!({"guide_id":"rom"}))).unwrap();
+        let playing = |country: &str| json!({"usable":true,"source":"process_memory","sample":{"country":country,"session_id":"one"}});
+        // No qualified observation: nothing changes.
+        app.accept(json!({"usable":false,"status":"disconnected","sample":null})).unwrap();
+        assert_eq!(app.active.as_deref(), Some("rom"));
+        // Playing SOV with the Romanian guide: a Soviet guide takes over (first by title).
+        let revision = app.active_revision();
+        app.accept(playing("SOV")).unwrap();
+        assert_eq!(app.active.as_deref(), Some("sov-a"));
+        assert_ne!(app.active_revision(), revision);
+        // A guide picked by hand stays while the nation does not change.
+        app.active(Some(&json!({"guide_id":"rom"}))).unwrap();
+        app.accept(playing("SOV")).unwrap();
+        assert_eq!(app.active.as_deref(), Some("rom"));
+        // Playing Romania keeps the fitting guide; back to SOV switches again.
+        app.accept(playing("ROM")).unwrap();
+        assert_eq!(app.active.as_deref(), Some("rom"));
+        app.accept(playing("SOV")).unwrap();
+        assert_eq!(app.active.as_deref(), Some("sov-a"));
+        // A nation without any guide leaves the selection alone.
+        app.accept(playing("NOR")).unwrap();
+        assert_eq!(app.active.as_deref(), Some("sov-a"));
     }
     #[test]
     fn accepted_observations_keep_only_provinces_a_definition_or_border_names() {

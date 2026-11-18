@@ -494,7 +494,15 @@ impl Service {
             .application
             .lock()
             .map_err(|_| "Application unavailable")?;
+        let selected = app.active_revision();
         app.accept(value)?;
+        // The played nation changed and another guide became active: the HUD
+        // must not keep serving the previous guide's targets.
+        if app.active_revision() != selected {
+            self.hud_epoch.fetch_add(1, Ordering::AcqRel);
+            *self.hud_delivery.lock().map_err(|_| "HUD delivery unavailable")? = None;
+            self.wake.notify_all();
+        }
         let accepted = Instant::now();
         let mut packet = app.live_packet()?;
         packet["pipeline_ms"] = json!({
