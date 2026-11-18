@@ -382,7 +382,7 @@ fn valid_url(value: &Value) -> bool {
                     && p.parse::<u32>().is_ok_and(|v| v <= 65535)
         })
 }
-pub(crate) fn relative(step: &Value) -> Result<()> {
+pub fn relative(step: &Value) -> Result<()> {
     if step
         .get("relative_research_unresolved")
         .is_some_and(|v| step["action"]["kind"] != "research" || *v != true)
@@ -402,7 +402,7 @@ pub(crate) fn relative(step: &Value) -> Result<()> {
     }
     Ok(())
 }
-pub(crate) fn choice(step: &Value) -> Result<()> {
+pub fn choice(step: &Value) -> Result<()> {
     let choice = &step["research_choice"];
     if choice.is_null() {
         return Ok(());

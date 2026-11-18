@@ -7,7 +7,7 @@ mod legacy;
 #[path = "state_memberships.rs"]
 mod memberships;
 #[path = "state_decisions.rs"]
-pub(crate) mod decisions;
+pub mod decisions;
 #[path = "state_costs.rs"]
 mod costs;
 #[path = "state_logistics.rs"]
@@ -21,7 +21,7 @@ fn list(v: &Value) -> &[Value] {
 fn nonempty(v: &Value) -> bool {
     v.as_str().is_some_and(|s| !s.is_empty())
 }
-pub(crate) fn truth(v: &Value) -> bool {
+pub fn truth(v: &Value) -> bool {
     match v {
         Value::Null => false,
         Value::Bool(b) => *b,
@@ -81,10 +81,10 @@ pub fn unknown(reason: &str) -> Value {
     }
     v
 }
-pub(crate) fn known(value: Value, status: &str, source: &str) -> Value {
+pub fn known(value: Value, status: &str, source: &str) -> Value {
     json!({"status":status,"value":value,"source":source})
 }
-pub(crate) fn valid_lines(value: &Value) -> bool {
+pub fn valid_lines(value: &Value) -> bool {
     let Some(lines) = value.as_array() else {
         return false;
     };

@@ -35,7 +35,7 @@ fn engine()->Option<&'static str>{
         Some(format!("{:x}",sha.finalize()))
     }).as_deref()
 }
-pub(crate) struct Cache{root:PathBuf,generation:String}
+pub struct Cache{root:PathBuf,generation:String}
 impl Cache{
     pub fn open(root:&Path,source:&Value,library:&Value,vocabulary:&Value)->Option<Self>{
         Some(Self{root:root.join("compiled-guides-v1"),generation:digest(&(1,engine()?,source,library,vocabulary)).ok()?})
@@ -79,9 +79,11 @@ impl Cache{
     }
 }
 #[cfg(test)]mod tests{
+    /// Unique per call: process id, clock and a counter (owned temp dirs only).
+    fn unique()->String{static N:std::sync::atomic::AtomicU64=std::sync::atomic::AtomicU64::new(0);format!("{}-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),N.fetch_add(1,std::sync::atomic::Ordering::Relaxed))}
     use super::*;
     #[test]fn reuse_and_invalidation_preserve_results_and_bound_storage(){
-        let root=std::env::temp_dir().join(format!("hoi4-compiled-cache-{}",crate::progress_store::new_id().unwrap()));
+        let root=std::env::temp_dir().join(format!("hoi4-compiled-cache-{}",unique()));
         std::fs::create_dir(&root).unwrap();
         let mut cache=Cache{root:root.clone(),generation:"sources-language-library-engine-one".into()};
         let guide=json!({"id":"a","tracks":{}});let prepared=json!({"id":"a","tracks":{},"name":"Prepared"});
@@ -98,14 +100,14 @@ impl Cache{
         std::fs::remove_dir_all(root).unwrap();
     }
     #[test]fn unavailable_cache_never_blocks_normal_compilation(){
-        let root=std::env::temp_dir().join(format!("hoi4-cache-unavailable-{}",crate::progress_store::new_id().unwrap()));
+        let root=std::env::temp_dir().join(format!("hoi4-cache-unavailable-{}",unique()));
         std::fs::create_dir(&root).unwrap();let blocked=root.join("not-a-directory");std::fs::write(&blocked,b"owned fixture").unwrap();
         let cache=Cache{root:blocked,generation:"one".into()};
         assert_eq!(cache.resolve(&json!({"id":"a"}),||Ok(json!({"ok":true}))).unwrap()["ok"],true);
         std::fs::remove_dir_all(root).unwrap();
     }
     #[test]fn actual_generation_includes_catalog_language_references_and_vocabulary(){
-        let root=std::env::temp_dir().join(format!("hoi4-cache-generation-{}",crate::progress_store::new_id().unwrap()));
+        let root=std::env::temp_dir().join(format!("hoi4-cache-generation-{}",unique()));
         std::fs::create_dir(&root).unwrap();let guide=json!({"id":"a"});
         let a=Cache::open(&root,&json!({"language":"english","mods":[]}),&json!({"designs":[]}),&json!({"schema_version":1})).unwrap();
         a.resolve(&guide,||Ok(json!({"source":"one"}))).unwrap();

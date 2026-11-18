@@ -138,7 +138,7 @@ pub fn validate_baselines(value: &Value) -> Result<()> {
 }
 // Python's metadata dictionaries accept numerically equal JSON scalars. This
 // helper is only for recognizing authored binding declarations, not fact tests.
-pub(crate) fn metadata_equal(a: &Value, b: &Value) -> bool {
+pub fn metadata_equal(a: &Value, b: &Value) -> bool {
     match (a, b) {
         (Value::Object(x), Value::Object(y)) => {
             x.len() == y.len()

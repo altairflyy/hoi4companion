@@ -6,7 +6,7 @@ use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 type Result<T> = std::result::Result<T, String>;
 
-pub(crate) fn calendar(sample: &Value) -> Option<u64> {
+pub fn calendar(sample: &Value) -> Option<u64> {
     if sample["country_identity_validation"] != "primary_selector_and_country_map"
         || sample["session_id"].as_str().is_none_or(str::is_empty)
         || !sample["executable_sha256"].as_str().is_some_and(|s| {

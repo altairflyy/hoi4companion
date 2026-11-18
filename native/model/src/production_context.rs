@@ -92,7 +92,7 @@ pub fn valid_live_design(value: &Value) -> bool {
             .is_some_and(|m| m.values().all(Value::is_number))
         && configuration(value).is_some()
 }
-pub(crate) fn compare(expected: &Value, observed: &Value) -> Value {
+pub fn compare(expected: &Value, observed: &Value) -> Value {
     let wanted = configuration(expected);
     let actual = configuration(observed);
     if wanted.is_none() || !valid_live_design(observed) || observed["status"] != "observed" {

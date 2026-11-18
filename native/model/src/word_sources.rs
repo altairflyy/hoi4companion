@@ -29,7 +29,7 @@ fn re(pattern: &str) -> Arc<Regex> {
     }
     value
 }
-pub(crate) fn safe(name: &str) -> bool {
+pub fn safe(name: &str) -> bool {
     name.chars().count() <= 1200
         && !name.contains('\\')
         && !name.starts_with('/')
@@ -37,7 +37,7 @@ pub(crate) fn safe(name: &str) -> bool {
             .split('/')
             .all(|p| !p.is_empty() && p != "." && p != "..")
 }
-pub(crate) fn archive<R: Read + Seek>(reader: R) -> Result<ZipArchive<R>> {
+pub fn archive<R: Read + Seek>(reader: R) -> Result<ZipArchive<R>> {
     let archive =
         ZipArchive::new(reader).map_err(|_| "Documento Word o archivio ZIP non valido")?;
     if archive.len() > 5000 {
@@ -82,7 +82,7 @@ pub(crate) fn archive<R: Read + Seek>(reader: R) -> Result<ZipArchive<R>> {
     reader.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
     ZipArchive::new(reader).map_err(|_| "Documento Word o archivio ZIP non valido".into())
 }
-pub(crate) fn read_entry<R: Read + Seek>(
+pub fn read_entry<R: Read + Seek>(
     archive: &mut ZipArchive<R>,
     name: &str,
     limit: u64,
@@ -191,7 +191,7 @@ fn paragraph(node: Node) -> String {
     result.trim().into()
 }
 type Groups = Vec<Vec<Vec<String>>>;
-pub(crate) fn content(data: &[u8]) -> Result<(String, Groups, usize)> {
+pub fn content(data: &[u8]) -> Result<(String, Groups, usize)> {
     let mut archive = archive(Cursor::new(data))?;
     if !archive.file_names().any(|s| s.as_deref().unwrap_or("") == "word/document.xml") {
         return Err("Contenuto Word mancante o duplicato".into());
@@ -331,7 +331,7 @@ fn priority_target(line: &str) -> String {
         .trim()
         .into()
 }
-pub(crate) fn explicit_action(text: &str) -> Option<Value> {
+pub fn explicit_action(text: &str) -> Option<Value> {
     let value = re(r"^\s*-\s*").replace(text, "").trim().to_owned();
     let law = re(r"(?i)^(.+?)(?:\s*\((\d+)\s*PP\))?\s*$");
     let laws = [
@@ -379,7 +379,7 @@ pub(crate) fn explicit_action(text: &str) -> Option<Value> {
         .captures(&value)
         .map(|hit| json!({"type":"event","event":hit[1].trim(),"option":hit[2].trim()}))
 }
-pub(crate) fn abbreviation_hint(text: &str, vocabulary: &Value) -> Option<String> {
+pub fn abbreviation_hint(text: &str, vocabulary: &Value) -> Option<String> {
     let build = re(r"(?i)\b(?:build|construct|construction)\b").is_match(text);
     let production =
         re(r"(?i)\b(?:produce|production|producing|assign(?:ment|ed)?)\b").is_match(text);

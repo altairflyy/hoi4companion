@@ -25,7 +25,7 @@ powershell -NoProfile -File scripts/avvia-tutto.ps1     # start; add -Stop to st
 ```bash
 npm test                                  # all tests/test_*.cjs
 node --test tests/test_guide_model.cjs    # one JS file
-node scripts/test-native.cjs [crate] [--dev|--lto]   # cargo test --release --locked, fast non-LTO profile; --lto = production profile; crates: parser observer guide-core catalog-core tools storage backend overlay desktop
+node scripts/test-native.cjs [crate] [--dev|--lto]   # cargo test --release --locked, fast non-LTO profile; --lto = production profile; crates: parser observer guide-core catalog-core tools storage model backend overlay desktop
 node scripts/dev-native.cjs test backend --test integration guide_evaluation::   # one backend integration module
 ```
 - **Fast local loop:** local `test-native.cjs`, `dev-native.cjs` and the `-Dev` build switch (`build-backend.ps1 -Dev`, `build-overlay.ps1 -Dev`) share `.local/rust-dev-<backend|core|desktop>-target`: optimized, incremental, no LTO. The deliver-build skill uses `-Dev` by default (`--release` for LTO). Packaging always builds with the production LTO profile; never package `-Dev` output. Put the crate before flags: `test-native.cjs backend --lto`.
@@ -37,7 +37,8 @@ node scripts/dev-native.cjs test backend --test integration guide_evaluation::  
 - CI runs `test-native.cjs --ci` (LTO off, so never package from that output). A release tag must equal `v` + the `package.json` version.
 
 ## Architecture
-- `native/` holds independent crates, each with its own `Cargo.lock` and no shared workspace. `backend` depends on all of them except `overlay`.
+- `native/` holds independent crates, each with its own `Cargo.lock` and no shared workspace. `backend` depends on all of them except `overlay` and `desktop`.
+- `model` (split out of `backend`): game state, catalogs, schemas and text sources. `backend` re-exports each moved module at its crate root (`pub use hoi4companion_model::state;`), so `crate::state::…` paths are unchanged. A module may move to a lower crate only with everything it uses (compiler-checked); FFI modules with `no_mangle` exports stay in `backend`.
 - `backend` has two binaries: `hoi4-backend` (HTTP/SSE server, routes in `http.rs`) and `hoi4-desktop` (the GUI launcher behind `HOI4 Companion.exe`).
 - `overlay` (`hoi4-overlay`) is a separate Direct2D HUD process. It has no guide logic of its own and uses the backend's active guide through `/api/overlay`.
 - `tools` runs external tools (FFmpeg, yt-dlp, Node, CWTools) inside Job Objects. `cwtools` is an F#/.NET host with pinned vendored sources.
