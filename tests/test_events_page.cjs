@@ -41,9 +41,9 @@ test('the guide view hides other branches and lists guide events first',()=>{
   {id:'c',title:'Gamma',guide_focuses:[{id:'SOV_a',name:'A'}],guide_order:0,guide_reach:'guide'}],possible:[{id:'d',title:'Clash'}]};
  assert.deepEqual(model.visible(data).map(e=>e.id),['c','a','e'],'guide view: guide events first in guide order, other branches hidden');
  assert.deepEqual(model.visible(data,{scope:'guide',possible:true}).map(e=>e.id),['c','a','e'],'possible events stay out of the guide view');
- assert.deepEqual(model.visible(data,{scope:'nation'}).map(e=>e.id),['a','b','e','f','c']);
- const c=model.counts(data);assert.equal(c.guide,3);assert.equal(c.nation,5);assert.equal(c.all,3);assert.equal(c.fromGuide,2);assert.equal(c.otherBranch,1);assert.equal(c.foreign,1);
+ assert.deepEqual(model.visible(data,{scope:'nation'}).map(e=>e.id),['a','b','e','c'],'events of other nations never show');
+ const c=model.counts(data);assert.equal(c.guide,3);assert.equal(c.nation,4);assert.equal(c.all,3);assert.equal(c.fromGuide,2);assert.equal(c.otherBranch,1);assert.equal(c.foreign,1);
  assert.equal(model.guideActive({...data,guide_focus_count:0}),false);
- assert.deepEqual(model.visible({...data,guide_focus_count:0}).map(e=>e.id),['a','b','e','f','c'],'without a guide every event shows');
+ assert.deepEqual(model.visible({...data,guide_focus_count:0}).map(e=>e.id),['a','b','e','c'],'without a guide every event shows, except those of other nations');
  const html=require('node:fs').readFileSync('src/hoi4companion/web/events.html','utf8');assert.match(html,/id="eventsScope"/);
 });

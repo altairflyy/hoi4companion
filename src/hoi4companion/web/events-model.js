@@ -30,6 +30,8 @@
  const withGuide=event=>!HIDDEN.includes(event.guide_reach);
  // The guide view applies only when a guide with focuses is active.
  const guideActive=data=>(data?.guide_focus_count||0)>0;
+ // Events other nations' focuses or decisions send are never listed, in any view.
+ const own=event=>event.guide_reach!=='foreign';
  function matches(event,query){
   const q=norm(query).trim();if(!q)return true;
   return [event.title,event.id,event.description,...(event.options||[]).map(o=>o.name),...(event.triggered_by||[]).map(s=>s.name)].some(text=>norm(text).includes(q));
@@ -39,16 +41,16 @@
  // to, in guide order; the full view keeps the backend's (alphabetical) order.
  function visible(data,{query='',origin='all',possible=false,scope='guide'}={}){
   const guide=scope==='guide'&&guideActive(data);
-  let list=[...(data?.events||[]),...(!guide&&possible?(data?.possible||[]).map(e=>({...e,possible:true})):[])];
+  let list=[...(data?.events||[]).filter(own),...(!guide&&possible?(data?.possible||[]).map(e=>({...e,possible:true})):[])];
   if(guide)list=list.filter(withGuide).map((e,i)=>[e,i]).sort((a,b)=>(a[0].guide_order??1e9)-(b[0].guide_order??1e9)||a[1]-b[1]).map(([e])=>e);
   return list.filter(event=>(origin==='all'||origins(event).includes(origin))&&matches(event,query));
  }
  function counts(data,{scope='guide'}={}){
   const all=data?.events||[],events=scope==='guide'&&guideActive(data)?all.filter(withGuide):all;
-  const result={all:events.length,possible:(data?.possible||[]).length,guide:all.filter(withGuide).length,nation:all.length,
+  const result={all:events.filter(own).length,possible:(data?.possible||[]).length,guide:all.filter(withGuide).length,nation:all.filter(own).length,
    fromGuide:all.filter(fromGuide).length,otherBranch:all.filter(e=>e.guide_reach==='other_branch').length,
    foreign:all.filter(e=>e.guide_reach==='foreign').length};
-  for(const kind of [...ORIGINS,'none'])result[kind]=events.filter(e=>origins(e).includes(kind)).length;
+  for(const kind of [...ORIGINS,'none'])result[kind]=events.filter(own).filter(e=>origins(e).includes(kind)).length;
   return result;
  }
  return {origins,matches,visible,counts,readable,sender,fromGuide,withGuide,guideActive,ORIGINS};

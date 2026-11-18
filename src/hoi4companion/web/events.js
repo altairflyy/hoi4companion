@@ -57,8 +57,8 @@
   const shown=model.visible(data,{query:$('eventSearch').value,origin:$('eventsOrigin').value,scope:$('eventsScope').value,possible:$('eventsPossible').checked});
   let status=data.reason==='country_unknown'?t('Waiting for the played nation'):t('{0} events shown',shown.length);
   if(guide&&$('eventsScope').value==='guide'&&data.reason!=='country_unknown')
-   status+=' · '+t('{0} from your guide focuses at the top',counts.fromGuide)+' · '+t('{0} hidden: only focuses outside the guide lead to them',counts.otherBranch)
-    +' · '+t('{0} hidden: other nations’ focuses or decisions send them',counts.foreign);
+   status+=' · '+t('{0} from your guide focuses at the top',counts.fromGuide)+' · '+t('{0} hidden: only focuses outside the guide lead to them',counts.otherBranch);
+  if(data.reason!=='country_unknown'&&counts.foreign)status+=' · '+t('{0} hidden: other nations’ focuses or decisions send them',counts.foreign);
   $('eventsStatus').textContent=status;
   for(const event of shown.slice(0,400))list.append(card(event));
   if(shown.length>400)list.append(el('p','event-more',t('Refine the search to see the other {0}',shown.length-400)));
