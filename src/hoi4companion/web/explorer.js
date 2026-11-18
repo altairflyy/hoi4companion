@@ -1,7 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const state = {overview:null,tree:null,selected:null,goal:null,search:'',zoom:.78,manual:new Set(),poll:false,coords:new Map(),treeRequest:0};
-const statusLabels={completed:HoiI18n.t("Completed"),active:HoiI18n.t("In progress"),ready:HoiI18n.t("Prerequisites met"),locked:HoiI18n.t("Missing prerequisites"),excluded:HoiI18n.t("Excluded path"),verify:HoiI18n.t("Conditions to verify"),unknown:HoiI18n.t("Unverified")};
+const statusLabels={completed:HoiI18n.t("Completed"),active:HoiI18n.t("In progress"),ready:HoiI18n.t("Prerequisites met"),locked:HoiI18n.t("Missing prerequisites"),excluded:HoiI18n.t("Excluded path"),verify:HoiI18n.t("Conditions to verify"),unknown:HoiI18n.t("Unverifiable")};
 let focusLabelContext;
 async function getJson(url,options){const response=await fetch(url,options),data=await response.json();if(!response.ok)throw new Error(data.error||response.statusText);return data;}
 function clear(node){node.replaceChildren();}
@@ -79,7 +79,7 @@ function hideTooltip(){$('focusTooltip').hidden=true;}
 function showTooltip(focus,node){
   const tip=$('focusTooltip');clear(tip);
   const header=el('div','tooltip-heading');header.append(spriteImage(focus.sprite||focus.variant_sprites?.[0],'tooltip-icon'),richText(focus.name,'tooltip-name'));tip.append(header);
-  tip.append(el('div','tooltip-status',HoiI18n.t("{0} base days · {1}",Math.round(focus.cost*7),statusLabels[statuses()[focus.id]]||HoiI18n.t("Unverified"))));
+  tip.append(el('div','tooltip-status',HoiI18n.t("{0} base days · {1}",Math.round(focus.cost*7),statusLabels[statuses()[focus.id]]||HoiI18n.t("Unverifiable"))));
   if(focus.icon_variants?.length)tip.append(el('p','tooltip-note',HoiI18n.t("Conditional icon: this is a preview.")));
   if(focus.description)tip.append(richText(focus.description.length>480?focus.description.slice(0,480)+'…':focus.description));
   const effects=focus.tooltip_sections?.find(x=>x.heading===HoiI18n.t("Effects"));
@@ -162,7 +162,7 @@ function render(){
       }
     }
     node.append(emblem,title,el('span','focus-duration',`${Math.round(focus.cost*7)}d*`));
-    node.setAttribute('aria-label',`${plain(focus.name)}: ${statusLabels[code]||HoiI18n.t("state not verified")}`);
+    node.setAttribute('aria-label',`${plain(focus.name)}: ${statusLabels[code]||HoiI18n.t("Unverifiable")}`);
     node.addEventListener('click',()=>selectFocus(focus.id));node.addEventListener('pointerenter',()=>showTooltip(focus,node));node.addEventListener('pointerleave',hideTooltip);node.addEventListener('focus',()=>showTooltip(focus,node));node.addEventListener('blur',hideTooltip);nodes.append(node);
   }
   // Browser glyphs differ from the game's font. Fit the declared text box.
@@ -183,7 +183,7 @@ function render(){
 function renderInspector(byId,status){
   const container=$('inspectorContent');clear(container);const focus=byId.get(state.selected);$('focusIndex').textContent=focus?`${[...byId.keys()].indexOf(focus.id)+1} / ${byId.size}`:'—';
   if(!focus){container.append(el('div','empty-icon','◈'),el('p','',HoiI18n.t("Select a focus to see its prerequisites and path.")));return;}
-  container.append(spriteImage(focus.sprite||focus.variant_sprites?.[0],'inspector-icon'),el('div','eyebrow',HoiI18n.t("NATIONAL FOCUS")),richText(focus.name,'focus-title','h2'),el('div','focus-code',focus.id),el('div','status-chip '+status[focus.id],statusLabels[status[focus.id]]||HoiI18n.t("Unverified")));
+  container.append(spriteImage(focus.sprite||focus.variant_sprites?.[0],'inspector-icon'),el('div','eyebrow',HoiI18n.t("NATIONAL FOCUS")),richText(focus.name,'focus-title','h2'),el('div','focus-code',focus.id),el('div','status-chip '+status[focus.id],statusLabels[status[focus.id]]||HoiI18n.t("Unverifiable")));
   const guidance=window.hoiGuideTree?.details(focus.id,state.tree.id);if(guidance)container.append(guidance);
   if(focus.description)container.append(richText(focus.description));
   container.append(el('div','tooltip-note',HoiI18n.t("Text from game files; dynamic conditions and values have not been evaluated.")));

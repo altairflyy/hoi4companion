@@ -28,8 +28,8 @@
   const steps=node('ol');steps.className='import-steps';const current=failed?-1:collection.import_stage==='reading'?0:preparing?1:pending?2:3;
   for(const [i,label] of ['Read archive','Recognize and validate contents','Save valid contents','Install MIO presets'].entries()){
    const item=node('li');item.className='import-step '+(i<current?'done':i===current?'current':'waiting');item.append(node('span',t(label)));
-   let detail=i<current?t('Done'):i===current?t('In progress'):t('Waiting');if(i===1&&preparing&&c.total)detail=t('{0} / {1} guides checked',c.processed||0,c.total);
-   if(i===3&&!pending&&!failed){const mio=collection.mio_install;detail=model.waitingMio(collection)?t('Scheduled automatically when HOI4 closes'):mio?.status==='error'?t('Needs attention'):t('Done');
+   let detail=i<current?t('Completed'):i===current?t('In progress'):t('Waiting');if(i===1&&preparing&&c.total)detail=t('{0} / {1} guides checked',c.processed||0,c.total);
+   if(i===3&&!pending&&!failed){const mio=collection.mio_install;detail=model.waitingMio(collection)?t('Scheduled automatically when HOI4 closes'):mio?.status==='error'?t('Needs attention'):t('Completed');
     if(!(collection.references?.mio_queues||0))detail=t('Not present in this archive');item.className='import-step '+(model.waitingMio(collection)?'waiting':mio?.status==='error'?'error':'done');}
    if(failed){item.className='import-step waiting';detail=t('Interrupted');}item.append(node('small',detail));steps.append(item);
   }card.append(steps);

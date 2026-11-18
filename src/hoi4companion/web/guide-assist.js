@@ -2,7 +2,7 @@
 // Shared contextual controls for the existing, game-shaped trees.
 (()=>{
  const host=document.getElementById('guideAssist');if(!host)return;
- const lane=host.dataset.lane,labels={next:HoiI18n.t("NEXT"),choice:HoiI18n.t("CHOICE"),alternative:HoiI18n.t('ALTERNATIVE'),active:HoiI18n.t("IN PROGRESS"),upcoming:'POI',waiting:HoiI18n.t("WAITING"),preview:HoiI18n.t("PREVIEW")};
+ const lane=host.dataset.lane,labels={next:HoiI18n.t("NEXT"),choice:HoiI18n.t("CHOICE"),alternative:HoiI18n.t('ALTERNATIVE'),active:HoiI18n.t("In progress"),upcoming:'POI',waiting:HoiI18n.t("Waiting"),preview:HoiI18n.t("PREVIEW")};
  let value=null,navigate=null;
  const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
  function criteria(parent,row){
