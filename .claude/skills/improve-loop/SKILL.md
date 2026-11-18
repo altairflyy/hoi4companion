@@ -74,7 +74,9 @@ Commit backlog changes: `docs: update the improvement backlog`.
 - Otherwise go to step 3.
 
 ## 6. Finish
-1. Run the full checks: `npm test` and `node scripts/test-native.cjs` (all crates), output to the scratchpad.
+1. Run the full checks: `node scripts/test-native.cjs` (all crates), `node scripts/dev-native.cjs build backend`,
+   `HOI4_BACKEND_EXE=.local/rust-dev-backend-target/release/hoi4-backend.exe npm test`; output to the scratchpad.
+   Never run `scripts/build-backend.ps1` (it installs into `src/hoi4companion/_native/`).
 2. Fill `## Run report` in the backlog, short:
    improvements by area (functional, technical, UX — UX commits are marked `[ux-review]`), significant skills
    and tools used, harness changes, tests PASS / FAIL / NOT VERIFIED (live game behavior is always
