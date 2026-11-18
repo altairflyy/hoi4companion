@@ -100,8 +100,8 @@ Item format (ids IL-01, IL-02, ... are never reused):
 - Priority: 4 (same states worded differently: "unverifiable"/"Unverifiable", "state not verified"/"State not verified", "WAITING"/"Waiting"; low risk)
 - Source: `translations.json` scan 2026-11-18 (1703 messages).
 - Acceptance: a JS test lists the status labels used by guide/live/HUD views and asserts each state (done, in progress, waiting, unknown/unverifiable, manual) uses one English and one Italian word with consistent case. Strings change only through the add-translation skill. `npm test` green with the dev backend. Commit subject has `[ux-review]`. No new UI options or text.
-- Status: todo
-- Attempts: 0
-- Notes:
+- Status: done 9e6b3fa
+- Attempts: 1
+- Notes: Before: done = "Completed"/"Done" (Completata/Completato); in progress = "In progress"/"IN PROGRESS"; waiting = "Waiting"/"WAITING"/"Upcoming" (In attesa/IN ATTESA/Più avanti); unknown = "Unverifiable"/"Unverified"/"State not verified"/"state not verified" plus inline "unverifiable" translated as plural "non verificabili". After: Completed/Completata, In progress/In corso, Waiting/In attesa, Unverifiable/Non verificabile (inline "non verificabile"). Guide marker badges stay upper case via CSS `text-transform` on `.guide-node-label`. Six obsolete keys removed (1703 -> 1697 messages); the "unverifiable" value was edited in place because the add-translation script only adds keys. "Done" stays as the manual confirmation button (an action, not a status). Researched/Researching stay as game terms on the technology page. No standalone "manual" status word exists. Test `tests/test_status_labels.cjs` (20 label sites, 4 tests). Verified: `npm test` with dev backend 464 pass / 0 fail / 3 skipped; `test-native.cjs overlay` 54 pass, `backend` 149 pass; invariant-reviewer: no violations. Visual check NOT VERIFIED (app not running).
 
 ## Run report
