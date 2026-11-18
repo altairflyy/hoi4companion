@@ -113,6 +113,35 @@ fn tile_pixels(width:u32,data:&[u8],region:[u32;4],scale:u32)->Vec<u8> {
     bgra
 }
 
+/// Tile origins covering `total` with tiles of `size`, `stride` apart; the
+/// last tile ends exactly at `total`.
+fn starts(total:u32,size:u32,stride:u32)->Vec<u32> {
+    if total<=size {return vec![0];}
+    let mut result=Vec::new();let mut at=0;
+    while at+size<total {result.push(at);at+=stride;}
+    if result.last()!=Some(&(total-size)) {result.push(total-size);}
+    result
+}
+/// Screen box of a recognized line: [left, top, right, bottom].
+fn bounds(line:&OcrLine)->Option<[f64;4]> {
+    if line.words.is_empty() {return None;}
+    Some(line.words.iter().fold([f64::INFINITY,f64::INFINITY,f64::NEG_INFINITY,f64::NEG_INFINITY],|b,w|
+        [b[0].min(w.x),b[1].min(w.y),b[2].max(w.x+w.width),b[3].max(w.y+w.height)]))
+}
+#[cfg(test)]
+mod tiling_tests {
+    use super::*;
+    #[test]
+    fn tiles_overlap_and_end_at_the_edge() {
+        assert_eq!(starts(2560,1280,640),vec![0,640,1280]);
+        assert_eq!(starts(1440,720,600),vec![0,600,720]);
+        assert_eq!(starts(1920,1280,640),vec![0,640]);
+        assert_eq!(starts(1080,720,600),vec![0,360]);
+        assert_eq!(starts(800,1280,640),vec![0]);
+        assert_eq!(starts(1280,1280,640),vec![0]);
+    }
+}
+
 pub struct PreparedTile {pub left:u32,pub top:u32,pub width:u32,pub height:u32,pub bgra:Vec<u8>}
 
 /// Diagnostic export for byte-level reference comparisons. Runtime OCR retains
@@ -152,8 +181,12 @@ impl Ocr {
         let tile_height=720.min(self.maximum/scale);
         if tile_width==0||tile_height==0 {return Err(error("Invalid Windows OCR dimension limit"));}
         let mut page=OcrPage {width,height,language:self.language.clone(),lines:Vec::new()};
-        for top in (0..height).step_by(tile_height as usize) {
-            for left in (0..width).step_by(tile_width as usize) {
+        // Overlapping tiles: a line cut by one tile's edge ("Mobilit|are",
+        // "il c|ontrollo") is whole in a neighbour. Half-tile horizontal stride,
+        // 120 px vertical overlap; edge-cut copies and duplicates are dropped.
+        let mut found:Vec<(OcrLine,[f64;4],bool)>=Vec::new();
+        for top in starts(height,tile_height,tile_height.saturating_sub(120).max(1)) {
+            for left in starts(width,tile_width,(tile_width/2).max(1)) {
                 let tw=tile_width.min(width-left);let th=tile_height.min(height-top);
                 let pixels=tile_pixels(width,data,[left,top,tw,th],scale);
                 let tile=self.recognize_bitmap_bgra(tw*scale,th*scale,&pixels)?;
@@ -163,10 +196,24 @@ impl Ocr {
                         word.y=word.y/scale as f64+top as f64;
                         word.width/=scale as f64;word.height/=scale as f64;
                     }
-                    page.lines.push(line);
+                    let Some(b)=bounds(&line) else {continue};
+                    let edge=3.;
+                    let cut=left>0&&b[0]<left as f64+edge||left+tw<width&&b[2]>(left+tw) as f64-edge
+                        ||top>0&&b[1]<top as f64+edge||top+th<height&&b[3]>(top+th) as f64-edge;
+                    found.push((line,b,cut));
                 }
             }
         }
+        let overlaps=|a:&[f64;4],b:&[f64;4]|a[0]<b[2]&&b[0]<a[2]&&a[1]<b[3]&&b[1]<a[3];
+        let mut kept:Vec<(OcrLine,[f64;4])>=Vec::new();
+        for (index,(line,b,cut)) in found.iter().enumerate() {
+            // An edge-cut copy yields to any whole line over the same place.
+            if *cut&&found.iter().enumerate().any(|(other,(_,ob,ocut))|other!=index&&!ocut&&overlaps(b,ob)) {continue;}
+            // The same text over the same place is one line.
+            if kept.iter().any(|(k,kb)|k.text==line.text&&overlaps(b,kb)) {continue;}
+            kept.push((line.clone(),*b));
+        }
+        page.lines=kept.into_iter().map(|(line,_)|line).collect();
         Ok(page)
     }
 
