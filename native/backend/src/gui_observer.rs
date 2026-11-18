@@ -602,22 +602,29 @@ impl<M: Memory> Memory for Sample<'_, M> {
     }
 }
 
-/// Whether an event window's popup is shown. Its container is the field
-/// holding a CContainerWindow owned by this window (owner `e + 40`) under the
-/// game GUI root: the profile's offset first, else the first such field in
-/// the window's first 0x800 bytes. Unreadable or foreign fields are skipped.
-fn popup_visible<M: Memory>(s: &mut Sample<'_, M>, e: u64, root: u64) -> bool {
+/// Whether an event window's popup is shown, plus what was found (for
+/// diagnostics). Its container is a field holding a CContainerWindow under
+/// the game GUI root whose owner points into the window's first 0x100 bytes
+/// (`e + 40` on the reference build): the profile's offset first, else any
+/// such field in the window's first 0x800 bytes. Unreadable fields are skipped.
+fn popup_probe<M: Memory>(s: &mut Sample<'_, M>, e: u64, root: u64) -> (bool, Value) {
     let preferred = s.offset("view_container", 0x578);
+    let mut seen = vec![];
     for off in std::iter::once(preferred).chain((0..0x800).step_by(8).filter(|o| *o != preferred)) {
         let Ok(c) = s.u(e + off) else { continue };
-        if !(0x10000..0x7fff_ffff_ffff).contains(&c) {
+        if !(0x10000..0x7fff_ffff_ffff).contains(&c) || s.typed(c, "CContainerWindow").is_err() {
             continue;
         }
-        if let Ok(shown) = s.container(c, root, e + 40) {
-            return shown;
+        let (Ok(owner), Ok(parent_root), Ok(flags)) = (s.u(c + 0x80), s.u(c + 0x98), s.read(c + 0xA4, 2)) else { continue };
+        let owned = (e..e + 0x100).contains(&owner);
+        if seen.len() < 6 {
+            seen.push(json!({"offset":off,"owner_delta":owner.wrapping_sub(e) as i64,"root":parent_root == root,"flags":flags[1]}));
+        }
+        if owned && parent_root == root {
+            return (flags[1] & 8 != 0, json!(seen));
         }
     }
-    false
+    (false, json!(seen))
 }
 pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value) -> Result<Value> {
     let profile = &args["profile"];
@@ -803,15 +810,19 @@ pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value)
     // a visible popup yields no native answer geometry, only the fact that a
     // popup covers the view (answers may then be located by exact OCR).
     let mut event_popup = Value::Null;
+    let mut event_probe: Vec<Value> = vec![];
     if profile["gui_layout"].is_object() {
         // A separate, unwitnessed sample: the popup is only a routing hint
         // (OCR must still find its exact title and answer), and a candidate
         // that does not fit this layout must not fail the observation.
         let mut probe = Sample::new(&mut *s.memory, base, profile);
         for event in rows(&bindings["events"]).iter().take(64) {
-            if let Some(e) = event.as_u64()
-                && popup_visible(&mut probe, e, root)
-            {
+            let Some(e) = event.as_u64() else { continue };
+            let (shown, found) = popup_probe(&mut probe, e, root);
+            if event_probe.len() < 4 {
+                event_probe.push(found);
+            }
+            if shown {
                 event_popup = json!("unqualified");
                 break;
             }
@@ -863,7 +874,7 @@ pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value)
         _=>Value::Null,
     };
     Ok(
-        json!({"available":true,"source":"native_gui","session_id":session,"pid":args["pid"],"process_created":args["created"],"country":country,"scope":scope,"resolution":resolution,"active_panel":active.first(),"event_popup":event_popup,"panels":panels,"nodes":nodes,"tabs":tabs,"events":{"status":panels["event"]["status"],"visible_ids":event_data["visible_ids"]},"event_windows":event_data["event_windows"],"action_ui":action_data,"production_ui":production_data,"diagnostics":{"bytes":s.used,"event_candidates":rows(&bindings["events"]).len(),"event_popup":event_popup}}),
+        json!({"available":true,"source":"native_gui","session_id":session,"pid":args["pid"],"process_created":args["created"],"country":country,"scope":scope,"resolution":resolution,"active_panel":active.first(),"event_popup":event_popup,"panels":panels,"nodes":nodes,"tabs":tabs,"events":{"status":panels["event"]["status"],"visible_ids":event_data["visible_ids"]},"event_windows":event_data["event_windows"],"action_ui":action_data,"production_ui":production_data,"diagnostics":{"bytes":s.used,"event_candidates":rows(&bindings["events"]).len(),"event_popup":event_popup,"event_probe":event_probe}}),
     )
 }
 
