@@ -258,6 +258,35 @@ fn reference_probe() {
     }
 }
 
+/// Contract-1 definitions of every guide (what `catalog_runtime_guide`
+/// returns as `definition`), in input order. One catalog generation runs its
+/// requests one at a time, so each worker opens its own generation and takes
+/// the next guide; the results do not depend on the worker count.
+/// `HOI4_SURVEY_WORKERS` sets the count (default: a quarter of the
+/// cores, 1-3: each generation holds about 1.5 GB, and 4 measured slower).
+fn compile_in_parallel(root: &std::path::Path, settings: &Value, library: &Value, guides: &[Value]) -> Vec<Value> {
+    use std::sync::{Mutex, atomic::{AtomicUsize, Ordering}};
+    let workers = std::env::var("HOI4_SURVEY_WORKERS").ok().and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get() / 4).clamp(1, 3))
+        .clamp(1, guides.len().max(1));
+    let next = AtomicUsize::new(0);
+    let results = Mutex::new(vec![Value::Null; guides.len()]);
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                let catalog = Catalog(request(0, "catalog_open", json!({"settings":settings,"vocabulary_path":root.join("src/hoi4companion/guide_language.json")})).unwrap().as_u64().unwrap());
+                loop {
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(guide) = guides.get(i) else { break };
+                    let definition = request(0, "catalog_runtime_guide", json!({"handle":catalog.0,"guide":guide,"library":library})).unwrap()["definition"].clone();
+                    results.lock().unwrap()[i] = definition;
+                }
+            });
+        }
+    });
+    results.into_inner().unwrap()
+}
+
 /// Opt-in survey of every author reference that could be an event answer:
 /// how each compiled step carries it and whether it is bound live.
 #[test]
@@ -270,13 +299,13 @@ fn event_reference_survey() {
     let settings: Value = serde_json::from_slice(&std::fs::read(data.join("settings.json")).unwrap()).unwrap();
     let guides = request(0, "guide_repository", json!({"directories":[data.join("guides")],"association_directory":data.join("guide-associations")})).unwrap();
     let library = request(0, "reference_library_manifest", json!({"root":data.join("reference-library")})).unwrap();
-    let catalog = Catalog(request(0, "catalog_open", json!({"settings":settings,"vocabulary_path":root.join("src/hoi4companion/guide_language.json")})).unwrap().as_u64().unwrap());
+    let list = guides["guides"].as_array().unwrap();
+    let definitions = compile_in_parallel(&root, &settings, &library, list);
     let mut buckets: BTreeMap<String, usize> = BTreeMap::new();
     let only = std::env::var("HOI4_SURVEY_COUNTRY").ok();
-    for guide in guides["guides"].as_array().unwrap() {
+    for (guide, compiled) in list.iter().zip(&definitions) {
         let country = guide["applies_to"]["country"].as_str().unwrap_or("?").to_owned();
-        let compiled = request(0, "catalog_runtime_guide", json!({"handle":catalog.0,"guide":guide,"library":library})).unwrap()["definition"].clone();
-        for s in steps(&compiled) {
+        for s in steps(compiled) {
             let p = &s["action"]["params"];
             let text = p["instructions"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" ⏎ ")).unwrap_or_default();
             if !(text.contains('…') || text.contains("...")) {
