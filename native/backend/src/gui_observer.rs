@@ -842,7 +842,7 @@ pub(crate) fn snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value)
         _=>Value::Null,
     };
     Ok(
-        json!({"available":true,"source":"native_gui","session_id":session,"pid":args["pid"],"process_created":args["created"],"country":country,"scope":scope,"resolution":resolution,"active_panel":active.first(),"event_popup":event_popup,"panels":panels,"nodes":nodes,"tabs":tabs,"events":{"status":panels["event"]["status"],"visible_ids":event_data["visible_ids"]},"event_windows":event_data["event_windows"],"action_ui":action_data,"production_ui":production_data,"diagnostics":{"bytes":s.used}}),
+        json!({"available":true,"source":"native_gui","session_id":session,"pid":args["pid"],"process_created":args["created"],"country":country,"scope":scope,"resolution":resolution,"active_panel":active.first(),"event_popup":event_popup,"panels":panels,"nodes":nodes,"tabs":tabs,"events":{"status":panels["event"]["status"],"visible_ids":event_data["visible_ids"]},"event_windows":event_data["event_windows"],"action_ui":action_data,"production_ui":production_data,"diagnostics":{"bytes":s.used,"event_candidates":rows(&bindings["events"]).len(),"event_popup":event_popup}}),
     )
 }
 

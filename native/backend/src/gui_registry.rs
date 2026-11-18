@@ -489,6 +489,7 @@ impl Registry {
         profile: &Value,
         root: u64,
         hints: &Value,
+        events_only: bool,
     ) -> Result<()> {
         let old = self.headers.clone();
         let current = headers(memory, root, profile)?;
@@ -580,7 +581,7 @@ impl Registry {
         events.sort_unstable();
         let bindings = self.bindings.as_mut().unwrap();
         bindings["events"] = json!(events);
-        if !added.is_empty() {
+        if !added.is_empty() && !events_only {
             let roots = crate::gui_actions::action_roots(
                 &mut Sample::new(candidates.memory, base, profile),
                 root,
@@ -606,7 +607,12 @@ impl Registry {
         };
         self.discover(memory, base, profile, root)?;
         if !profile["gui_layout"].is_object() {
-            self.refresh_extensions(memory, base, profile, root, &args["event_instances"])?;
+            self.refresh_extensions(memory, base, profile, root, &args["event_instances"], false)?;
+        } else {
+            // Event popups open after discovery: find new CEventWindow objects
+            // by type so a visible popup is known (its answer geometry stays
+            // unqualified on this layout). A failed scan changes nothing else.
+            let _ = self.refresh_extensions(memory, base, profile, root, &json!([]), true);
         }
         let mut result = witnessed_snapshot(memory, args, self.bindings.as_ref().unwrap())?;
         for (panel, field) in [("focus", "focus_ids"), ("research", "technology_ids")] {
