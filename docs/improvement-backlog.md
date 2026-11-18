@@ -83,6 +83,16 @@ Item format (ids IL-01, IL-02, ... are never reused):
 - Status: done 3e9b44d
 - Attempts: 1
 - Notes: Before (HEAD b51f4a4, same command): 222.44 s test, 3m42.8 s wall. Timestamps: guide repository + reference library 0.4 s, `catalog_open` 15.5 s, 50 `catalog_runtime_guide` compiles 196.2 s total (1.7-8.7 s each, first one includes the import index), the survey loop itself under 1 s. One catalog generation runs its requests one at a time (owner mutex held for the whole compile), so the test now compiles the guides on 3 workers, each with its own generation, and keeps the survey loop in input order. Worker count measured: 2 -> 136.0 s, 3 -> 96.3 s, 4 -> 108.0 s (per-guide time +70% under contention, peak 6.0 GB). After, two runs: 91.35 s and 92.39 s. Summary JSON `diff` against before: empty, both runs; the whole ordered stderr (TRIG/FAM/NAMED/EVREF lines) is identical too, except where libtest prints its "running for over 60 seconds" notice. Only `native/backend/tests/integration/real_catalog_contract.rs` changed; `HOI4_SURVEY_WORKERS` overrides the count. Tests: `test-native.cjs backend` all pass; JS suite against a fresh dev backend 460 pass / 0 fail / 3 skipped.
+- Checked: green 2026-11-18T23:23:24+01:00
+
+### IL-08 — Trace receivers for candidate events that have none today
+- Area: guides
+- Priority: 3 (IL-02 found that candidate events of guide answer lines often have no traced receiver, so nothing can bind; better tracing helps the events page too; moderate risk)
+- Source: IL-02 Notes (2026-11-18): HUN "They can not…" candidates `wuw_GER_civil_war.5.a` and `WW_hungary.30.b` have no traced receivers; ITA "By any means…", GER "Rearmament has…", FRA "Their factories…" are single candidates with no receiver. Code: `event_reach` / `nation_events` in the backend.
+- Acceptance: on the current HEAD, count the candidate events of `event_reference_survey` lines that have no traced receiver (print the count in the survey summary). Find why each of the named events has none (which effect or caller `event_reach` does not follow) and trace the missing caller kinds only where the game files state the receiver exactly; count before -> after in Notes, with each newly traced receiver hand-checked against the game file. Survey `event_bound` not lower and no candidate bound to an event the nation cannot receive. Rust test for each new caller kind. `node scripts/test-native.cjs backend` and the JS suite green. Any event whose receiver depends on runtime state stays untraced.
+- Status: todo
+- Attempts: 0
+- Notes:
 
 ### IL-07 — One word per status in the UI strings
 - Area: ux
