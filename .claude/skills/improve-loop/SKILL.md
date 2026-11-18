@@ -54,8 +54,10 @@ Only one worker session runs at a time: they share the checkout, branch and buil
 
 ## 4. Check the result
 On the worker's end notice, re-read the item and run `git status` and `git log --oneline -3`.
-- **`done <hash>`**, `<hash>` is `HEAD~1` and HEAD is `docs: mark <id> done`: re-run `npm test` and
-  `node scripts/test-native.cjs <crate>` for each crate under `native/` listed by `git show --stat <hash>`
+- **`done <hash>`**, `<hash>` is `HEAD~1` and HEAD is `docs: mark <id> done`: re-run
+  `node scripts/test-native.cjs <crate>` for each crate under `native/` listed by `git show --stat <hash>`,
+  then `node scripts/dev-native.cjs build backend` and
+  `HOI4_BACKEND_EXE=.local/rust-dev-backend-target/release/hoi4-backend.exe npm test`
   (output to the scratchpad, read the tail). Green: accepted. Red: `git revert --no-edit HEAD <hash>`, add the
   failing test name to `Notes`, `Status: todo` (attempt 1) or `dropped: tests red after 2 attempts`.
 - **No new commit** (worker crashed, hit a limit or stopped): if the tree is dirty,
