@@ -80,9 +80,9 @@ Item format (ids IL-01, IL-02, ... are never reused):
 - Priority: 4 (228 s per run slows every guide-reference item; low risk, test-only)
 - Source: seeding run 2026-11-18: `event_reference_survey` took 228.24 s after a 26 s build.
 - Acceptance: find where the time goes (timestamps, no guessing). Survey test time 228 s -> under 120 s with the same command, identical summary JSON before and after (diff in Notes). Only test/support code changes; no production behavior change.
-- Status: todo
-- Attempts: 0
-- Notes:
+- Status: done 3e9b44d
+- Attempts: 1
+- Notes: Before (HEAD b51f4a4, same command): 222.44 s test, 3m42.8 s wall. Timestamps: guide repository + reference library 0.4 s, `catalog_open` 15.5 s, 50 `catalog_runtime_guide` compiles 196.2 s total (1.7-8.7 s each, first one includes the import index), the survey loop itself under 1 s. One catalog generation runs its requests one at a time (owner mutex held for the whole compile), so the test now compiles the guides on 3 workers, each with its own generation, and keeps the survey loop in input order. Worker count measured: 2 -> 136.0 s, 3 -> 96.3 s, 4 -> 108.0 s (per-guide time +70% under contention, peak 6.0 GB). After, two runs: 91.35 s and 92.39 s. Summary JSON `diff` against before: empty, both runs; the whole ordered stderr (TRIG/FAM/NAMED/EVREF lines) is identical too, except where libtest prints its "running for over 60 seconds" notice. Only `native/backend/tests/integration/real_catalog_contract.rs` changed; `HOI4_SURVEY_WORKERS` overrides the count. Tests: `test-native.cjs backend` all pass; JS suite against a fresh dev backend 460 pass / 0 fail / 3 skipped.
 
 ### IL-07 — One word per status in the UI strings
 - Area: ux
