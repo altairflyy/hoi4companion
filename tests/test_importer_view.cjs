@@ -467,6 +467,22 @@ test('preview separates import review from live monitoring and groups source not
  assert.equal(h.get('sourceWarnings').children.length,1);
  assert.match(h.get('reviewSummary').textContent,/1 istruzioni.*video/);
 });
+test('interpretation overview says how much the companion follows and lists uninterpreted lines',async()=>{
+ const h=harness();await tick();
+ h.report.interpretation={schema_version:1,step_count:10,verification:{automatic:4,manual:3,reminder:2,uninterpreted:1},
+  uninterpreted:[{key:'raw',track:'main',text:'Def against YUG'}]};
+ h.get('sourceText').value='Research tools.';await h.get('acquire').onclick();
+ h.get('guideJson').value=JSON.stringify(definition);await h.get('validate').onclick();
+ const card=h.get('interpretationOverview');
+ assert.equal(card.hidden,false);
+ assert.match(card.textContent,/4 su 10 passi seguiti da soli/);
+ assert.match(card.textContent,/3 da confermare/);assert.match(card.textContent,/2 promemoria/);assert.match(card.textContent,/1 non interpretat/);
+ assert.match(card.textContent,/Def against YUG/);
+ const link=descendants(card).find(n=>n.tag==='a');
+ assert.equal(link.href,'/associations?guide=opening&step=raw');
+ delete h.report.interpretation;await h.get('validate').onclick();
+ assert.equal(h.get('interpretationOverview').hidden,true);
+});
 test('visual review count is independent of language and warning text',async()=>{
  for(const locale of ['italian','english']){
   const h=harness();await tick();require('../src/hoi4companion/web/i18n.js').setLanguage(locale);

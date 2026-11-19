@@ -667,6 +667,7 @@ fn compile(
     }
     report["guide"] = guide_schema::normalize(&guide)?;
     report["sequence_report"] = import_reports::sequence(&report["guide"])?;
+    report["interpretation"] = import_reports::interpretation(&report["guide"])?;
     report["valid"] = json!(arr(&report["errors"]).is_empty());
     Ok(())
 }

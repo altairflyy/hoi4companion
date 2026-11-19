@@ -268,7 +268,19 @@
   }
   if(resolved.children.length>1)container.append(resolved);
  }
- function showReport(value){report=value;coverageView(value);$('issues').replaceChildren();$('sourceWarnings').replaceChildren();$('preview').replaceChildren();
+ // How much of the guide the companion follows by itself (Rust import report); presentation only.
+ function interpretationView(value){
+  const card=$('interpretationOverview'),info=value.interpretation,counts=info?.verification;card.replaceChildren();
+  card.hidden=!counts||!info.step_count;if(card.hidden)return;
+  card.append(node('h3',HoiI18n.t('What the companion will follow')),
+   node('p',HoiI18n.t('{0} of {1} steps followed by themselves · {2} to confirm with a tick · {3} reminders without verification · {4} not interpreted.',counts.automatic,info.step_count,counts.manual,counts.reminder,counts.uninterpreted)));
+  const lines=info.uninterpreted||[];if(!lines.length)return;
+  const details=node('details');details.append(node('summary',HoiI18n.t('Lines not interpreted ({0})',lines.length)),node('p',HoiI18n.t('They stay visible as the source wrote them. After adding the guide you can bind each one in Correct bindings.')));
+  const list=node('ul'),id=value.guide?.id||'';
+  for(const line of lines){const item=node('li',line.text||line.key+' ');const link=node('a',HoiI18n.t('Correct bindings'));link.href='/associations?guide='+encodeURIComponent(id)+'&step='+encodeURIComponent(line.key);item.append(' · ',link);list.append(item);}
+  details.append(list);card.append(details);
+ }
+ function showReport(value){report=value;coverageView(value);interpretationView(value);$('issues').replaceChildren();$('sourceWarnings').replaceChildren();$('preview').replaceChildren();
   if(value.compatibility?.blocked){
    const requirements=(value.compatibility.requirements||[]).flatMap(group=>[...(group.enable||[]),...(group.disable||[])]).join(', ');
    const notice=typeof HoiGuideAvailability!=='undefined'?HoiGuideAvailability.notice(value.compatibility,HoiI18n.t):requirements;

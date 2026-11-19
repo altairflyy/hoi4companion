@@ -138,6 +138,53 @@ pub fn coverage(guide: &Value, sources: &Value) -> Result<Value, String> {
     });
     Ok(report)
 }
+fn observable(node: &Value) -> bool {
+    node["op"] == "fact" || arr(&node["args"]).iter().any(observable) || node.get("arg").is_some_and(observable)
+}
+/// How a step's completion will be known. Focus and research steps are automatic
+/// because guide-core evaluates them by native membership (completed focuses,
+/// researched technologies); the other rules follow the walkthrough's verification
+/// label (`web/guide.js`). Presentation only: it never changes status.
+fn verification(step: &Value) -> &'static str {
+    let kind = s(&step["action"]["kind"]);
+    let p = &step["action"]["params"];
+    if step["tracking"] == "reminder" {
+        "reminder"
+    } else if ["select_focus", "research"].contains(&kind) || observable(&step["completion"]) {
+        "automatic"
+    } else if p.get("source_action").is_some()
+        && ["", "checkpoints"].contains(&s(&p["category"]))
+        && p.get("reference_resolution").is_none()
+        && !["bound", "not_observable"].contains(&s(&p["action_resolution"]["status"]))
+    {
+        "uninterpreted"
+    } else {
+        "manual"
+    }
+}
+/// Tells the player, before installing, how much of the guide the companion follows
+/// by itself, how much needs a tick, and which source lines were not interpreted.
+pub fn interpretation(guide: &Value) -> Result<Value, String> {
+    let tracks = guide["tracks"].as_object().ok_or("Missing guide tracks")?;
+    let mut counts = BTreeMap::from([("automatic", 0), ("manual", 0), ("reminder", 0), ("uninterpreted", 0)]);
+    let mut uninterpreted = vec![];
+    for (track, rows) in tracks {
+        for step in arr(rows) {
+            let method = verification(step);
+            *counts.get_mut(method).unwrap() += 1;
+            if method == "uninterpreted" {
+                let text = arr(&step["action"]["params"]["instructions"])
+                    .iter()
+                    .map(s)
+                    .find(|t| !t.trim().is_empty())
+                    .or_else(|| [&step["title"], &step["name"]].into_iter().map(s).find(|t| !t.is_empty()))
+                    .unwrap_or("");
+                uninterpreted.push(json!({"key":step["key"],"track":track,"text":text}));
+            }
+        }
+    }
+    Ok(json!({"schema_version":1,"step_count":counts.values().sum::<usize>(),"verification":counts,"uninterpreted":uninterpreted}))
+}
 pub fn sequence(guide: &Value) -> Result<Value, String> {
     let policy = guide
         .get("dependency_policy")
@@ -173,4 +220,34 @@ pub fn sequence(guide: &Value) -> Result<Value, String> {
     Ok(
         json!({"policy":policy,"step_count":steps,"unspecified_dependency_steps":unspecified,"implicit_barrier_steps":affected.len(),"implicit_barrier_edges":edges,"examples":affected.into_iter().take(10).collect::<Vec<_>>()}),
     )
+}
+#[cfg(test)]
+mod tests {
+    use super::interpretation;
+    use serde_json::json;
+    #[test]
+    fn interpretation_counts_each_step_once_by_verification_method() {
+        let source = |category: &str| json!({"source_action":{"source_id":"s","key":"k","ordinal":1},"category":category});
+        let guide = json!({"tracks":{"main":[
+            {"key":"focus","title":"Focus","action":{"kind":"select_focus","entity":{"id":"ROM_x"}}},
+            {"key":"tech","action":{"kind":"research","entity":{"id":"infantry_weapons"}}},
+            {"key":"prod","action":{"kind":"manual","params":source("production")},
+             "completion":{"op":"all","args":[{"op":"fact","key":"guide.production.prod.requested","test":"eq","value":1}]}},
+            {"key":"law","action":{"kind":"manual","params":source("politics")}},
+            {"key":"note","tracking":"reminder","action":{"kind":"manual","params":source("checkpoints")}},
+            {"key":"raw","title":"Def against YUG","action":{"kind":"manual","params":{"source_action":{"source_id":"s","key":"k","ordinal":2},"category":"checkpoints","instructions":["Def against YUG"]}}},
+            {"key":"bound","action":{"kind":"manual","params":{"source_action":{"source_id":"s","key":"k","ordinal":3},"category":"checkpoints","action_resolution":{"status":"bound"}}}},
+            {"key":"ticked","action":{"kind":"manual"},"completion":{"op":"check","key":"ticked"}}
+        ]}});
+        let report = interpretation(&guide).unwrap();
+        assert_eq!(report["step_count"], 8);
+        assert_eq!(
+            report["verification"],
+            json!({"automatic":3,"manual":3,"reminder":1,"uninterpreted":1})
+        );
+        assert_eq!(
+            report["uninterpreted"],
+            json!([{"key":"raw","track":"main","text":"Def against YUG"}])
+        );
+    }
 }

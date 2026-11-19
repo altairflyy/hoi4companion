@@ -1,6 +1,10 @@
 {
   "schema_version": 1,
   "messages": {
+    "What the companion will follow": "Cosa seguirà il companion",
+    "{0} of {1} steps followed by themselves · {2} to confirm with a tick · {3} reminders without verification · {4} not interpreted.": "{0} su {1} passi seguiti da soli · {2} da confermare con la spunta · {3} promemoria senza verifica · {4} non interpretati.",
+    "Lines not interpreted ({0})": "Righe non interpretate ({0})",
+    "They stay visible as the source wrote them. After adding the guide you can bind each one in Correct bindings.": "Restano visibili come le ha scritte la fonte. Dopo aver aggiunto la guida puoi collegarle una per una in Correggi associazioni.",
     "Abbreviations in this instruction": "Abbreviazioni in questa istruzione",
     "{0} (runtime role)": "{0} (ruolo generato)",
     "Why?": "Perché?",
