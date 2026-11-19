@@ -301,8 +301,9 @@ pub struct Application {
     preparing: BTreeMap<String, Option<String>>,
     /// Bumped when background-prepared guides join the registry.
     registry_generation: u64,
-    /// Test hook (`answer_index` entries): catalog the confirmations bind
-    /// against while no game catalog context is loaded.
+    /// Test hook (`answer_index` entries, `test-support` feature only): catalog
+    /// the confirmations bind against while no game catalog context is loaded.
+    #[cfg(feature = "test-support")]
     answer_index: Option<crate::import_catalog::Index>,
     /// Definitions with confirmed answers applied, by `apply_answers` key.
     applied_answers: HashMap<String, Value>,
@@ -346,6 +347,7 @@ impl Application {
             live_runs: None,
             preparing: BTreeMap::new(),
             registry_generation: 0,
+            #[cfg(feature = "test-support")]
             answer_index: match args.get("answer_index") {
                 Some(entries) if !entries.is_null() => Some(crate::import_catalog::Index::new(entries)?),
                 _ => None,
@@ -757,14 +759,26 @@ impl Application {
         self.runs.answers().iter().filter(|row| row["guide_id"] == id).cloned().collect()
     }
     /// Index the confirmations bind against: the game catalog when loaded,
-    /// else the `answer_index` test entries, else an empty index (rows are
-    /// then recorded on their line but bind nothing).
+    /// else (tests only) the `answer_index` entries, else an empty index (rows
+    /// are then recorded on their line but bind nothing).
     fn answer_index(&self) -> Result<crate::import_catalog::Index> {
-        match (&self.context, &self.answer_index) {
-            (Some(context), _) => Ok(context.index().clone()),
-            (None, Some(index)) => Ok(index.clone()),
-            (None, None) => crate::import_catalog::Index::new(&json!({"entries":[]})),
+        if let Some(context) = &self.context {
+            return Ok(context.index().clone());
         }
+        #[cfg(feature = "test-support")]
+        if let Some(index) = &self.answer_index {
+            return Ok(index.clone());
+        }
+        crate::import_catalog::Index::new(&json!({"entries":[]}))
+    }
+    /// Keys a manual check of this run may hold: the definition's manual keys
+    /// plus the lines of this guide's stored confirmations, so a check made by
+    /// a confirmation that no longer applies (row removed, catalog not loaded,
+    /// option no longer listed) never blocks progress writes or its own unchecking.
+    fn checkable_keys(&self, id: &str, definition: &Value) -> HashSet<String> {
+        let mut keys = manual_keys(definition);
+        keys.extend(self.guide_answers(id).iter().filter_map(|row| row["step_key"].as_str().map(str::to_owned)));
+        keys
     }
     /// Applies `answers` to `guide` (a clone the caller owns) and restamps its
     /// runtime revision when they change it; without rows nothing changes.
@@ -1251,7 +1265,7 @@ impl Application {
                 let checks = update.get("checks").unwrap_or(&current["checks"]);
                 // Keys are validated against the run's own definition.
                 let (definition, _) = self.definition_for_run(&id, &current)?;
-                let allowed = manual_keys(&definition);
+                let allowed = self.checkable_keys(&id, &definition);
                 if checks
                     .as_object()
                     .is_none_or(|m| m.keys().any(|k| !allowed.contains(k)))
@@ -1339,7 +1353,8 @@ impl Application {
         let current = self.runs.call("get", json!({"guide_id":id}))?;
         if let Some(update) = update {
             self.guard(&json!({"checks":{}}), &current)?;
-            let allowed = manual_keys(&self.definition_for_run(&id, &current)?.0);
+            let definition = self.definition_for_run(&id, &current)?.0;
+            let allowed = self.checkable_keys(&id, &definition);
             fn apply(current: &mut Value, update: &Value, allowed: &HashSet<String>) -> Result<()> {
                 if update.as_object().is_none_or(|m| m.len() != 2)
                     || update["key"].as_str().is_none()
@@ -1387,9 +1402,10 @@ impl Application {
     /// Without `update`: the stored rows. `confirm` stores the row and, when
     /// the confirmation makes the line a manual check of the run's definition,
     /// checks it in the current run, in one save; it returns the row it
-    /// replaced, for Undo. `restore` puts that row back (or deletes the row
-    /// when there was none) and unchecks the step; `remove` deletes the row
-    /// only. A confirmation is accepted only for an option the line lists.
+    /// replaced and the step's check before, for Undo. `restore` puts that row
+    /// back (or deletes the row when there was none) and sets the step's check
+    /// back to `previous_checked`; `remove` deletes the row and the step's check.
+    /// A confirmed or restored row is accepted only for an option the line lists.
     pub fn answers(&mut self, id: Option<&str>, update: Option<&Value>) -> Result<Value> {
         let id = self.identity(id)?;
         let Some(update) = update else {
@@ -1398,7 +1414,7 @@ impl Application {
         let op = update["op"].as_str().unwrap_or("");
         let fields: &[&str] = match op {
             "confirm" => &["op", "key", "quote", "event_id", "option_id"],
-            "restore" => &["op", "key", "quote", "previous"],
+            "restore" => &["op", "key", "quote", "previous", "previous_checked"],
             "remove" => &["op", "key", "quote"],
             _ => return Err("Invalid answer confirmation".into()),
         };
@@ -1410,61 +1426,82 @@ impl Application {
         };
         let line = |row: &Value| row["step_key"] == key && row["quote"] == quote;
         let previous = self.guide_answers(&id).into_iter().find(line).unwrap_or(Value::Null);
-        if op == "remove" {
-            let delete = json!({"op":"delete","guide_id":id,"step_key":key,"quote":quote});
-            self.runs_call_answers("get", json!({"guide_id":id}), &[delete])?;
-            self.revision += 1;
+        let delete = json!({"op":"delete","guide_id":id,"step_key":key,"quote":quote});
+        if op == "remove" && previous.is_null() {
             return Ok(json!({"guide_id":id,"answers":self.guide_answers(&id)}));
         }
         self.ensure(&id)?;
         let current = self.runs.call("get", json!({"guide_id":id}))?;
-        self.guard(&json!({}), &current)?;
         let mut checks = current["checks"].clone();
-        let (row, checked) = if op == "confirm" {
-            let (Some(event), Some(option)) = (update["event_id"].as_str(), update["option_id"].as_str()) else {
-                return Err("Invalid answer confirmation".into());
-            };
-            let (definition, _) = self.stored_definition_for_run(&id, &current)?;
-            let listed = rows(&definition).any(|row| {
-                let candidates = &row["action"]["params"]["reference_candidates"];
-                row["key"] == key && candidates["text"] == quote
-                    && candidates["event_options"].as_array().is_some_and(|options| {
-                        options.iter().any(|o| o["id"] == option && o["event_id"] == event)
-                    })
-            });
-            if !listed {
-                return Err("This answer is not one of the guide line's candidates".into());
-            }
-            let row = json!({"op":"put","guide_id":id,"step_key":key,"quote":quote,"event_id":event,"option_id":option,"confirmed_at":local_time()});
-            let mut stored: Vec<Value> = self.guide_answers(&id).into_iter().filter(|r| !line(r)).collect();
-            let mut kept = row.clone();
-            kept.as_object_mut().unwrap().remove("op");
-            stored.push(kept);
-            let mut applied = definition;
-            self.apply_answers(&mut applied, &stored)?;
-            let checked = manual_keys(&applied).contains(key);
-            if checked {
-                checks[key] = json!(true);
-            }
-            (row, checked)
-        } else {
-            let restored = &update["previous"];
-            let row = if restored.is_null() {
-                json!({"op":"delete","guide_id":id,"step_key":key,"quote":quote})
-            } else {
-                if !restored.is_object() || restored["guide_id"] != id.as_str() || !line(restored) {
-                    return Err("Invalid answer confirmation".into());
+        let previous_checked = checks[key] == true;
+        if op == "remove" && !previous_checked {
+            // The run is unchanged: only the row goes.
+            self.runs_call_answers("get", json!({"guide_id":id}), &[delete])?;
+            self.revision += 1;
+            return Ok(json!({"guide_id":id,"answers":self.guide_answers(&id)}));
+        }
+        self.guard(&json!({}), &current)?;
+        let (definition, _) = self.stored_definition_for_run(&id, &current)?;
+        let listed = |event: &Value, option: &Value| rows(&definition).any(|row| {
+            let candidates = &row["action"]["params"]["reference_candidates"];
+            row["key"] == key && candidates["text"] == quote && event.is_string() && option.is_string()
+                && candidates["event_options"].as_array().is_some_and(|options| {
+                    options.iter().any(|o| o["id"] == *option && o["event_id"] == *event)
+                })
+        });
+        let (row, checked) = match op {
+            "confirm" => {
+                if !listed(&update["event_id"], &update["option_id"]) {
+                    return Err("This answer is not one of the guide line's candidates".into());
                 }
-                let mut row = restored.clone();
-                row["op"] = json!("put");
-                row
-            };
-            checks.as_object_mut().ok_or("Invalid run checks")?.remove(key);
-            (row, false)
+                let row = json!({"op":"put","guide_id":id,"step_key":key,"quote":quote,"event_id":update["event_id"],"option_id":update["option_id"],"confirmed_at":local_time()});
+                let mut stored: Vec<Value> = self.guide_answers(&id).into_iter().filter(|r| !line(r)).collect();
+                let mut kept = row.clone();
+                kept.as_object_mut().unwrap().remove("op");
+                stored.push(kept);
+                let mut applied = definition.clone();
+                self.apply_answers(&mut applied, &stored)?;
+                let checked = manual_keys(&applied).contains(key);
+                if checked {
+                    checks[key] = json!(true);
+                }
+                (row, checked)
+            }
+            "restore" => {
+                let Some(checked) = update["previous_checked"].as_bool() else {
+                    return Err("Invalid answer confirmation".into());
+                };
+                let restored = &update["previous"];
+                let row = if restored.is_null() {
+                    delete
+                } else {
+                    if !restored.is_object() || restored["guide_id"] != id.as_str() || !line(restored)
+                        || !listed(&restored["event_id"], &restored["option_id"])
+                    {
+                        return Err("Invalid answer confirmation".into());
+                    }
+                    let mut row = restored.clone();
+                    row["op"] = json!("put");
+                    row
+                };
+                if checked {
+                    checks[key] = json!(true);
+                } else {
+                    checks.as_object_mut().ok_or("Invalid run checks")?.remove(key);
+                }
+                (row, checked)
+            }
+            _ => {
+                checks.as_object_mut().ok_or("Invalid run checks")?.remove(key);
+                (delete, false)
+            }
         };
         self.runs_call_answers("update", json!({"guide_id":id,"checks":checks,"started":current["started"]}), &[row])?;
         self.revision += 1;
-        Ok(json!({"previous":previous,"checked":checked}))
+        if op == "remove" {
+            return Ok(json!({"guide_id":id,"answers":self.guide_answers(&id)}));
+        }
+        Ok(json!({"previous":previous,"previous_checked":previous_checked,"checked":checked}))
     }
     pub fn request(&mut self, op: &str, args: &Value) -> Result<Value> {
         match op {

@@ -43,7 +43,12 @@ hoi4companion-media = { path = "../media" }
 windows = { version = "=0.61.3", features = ["Win32_Foundation", "Win32_System_Diagnostics_Debug", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading", "Win32_System_Com", "Win32_System_LibraryLoader", "Win32_System_SystemInformation", "Win32_Storage_FileSystem", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [dev-dependencies]
+hoi4companion-backend = { path = ".", features = ["test-support"] }
 hoi4companion-live = { path = "../live", features = ["test-support"] }
+
+[features]
+# Test-only hooks for the integration tests (enabled by the self dev-dependency above).
+test-support = []
 
 [profile.release]
 lto = true

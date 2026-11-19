@@ -469,6 +469,7 @@ version = "0.1.0"
 dependencies = [
  "csv",
  "encoding_rs",
+ "hoi4companion-backend",
  "hoi4companion-catalog-core",
  "hoi4companion-guide-core",
  "hoi4companion-guides",

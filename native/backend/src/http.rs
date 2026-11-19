@@ -1108,6 +1108,7 @@ impl Service {
             "event_id",
             "option_id",
             "previous",
+            "previous_checked",
         ])?;
         if input["schema_version"] != 1 || input["token"].as_u64().is_none() {
             return Err("Versione o token overlay non supportati".into());
@@ -1162,14 +1163,15 @@ impl Service {
             self.invalidate()?;
             result["key"] = json!(key);
             result["previous"] = value["previous"].clone();
+            result["previous_checked"] = value["previous_checked"].clone();
             result["checked"] = value["checked"].clone();
             return Ok(result);
         } else if kind == "restore_answer" {
             // Undo of "I chose this": puts back the replaced row (or none) and
-            // unchecks the step.
+            // the step's check as it was before.
             let guide = input["guide_id"].as_str().ok_or("Guida non installata")?;
             let key = input["key"].as_str().ok_or("Missing step")?;
-            self.app("app_answers", &json!({"guide_id":guide,"update":{"op":"restore","key":key,"quote":input["quote"],"previous":input["previous"]}}))?;
+            self.app("app_answers", &json!({"guide_id":guide,"update":{"op":"restore","key":key,"quote":input["quote"],"previous":input["previous"],"previous_checked":input["previous_checked"]}}))?;
             self.invalidate()?;
             result["key"] = json!(key);
             result["restored"] = json!(true);

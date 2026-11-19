@@ -104,7 +104,7 @@ fn confirm_on_two_reference_line_stores_but_does_not_check() {
     let temp = Temp::new();
     let mut app = open(&temp);
     let result = confirm(&mut app, "pair", "Absolutely Not…", "E.a").unwrap();
-    assert_eq!(result, json!({"previous":null,"checked":false}));
+    assert_eq!(result, json!({"previous":null,"previous_checked":false,"checked":false}));
     assert_eq!(checks(&mut app), json!({}));
     assert_eq!(temp.load()["answers"].as_array().unwrap().len(), 1);
     let pair = step(&mut app, "pair");
@@ -120,18 +120,82 @@ fn confirm_on_two_reference_line_stores_but_does_not_check() {
 fn restore_brings_back_the_replaced_row_and_unchecks() {
     let temp = Temp::new();
     let mut app = open(&temp);
-    confirm(&mut app, "single", "Mobilize The…", "E.a").unwrap();
-    let first = temp.load()["answers"][0].clone();
+    let first = confirm(&mut app, "single", "Mobilize The…", "E.a").unwrap();
+    assert_eq!((&first["previous"], &first["previous_checked"]), (&Value::Null, &json!(false)));
+    let row_a = temp.load()["answers"][0].clone();
     let second = confirm(&mut app, "single", "Mobilize The…", "E.b").unwrap();
-    assert_eq!(second["previous"], first, "the replaced row is returned for Undo");
+    assert_eq!(second["previous"], row_a, "the replaced row is returned for Undo");
     assert_eq!(temp.load()["answers"][0]["option_id"], "E.b");
-    answers(&mut app, json!({"op":"restore","key":"single","quote":"Mobilize The…","previous":second["previous"]})).unwrap();
-    assert_eq!(temp.load()["answers"], json!([first]));
-    assert_eq!(checks(&mut app), json!({}));
-    // Undo of a first confirmation deletes the row.
-    answers(&mut app, json!({"op":"restore","key":"single","quote":"Mobilize The…","previous":null})).unwrap();
+    // Undo of the replacement brings back the earlier row.
+    answers(&mut app, json!({"op":"restore","key":"single","quote":"Mobilize The…","previous":second["previous"],"previous_checked":second["previous_checked"]})).unwrap();
+    assert_eq!(temp.load()["answers"], json!([row_a]));
+    // Undo of the first confirmation deletes the row and unchecks the step.
+    answers(&mut app, json!({"op":"restore","key":"single","quote":"Mobilize The…","previous":first["previous"],"previous_checked":first["previous_checked"]})).unwrap();
     assert_eq!(temp.load()["answers"], json!([]));
+    assert_eq!(checks(&mut app), json!({}));
     assert_eq!(step(&mut app, "single")["tracking"], "reminder");
+}
+
+#[test]
+fn undo_of_a_replacement_keeps_the_earlier_check() {
+    let temp = Temp::new();
+    let mut app = open(&temp);
+    confirm(&mut app, "single", "Mobilize The…", "E.a").unwrap();
+    let row_a = temp.load()["answers"][0].clone();
+    let second = confirm(&mut app, "single", "Mobilize The…", "E.b").unwrap();
+    assert_eq!(second["previous_checked"], true);
+    answers(&mut app, json!({"op":"restore","key":"single","quote":"Mobilize The…","previous":second["previous"],"previous_checked":true})).unwrap();
+    assert_eq!(temp.load()["answers"], json!([row_a]));
+    assert_eq!(checks(&mut app), json!({"single":true}), "the check made by the first confirmation stays");
+}
+
+#[test]
+fn restore_with_unlisted_option_is_refused() {
+    let temp = Temp::new();
+    let mut app = open(&temp);
+    confirm(&mut app, "single", "Mobilize The…", "E.b").unwrap();
+    let before = temp.load();
+    let mut forged = before["answers"][0].clone();
+    forged["option_id"] = json!("E.zzz");
+    let refused = answers(&mut app, json!({"op":"restore","key":"single","quote":"Mobilize The…","previous":forged,"previous_checked":false}));
+    assert!(refused.is_err());
+    let after = temp.load();
+    assert_eq!(after["answers"], before["answers"]);
+    assert_eq!(after["revision"], before["revision"], "nothing written");
+    assert_eq!(checks(&mut app), json!({"single":true}));
+}
+
+#[test]
+fn confirm_remove_then_started_update_succeeds() {
+    let temp = Temp::new();
+    let mut app = open(&temp);
+    confirm(&mut app, "single", "Mobilize The…", "E.b").unwrap();
+    answers(&mut app, json!({"op":"remove","key":"single","quote":"Mobilize The…"})).unwrap();
+    assert_eq!(checks(&mut app), json!({}), "the confirmation's check goes with it");
+    let current = app.progress(Some(GUIDE), None, None).unwrap();
+    app.progress(Some(GUIDE), None, Some(&json!({"run_id":current["run_id"],"checks":current["checks"],"started":{}}))).unwrap();
+    // Removing a confirmation that is not stored writes nothing.
+    let revision = temp.load()["revision"].clone();
+    answers(&mut app, json!({"op":"remove","key":"single","quote":"Mobilize The…"})).unwrap();
+    assert_eq!(temp.load()["revision"], revision);
+}
+
+#[test]
+fn stored_confirmation_that_does_not_apply_keeps_progress_writable() {
+    let temp = Temp::new();
+    {
+        let mut app = open(&temp);
+        confirm(&mut app, "single", "Mobilize The…", "E.b").unwrap();
+    }
+    // Without a catalog the row binds nothing: the line is a reminder again,
+    // but its check stays writable and can be removed.
+    let mut app = Application::open(&json!({"path":temp.db(),"upgrade_without_catalog":true,"guides":[guide()]})).unwrap();
+    assert_eq!(step(&mut app, "single")["tracking"], "reminder");
+    let current = app.progress(Some(GUIDE), None, None).unwrap();
+    assert_eq!(current["checks"], json!({"single":true}));
+    app.progress(Some(GUIDE), None, Some(&json!({"run_id":current["run_id"],"checks":current["checks"],"started":{}}))).unwrap();
+    let unchecked = app.request("app_checks", &json!({"guide_id":GUIDE,"update":{"key":"single","checked":false}})).unwrap();
+    assert_eq!(unchecked["checks"], json!({}));
 }
 
 #[test]
