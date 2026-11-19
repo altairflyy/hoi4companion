@@ -8,11 +8,15 @@ Updated: 2026-11-19. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
    Waits on item 0b (campaign identity + domains on HOI4 1.20).
 0b. Requalify HOI4 1.20.0.0 (user chose this; read-only copy `.local/hoi4-1.20/hoi4.exe`, sha256 `1beb2a38…b63a9f`), one domain per session.
    Done `e98ccbb`: ABI relocation set `live-abi-v1-hoi4-1.20.json`, all 23 groups static; live core/production/diplomacy/intel/events/projects observed.
-   Still unavailable live, in this order: campaign_identity ("Token identità campagna non qualificato": inferred token RVA `0x34d6fa8`,
-   neighbour delta +0x6490, slot stride 0x48, is wrong or moved); states/construction/fortifications (CBuildingDatabase); equipment; resources;
+   NEXT SESSION (user confirmed): campaign_identity, `native/live/src/country_campaign.rs` ("Token identità campagna non qualificato").
+   Runtime needs u32 0x3b80 at `campaign_token_rva`. ABI row core:10 (exception funclet `lea rcx,[token-0x48]`..`lea rcx,[token]`)
+   was resolved by inference to `0x34d6fa8` (+0x6490 like neighbours; static array, stride 0x48, slots 0x34d6db0..0x34d71a0): wrong.
+   Find the real slot statically (xrefs of the token object, code using 0x3b80) and fix row core:10 in the 1.20 set; then live check.
+   Then, in this order: states/construction/fortifications (CBuildingDatabase); equipment; resources;
    politics.advisors + advisor costs; commander_assignments (CArmyGroup); decisions (read limit); metrics; doctrines.
    Also hash-pinned to old builds: map markers (`map_markers.rs`, 709f…) and production GUI (`gui_production.rs`, cf781…).
-   Static tools (scratch, not in repo): row probe, fuzzy matcher, iced-x86 regenerator. Never name the game folder in a write command (guard).
+   Static tools (scratch, may be gone): crate `abiprobe` (row probe, fuzzy, gen, dis, pat bins; iced-x86) in the session scratchpad;
+   rebuild if missing. Analyse only the copy; never name the game folder in a write command (guard `guard-game.cjs`).
 1. Verify the confirmed-event-answer work in game (read-only). `_native` is current since 2026-11-19 14:44 (backend 11:28 build = HEAD sources, overlay rebuilt), app restarted; HOI4 was not running.
 2. User exercises the Desktop shortcut and HUD in gameplay; investigate concrete issues with read-only game access.
 3. UX roadmap, one step per session (user runs /clear between steps): do the first unchecked item of `## Execution order` in `docs/ux-analysis-2026-11-19.md`, tick it there and here. Done: R1, R2, R3+R5. Next: R4.
