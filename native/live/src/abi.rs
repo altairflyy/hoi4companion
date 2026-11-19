@@ -350,6 +350,19 @@ mod tests {
                     (base+j as u64+6).wrapping_add(i32::from_le_bytes(code[j+2..j+6].try_into().unwrap()) as i64 as u64)))
                 .collect::<Vec<_>>()}).map(|id|number(pe.bytes(id,4).unwrap(),0,4).unwrap()).collect::<Vec<_>>();
         assert_eq!(ids,vec![0x3b80],"campaign token slot {token:#x}");
+        // The building database slot is stored once, `call ctor; nop; mov [rip+slot],rax`,
+        // and that constructor installs the base TGameItemDatabase vtable, then the primary
+        // CBuildingDatabase vtable last.
+        let slot=profile["building_database_rva"].as_u64().unwrap();
+        let rel=|base:u64,code:&[u8],at:usize,end:usize|(base+end as u64).wrapping_add(i32::from_le_bytes(code[at..at+4].try_into().unwrap()) as i64 as u64);
+        let classes=sections(&data,&pe,true).unwrap().into_iter().flat_map(|(base,code)|{
+            (6..code.len().saturating_sub(7)).filter(|&i|code[i..i+3]==[0x48,0x89,0x05] && rel(base,code,i+3,i+7)==slot)
+                .map(|i|{assert_eq!((code[i-6],code[i-1]),(0xe8,0x90),"building database store {:#x}",base+i as u64);
+                    let ctor=rel(base,code,i-5,i-1);let body=pe.bytes(ctor,0x80).unwrap();
+                    (0..0x79).filter(|&j|matches!(body[j],0x48|0x4c)&&body[j+1]==0x8d&&body[j+2]&0xc7==5)
+                        .filter_map(|j|pe.class_name(rel(ctor,body,j+3,j+7)).ok()).collect::<Vec<_>>()}).collect::<Vec<_>>()}).collect::<Vec<_>>();
+        assert_eq!(classes,vec![vec![".?AV?$TGameItemDatabase@VCBuildingDatabase@@@@".to_string(),".?AVCBuildingDatabase@@".to_string()]],
+            "building database slot {slot:#x}");
         eprintln!("qualified by {} with {} groups",profile["compatibility"]["relocation_source"],groups.len());
     }
     #[test]
