@@ -338,6 +338,18 @@ mod tests {
         let groups=profile["compatibility"]["groups"].as_object().unwrap();
         let failed=groups.iter().filter(|(_,v)|**v!=true).collect::<Vec<_>>();
         assert!(failed.is_empty(),"{failed:?}");
+        // The campaign token slot is a static token object whose initializer loads
+        // its id with `mov edx,[rip+id]` shortly before `lea rcx,[rip+slot]`; that
+        // id must be the save key 0x3b80 used next to the campaign UUID (world+0x728).
+        let token=profile["campaign_token_rva"].as_u64().unwrap();
+        let pe=Pe::new(&data).unwrap();
+        let ids=sections(&data,&pe,true).unwrap().into_iter().flat_map(|(base,code)|{
+            (7..code.len().saturating_sub(7)).filter(|&i|code[i..i+3]==[0x48,0x8d,0x0d]
+                && (base+i as u64+7).wrapping_add(i32::from_le_bytes(code[i+3..i+7].try_into().unwrap()) as i64 as u64)==token)
+                .filter_map(|i|(i.saturating_sub(0x30)..i).rev().find(|&j|code[j..j+2]==[0x8b,0x15]).map(|j|
+                    (base+j as u64+6).wrapping_add(i32::from_le_bytes(code[j+2..j+6].try_into().unwrap()) as i64 as u64)))
+                .collect::<Vec<_>>()}).map(|id|number(pe.bytes(id,4).unwrap(),0,4).unwrap()).collect::<Vec<_>>();
+        assert_eq!(ids,vec![0x3b80],"campaign token slot {token:#x}");
         eprintln!("qualified by {} with {} groups",profile["compatibility"]["relocation_source"],groups.len());
     }
     #[test]
