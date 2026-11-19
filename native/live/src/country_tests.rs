@@ -260,3 +260,16 @@ fn event_owner_is_recovered_from_the_actual_secondary_rtti_offset(){
 
 #[path = "country_logistics_tests.rs"]
 mod logistics_tests;
+#[test]
+fn owed_equipment_variants_keep_their_negative_native_balance(){
+    // HOI4 1.20 holds a variant below zero while it is owed; the gross stockpile reports it as is.
+    let mut m=Fixture::new();let status=m.alloc();m.object(status,"CProductionStatus");m.u(COUNTRY+0xf68,status);m.u(status+0x290,COUNTRY);
+    m.object(status+0x200,"CEquipmentVariantPool");
+    let kind=m.alloc();m.object(kind,"CEquipmentType");m.string(kind+0x18,"infantry_equipment_1");
+    let entries=m.alloc();let put=|m:&mut Fixture,i:u64,amount:i64|{let v=m.alloc();m.object(v,"CEquipmentVariant");m.u(v+0x3f0,kind);m.string(v+0x28,"");m.u(entries+i*16,v);m.put(entries+i*16+8,&amount.to_le_bytes());};
+    put(&mut m,0,250_000);put(&mut m,1,-100_000);
+    m.u(status+0x220,entries);m.i(status+0x228,2);m.i(status+0x22c,2);
+    let v=m.request("equipment",json!({})).unwrap();
+    assert_eq!(v["variants"][1]["stockpile"],-1.0);assert_eq!(v["items"][0]["stockpile"],1.5);
+    m.put(entries+24,&i64::MIN.to_le_bytes());assert!(m.request("equipment",json!({})).unwrap_err().contains("quantità non valida"));
+}

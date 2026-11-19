@@ -300,26 +300,29 @@ impl<M: Memory> Reader<'_, M> {
             vec![]
         };
         let mut seen = HashSet::new();
-        let mut amounts = BTreeMap::<String, u128>::new();
+        let mut amounts = BTreeMap::<String, i128>::new();
         let mut variants = vec![];
         for part in raw.as_chunks::<16>().0 {
             let variant = u64::from_le_bytes(part[..8].try_into().unwrap());
             let amount = i64::from_le_bytes(part[8..].try_into().unwrap());
-            if !(0..=10_000_000_000_000_000).contains(&amount) || !seen.insert(variant) {
+            // HOI4 1.20 keeps a variant's balance below zero while it is owed (seen live: -1.0).
+            if !(-10_000_000_000_000_000..=10_000_000_000_000_000).contains(&amount)
+                || !seen.insert(variant)
+            {
                 return Err("Variante scorte duplicata o quantità non valida".into());
             }
             self.typed(variant, "CEquipmentVariant")?;
             let equipment = self.object_pointer(variant + 0x3f0, "CEquipmentType")?;
             let key = self.d.string(equipment + 0x18)?;
-            *amounts.entry(key.clone()).or_default() += amount as u128;
+            *amounts.entry(key.clone()).or_default() += amount as i128;
             let mut name = self.name(variant + 0x28)?;
             if name.is_empty() {
                 name = key.clone()
             }
-            variants.push(json!({"equipment":key,"name":name,"stockpile":fixed(amount as u128)}));
+            variants.push(json!({"equipment":key,"name":name,"stockpile":signed_fixed(amount as i128)}));
         }
         Ok(
-            json!({"status":"partial","items":amounts.into_iter().map(|(key,amount)|json!({"id":key,"name":key,"stockpile":fixed(amount),"balance_per_day":null,"needed":null})).collect::<Vec<_>>(),"variants":variants,"reason":"Quantità lorde nel magazzino nativo, incluse le varianti estere. Il saldo della Logistica sottrae anche fabbisogni: fabbisogno e saldo netto giornaliero non ancora qualificati."}),
+            json!({"status":"partial","items":amounts.into_iter().map(|(key,amount)|json!({"id":key,"name":key,"stockpile":signed_fixed(amount),"balance_per_day":null,"needed":null})).collect::<Vec<_>>(),"variants":variants,"reason":"Quantità lorde nel magazzino nativo, incluse le varianti estere. Il saldo della Logistica sottrae anche fabbisogni: fabbisogno e saldo netto giornaliero non ancora qualificati."}),
         )
     }
     fn token_name(&mut self, token: i64) -> Result<String> {
@@ -569,6 +572,10 @@ impl<M: Memory> Reader<'_, M> {
             json!({"status":"observed","is_created":flags[0]==1,"in_creation":flags[1]==1,"reason":"Creazione avviata e agenzia operativa sono indicatori nativi distinti. Migliorie, operazioni e percentuali non determinate."}),
         )
     }
+}
+fn signed_fixed(value: i128) -> f64 {
+    let magnitude = fixed(value.unsigned_abs());
+    if value < 0 { -magnitude } else { magnitude }
 }
 fn fixed(value: u128) -> f64 {
     format!("{}.{:05}", value / 100000, value % 100000)
