@@ -8,7 +8,7 @@ Updated: 2026-11-19. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 4. Decide IL-02 (event-answer narrowing binds nothing; options in `docs/improvement-backlog.md`), needs the user.
 
 ## In progress
-- Branch `auto/improve-2026-11-18` (HEAD `3a55134`), NOT merged, NOT pushed. Holds the first `/improve-loop` run and the confirmed-event-answer work.
+- Branch `auto/improve-2026-11-18` (HEAD `8ef0ff1`, UX R1 committed and rebuilt 15:48, verified in browser), NOT merged, NOT pushed. Holds the first `/improve-loop` run and the confirmed-event-answer work.
 - Improve-loop run report: `docs/improvement-backlog.md` `## Run report`. Done IL-01, 03, 05, 06, 07, 08; IL-04 dropped (no qualified war-goal field).
 
 ## Recently verified
