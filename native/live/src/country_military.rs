@@ -182,12 +182,13 @@ impl<M: Memory> Reader<'_, M> {
         rows: &mut Vec<Value>,
     ) -> Result<()> {
         self.typed(definition, &format!("{kind}@NDoctrines"))?;
-        if self.track(self.d.base + 0x368f570, 1)? != [1] {
+        let table = self.atom_table()?;
+        if self.track(table, 1)? != [1] {
             return Err("Doctrine atom table is not initialized.".into());
         }
-        let maximum = self.integer(self.d.base + 0x368f574, 0, 1_000_000)?;
+        let maximum = self.integer(table + 4, 0, 1_000_000)?;
         let token = self.integer(definition + 8, 1, maximum)?;
-        let atoms = self.pointer(self.d.base + 0x368f5a0)?;
+        let atoms = self.pointer(table + 0x30)?;
         let key = self.d.string(atoms + token as u64 * 32)?;
         if !identities.insert(key.clone()) {
             return Err("Duplicate selected doctrine identity.".into());

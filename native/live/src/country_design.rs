@@ -15,17 +15,27 @@ fn profile() -> &'static Value {
     })
 }
 impl<M: Memory> Reader<'_, M> {
+    /// The native name table. The structural layout names it per build (on HOI4 1.20
+    /// doctrine and design tokens resolve through token_table_rva); the hash-pinned
+    /// reference build keeps its reviewed slot.
+    pub(super) fn atom_table(&mut self) -> Result<u64> {
+        Ok(self.d.base + if self.attributes["layout_id"] == "hoi4-x64-abi-v1" {
+            self.attributes["token_table_rva"].as_u64().ok_or("Native name table is not qualified.")?
+        } else {
+            0x368f570
+        })
+    }
     fn design_token(&mut self, token: i64) -> Result<String> {
-        let base = self.d.base;
-        if self.track(base + 0x368f570, 1)? != [1] {
+        let table = self.atom_table()?;
+        if self.track(table, 1)? != [1] {
             return Err("Equipment design token table is not initialized.".into());
         }
-        let maximum = self.integer(base + 0x368f574, 0, 1_000_000)?;
+        let maximum = self.integer(table + 4, 0, 1_000_000)?;
         if !(0..=maximum).contains(&token) {
             return Err("Equipment design identifier is outside the token table.".into());
         }
         let address = self
-            .pointer(base + 0x368f5a0)?
+            .pointer(table + 0x30)?
             .checked_add(token as u64 * 32)
             .ok_or("Invalid equipment token address")?;
         let value = self.d.string(address)?;
