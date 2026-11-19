@@ -133,9 +133,9 @@
    t('Execution cannot be verified automatically from the available data.');
   const title=row.tracking!=='reminder'&&p.category==='production'?t('Set up production'):row.tracking!=='reminder'&&p.category==='construction'?(constructionTitle||instructions[0]):
    target&&['politics','event','projects'].includes(panel)?(panel==='politics'&&!label(p,'law_name','person_name','idea_name','trait_name')?(row.name||row.title||target):target):p.operation_id==='create_intelligence_agency'?t('Create intelligence agency'):null;
-  const displayTitle=context.reader?.read(title||row.name||row.title||'',row).text||title;
+  const titleReading=context.reader?.read(title||row.name||row.title||'',row),displayTitle=titleReading?.text||title;
   return {title:displayTitle,instructions,observations,access,target,monitoring,hud:{panel,status,message},
-   glossary:[...new Map(readings.flatMap(r=>r.terms).map(term=>[term.code,term])).values()],
+   glossary:[...new Map([titleReading,...readings].filter(Boolean).flatMap(r=>r.terms).map(term=>[term.code,term])).values()],
    reading_notes:[...new Set(readings.flatMap(r=>r.notes))]};
  }
  function blocks(rows){

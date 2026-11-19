@@ -4,6 +4,25 @@ const {create}=require('../src/hoi4companion/web/action-reading.js');
 const plan=require('../src/hoi4companion/web/action-plan.js'),i18n=require('../src/hoi4companion/web/i18n.js');
 const vocabulary=require('../src/hoi4companion/guide_language.json'),reader=create(vocabulary);
 const row=(category='checkpoints',instructions=[],extra={})=>({key:'step',name:instructions[0],runtime_status:'ready',tracking:'reminder',action:{kind:'manual',params:{category,instructions}},...extra});
+// A line that is not understood in full keeps its source text; meanings move to the glossary.
+const kept=(source,r)=>{const out=reader.read(source,r);assert.equal(out.text,source);return out;};
+const meaning=(out,code)=>out.terms.find(term=>term.code===code)?.meaning;
+
+test('partly understood lines are never rewritten mid-sentence (UX P3)',()=>{
+ try{
+  i18n.setLanguage('italian');
+  assert.equal(meaning(kept('Never spend PP on events'),'PP'),'political power');
+  assert.deepEqual(kept('ARMY: setup*, rename & train').terms,[]);
+  const asap=kept('ASAP: Attache to NSPA (100 PP)');
+  assert.equal(meaning(asap,'ASAP'),'as soon as the requirements allow');assert.equal(meaning(asap,'PP'),'political power');
+  // Lines understood in full are still composed in the reader's language.
+  assert.match(reader.read('ARMY: Recruit 13 INF, train ALL').text,/^Esercito: Recluta 13 divisioni · modello di fanteria \(INF\), Addestra tutte le divisioni$/);
+ }finally{i18n.setLanguage('english');}
+ const r=row('checkpoints',['Never spend PP on events','ASAP: Attache to NSPA (100 PP)']);
+ const described=plan.describe(r,{reader});
+ assert.deepEqual(described.instructions,r.action.params.instructions);
+ assert.deepEqual(described.glossary.map(term=>term.code).sort(),['ASAP','PP']);
+});
 
 test('occupation law and garrison are distinct, and abbreviated names stay qualified',()=>{
  const law=reader.read('LAW: LPF + CAV');
@@ -16,7 +35,8 @@ test('resource costs, widths and division compositions are expanded without gues
  const result=reader.read('ARMY: Bring OFF to 24w(10/2+FL,Rec->Log) (35AE), 48 INF->OFFs');
  assert.match(result.text,/combat width 24\(10\/2\+flame tank/);
  assert.match(result.text,/35 army experience/);assert.match(result.text,/offensive infantry with self-propelled artillery template \(OFFs\)/);
- assert.match(reader.read('Fascist Demagogue (75PP), command (25 CP), navy (20NE)').text,/75 political power.*25 command power.*20 naval experience/);
+ const costs=kept('Fascist Demagogue (75PP), command (25 CP), navy (20NE)');
+ assert.deepEqual(['PP','CP','NE'].map(code=>meaning(costs,code)),['political power','command power','naval experience']);
 });
 test('production, army, navy and air clauses use different meanings in one source action',()=>{
  const result=reader.read('MIL: Inf:10 Art:ALL\n- ARMY: Recruit 13 INF, train ALL\n- NAVY: DD, train ALL\n- AIR FORCE: train ALL');
@@ -37,15 +57,16 @@ test('doctrine names require a domain, keeping ambiguous words and unknown acron
 test('coded designs get explanations while proper names and quotes retain their spelling',()=>{
  const source='design F2; select "INF"; LPF Industries';
  const r=row('production',[source]);r.action.params.variant_name='F2';r.action.params.person_name='LPF Industries';
- assert.equal(reader.read(source,r).text,'design F2 (fighter design); select "INF"; LPF Industries');
+ assert.equal(meaning(kept(source,r),'F2'),'fighter');
  assert.equal(r.action.params.variant_name,'F2');
- assert.match(reader.read('produce F2:5 (from Inf)').text,/F2 \(fighter design\).*infantry equipment/);
+ const produce=kept('produce F2:5 (from Inf)');assert.equal(meaning(produce,'F2'),'fighter');assert.equal(meaning(produce,'Inf'),'infantry equipment');
  assert.equal(reader.read('NA Aviation').text,'NA Aviation');
 });
 test('common construction conventions retain their different ordering and original location',()=>{
- assert.match(reader.read('Build INFRAs + MILs in Berlin').text,/each indicated region before moving to the next in Berlin/);
- assert.match(reader.read('Build INFRAs, then MILs in Berlin').text,/all indicated regions first, then military factories in Berlin/);
- const result=reader.read('Radio UP');assert.equal(result.text,'Radio next useful upgrade (UP)');assert.equal(result.notes.length,0);
+ assert.equal(reader.read('Build INFRAs + MILs').text,'Build infrastructure, then military factories, in each indicated region before moving to the next');
+ assert.equal(reader.read('Build INFRAs, then MILs').text,'Build infrastructure in all indicated regions first, then military factories');
+ kept('Build INFRAs + MILs in Berlin');kept('Build INFRAs, then MILs in Berlin');
+ const result=kept('Radio UP');assert.equal(meaning(result,'UP'),'next useful upgrade');assert.equal(result.notes.length,0);
 });
 test('display expansion leaves runtime, dependency, source and completion data untouched',()=>{
  const r=row('army',['ARMY: Recruit 13 INF, train ALL'],{depends_on:[{step:'project',state:'started'}],started_when:{op:'check',key:'start'},completion_condition:{op:'check',key:'done'}});
@@ -91,21 +112,21 @@ test('documented naval variants explain hull codes and ALL refers to dockyards',
 });
 
 test('confirmed BBe is explained inline, never silently corrected to BCe',()=>{
- const result=reader.read('Navy: Finish all but cancel extra, then build convoys:5 & BBe: ALL');
- assert.match(result.text,/empty battleship \(BBe\): all remaining and future naval dockyards/);
+ const result=kept('Navy: Finish all but cancel extra, then build convoys:5 & BBe: ALL');
  assert.equal(result.notes.some(n=>/Possible meaning of BBe/.test(n)),false);
- assert.doesNotMatch(result.text,/battlecruiser/);
- assert.equal(result.terms.some(t=>t.code==='BBe'&&t.meaning==='empty battleship'),true);
+ assert.match(reader.read('NAVY: BBe: ALL').text,/empty battleship \(BBe\): all remaining and future naval dockyards/);
+ assert.doesNotMatch(reader.read('NAVY: BBe: ALL').text,/battlecruiser/);
+ assert.equal(meaning(result,'BBe'),'empty battleship');
  const custom=create({conventions:{possible_abbreviations:{naval:{XYZ:'example ship'}}}});
  const uncertain=custom.read('NAVY: XYZ');
- assert.equal(uncertain.text,'Navy: XYZ');
+ assert.equal(uncertain.text,'NAVY: XYZ');
  assert.match(uncertain.notes[0],/Possible meaning of XYZ: example ship/);
  assert.match(reader.read('NAVY: XYZ').text,/XYZ/);
 });
 
 test('regimental companies and documented design accessories are explained in context',()=>{
- const result=reader.read('ARMY: Add IG, HW, MHW, R-SPAA to INF');
- for(const meaning of ['infantry guns','heavy weapons','motorized heavy weapons','regimental self-propelled anti-air'])assert.ok(result.text.includes(meaning));
+ const result=kept('ARMY: Add IG, HW, MHW, R-SPAA to INF');
+ assert.deepEqual(['IG','HW','MHW','R-SPAA'].map(code=>meaning(result,code)),['infantry guns','heavy weapons','motorized heavy weapons','regimental self-propelled anti-air']);
  assert.match(reader.read('AIR FORCE: MG, SL').text,/machine gun.*smoke launchers/);
  assert.match(reader.read('ASAP: NAV: CVe:1').text,/as soon as the requirements allow/);
  const original=row('production',[],{});original.action.params.variant_name='CVe';
@@ -124,23 +145,22 @@ test('confirmed naval explanations appear inline in Italian',()=>{
 });
 
 test('documented aircraft and ground-design notation is explained without inventing upgrade values',()=>{
- assert.match(reader.read('produce F2ca:5').text,/F2ca \(fighter, with cannons design\)/);
- assert.match(reader.read('design T-I 1 (0\/4\/SL), FL-I2, TS3').text,/T-I 1 \(tank, infantry variant design\)/);
- assert.match(reader.read('design T-I 1 (0\/4\/SL)').text,/0\/4\/smoke launchers \(SL\)/);
- assert.match(reader.read('design AR-H\/S').text,/improved small or high-velocity cannon, or a close support gun/);
+ assert.equal(meaning(kept('produce F2ca:5'),'F2ca'),'fighter, with cannons');
+ assert.equal(meaning(kept('design T-I 1 (0/4/SL), FL-I2, TS3'),'T-I 1'),'tank, infantry variant');
+ assert.equal(meaning(kept('design T-I 1 (0/4/SL)'),'SL'),'smoke launchers');
+ assert.match(kept('design AR-H/S').terms.map(term=>term.meaning).join(' '),/improved small or high-velocity cannon, or a close support gun/);
  assert.equal(reader.read('Set up the production lines').text,'Set up the production lines');
  assert.equal(reader.read('F2ca',row('checkpoints')).text,'F2ca');
  assert.equal(reader.read('"T-I 1"',row('production')).text,'"T-I 1"');
  const named=row('production');named.action.params.variant_name='T-I 1 (0/4/SL)';
- const bound=reader.read('Produce T-I 1 (0/4/SL)',named);
- assert.match(bound.text,/T-I 1 \(0\/4\/SL\) \(tank, infantry variant · smoke launchers design\)/);
+ const bound=kept('Produce T-I 1 (0/4/SL)',named);
+ assert.equal(meaning(bound,'T-I 1 (0/4/SL)'),'tank, infantry variant · smoke launchers');
  assert.equal(named.action.params.variant_name,'T-I 1 (0/4/SL)');
 });
 
 test('building plurals and production reset and quota conventions are inline',()=>{
- const build=reader.read('Build 3 MILs and CIVs, then INFRAs');
- assert.match(build.text,/military factories \(MILs\)/);assert.match(build.text,/civilian factories \(CIVs\)/);
- assert.match(build.text,/infrastructure \(INFRAs\)/);
+ const build=kept('Build 3 MILs and CIVs, then INFRAs');
+ assert.deepEqual(['MILs','CIVs','INFRAs'].map(code=>meaning(build,code)),['military factories','civilian factories','infrastructure']);
  assert.match(reader.read('NAV: BBe:0->ALL').text,/Remove this line’s assignments, then allocate all remaining and future naval dockyards/);
  assert.match(reader.read('MIL: Inf->10').text,/bring to 10 military factories/);
  assert.equal(reader.read('MILs Industries',row('checkpoints')).text,'MILs Industries');
@@ -156,12 +176,12 @@ test('a confirmed coded naval reference receives inline explanation without chan
 });
 
 test('occupation wording selects the occupation vocabulary and unexplained codes stay visible',()=>{
- // "LPF + CAV Occupation Law" (no LAW: prefix) is explained, not left raw.
- const law=reader.read('LPF + CAV Occupation Law',row('checkpoints',['LPF + CAV Occupation Law']));
- assert.match(law.text,/Local Police Force \(LPF\)/);
+ // "LPF + CAV Occupation Law" (no LAW: prefix) is explained in the glossary, not left unexplained.
+ const law=kept('LPF + CAV Occupation Law',row('checkpoints',['LPF + CAV Occupation Law']));
+ assert.equal(meaning(law,'LPF'),'Local Police Force');
  assert.deepEqual(law.terms.map(t=>t.code),['LPF','CAV']);
- // Distinctive confirmed author codes remain readable in unclassified actions.
- const elsewhere=reader.read('Setup LPF later',row('checkpoints',['Setup LPF later']));
- assert.equal(elsewhere.text,'Setup Local Police Force (LPF) later');
+ // Distinctive confirmed author codes remain explained in unclassified actions.
+ const elsewhere=kept('Setup LPF later',row('checkpoints',['Setup LPF later']));
+ assert.equal(meaning(elsewhere,'LPF'),'Local Police Force');
  assert.equal(elsewhere.notes.length,0);
 });
