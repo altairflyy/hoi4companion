@@ -29,6 +29,14 @@ fn hud_check_allowed(current:&Value,guide:&str,key:&str)->bool{
     current["live_delivery_fresh"]!=false&&current["guide_id"]==guide
         &&current["step_card"]["key"]==key&&current["step_card"]["checkable"]==true
 }
+/// Whether the HUD may confirm `option` as the guide's answer to `key`: the
+/// current delivery for the same guide must propose exactly that event answer
+/// as a visible candidate (an ambiguous line whose popup shows it now).
+fn hud_answer_allowed(current:&Value,guide:&str,key:&str,event:&str,option:&str)->bool{
+    current["live_delivery_fresh"]!=false&&current["guide_id"]==guide
+        &&current["proposed"].as_array().is_some_and(|proposed|proposed.iter().any(|p|p["resolution"]=="visible_candidate"
+            &&p["key"]==key&&p["event_id"]==event&&p["option_id"]==option))
+}
 /// Budget for the HUD's coarse guide facts (which step, which guides, map
 /// targets): one full integrity read (~1.4 s with the provincial section) plus
 /// packet and projection must fit, or every audit blanked the HUD for a
@@ -850,6 +858,20 @@ impl Service {
                 self.invalidate()?;
                 Ok(value)
             }
+            ("GET", "/api/guide/answers") => self.app("app_answers", &json!({"guide_id":id})),
+            ("POST", "/api/guide/answers") => {
+                // The suite's "Remove confirmation": deletes the row only.
+                let input = request.json_fields(&["guide_id", "key", "quote", "op"])?;
+                if input["op"] != "remove" {
+                    return Err("Unsupported answer operation".into());
+                }
+                let value = self.app(
+                    "app_answers",
+                    &json!({"guide_id":input["guide_id"],"update":{"op":"remove","key":input["key"],"quote":input["quote"]}}),
+                )?;
+                self.invalidate()?;
+                Ok(value)
+            }
             ("POST", "/api/guide/progress") => {
                 let result = self.app(
                     "app_progress",
@@ -1082,6 +1104,10 @@ impl Service {
             "refresh_guides",
             "key",
             "checked",
+            "quote",
+            "event_id",
+            "option_id",
+            "previous",
         ])?;
         if input["schema_version"] != 1 || input["token"].as_u64().is_none() {
             return Err("Versione o token overlay non supportati".into());
@@ -1121,6 +1147,32 @@ impl Service {
             self.invalidate()?;
             result["key"] = json!(key);
             result["checked"] = json!(checked);
+            return Ok(result);
+        } else if kind == "confirm_answer" {
+            // The HUD card's "I chose this" on an ambiguous event answer: only
+            // for the visible candidate the current frame proposes.
+            let guide = input["guide_id"].as_str().ok_or("Guida non installata")?;
+            let key = input["key"].as_str().ok_or("Missing step")?;
+            let (event, option) = (input["event_id"].as_str().unwrap_or(""), input["option_id"].as_str().unwrap_or(""));
+            let current = self.overlay_latest()?;
+            if !hud_answer_allowed(&current, guide, key, event, option) {
+                return Err("The event answer is no longer shown: nothing was confirmed".into());
+            }
+            let value = self.app("app_answers", &json!({"guide_id":guide,"update":{"op":"confirm","key":key,"quote":input["quote"],"event_id":event,"option_id":option}}))?;
+            self.invalidate()?;
+            result["key"] = json!(key);
+            result["previous"] = value["previous"].clone();
+            result["checked"] = value["checked"].clone();
+            return Ok(result);
+        } else if kind == "restore_answer" {
+            // Undo of "I chose this": puts back the replaced row (or none) and
+            // unchecks the step.
+            let guide = input["guide_id"].as_str().ok_or("Guida non installata")?;
+            let key = input["key"].as_str().ok_or("Missing step")?;
+            self.app("app_answers", &json!({"guide_id":guide,"update":{"op":"restore","key":key,"quote":input["quote"],"previous":input["previous"]}}))?;
+            self.invalidate()?;
+            result["key"] = json!(key);
+            result["restored"] = json!(true);
             return Ok(result);
         } else if !["snapshot", "observe", "geometry"].contains(&kind) {
             return Err("Richiesta overlay non supportata".into());
@@ -2232,6 +2284,20 @@ pub fn serve_service(service: Arc<Service>, port: u16, ready: Option<PathBuf>) -
 #[cfg(test)]
 mod accept_tests {
     use super::*;
+    #[test]
+    fn hud_confirms_only_the_visible_candidate_the_current_frame_proposes(){
+        let proposal=json!({"key":"word-0006","event_id":"E","option_id":"E.b","resolution":"visible_candidate"});
+        let current=json!({"guide_id":"sov","proposed":[proposal]});
+        assert!(hud_answer_allowed(&current,"sov","word-0006","E","E.b"));
+        assert!(!hud_answer_allowed(&current,"sov","word-0006","E","E.a"),"another option");
+        assert!(!hud_answer_allowed(&current,"sov","word-0007","E","E.b"),"another line");
+        assert!(!hud_answer_allowed(&current,"ger","word-0006","E","E.b"),"another guide");
+        let mut stale=current.clone();stale["live_delivery_fresh"]=json!(false);
+        assert!(!hud_answer_allowed(&stale,"sov","word-0006","E","E.b"));
+        let mut proven=current.clone();proven["proposed"][0]["resolution"]=json!("bound");
+        assert!(!hud_answer_allowed(&proven,"sov","word-0006","E","E.b"),"a proven answer is checked by the Done button");
+        assert!(!hud_answer_allowed(&json!({"guide_id":"sov","proposed":[]}),"sov","word-0006","E","E.b"));
+    }
     #[test]
     fn hud_marks_done_only_the_checkable_step_of_a_current_card(){
         let current=json!({"guide_id":"sov","step_card":{"key":"word-0008","checkable":true}});

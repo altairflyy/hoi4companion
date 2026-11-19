@@ -11,6 +11,7 @@ mod catalog_generation;
 mod catalog_views;
 use hoi4companion_guides::command_families;
 use hoi4companion_model::compiled_cache;
+use hoi4companion_guides::confirmed_answers;
 use hoi4companion_guides::construction_binding;
 use hoi4companion_guides::construction_instructions;
 pub use hoi4companion_live::country;

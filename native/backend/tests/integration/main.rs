@@ -2,6 +2,7 @@
 //! per file. Each former `tests/<name>.rs` is a module; filter with
 //! `cargo test --test integration <name>::`.
 mod commander_assignments;
+mod confirmed_answers;
 mod contracts;
 mod decision_history;
 mod decomposition_activation;

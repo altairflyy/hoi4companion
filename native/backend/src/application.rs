@@ -182,6 +182,58 @@ impl ArchiveJob {
         compile_archive(&self.id, &self.guide, self.source.as_ref(), self.associations.as_ref(), self.context.as_ref())
     }
 }
+/// Days since 1970-01-01 of a proleptic Gregorian date.
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let year = if month <= 2 { year - 1 } else { year };
+    let era = year.div_euclid(400);
+    let yoe = year - era * 400;
+    let doy = (153 * ((month + 9) % 12) + 2) / 5 + day - 1;
+    era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468
+}
+/// Proleptic Gregorian date of a day count since 1970-01-01.
+fn civil_from_days(days: i64) -> (i64, i64, i64) {
+    let z = days + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    (yoe + era * 400 + i64::from(month <= 2), month, day)
+}
+/// Minutes the local time zone is ahead of UTC now (0 off Windows).
+fn utc_offset_minutes() -> i64 {
+    #[cfg(windows)]
+    {
+        use windows::Win32::{Foundation::SYSTEMTIME, System::SystemInformation::{GetLocalTime, GetSystemTime}};
+        let (local, utc) = unsafe { (GetLocalTime(), GetSystemTime()) };
+        let seconds = |t: &SYSTEMTIME| {
+            days_from_civil(t.wYear.into(), t.wMonth.into(), t.wDay.into()) * 86400
+                + i64::from(t.wHour) * 3600 + i64::from(t.wMinute) * 60 + i64::from(t.wSecond)
+        };
+        // The two reads may straddle a second: round to whole minutes.
+        ((seconds(&local) - seconds(&utc)) as f64 / 60.0).round() as i64
+    }
+    #[cfg(not(windows))]
+    {
+        0
+    }
+}
+/// Local wall-clock time, ISO 8601 with its UTC offset ("2026-11-19T10:00:00+01:00").
+fn local_time() -> String {
+    let utc = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let offset = utc_offset_minutes();
+    let local = utc + offset * 60;
+    let (year, month, day) = civil_from_days(local.div_euclid(86400));
+    let second = local.rem_euclid(86400);
+    let sign = if offset < 0 { '-' } else { '+' };
+    format!("{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}{sign}{:02}:{:02}",
+        second / 3600, second % 3600 / 60, second % 60, offset.abs() / 60, offset.abs() % 60)
+}
 /// The nation a guide is written for.
 fn guide_country(guide: &Value) -> Option<&str> {
     guide["applies_to"]["country"].as_str().or(guide["country"].as_str()).filter(|c| !c.is_empty())
@@ -249,6 +301,11 @@ pub struct Application {
     preparing: BTreeMap<String, Option<String>>,
     /// Bumped when background-prepared guides join the registry.
     registry_generation: u64,
+    /// Test hook (`answer_index` entries): catalog the confirmations bind
+    /// against while no game catalog context is loaded.
+    answer_index: Option<crate::import_catalog::Index>,
+    /// Definitions with confirmed answers applied, by `apply_answers` key.
+    applied_answers: HashMap<String, Value>,
 }
 /// Error reported for a guide whose definition is still being prepared.
 pub const GUIDE_PREPARING: &str = "Guide still being prepared: try again in a few seconds";
@@ -289,6 +346,11 @@ impl Application {
             live_runs: None,
             preparing: BTreeMap::new(),
             registry_generation: 0,
+            answer_index: match args.get("answer_index") {
+                Some(entries) if !entries.is_null() => Some(crate::import_catalog::Index::new(entries)?),
+                _ => None,
+            },
+            applied_answers: HashMap::new(),
         };
         for guide in args["guides"].as_array().into_iter().flatten() {
             if result.guides.contains_key(text(&guide["id"])) {
@@ -657,7 +719,10 @@ impl Application {
         }
         let old = self.definition_for_run(id, &run).ok().map(|(guide, _)| guide);
         let envelope = definition_archive::open(&archive.id, &archive.payload)?;
-        let new = Self::revision(envelope["definition"].clone())?;
+        let mut new = Self::revision(envelope["definition"].clone())?;
+        // The checks of confirmed lines survive the move like any manual check.
+        let answers = self.guide_answers(id);
+        self.apply_answers(&mut new, &answers)?;
         let (checks, started, _) = crate::run_upgrade::translate(
             old.as_ref(),
             &new,
@@ -678,7 +743,56 @@ impl Application {
     /// the current registry; a missing/corrupt/unsupported archive fails closed.
     /// Legacy runs use the current definition only while the legacy compiler
     /// contract applies, and report evidence of definition changes.
+    /// The answers the player confirmed for this guide are applied to a clone
+    /// (`confirmed_answers::apply`); the archive, `archived_guides` and the
+    /// registry never contain them.
     pub(crate) fn definition_for_run(&mut self, id: &str, run: &Value) -> Result<(Value, Value)> {
+        let (mut guide, info) = self.stored_definition_for_run(id, run)?;
+        let answers = self.guide_answers(id);
+        self.apply_answers(&mut guide, &answers)?;
+        Ok((guide, info))
+    }
+    /// Confirmed answer rows of `id`, as stored.
+    fn guide_answers(&self, id: &str) -> Vec<Value> {
+        self.runs.answers().iter().filter(|row| row["guide_id"] == id).cloned().collect()
+    }
+    /// Index the confirmations bind against: the game catalog when loaded,
+    /// else the `answer_index` test entries, else an empty index (rows are
+    /// then recorded on their line but bind nothing).
+    fn answer_index(&self) -> Result<crate::import_catalog::Index> {
+        match (&self.context, &self.answer_index) {
+            (Some(context), _) => Ok(context.index().clone()),
+            (None, Some(index)) => Ok(index.clone()),
+            (None, None) => crate::import_catalog::Index::new(&json!({"entries":[]})),
+        }
+    }
+    /// Applies `answers` to `guide` (a clone the caller owns) and restamps its
+    /// runtime revision when they change it; without rows nothing changes.
+    /// Memoized by definition revision, rows and catalog: projections ask for
+    /// it at the HUD's cadence.
+    fn apply_answers(&mut self, guide: &mut Value, answers: &[Value]) -> Result<()> {
+        if answers.is_empty() {
+            return Ok(());
+        }
+        let key = json!([guide["id"], guide["runtime_definition_revision"], answers,
+            self.context.as_ref().map(|c| Arc::as_ptr(c) as usize)]).to_string();
+        if let Some(applied) = self.applied_answers.get(&key) {
+            *guide = applied.clone();
+            return Ok(());
+        }
+        let before = guide.clone();
+        let country = guide["applies_to"]["country"].clone();
+        crate::confirmed_answers::apply(guide, answers, &self.answer_index()?, &country)?;
+        if *guide != before {
+            *guide = Self::revision(std::mem::take(guide))?;
+        }
+        if self.applied_answers.len() >= 32 {
+            self.applied_answers.clear();
+        }
+        self.applied_answers.insert(key, guide.clone());
+        Ok(())
+    }
+    fn stored_definition_for_run(&mut self, id: &str, run: &Value) -> Result<(Value, Value)> {
         let reference = &run["definition_ref"];
         let current = self.current_definition_id(id)?;
         if reference["status"] == "pinned" {
@@ -1264,6 +1378,94 @@ impl Application {
             json!({"checks":self.runs.call("get",json!({"guide_id":id}))?["checks"],"revision":self.revision}),
         )
     }
+    /// `runs_call` whose save also writes confirmed answer rows.
+    fn runs_call_answers(&mut self, op: &str, args: Value, answers: &[Value]) -> Result<Value> {
+        let (guides, sources, memo, context, associations) = (&self.guides, &self.sources, &mut self.current_archives, self.context.as_ref(), self.association_directory.as_ref());
+        self.runs.call_with_answers(op, args, &mut |id| current_archive(guides, sources, associations, context, memo, id), answers)
+    }
+    /// Answers the player confirmed for ambiguous event lines of a guide.
+    /// Without `update`: the stored rows. `confirm` stores the row and, when
+    /// the confirmation makes the line a manual check of the run's definition,
+    /// checks it in the current run, in one save; it returns the row it
+    /// replaced, for Undo. `restore` puts that row back (or deletes the row
+    /// when there was none) and unchecks the step; `remove` deletes the row
+    /// only. A confirmation is accepted only for an option the line lists.
+    pub fn answers(&mut self, id: Option<&str>, update: Option<&Value>) -> Result<Value> {
+        let id = self.identity(id)?;
+        let Some(update) = update else {
+            return Ok(json!({"guide_id":id,"answers":self.guide_answers(&id)}));
+        };
+        let op = update["op"].as_str().unwrap_or("");
+        let fields: &[&str] = match op {
+            "confirm" => &["op", "key", "quote", "event_id", "option_id"],
+            "restore" => &["op", "key", "quote", "previous"],
+            "remove" => &["op", "key", "quote"],
+            _ => return Err("Invalid answer confirmation".into()),
+        };
+        if update.as_object().is_none_or(|m| m.len() != fields.len() || m.keys().any(|k| !fields.contains(&k.as_str()))) {
+            return Err("Invalid answer confirmation".into());
+        }
+        let (Some(key), Some(quote)) = (update["key"].as_str(), update["quote"].as_str()) else {
+            return Err("Invalid answer confirmation".into());
+        };
+        let line = |row: &Value| row["step_key"] == key && row["quote"] == quote;
+        let previous = self.guide_answers(&id).into_iter().find(line).unwrap_or(Value::Null);
+        if op == "remove" {
+            let delete = json!({"op":"delete","guide_id":id,"step_key":key,"quote":quote});
+            self.runs_call_answers("get", json!({"guide_id":id}), &[delete])?;
+            self.revision += 1;
+            return Ok(json!({"guide_id":id,"answers":self.guide_answers(&id)}));
+        }
+        self.ensure(&id)?;
+        let current = self.runs.call("get", json!({"guide_id":id}))?;
+        self.guard(&json!({}), &current)?;
+        let mut checks = current["checks"].clone();
+        let (row, checked) = if op == "confirm" {
+            let (Some(event), Some(option)) = (update["event_id"].as_str(), update["option_id"].as_str()) else {
+                return Err("Invalid answer confirmation".into());
+            };
+            let (definition, _) = self.stored_definition_for_run(&id, &current)?;
+            let listed = rows(&definition).any(|row| {
+                let candidates = &row["action"]["params"]["reference_candidates"];
+                row["key"] == key && candidates["text"] == quote
+                    && candidates["event_options"].as_array().is_some_and(|options| {
+                        options.iter().any(|o| o["id"] == option && o["event_id"] == event)
+                    })
+            });
+            if !listed {
+                return Err("This answer is not one of the guide line's candidates".into());
+            }
+            let row = json!({"op":"put","guide_id":id,"step_key":key,"quote":quote,"event_id":event,"option_id":option,"confirmed_at":local_time()});
+            let mut stored: Vec<Value> = self.guide_answers(&id).into_iter().filter(|r| !line(r)).collect();
+            let mut kept = row.clone();
+            kept.as_object_mut().unwrap().remove("op");
+            stored.push(kept);
+            let mut applied = definition;
+            self.apply_answers(&mut applied, &stored)?;
+            let checked = manual_keys(&applied).contains(key);
+            if checked {
+                checks[key] = json!(true);
+            }
+            (row, checked)
+        } else {
+            let restored = &update["previous"];
+            let row = if restored.is_null() {
+                json!({"op":"delete","guide_id":id,"step_key":key,"quote":quote})
+            } else {
+                if !restored.is_object() || restored["guide_id"] != id.as_str() || !line(restored) {
+                    return Err("Invalid answer confirmation".into());
+                }
+                let mut row = restored.clone();
+                row["op"] = json!("put");
+                row
+            };
+            checks.as_object_mut().ok_or("Invalid run checks")?.remove(key);
+            (row, false)
+        };
+        self.runs_call_answers("update", json!({"guide_id":id,"checks":checks,"started":current["started"]}), &[row])?;
+        self.revision += 1;
+        Ok(json!({"previous":previous,"checked":checked}))
+    }
     pub fn request(&mut self, op: &str, args: &Value) -> Result<Value> {
         match op {
         "app_live_packet"=>self.live_packet(),
@@ -1276,6 +1478,7 @@ impl Application {
         "app_active"=>self.active(args.get("update")),
         "app_progress"=>self.progress(args["guide_id"].as_str(),args["run_id"].as_str(),args.get("update")),
         "app_checks"=>self.checks(args["guide_id"].as_str(),args.get("update")),
+        "app_answers"=>self.answers(args["guide_id"].as_str(),args.get("update")),
         "app_projection"=>self.projection(args["guide_id"].as_str(),args["live"].as_bool().unwrap_or(true)),
         "app_guide"=>self.guide(args["guide_id"].as_str()),
         "app_manifest"=>self.manifest(args["guide_id"].as_str(),args["run_id"].as_str()),
@@ -1333,6 +1536,18 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+    #[test]
+    fn confirmation_time_is_a_local_iso_timestamp() {
+        for (y, m, d) in [(1970, 1, 1), (2000, 2, 29), (2026, 11, 19), (2100, 3, 1)] {
+            assert_eq!(civil_from_days(days_from_civil(y, m, d)), (y, m, d));
+        }
+        assert_eq!(days_from_civil(1970, 1, 1), 0);
+        assert_eq!(days_from_civil(2026, 11, 19), 20776);
+        let time = local_time();
+        let bytes = time.as_bytes();
+        assert_eq!(bytes.len(), 25, "{time}");
+        assert!(bytes[10] == b'T' && [b'+', b'-'].contains(&bytes[19]) && bytes[22] == b':', "{time}");
+    }
     #[test]
     fn live_packet_reuses_checklists_until_one_changes() {
         let make = |id: &str| json!({"id":id,"tracks":{"operations":[{"key":"note","action":{"kind":"manual"}}]}});

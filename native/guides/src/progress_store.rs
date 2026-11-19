@@ -24,6 +24,9 @@ pub struct Runs {
     archives: HashMap<String, Arc<str>>,
     /// IDs already committed in `guide_definitions` (memory stores: none).
     persisted: HashSet<String>,
+    /// Answers the player confirmed for ambiguous event lines (every guide),
+    /// loaded with the progress and written only through its save.
+    answers: Vec<Value>,
 }
 pub fn new_id() -> Result<String> {
     #[cfg(windows)]
@@ -46,6 +49,7 @@ impl Runs {
             generation: 0,
             archives: HashMap::new(),
             persisted: HashSet::new(),
+            answers: Vec::new(),
         };
         if let Some(path) = &result.path {
             let name = path.to_string_lossy();
@@ -75,6 +79,7 @@ impl Runs {
                         result.persisted.insert(id.clone());
                     }
                 }
+                result.answers = saved["answers"].as_array().cloned().unwrap_or_default();
             }
         }
         Ok(result)
@@ -102,11 +107,12 @@ impl Runs {
             "upgrade",
             json!({"guide_id":guide,"run_id":run_id,"definition":definition_archive::pin(&archive.id),"checks":checks,"started":started}),
             None,
+            &[],
         )
     }
     /// Definition-unaware call (older ABI/test callers): runs stay unbound.
     pub fn call(&mut self, op: &str, args: Value) -> Result<Value> {
-        self.transact(op, args, None)
+        self.transact(op, args, None, &[])
     }
     /// Pinning-aware call: every written run is bound to a definition from
     /// `provider` before the same SQLite transaction commits it.
@@ -117,9 +123,28 @@ impl Runs {
         if !args["definitions"].is_object() {
             args["definitions"] = json!({});
         }
-        self.transact(op, args, Some(provider))
+        self.transact(op, args, Some(provider), &[])
     }
-    fn transact(&mut self, op: &str, mut args: Value, mut provider: Option<&mut Provider<'_>>) -> Result<Value> {
+    /// Answers the player confirmed for ambiguous event lines, as stored.
+    pub fn answers(&self) -> &[Value] {
+        &self.answers
+    }
+    /// Pinning-aware call whose save also writes confirmed answer rows
+    /// (`put`/`delete`) in the same SQLite transaction. The rows are written
+    /// even when the call leaves the progress itself unchanged.
+    pub fn call_with_answers(&mut self, op: &str, mut args: Value, provider: &mut Provider<'_>, answers: &[Value]) -> Result<Value> {
+        for row in answers {
+            hoi4companion_storage::confirmed_answers::validate(row)?;
+        }
+        if !args.is_object() {
+            args = json!({});
+        }
+        if !args["definitions"].is_object() {
+            args["definitions"] = json!({});
+        }
+        self.transact(op, args, Some(provider), answers)
+    }
+    fn transact(&mut self, op: &str, mut args: Value, mut provider: Option<&mut Provider<'_>>, answers: &[Value]) -> Result<Value> {
         if ["accept", "rollback"].contains(&op) {
             return Err("Storage transaction boundary is owned by the backend".into());
         }
@@ -153,43 +178,16 @@ impl Runs {
             ids.push(json!(new_id()?));
         };
         if result["changed"] == true {
-            if let Some(path) = &self.path {
-                // Publish exactly the archives this snapshot references and the
-                // database does not hold yet, in the progress transaction.
-                let mut definitions = serde_json::Map::new();
-                let mut missing = false;
-                for id in referenced_definitions(&result["snapshot"]) {
-                    if self.persisted.contains(&id) {
-                        continue;
-                    }
-                    match self.archives.get(&id) {
-                        Some(payload) => {
-                            definitions.insert(id, json!(&**payload));
-                        }
-                        None => missing = true,
-                    }
-                }
-                let saved = if missing {
-                    Err("Progress references an unarchived guide definition".to_string())
-                } else {
-                    database(
-                        json!({"schema_version":1,"op":"save","path":path.to_string_lossy(),"expected_revision":self.revision,"version":hoi4companion_storage::PROGRESS_VERSION,"definitions":definitions,"payload":result["snapshot"].to_string()}),
-                    )
-                };
-                match saved {
-                    Ok(value) => {
-                        self.revision = value["revision"]
-                            .as_i64()
-                            .ok_or("Invalid committed revision")?;
-                        self.persisted.extend(definitions.keys().cloned());
-                    }
-                    Err(error) => {
-                        self.raw("rollback", json!({}), vec![])?;
-                        return Err(error);
-                    }
-                }
+            if let Err(error) = self.persist(&result["snapshot"], answers) {
+                self.raw("rollback", json!({}), vec![])?;
+                return Err(error);
             }
             self.raw("accept", json!({}), vec![])?;
+            self.generation = self.generation.wrapping_add(1);
+        } else if !answers.is_empty() {
+            // Only answers change: save the unchanged progress with them.
+            let snapshot = self.raw("snapshot", json!({}), vec![])?["value"].clone();
+            self.persist(&snapshot, answers)?;
             self.generation = self.generation.wrapping_add(1);
         }
         let mut value=result["value"].clone();
@@ -198,6 +196,51 @@ impl Runs {
             if history["value"].is_object() {value["decision_history"]=history["value"].clone();}
         }
         Ok(value)
+    }
+    /// Writes `snapshot` (with the archives it references that the database
+    /// does not hold yet) and the answer rows in one SQLite transaction, then
+    /// applies the rows to the answers held in memory. Memory stores only
+    /// update memory.
+    fn persist(&mut self, snapshot: &Value, answers: &[Value]) -> Result<()> {
+        if let Some(path) = &self.path {
+            // Publish exactly the archives this snapshot references and the
+            // database does not hold yet, in the progress transaction.
+            let mut definitions = serde_json::Map::new();
+            let mut missing = false;
+            for id in referenced_definitions(snapshot) {
+                if self.persisted.contains(&id) {
+                    continue;
+                }
+                match self.archives.get(&id) {
+                    Some(payload) => {
+                        definitions.insert(id, json!(&**payload));
+                    }
+                    None => missing = true,
+                }
+            }
+            if missing {
+                return Err("Progress references an unarchived guide definition".to_string());
+            }
+            let value = database(
+                json!({"schema_version":1,"op":"save","path":path.to_string_lossy(),"expected_revision":self.revision,"version":hoi4companion_storage::PROGRESS_VERSION,"definitions":definitions,"answers":answers,"payload":snapshot.to_string()}),
+            )?;
+            self.revision = value["revision"]
+                .as_i64()
+                .ok_or("Invalid committed revision")?;
+            self.persisted.extend(definitions.keys().cloned());
+        }
+        let same = |a: &Value, b: &Value| ["guide_id", "step_key", "quote"].iter().all(|k| a[*k] == b[*k]);
+        for row in answers {
+            self.answers.retain(|kept| !same(kept, row));
+            if row["op"] == "put" {
+                let mut kept = row.clone();
+                kept.as_object_mut().ok_or("Invalid confirmed answer")?.remove("op");
+                self.answers.push(kept);
+            }
+        }
+        let order = |r: &Value| [&r["guide_id"], &r["step_key"], &r["quote"]].map(|v| v.as_str().unwrap_or("").to_owned());
+        self.answers.sort_by_key(order);
+        Ok(())
     }
     pub fn observe_decisions(&mut self, state: &Value) -> Result<bool> {
         self.call("observe_decisions",json!({"state":crate::state::normalize(state)})).map(|v|v==true)

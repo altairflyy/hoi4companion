@@ -22,6 +22,10 @@ impl Context {
     pub(crate) fn political_cost_ids<'a>(&self,guides:impl IntoIterator<Item=&'a Value>)->Value {
         crate::operational_catalog::political_cost_ids(&self.source["operation_entities"],guides)
     }
+    /// The catalog index this context was built from.
+    pub(crate) fn index(&self) -> &Index {
+        &self.index
+    }
     pub fn new(catalog: &mut Catalog, library: Value) -> Result<Arc<Self>, String> {
         let source = catalog.sources.clone();
         let index = catalog.import_index()?;
