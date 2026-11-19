@@ -176,10 +176,12 @@ fn marks(rows:&[Value],width:u32,height:u32)->Vec<Highlight> {
             else if let Some(quantity)=row["quantity"].as_u64() {format!("{} · totale {} fabbriche",title,quantity)}
             else {title.to_owned()};
         let role=mark_role(row,&panel);
-        let mut caption:String=caption.chars().take(140).collect();
-        // An ambiguous answer reads as a question; one the player confirmed says so.
-        if role==Role::Ambiguous {caption.insert_str(0,"? ");}
-        if row["confirmed_by_user"]==true {caption.push_str(" · ");caption.push_str(&i18n::text("confirmed by you"));}
+        // An ambiguous answer reads as a question; one the player confirmed says
+        // so. Only the title is shortened, so prefix and suffix always fit.
+        let prefix=if role==Role::Ambiguous {"? "} else {""};
+        let suffix=if row["confirmed_by_user"]==true {format!(" · {}",i18n::text("confirmed by you"))} else {String::new()};
+        let budget=140usize.min(render::MAX_CAPTION.saturating_sub(prefix.chars().count()+suffix.chars().count()));
+        let caption=format!("{prefix}{}{suffix}",caption.chars().take(budget).collect::<String>());
         Some(Highlight {rect:rect.map(|n|n as f32),caption,role,panel})
     }).take(64).collect()
 }
@@ -861,6 +863,13 @@ mod tests {
         assert_eq!(one(json!({"role":"choice"})).role,Role::Choice);
         assert_eq!(one(json!({"role":"active","panel":"focus"})).role,Role::Active);
         assert_eq!(one(json!({"role":"next"})).caption,"We cannot allow this");
+        // A long title is shortened; the prefix and the suffix always survive.
+        let long="x".repeat(400);
+        let both=one(json!({"role":"ambiguous","confirmed_by_user":true,"labels":[long]}));
+        assert!(both.caption.starts_with("? x")&&both.caption.ends_with(" · confirmed by you"),"{}",both.caption);
+        assert_eq!(both.caption.chars().count(),render::MAX_CAPTION);
+        let next=one(json!({"role":"next","labels":["x".repeat(400)]}));
+        assert_eq!(next.caption.chars().count(),140,"captions without additions keep the old length");
         assert_eq!(one(json!({"role":"bogus","tone":"choice"})).role,Role::Next,"an unknown role is the guide's next action");
         // Rows the geometry builds itself (research tabs) carry only the tone.
         assert_eq!(one(json!({"panel":"research_tab","title":"Industry","tone":"choice"})).role,Role::Choice);
@@ -881,9 +890,18 @@ mod tests {
         assert_eq!(card.answer,Some(render::Answer {key:"k".into(),quote:"We cannot…".into(),event_id:"e.1".into(),option_id:"e.1.b".into()}));
         assert!(!card.confirmed_by_user);
         assert!(card.badge.contains("ambiguous answer"));
-        // Only another step's answer, alone: still the one shown now.
+        // Only another step's answer, alone: offered beside the card step's
+        // own Done, and the badge names that line by its reference text.
         snapshot["proposed"].as_array_mut().unwrap().remove(1);
-        assert_eq!(step_card(&snapshot).unwrap().answer.map(|a|a.key),Some("other".into()));
+        let other=step_card(&snapshot).unwrap();
+        assert_eq!(other.answer.as_ref().map(|a|a.key.as_str()),Some("other"));
+        assert!(other.checkable&&other.key=="k","the card's own step keeps its Done");
+        assert!(other.badge.contains("“Other…”"),"{}",other.badge);
+        let same=|card:&StepCard|card.answer.as_ref().is_some_and(|a|a.key==card.key);
+        assert_eq!(card::header_buttons(true,same(&other),other.checkable),
+            [card::Button::Hide,card::Button::Collapse,card::Button::Done,card::Button::ConfirmAnswer]);
+        assert_eq!(card::header_buttons(true,same(&card),card.checkable),
+            [card::Button::Hide,card::Button::Collapse,card::Button::ConfirmAnswer]);
         // Two other steps' answers: none is chosen for this card.
         snapshot["proposed"]=json!([{"key":"a","role":"ambiguous","event_id":"a","option_id":"a.1"},{"key":"b","role":"ambiguous","event_id":"b","option_id":"b.1"}]);
         assert!(step_card(&snapshot).unwrap().answer.is_none());

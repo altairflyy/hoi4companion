@@ -56,6 +56,8 @@ const REFRESH: usize = 204;
 const CARD_TOGGLE: usize = 205;
 const CARD_HOTKEY: i32 = 1;
 const MAX_MARKS: usize = 64;
+/// Characters of a highlight caption drawn; longer captions are cut.
+pub const MAX_CAPTION: usize = 150;
 /// Compositor fade when the layer appears; never applied on disappearance.
 const FADE_IN: Duration = Duration::from_millis(90);
 /// Interval for re-asserting the topmost position without moving the window.
@@ -600,7 +602,7 @@ impl Graphics {
             // this" for an ambiguous answer or "Done" for a checkable step.
             let top=10.0*scale;
             let mut sized:Vec<(Button,String,f32)>=Vec::new();
-            for button in card::header_buttons(card.answer.is_some(),card.checkable && !card.key.is_empty()) {
+            for button in card::header_buttons(card.answer.is_some(),card.answer.as_ref().is_some_and(|a|a.key==card.key),card.checkable && !card.key.is_empty()) {
                 let label=match (button,card::header_label(button,card.confirmed_by_user)) {
                     (_,Some(label))=>format!("✓ {}",crate::i18n::text(label)),
                     (Button::Collapse,_)=>if collapsed {"+".into()}else{"–".into()},
@@ -805,7 +807,7 @@ impl Graphics {
                         self.context.FillRoundedRectangle(&round,fill);
                     }
                     self.context.DrawRoundedRectangle(&round,stroke,width,style);
-                    let caption:Vec<u16>=mark.caption.chars().filter(|c|!c.is_control()).take(150).collect::<String>().encode_utf16().collect();
+                    let caption:Vec<u16>=mark.caption.chars().filter(|c|!c.is_control()).take(MAX_CAPTION).collect::<String>().encode_utf16().collect();
                     if caption.is_empty() {continue;}
                     let Some([left,top,right,bottom])=captions[index] else {continue;};
                     let label=D2D_RECT_F {left,top,right,bottom};

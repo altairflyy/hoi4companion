@@ -74,14 +74,17 @@ pub enum Button {Done, Collapse, Hide, Undo,
     /// A row's checkbox in the open section.
     Item(u16)}
 
-/// The card's header buttons, right to left. An ambiguous answer replaces
-/// Done, so the card never offers two confirmations at once.
-pub fn header_buttons(answer: bool, checkable: bool) -> Vec<Button> {
+/// The card's header buttons, right to left. An ambiguous answer for the
+/// card's own step replaces its Done (one confirmation of the same line). An
+/// answer for another step keeps the card step's Done and adds "I chose this"
+/// beside it; the card's badge names the line that button confirms.
+pub fn header_buttons(answer: bool, answer_is_card_step: bool, checkable: bool) -> Vec<Button> {
     let mut buttons = vec![Button::Hide, Button::Collapse];
+    if checkable && !(answer && answer_is_card_step) {
+        buttons.push(Button::Done);
+    }
     if answer {
         buttons.push(Button::ConfirmAnswer);
-    } else if checkable {
-        buttons.push(Button::Done);
     }
     buttons
 }
@@ -353,14 +356,16 @@ mod tests {
         assert_eq!(hit(&buttons, 260.0, 10.0), None);
     }
 
+    fn ids(buttons: &[(Button, [f32; 4])]) -> Vec<Button> {buttons.iter().map(|(b, _)| *b).collect()}
+    /// Header layout with 24 px icon buttons and 90 px labeled buttons.
+    fn header(answer: bool, same_step: bool, checkable: bool) -> (Vec<(Button, [f32; 4])>, f32) {
+        let sized: Vec<(Button, f32)> = header_buttons(answer, same_step, checkable).into_iter()
+            .map(|b| (b, if matches!(b, Button::ConfirmAnswer | Button::Done) {90.0} else {24.0})).collect();
+        header_layout(&sized, 350.0, 10.0, 24.0, 6.0)
+    }
     #[test]
     fn confirm_button_only_for_ambiguous_or_confirmed() {
-        let ids = |buttons: &[(Button, [f32; 4])]| buttons.iter().map(|(b, _)| *b).collect::<Vec<_>>();
-        let layout = |answer: bool, checkable: bool| {
-            let sized: Vec<(Button, f32)> = header_buttons(answer, checkable).into_iter()
-                .map(|b| (b, if matches!(b, Button::ConfirmAnswer | Button::Done) {90.0} else {24.0})).collect();
-            header_layout(&sized, 350.0, 10.0, 24.0, 6.0)
-        };
+        let layout = |answer: bool, checkable: bool| header(answer, true, checkable);
         assert_eq!(ids(&layout(false, false).0), [Button::Hide, Button::Collapse]);
         assert_eq!(ids(&layout(false, true).0), [Button::Hide, Button::Collapse, Button::Done]);
         // An ambiguous answer replaces Done: one confirmation, never two.
@@ -379,6 +384,22 @@ mod tests {
         assert_eq!(header_label(Button::Done, true), Some("I chose this"));
         assert_eq!(header_label(Button::Done, false), Some("Mark done"));
         assert_eq!(header_label(Button::Hide, true), None);
+    }
+
+    #[test]
+    fn other_step_answer_keeps_done_and_adds_confirm() {
+        // The answer belongs to another guide line: the card's own step keeps
+        // Done, and "I chose this" sits beside it.
+        let (buttons, right) = header(true, false, true);
+        assert_eq!(ids(&buttons), [Button::Hide, Button::Collapse, Button::Done, Button::ConfirmAnswer]);
+        assert_eq!(buttons[2].1, [200.0, 10.0, 290.0, 34.0]);
+        assert_eq!(buttons[3].1, [104.0, 10.0, 194.0, 34.0]);
+        assert_eq!(right, 98.0);
+        assert_eq!(hit(&buttons, 210.0, 12.0), Some(Button::Done));
+        assert_eq!(hit(&buttons, 110.0, 12.0), Some(Button::ConfirmAnswer));
+        assert_eq!(hit(&buttons, 197.0, 12.0), None);
+        // Not checkable: only the confirmation.
+        assert_eq!(ids(&header(true, false, false).0), [Button::Hide, Button::Collapse, Button::ConfirmAnswer]);
     }
 
     #[test]
