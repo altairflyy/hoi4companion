@@ -4,7 +4,7 @@
  window.HoiSuiteLive=window.hoiLive;
  for(const el of document.querySelectorAll('[data-copy]'))el.textContent=t(el.dataset.copy);
  const titles={overview:'Command center',library:'Guide library',walkthrough:'Campaign plan',focus:'National focuses',technologies:'Technologies',country:'Country overview',events:'Events',templates:'Templates & references',importer:'Import ZIPs',analysis:'Diagnostics',settings:'Settings'};
- let view='overview',catalog=[],catalogLoaded=false,packet=null,active=null,projection=null,projectionKey='',projectionVersion=0,loading=null,queued=false,librarySignature='',libraryLoading=null;
+ let view='overview',catalog=[],catalogLoaded=false,packet=null,active=null,projection=null,preview=null,projectionKey='',projectionVersion=0,loading=null,queued=false,librarySignature='',libraryLoading=null;
  const format=new Intl.NumberFormat(HoiI18n.language==='italian'?'it-IT':'en-US',{maximumFractionDigits:0});
  const display=value=>value===null||value===undefined?'—':format.format(value);
  const foreground=()=>document.visibilityState!=='hidden'&&(typeof document.hasFocus!=='function'||document.hasFocus());
@@ -44,29 +44,44 @@
  function drawRoute(){const name=active?.title||catalog.find(g=>g.id===active?.guide_id)?.title;
   $('activeGuideTitle').textContent=name?model.title(name):t('Choose a guide to begin');$('activeGuideShort').textContent=name?model.title(name):t('No guide selected');$('routeItems').replaceChildren();
   const current=model.currentProjection(packet,projection);
+  const groups=!current&&!packet?.usable?model.preview(preview,active?.guide_id):null;
+  if(groups?.length){drawPreview(groups);return;}
   if(!current){$('routeStatus').textContent=t('Waiting for current game data');$('routeNotice').textContent=t(packet?.usable?'Guide progress is unavailable; no steps are inferred.':'Open HOI4 to qualify the current campaign. Your library stays available.');return;}
   const summary=HoiOperationalSummary.project(projection.guide,projection.evaluation,projection.state,{limit:4});
   $('routeStatus').textContent=t(projection.evaluation.mode==='live'?'Current campaign':'Guide ready');$('routeNotice').textContent=summary.notice||t('Readiness follows the guide conditions; unknown data never completes a step.');
   const definitions=new Map(Object.values(projection.guide.tracks||{}).flat().map(step=>[step.key,step]));
-  for(const item of summary.items){const link=document.createElement('a');link.className='route-item';const step=definitions.get(item.step_key);const path=new URL(item.href||'/walkthrough',location.origin);if(path.origin!==location.origin)continue;link.href=path.pathname+path.search+path.hash;
-   link.addEventListener('click',event=>{event.preventDefault();const key=path.pathname==='/technologies'?'technologies':path.pathname==='/'?'focus':'walkthrough';navigate(key);const target=new URL(link.href,location.origin);target.searchParams.set('suite','1');$('workspaceFrame').src=target.href;});
-   const dot=document.createElement('i');dot.setAttribute('aria-hidden','true');const text=document.createElement('div');const category=document.createElement('small');category.textContent=item.title;const title=document.createElement('strong');title.textContent=step?.name||step?.title||item.guide_goal||item.title;const message=document.createElement('p');message.textContent=item.message||'';text.append(category,title,message);const arrow=document.createElement('span');arrow.textContent='→';arrow.setAttribute('aria-hidden','true');link.append(dot,text,arrow);$('routeItems').append(link);
-  }
+  for(const item of summary.items){const step=definitions.get(item.step_key);routeItem(item.href||'/walkthrough',item.title,step?.name||step?.title||item.guide_goal||item.title,item.message||'');}
+ }
+ function routeItem(href,label,name,note){const path=new URL(href,location.origin);if(path.origin!==location.origin)return;const link=document.createElement('a');link.className='route-item';link.href=path.pathname+path.search+path.hash;
+  link.addEventListener('click',event=>{event.preventDefault();const key=path.pathname==='/technologies'?'technologies':path.pathname==='/'?'focus':'walkthrough';navigate(key);const target=new URL(link.href,location.origin);target.searchParams.set('suite','1');$('workspaceFrame').src=target.href;});
+  const dot=document.createElement('i');dot.setAttribute('aria-hidden','true');const text=document.createElement('div');const category=document.createElement('small');category.textContent=label;const title=document.createElement('strong');title.textContent=name;const message=document.createElement('p');message.textContent=note;text.append(category,title,message);const arrow=document.createElement('span');arrow.textContent='→';arrow.setAttribute('aria-hidden','true');link.append(dot,text,arrow);$('routeItems').append(link);
+ }
+ // UX R11: without the game the home previews the first steps of the active
+ // guide with the statuses of the Rust preview evaluation, never a JS verdict.
+ const previewStatus={ready:'Ready',active:'In progress',waiting:'Waiting',unverifiable:'To check in game'};
+ function drawPreview(groups){$('routeStatus').textContent=t('Preview without the game');$('routeNotice').textContent=t('Preview: the first steps of the active guide. Statuses come from the guide engine without game data; no step counts as done until HOI4 is open.');
+  for(const group of groups)for(const item of group.items){const step=item.step;
+   const name=window.HoiActionPlan?.composedTitle(step.reading)||step.name||step.title||item.key;
+   const href=item.track==='research'?'/technologies':item.track==='focus'?(typeof step.href==='string'&&step.href.startsWith('/')&&!step.href.startsWith('//')?step.href:'/'):'/walkthrough#operation-'+encodeURIComponent(item.key);
+   routeItem(href,t(group.label)+' · '+t(previewStatus[item.status]),name,HoiI18n.reason?.(item.reason)||'');}
  }
  async function refreshProjection(){if(view!=='overview'||!foreground())return;if(loading){queued=true;return loading;}const version=++projectionVersion;
   loading=(async()=>{try{const identity=await json('/api/guide/active');if(version!==projectionVersion)return;active=identity;
-    if(!identity.guide_id||!packet?.usable){projection=null;drawRoute();return;}
+    if(!identity.guide_id){projection=null;preview=null;drawRoute();return;}
+    if(!packet?.usable){projection=null;let result=null;try{result=await json('/api/guide/projection?id='+encodeURIComponent(identity.guide_id)+'&live=0');}catch{}if(version!==projectionVersion)return;
+     preview=result?.schema_version===1?result:null;drawRoute();return;}
+    preview=null;
     const result=await json('/api/guide/projection?id='+encodeURIComponent(identity.guide_id)+'&live='+(packet?.usable?'1':'0'));
     if(version!==projectionVersion||packet?.active_guide_id&&result.guide_id!==packet.active_guide_id)return;
     if(result.schema_version!==1||result.engine!=='rust-guide-core'||result.guide_id!==identity.guide_id||result.evaluation?.guide_id!==identity.guide_id||result.progress?.guide_id!==identity.guide_id)throw Error(t('Guide progress is unavailable; no steps are inferred.'));
     projection=result;drawRoute();if(view==='library')drawLibrary();
-   }catch(e){projection=null;drawRoute();if(e.message==='No guide available'){if(!catalogLoaded)await loadLibrary();if(catalogLoaded&&!catalog.length)return;}error(e.message);}
+   }catch(e){projection=null;preview=null;drawRoute();if(e.message==='No guide available'){if(!catalogLoaded)await loadLibrary();if(catalogLoaded&&!catalog.length)return;}error(e.message);}
   })().finally(()=>{loading=null;if(queued){queued=false;refreshProjection();}});return loading;
  }
- window.hoiLive.subscribe(value=>{packet=value;if(value?.active_guide_id&&value.active_guide_id!==active?.guide_id){projectionVersion++;projection=null;active={guide_id:value.active_guide_id,title:catalog.find(g=>g.id===value.active_guide_id)?.title};drawRoute();}const m=model.metrics(value);$('countryTag').textContent=m.country||'—';$('metricCountry').textContent=m.country||'—';$('metricDivisions').textContent=display(m.divisions);$('metricPP').textContent=display(m.politicalPower);$('metricFactories').textContent=display(m.factories);$('readerBadge').dataset.connected=String(m.current);$('readerText').textContent=t(m.current?'Reader connected':'Waiting for HOI4');$('campaignHint').textContent=t(m.current?'Current campaign':'No qualified game state');$('hudStatus').textContent=value?.usable?(value.overlay?.message||t('No new contextual indication')):t('Waiting for current game data');
+ window.hoiLive.subscribe(value=>{packet=value;if(value?.active_guide_id&&value.active_guide_id!==active?.guide_id){projectionVersion++;projection=null;preview=null;active={guide_id:value.active_guide_id,title:catalog.find(g=>g.id===value.active_guide_id)?.title};drawRoute();}const m=model.metrics(value);$('countryTag').textContent=m.country||'—';$('metricCountry').textContent=m.country||'—';$('metricDivisions').textContent=display(m.divisions);$('metricPP').textContent=display(m.politicalPower);$('metricFactories').textContent=display(m.factories);$('readerBadge').dataset.connected=String(m.current);$('readerText').textContent=t(m.current?'Reader connected':'Waiting for HOI4');$('campaignHint').textContent=t(m.current?'Current campaign':'No qualified game state');$('hudStatus').textContent=value?.usable?(value.overlay?.message||t('No new contextual indication')):t('Waiting for current game data');
   const signature=JSON.stringify([value?.active_guide_id,m.country,value?.active_guide_revision]);if(signature!==librarySignature){librarySignature=signature;drawLibrary();}
   const key=model.projectionKey(value);
-  if(!value?.usable){projection=null;drawRoute();}if(key!==projectionKey){projectionKey=key;if(value?.usable)refreshProjection();}
+  if(!value?.usable){projection=null;drawRoute();}if(key!==projectionKey){projectionKey=key;refreshProjection();}
  });
  $('guideSearch').addEventListener('input',drawLibrary);$('allCountries').addEventListener('change',drawLibrary);
  window.addEventListener('pageshow',event=>{if(event.persisted&&document.visibilityState!=='hidden')loadLibrary();});

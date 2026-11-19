@@ -388,7 +388,14 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   della guida; sostituisce solo il segnaposto `guide.conditions.*`; due focus con lo stesso prefisso restano ambigui con i candidati.
   Test: Rust `a_split_timing_with_a_truncated_focus_resolves_only_by_unique_prefix`, `hud_service`, overlay; JS `tests/test_action_plan.cjs`.
   Non ricompilato né visto dal vivo.
-- Poi R11, quindi il lungo periodo, nell'ordine delle tabelle sopra.
+- [x] **R11 · Home utile senza gioco** (2026-11-20). Senza stato di gioco leggibile la home chiede `/api/guide/projection?live=0`
+  (valutazione Rust in modalità `preview`) e "Percorso attivo" mostra, per Azioni della guida, Focus nazionali e Ricerca, fino a 3 passi
+  dal `next` Rust di ogni traccia (`preview()` in `web/suite-model.js`): titolo composto R8 se presente, stato Rust (Pronto / In corso /
+  In attesa / Da verificare in gioco); passi completati, non applicabili o con stato fuori elenco restano fuori. Valutazione live, di
+  un'altra guida o non Rust: nessuna anteprima. Con il gioco leggibile l'anteprima sparisce e torna il riepilogo live. Test DOM in modalità
+  anteprima: `tests/test_suite.cjs`. Guida Romania sul backend in esecuzione: 9 passi, tutti "Da verificare in gioco". Non ricompilato
+  (stringhe italiane nuove e titoli R8 assenti fino al rebuild) né visto senza gioco nella finestra reale.
+- Poi il lungo periodo, nell'ordine delle tabelle sopra.
 
 ### Metrica guida proposta
 

@@ -1,13 +1,13 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const model=require('../src/hoi4companion/web/suite-model.js');
-function suiteHarness(sidebarButtons=[],emptyActive=false){
+function suiteHarness(sidebarButtons=[],emptyActive=false,projectionBody=null){
  const elements=new Map(),events={},calls=[];let listener;
- const element=id=>{if(!elements.has(id))elements.set(id,{id,dataset:{},value:'',checked:false,hidden:id==='suiteError',src:'about:blank',contentWindow:{dispatchEvent(){}},addEventListener(){},replaceChildren(){},append(){},setAttribute(){},removeAttribute(){}});return elements.get(id);};
- const document={visibilityState:'visible',focused:true,hasFocus(){return this.focused;},getElementById:element,querySelectorAll:selector=>selector==='.suite-sidebar [data-view]'?sidebarButtons:[],addEventListener(name,fn){events[name]=fn;}};
+ const element=id=>{if(!elements.has(id))elements.set(id,{id,dataset:{},value:'',checked:false,hidden:id==='suiteError',src:'about:blank',contentWindow:{dispatchEvent(){}},addEventListener(){},children:[],replaceChildren(){this.children=[];},append(...c){this.children.push(...c);},setAttribute(){},removeAttribute(){}});return elements.get(id);};
+ const document={visibilityState:'visible',focused:true,hasFocus(){return this.focused;},getElementById:element,createElement:tag=>({tag,className:'',textContent:'',children:[],append(...c){this.children.push(...c);},setAttribute(){},addEventListener(){}}),querySelectorAll:selector=>selector==='.suite-sidebar [data-view]'?sidebarButtons:[],addEventListener(name,fn){events[name]=fn;}};
  const window={hoiLive:{subscribe(fn){listener=fn;}},addEventListener(name,fn){events[name]=fn;}};
  const location={origin:'http://localhost',hash:'#overview'};
- const fetch=async path=>{calls.push(path);return {ok:!(emptyActive&&path==='/api/guide/active'),json:async()=>path==='/api/guides'?{guides:[]}:path==='/api/guide/active'?(emptyActive?{error:'No guide available'}:{guide_id:'a'}):{schema_version:1,engine:'rust-guide-core',guide_id:'a',guide:{tracks:{}},evaluation:{guide_id:'a'},progress:{guide_id:'a'},state:{usable:false}}};};
+ const fetch=async path=>{calls.push(path);return {ok:!(emptyActive&&path==='/api/guide/active'),json:async()=>path==='/api/guides'?{guides:[]}:path==='/api/guide/active'?(emptyActive?{error:'No guide available'}:{guide_id:'a'}):(projectionBody||{schema_version:1,engine:'rust-guide-core',guide_id:'a',guide:{tracks:{}},evaluation:{guide_id:'a'},progress:{guide_id:'a'},state:{usable:false}})};};
  const source=fs.readFileSync(require.resolve('../src/hoi4companion/web/suite.js'),'utf8').replace(/\}\)\(\);\s*$/, 'window.__suiteSettled=()=>loading;})();');
  vm.runInNewContext(source,{window,document,location,fetch,HoiSuiteModel:model,HoiI18n:{t:s=>s,language:'english'},Intl,URL,Event});
  return {document,location,events,calls,element,settled:()=>window.__suiteSettled(),send:value=>listener(value),flush:()=>new Promise(resolve=>setImmediate(resolve))};
@@ -77,4 +77,33 @@ test('embedded views share the stream and release subscriptions without owning a
  handlers.pageshow({persisted:true});assert.equal(subscribed,2);
  window.parent.HoiSuiteFrameActive=false;assert.equal(window.hoiLive.enabled,false);assert.equal(window.hoiLive.value,null);
  window.parent.HoiSuiteFrameActive=true;handlers.suiteviewchange();assert.equal(value,source.value);
+});
+// UX R11: the home previews the first steps from the Rust preview evaluation only.
+const cases=require('./fixtures/presentation-cases.json'),evaluations=require('./fixtures/presentation-evaluations.json');
+function previewProjection(id='a'){const guide=structuredClone(cases.find(c=>c.name==='model: offline plan').guide);guide.id=id;
+ return {schema_version:1,engine:'rust-guide-core',guide_id:id,guide,evaluation:{...structuredClone(evaluations['model: offline plan']),guide_id:id},progress:{guide_id:id},state:{usable:false}};}
+const keys=groups=>groups.map(g=>[g.track,g.items.map(i=>i.key+':'+i.status)]);
+test('home preview lists the first open steps of each track from the Rust preview evaluation',()=>{
+ const p=previewProjection();
+ assert.deepEqual(keys(model.preview(p,'a')),[['focus',['f1:unverifiable','wait:unverifiable','f2:unverifiable']],['research',['r1:unverifiable','discount:unverifiable','project:unverifiable']]]);
+ // Rust statuses decide what is left out; nothing is recomputed in JS.
+ p.evaluation.steps.find(r=>r.key==='f1').status='completed';p.evaluation.steps.find(r=>r.key==='wait').status='not_applicable';p.evaluation.steps.find(r=>r.key==='r1').status='ready';
+ assert.deepEqual(keys(model.preview(p,'a'))[0][1],['f2:unverifiable','filler:unverifiable','unity:unverifiable']);
+ assert.equal(model.preview(p,'a')[1].items[0].status,'ready');
+ p.evaluation.tracks.focus.next=null;assert.deepEqual(model.preview(p,'a').map(g=>g.track),['research']);
+});
+test('home preview rejects live, foreign or non-Rust evaluations',()=>{
+ for(const change of [p=>p.evaluation.mode='live',p=>p.evaluation.mode='wrong_country',p=>p.engine='js',p=>p.guide_id='b',p=>p.evaluation.guide_id='b',p=>delete p.evaluation.steps]){const p=previewProjection();change(p);assert.equal(model.preview(p,'a'),null);}
+ assert.equal(model.preview(previewProjection(),''),null);assert.equal(model.preview(null,'a'),null);
+});
+test('suite home without the game shows the Rust preview and drops it once the game is readable',async()=>{
+ const h=suiteHarness([],false,previewProjection());await h.settled();await h.flush();
+ assert.ok(h.calls.some(p=>p.startsWith('/api/guide/projection?id=a&live=0')));assert.ok(!h.calls.some(p=>p.includes('live=1')));
+ assert.equal(h.element('routeStatus').textContent,'Preview without the game');
+ const items=h.element('routeItems').children;assert.equal(items.length,6);
+ const text=item=>item.children[1].children.map(c=>c.textContent);
+ assert.deepEqual(text(items[0]).slice(0,2),['National focuses · To check in game','f1']);assert.equal(items[3].href,'/technologies');
+ h.send({usable:true,active_guide_id:'a',sample:{country:'POL'}});await h.settled();await h.flush();
+ assert.ok(h.calls.some(p=>p.includes('live=1')));
+ assert.equal(h.element('routeStatus').textContent,'Waiting for current game data');assert.equal(h.element('routeItems').children.length,0);
 });

@@ -3,22 +3,22 @@ Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> UX roadmap R11 (handoff 5): home della suite utile anche senza gioco (anteprima dei primi passi della guida attiva, stati Rust in
-> modalità anteprima, mai valutazione JS); leggi R11 e P8 in `docs/ux-analysis-2026-11-19.md`. Verifica: test browser in modalità anteprima.
-> Chiusura: test, invariant-reviewer, commit locale, spunta R11 lì e qui, handoff. Niente rebuild.
+> UX roadmap R12 (handoff 6): correzione "Non è questo" dalla card del passo, riusando la pagina associazioni; leggi R12 (sezione E) e la pagina
+> associazioni (`web/associations.js`); doc `docs/ux-analysis-2026-11-19.md`. Solo proposte salvate dall'utente, mai criteri di completamento.
+> Chiusura: test, invariant-reviewer, commit locale, spunta R12 lì e qui, handoff. Niente rebuild.
 Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
 with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
 `docs/ux-analysis-2026-11-19.md` `## Execution order` and here, rewrite the Resume prompt. Details of each item: sections D and E there.
 1-2. DONE R7 construction binder, R8 `reading` layer (archive, `docs/ux-analysis-2026-11-19.md`).
 3. DONE R9 · guided mode (see Recently verified).
 4. DONE R10 · readable waiting reasons and truncated focuses (see Recently verified).
-5. R11 · suite home useful without the game (preview of the first steps). Check: browser test in preview mode.
+5. DONE R11 · suite home preview without the game (see Recently verified).
 6. R12 · "Not this" correction from the card, reusing the associations page.
 7. R15 · library cleanup: group by nation, flag duplicates by definition hash, separate non-national entries.
 8. R13 (optional local AI for uninterpreted lines, user-approved proposals only) needs a user decision first; R14 blocked (no qualified war-goal field, IL-04).
 9. FINAL, user present, HOI4 open: user runs `/deliver-build` (R6 `4acda08` and later are NOT rebuilt yet), then verify live:
    importer card on a real draft (R6), ROM "INFRAs, then MILs in Mun" shown as construction (R7) with composed title (R8) in suite and HUD card (R9),
-   waiting reasons and "On Revise…" resolved (R10), every UI step above; confirmed event answers (`docs/events-live.md`); research "UP" steps;
+   waiting reasons and "On Revise…" resolved (R10), home preview with HOI4 closed (R11), every UI step above; confirmed event answers (`docs/events-live.md`); research "UP" steps;
    HUD highlight alignment; map marker pan/zoom; metrics key "defensive" (reads WAR_SUPPORT_OFFNSIVE_WAR) against the UI; YUG ideology.
    Then ask whether to merge `auto/improve-2026-11-18` into main and whether to push.
 
@@ -29,6 +29,8 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
   preview as `report.interpretation`; importer card `interpretationOverview`. Focus/research count as automatic (guide-core native membership).
 
 ## Recently verified
+- 2026-11-20 R11: home "Active route" previews up to 3 steps per track from the Rust `live=0` evaluation (`suite-model.js preview()`);
+  `tests/test_suite.cjs` DOM test in preview mode; npm test 481 / 0 / 3 skipped; real ROM guide gives 9 steps. NOT rebuilt, NOT seen with HOI4 closed.
 - 2026-11-20 R10: `runtime_reasons` table in `translations.json` (suite `HoiI18n.reason`, overlay `i18n::reason`), guided "Waiting" reason,
   `step_card.waiting.reason`; `ground_trigger` resolves split `params.timing` ("On Revise…"), ambiguous stays unknown. guides 102, backend 48+117,
   overlay 61 pass; npm test 478 / 0 / 3 skipped; invariant review clean. NOT rebuilt, NOT live. Details in the UX doc.

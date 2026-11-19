@@ -16,6 +16,11 @@
     "research_choice_waiting": "an earlier research choice is not completed yet"
   },
   "messages": {
+    "Preview without the game": "Anteprima senza gioco",
+    "Preview: the first steps of the active guide. Statuses come from the guide engine without game data; no step counts as done until HOI4 is open.": "Anteprima: i primi passi della guida attiva. Gli stati vengono dal motore della guida senza dati del gioco; nessun passo risulta fatto finché HOI4 non è aperto.",
+    "Ready": "Pronto",
+    "To check in game": "Da verificare in gioco",
+    "Guide actions": "Azioni della guida",
     "the guide's condition is not met yet": "la condizione della guida non è ancora soddisfatta",
     "the guide's phase has not started yet": "la fase della guida non è ancora iniziata",
     "an earlier step is not done yet": "un passo precedente non è ancora fatto",
