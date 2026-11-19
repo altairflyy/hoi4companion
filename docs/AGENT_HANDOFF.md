@@ -11,12 +11,8 @@ Resume prompt (user pastes it after /clear; the agent rewrites it at every sessi
    Waits on item 0b (remaining domains on HOI4 1.20).
 0b. Requalify HOI4 1.20.0.0 (user chose this; read-only copy `.local/hoi4-1.20/hoi4.exe`, sha256 `1beb2a38…b63a9f`), one domain per session.
    Done `e98ccbb`: ABI relocation set `live-abi-v1-hoi4-1.20.json`, all 23 groups static; live core/production/diplomacy/intel/events/projects observed.
-   Done `d1851e7`: campaign_identity, slot 0x34d6f18 (id 0x3b80; details in commit). Live observed 2026-11-19 17:07.
+   Done and live-observed: campaign_identity `d1851e7`, building database `a03f723`, equipment `7a91a2c`+`f21e668` (details: archive, commits).
    Opt-in test `HOI4_QUALIFY_EXE=<copy> node scripts/dev-native.cjs test live abi::` checks token and building slots.
-   Done `a03f723`: building database row -> slot 0x33e36e8 (getter 0x169ddb; writer 0x198d7c after ctor 0x6c9870 with CBuildingDatabase vtable);
-   live states/fortifications observed, construction partial (lines in occupied provinces/states), 2026-11-19 17:16.
-   Done `7a91a2c`, `f21e668`: equipment. Pool layout unchanged; 1.20 keeps an owed variant below zero (live support_equipment_1 = -1.0), so gross
-   stock is now signed. Live 2026-11-19 17:40: equipment observed (54 types, 569 variants), logistics observed (29 archetypes); not compared with the in-game UI.
    Resources row matches 6 getters (captures 0x33e36e0): same check needed. Slot-finding: getter list, then read-only RTTI probe of slots.
    NEXT SESSION: resources. Then, in order: politics.advisors + advisor costs; commander_assignments (CArmyGroup); decisions (read limit); metrics; doctrines.
    Also hash-pinned to old builds: map markers (`map_markers.rs`, 709f…) and production GUI (`gui_production.rs`, cf781…).

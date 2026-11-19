@@ -69,3 +69,10 @@ Updated: 2026-11-19. Read CLAUDE.md, this file and current Git diff before editi
 - Events page with historical path (`4723991`, `515cea6`): verified live SOV, all 5 Reverse Barbarossa answered events listed.
 - Startup: active guide prepared first (IL-05 `47d0f77`), cold ready 44.75 s -> 14.18 s; parallel preparation `34e68b2`.
 - Desktop host (`native/desktop`, tao + wry): lifecycle, owned children, authenticated stop verified 2026-11-17. Details `docs/desktop-suite.md` and the archive.
+
+## HOI4 1.20 requalification, per domain (moved from the handoff 2026-11-19)
+- `d1851e7`: campaign_identity, slot 0x34d6f18 (id 0x3b80; details in commit). Live observed 2026-11-19 17:07.
+- `a03f723`: building database row -> slot 0x33e36e8 (getter 0x169ddb; writer 0x198d7c after ctor 0x6c9870 with CBuildingDatabase vtable);
+  live states/fortifications observed, construction partial (lines in occupied provinces/states), 2026-11-19 17:16.
+- `7a91a2c`, `f21e668`: equipment. Pool layout unchanged; 1.20 keeps an owed variant below zero (live support_equipment_1 = -1.0), so gross
+  stock is now signed. Live 2026-11-19 17:40: equipment observed (54 types, 569 variants), logistics observed (29 archetypes); not compared with the in-game UI.
