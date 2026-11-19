@@ -437,6 +437,27 @@ pub fn targets(
                 )
                 .is_some_and(|v| v.len() == 1)
     });
+    // Every proposal carries the role that picks its HUD colour; `tone` stays.
+    for p in &mut result {
+        let row = rows.get(s(if p["guide_step"].is_string() { &p["guide_step"] } else { &p["key"] })).copied();
+        let params = row.map(|r| &r["action"]["params"]);
+        let role = if p["resolution"] == "visible_candidate" {
+            "ambiguous"
+        } else if p["tone"] == "choice" {
+            "choice"
+        } else if p["status"] == "active" && p["panel"] != "event" {
+            "active"
+        } else {
+            "next"
+        };
+        p["role"] = json!(role);
+        if role == "ambiguous" {
+            p["reference_text"] = params.map_or(Value::Null, |v| v["reference_candidates"]["text"].clone());
+        }
+        if p["panel"] == "event" && params.is_some_and(|v| v["reference_resolution"]["basis"] == "user_confirmed") {
+            p["confirmed_by_user"] = json!(true);
+        }
+    }
     Ok(json!(result))
 }
 
@@ -526,5 +547,50 @@ mod tests {
         let mut g = guide.clone();
         g["tracks"]["operations"][1]["action"]["params"]["reference_candidates"]["text"] = json!("We shall…");
         assert!(none(&g, &runtime, &live), "text differs");
+    }
+
+    #[test]
+    fn visible_candidate_has_role_ambiguous_and_reference_text() {
+        let (guide, runtime, index, live) = fixture();
+        let found = events(&targets(&guide, &runtime, &index, &live, false, &Value::Null).unwrap());
+        assert_eq!(found[0]["resolution"], "visible_candidate");
+        assert_eq!(found[0]["role"], "ambiguous");
+        assert_eq!(found[0]["reference_text"], "We cannot…");
+        assert!(found[0].get("confirmed_by_user").is_none());
+    }
+
+    #[test]
+    fn user_confirmed_binding_is_next_and_flagged() {
+        let (mut guide, runtime, index, live) = fixture();
+        guide["tracks"]["operations"][1]["action"]["params"] = json!({"event_id":"eth.100","event_option_id":"eth.100.b",
+            "reference_resolution":{"basis":"user_confirmed"},
+            "reference_candidates":{"status":"ambiguous","text":"We cannot…","confirmed":{"event_id":"eth.100","id":"eth.100.b"}}});
+        guide["tracks"]["operations"][1]["tracking"] = Value::Null;
+        let plan = json!({"guide_id":"g","bindings":{"b":{"key":"b","panel":"event","identity":"eth.100:eth.100.b","event_id":"eth.100","option_id":"eth.100.b",
+            "labels":["We cannot allow this"],"event_titles":[],"event_title":"eth.100","resolution":"catalog_identity","title":"We cannot allow this"}}});
+        let found = events(&targets(&guide, &runtime, &index, &live, false, &plan).unwrap());
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0]["role"], "next");
+        assert_eq!(found[0]["confirmed_by_user"], true);
+        assert_eq!(found[0]["resolution"], "catalog_identity");
+    }
+
+    #[test]
+    fn choice_and_active_roles_match_previous_tone() {
+        let (guide, mut runtime, index, live) = fixture();
+        // An optional focus is a choice, an active focus is active, a ready one is next.
+        let mut g = guide.clone();
+        g["tracks"]["operations"][2]["action"]["params"] = json!({"focus_optional":true});
+        let index = Index::new(&json!({"entries":[{"kind":"country","id":"ENG","name":"United Kingdom"},
+            {"kind":"focus","id":"ENG_organize","name":"Organize the army","scope":null}]})).unwrap();
+        let role = |g: &Value, r: &Value| {
+            let all = targets(g, r, &index, &live, false, &Value::Null).unwrap();
+            all.as_array().unwrap().iter().find(|p| p["panel"] == "focus").map(|p| (p["role"].clone(), p.get("tone").cloned()))
+        };
+        runtime["parallel"] = json!({"focus":{"steps":["c"]}});
+        assert_eq!(role(&g, &runtime), Some((json!("choice"), Some(json!("choice")))));
+        assert_eq!(role(&guide, &runtime), Some((json!("next"), None)));
+        runtime["steps"][2]["status"] = json!("active");
+        assert_eq!(role(&guide, &runtime), Some((json!("active"), None)));
     }
 }
