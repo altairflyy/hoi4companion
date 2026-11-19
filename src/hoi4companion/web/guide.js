@@ -1,7 +1,7 @@
 'use strict';
 (()=>{
  const $=id=>document.getElementById(id),el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
- const categories={all:HoiI18n.t("All"),construction:HoiI18n.t("Factories and infrastructure"),production:HoiI18n.t("Production"),projects:HoiI18n.t("Special projects"),politics:HoiI18n.t("Politics and laws"),characters:HoiI18n.t("Characters"),army:HoiI18n.t("Armed forces"),templates:HoiI18n.t("Templates and vehicles"),checkpoints:HoiI18n.t("Events and conditions")};
+ const categories={all:HoiI18n.t("All"),construction:HoiI18n.t("Factories and infrastructure"),production:HoiI18n.t("Production"),projects:HoiI18n.t("Special projects"),politics:HoiI18n.t("Politics and laws"),characters:HoiI18n.t("Characters"),army:HoiI18n.t("Armed forces"),templates:HoiI18n.t("Templates and vehicles"),diplomacy:HoiI18n.t("War and diplomacy"),trade:HoiI18n.t("Trade and resources"),checkpoints:HoiI18n.t("Other instructions")};
  let value=null,filter='all',undo=null,lastGuide=null,dependencyRows=new Map(),unplacedOperations=new Set(),actionReader=null;
  const cardCache=new Map(),blockCache=new Map();let filterKey='',summaryKey='';
  function sync(parent,nodes){
@@ -132,7 +132,10 @@
   const related=guideReferences?.related(row,[operational.title||name(row),...operational.instructions,row.timing]);if(related)node.append(related);
   const sourceText=(row.instructions||[]).join(' '),topics=new Set();
   if(/\bMIOs?\b/i.test(sourceText))topics.add('mios');
-  if(row.category==='production')topics.add('production');if(row.category==='projects')topics.add('projects');
+  // Reference topics follow the bound category or an explicit source prefix, not the display topic guessed from wording.
+  const bound=row.action.params?.category;
+  if(bound==='production'||bound==='checkpoints'&&/^(?:MIL|NAV|PRODUCTION)\s*:/i.test(sourceText.trim()))topics.add('production');
+  if(bound==='projects'||row.action.kind==='special_project')topics.add('projects');
   if(/\b(?:support|regimental) compan|\b(?:Eng|Log|Hos|Rec)\b/.test(sourceText))topics.add('companies');
   if(/\b(?:doctrines?|spirits?)\b/i.test(sourceText))topics.add('doctrines');
   const references=(value.guide.advanced_references||[]).filter(d=>topics.has(d.category)&&/^[a-f0-9]{64}$/.test(d.id));

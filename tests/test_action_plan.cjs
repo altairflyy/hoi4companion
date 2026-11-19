@@ -76,6 +76,21 @@ test('reading categories do not turn unbound methods into structured orders',()=
  assert.equal(plan.category(row('mixed',{category:'checkpoints',instructions:['ARMY: train\n- NAVY: gather']})),'army');
 });
 
+test('unrecognized instructions get a display topic from their wording, never a new binding',()=>{
+ const topic=title=>{const r={key:'k',name:title,runtime_status:'ready',action:{kind:'manual',params:{category:'checkpoints'}}};const value=plan.category(r);assert.equal(r.action.params.category,'checkpoints');return value;};
+ assert.equal(topic('INFRAs, then MILs in Mun (future in best)'),'construction');
+ assert.equal(topic('design & produce SI-0(0/4 +wet ammo):2 (from Inf)'),'production');
+ assert.equal(topic('Justify HUN, YUG — ASAP'),'diplomacy');
+ assert.equal(topic('ASAP: Attache to NSPA (100PP)'),'diplomacy');
+ assert.equal(topic('Industrial Concern (150PP)/ War Industrialist'),'politics');
+ assert.equal(topic('Fix Trade (ignore deficit of 1-2)'),'trade');
+ assert.equal(topic('Irredentist Advisor (150PP)'),'politics');
+ assert.equal(topic('Armies: Rename, Split* & train'),'army');
+ assert.equal(topic('Grant all statehoods'),'checkpoints');
+ assert.equal(topic('Never spend PP on events'),'checkpoints');
+ assert.equal(plan.category({key:'p',name:'Build forts',action:{kind:'special_project',params:{}}}),'projects');
+});
+
 test('legacy descriptive parameters cannot crash the plan or qualify an empty production layout',()=>{
  assert.equal(plan.category(row('old',{instructions:'legacy text'})),'checkpoints');
  const info=plan.describe(row('old',{category:'production',production_targets:[null],instructions:42}));

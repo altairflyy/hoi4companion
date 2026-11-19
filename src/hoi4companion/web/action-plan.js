@@ -4,13 +4,28 @@
  const reading=typeof module!=='undefined'&&module.exports?require('./action-reading.js'):root.HoiActionReading;
  const t=(text,...args)=>root.HoiI18n?root.HoiI18n.t(text,...args):text.replace(/\{(\d+)\}/g,(_,i)=>String(args[i]));
  const label=(p,...keys)=>keys.map(k=>p[k]).find(v=>typeof v==='string'&&v.trim())||null;
+ // Display grouping only: where the player acts in the game. It never changes
+ // params.category, bindings, status or completion, which stay Rust's.
+ // 'checkpoints' is the fallback for instructions with no recognizable topic.
+ const topics=[
+  ['production',/\b(?:design|produce|production|MIOs?)\b|->/i],
+  ['construction',/\b(?:build|construct)\b|\b(?:infra\w*|civs?|mils?|land facilit(?:y|ies))\b[^.;]*\bin\b|\b(?:dockyards?|refiner(?:y|ies)|air ?bases?|naval bases?|forts?|bunkers?|infrastructures?)\b/i],
+  ['diplomacy',/\b(?:justif\w*|war(?!\s+industrialist)|wars|attack|invade|invasion|annex|capitulate|cap|defeat|puppet|peace conference|wargoals?|declare|liberate|conquer)\b/i],
+  ['diplomacy',/\b(?:factions?|invite|join|guarantee|volunteers?|vol|attach[eé]|lend[- ]?lease|spy|agency|operatives?|alliance|non-aggression|embargo)\b/i],
+  ['trade',/\b(?:trade|import|export|oil|steel|rubber|tungsten|chromium|alumin(?:i)?um|resources?)\b/i],
+  ['politics',/\b\d+\s*PP\b|\(\s*\d+\s*PP|\b(?:laws?|advisors?|ministers?|expert|decisions?|elections?|conscription)\b/i],
+  ['army',/\b(?:train|training|deploy|recruit|divisions?|templates?|generals?|admirals?|marshals?|armies|army|navy|navies|fleets?|planes?|air ?wings?|doctrines?|garrison|drills?|exercises?|INF|OFFs?|DEF|ALP)\b|\b\d+w\b|\b\d+\s*(?:AE|NE|AXP)\b/i]];
  function category(row){
   const p=row.action?.params||{};if(p.category&&p.category!=='checkpoints')return p.category;
   const text=(Array.isArray(p.instructions)?p.instructions:[]).filter(s=>typeof s==='string').join('\n').trim();
   if(/^(?:BUILD|CONSTRUCT)(?:\s*:|\s)/i.test(text))return 'construction';
   if(/^(?:ARMY|NAVY|AIR\s*FORCE|RECRUIT|TRAIN)(?:\s*:|\s)/i.test(text))return 'army';
   if(/^(?:MIL|NAV|PRODUCTION)\s*:/i.test(text))return 'production';
-  return p.category||(row.action?.kind==='special_project'?'projects':'checkpoints');
+  if(row.action?.kind==='special_project')return 'projects';
+  const title=[row.name,row.title].find(v=>typeof v==='string'&&v.trim())||'';
+  const all=[title,text].filter(Boolean).join('\n');
+  if(all)for(const [topic,pattern]of topics)if(pattern.test(all))return topic;
+  return p.category||'checkpoints';
  }
  function describe(row,context={}){
   const p=row.action?.params||{},instructions=[],observations=[];let panel=null,access=null,target=null,bound=false,constructionTitle=null;

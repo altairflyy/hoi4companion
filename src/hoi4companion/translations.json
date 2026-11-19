@@ -1,6 +1,9 @@
 {
   "schema_version": 1,
   "messages": {
+    "War and diplomacy": "Guerra e diplomazia",
+    "Trade and resources": "Commercio e risorse",
+    "Other instructions": "Altre istruzioni",
     "Confirmed by you: {0}": "Confermata da te: {0}",
     "Remove confirmation": "Rimuovi conferma",
     "I chose this": "Ho scelto questa",

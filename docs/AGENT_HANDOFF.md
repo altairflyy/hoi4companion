@@ -4,7 +4,8 @@ Updated: 2026-11-19. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 ## Next actions
 1. Verify the confirmed-event-answer work in game (read-only). `_native` is current since 2026-11-19 14:44 (backend 11:28 build = HEAD sources, overlay rebuilt), app restarted; HOI4 was not running.
 2. User exercises the Desktop shortcut and HUD in gameplay; investigate concrete issues with read-only game access.
-3. Decide IL-02 (event-answer narrowing binds nothing; options in `docs/improvement-backlog.md`), needs the user.
+3. UX roadmap, one step per session (user runs /clear between steps): do the first unchecked item of `## Execution order` in `docs/ux-analysis-2026-11-19.md`, tick it there and here. Done: R1.
+4. Decide IL-02 (event-answer narrowing binds nothing; options in `docs/improvement-backlog.md`), needs the user.
 
 ## In progress
 - Branch `auto/improve-2026-11-18` (HEAD `3a55134`), NOT merged, NOT pushed. Holds the first `/improve-loop` run and the confirmed-event-answer work.
