@@ -677,7 +677,7 @@ fn ground_action(row: &mut Value, line: &str, index: &Index) -> Result<()> {
     }
     Ok(())
 }
-fn first_line(row: &Value) -> Option<(String, bool)> {
+pub(crate) fn first_line(row: &Value) -> Option<(String, bool)> {
     let text = row["action"]["params"]["instructions"].as_array().filter(|a| a.len() == 1).and_then(|a| a[0].as_str())?;
     let mut lines = text.lines().map(str::trim).filter(|l| !l.is_empty());
     let first = lines.next()?.to_owned();
@@ -729,7 +729,7 @@ fn ground_trigger(row: &mut Value, candidates: &[crate::entity_resolution::Candi
     row["action"]["params"]["trigger_resolution"] = record;
 }
 
-fn bind(option: &Value, index: &Index, country: &Value) -> Result<Option<Value>> {
+pub(crate) fn bind(option: &Value, index: &Index, country: &Value) -> Result<Option<Value>> {
     let event_id = option["event_id"].as_str().unwrap_or("");
     if event_id.is_empty() {
         return Ok(None);

@@ -5,6 +5,7 @@
 pub mod advanced_references;
 pub mod authoring;
 pub mod command_families;
+pub mod confirmed_answers;
 pub mod construction_binding;
 pub mod construction_instructions;
 pub mod decision_admission;
