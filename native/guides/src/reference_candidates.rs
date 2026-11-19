@@ -230,6 +230,10 @@ fn timing(text: &str) -> bool {
 /// "Which By God…: CW setup*" (answer, then what to do), "On Expand…done: We
 /// will acc…(15PP)" (when, then the answer), "Absolutely Not… + There is a…"
 /// (several answers), and an answer written out in full on its own line.
+pub(crate) fn single_whole(line: &str) -> bool {
+    let (refs, whole) = split_references(line);
+    refs.len() == 1 && whole
+}
 pub fn references(line: &str) -> Vec<Reference> {
     split_references(line).0
 }

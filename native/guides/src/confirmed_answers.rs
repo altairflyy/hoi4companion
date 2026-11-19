@@ -12,40 +12,45 @@ use serde_json::{Value, json};
 /// it names exactly one reference and the event binding succeeds. Completion
 /// stays manual: no `completion` fact is attached.
 pub fn apply(guide: &mut Value, answers: &[Value], index: &Index, country: &Value) -> Result<(), String> {
+    let guide_id = guide["id"].clone();
     let Some(tracks) = guide["tracks"].as_object_mut() else { return Ok(()) };
     for row in tracks.values_mut().filter_map(Value::as_array_mut).flatten() {
         for answer in answers {
-            apply_one(row, answer, index, country)?;
+            // One confirmation per step: the first matching answer wins.
+            if apply_one(row, answer, &guide_id, index, country)? {
+                break;
+            }
         }
     }
     Ok(())
 }
 
-fn apply_one(row: &mut Value, answer: &Value, index: &Index, country: &Value) -> Result<(), String> {
+fn apply_one(row: &mut Value, answer: &Value, guide_id: &Value, index: &Index, country: &Value) -> Result<bool, String> {
     let (Some(key), Some(quote), Some(event_id), Some(option_id)) =
         (answer["step_key"].as_str(), answer["quote"].as_str(), answer["event_id"].as_str(), answer["option_id"].as_str())
     else {
-        return Ok(());
+        return Ok(false);
     };
     let candidates = &row["action"]["params"]["reference_candidates"];
-    if row["key"] != key || candidates["text"] != quote {
-        return Ok(());
+    if answer["guide_id"] != *guide_id || row["key"] != key || candidates["text"] != quote {
+        return Ok(false);
     }
     let listed = candidates["event_options"]
         .as_array()
         .is_some_and(|options| options.iter().any(|o| o["id"] == option_id && o["event_id"] == event_id));
     if !listed {
-        return Ok(());
+        return Ok(false);
     }
     row["action"]["params"]["reference_candidates"]["confirmed"] = json!({"event_id":event_id,"option_id":option_id,"basis":"user_confirmed"});
     // Only a line holding exactly one reference can be checked as one step.
+    // A block lead line or a line with trailing work is never bound (as in `ground_references`).
     let single = crate::reference_candidates::first_line(row)
-        .is_some_and(|(line, _)| crate::reference_candidates::references(&line).len() == 1);
+        .is_some_and(|(line, block)| !block && crate::reference_candidates::single_whole(&line));
     if !single {
-        return Ok(());
+        return Ok(true);
     }
     let option = json!({"id":option_id,"event_id":event_id});
-    let Some(result) = crate::reference_candidates::bind(&option, index, country)? else { return Ok(()) };
+    let Some(result) = crate::reference_candidates::bind(&option, index, country)? else { return Ok(true) };
     let step = &result["step"];
     let mut params = step["action"]["params"].clone();
     for keep in ["instructions", "source_action", "trigger_resolution", "reference_candidates"] {
@@ -61,7 +66,7 @@ fn apply_one(row: &mut Value, answer: &Value, index: &Index, country: &Value) ->
     if !step["started_when"].is_null() {
         row["started_when"] = step["started_when"].clone();
     }
-    Ok(())
+    Ok(true)
 }
 
 #[cfg(test)]
@@ -81,7 +86,7 @@ mod tests {
                 {"id":"E.a","event_id":"E","compatible":true},{"id":"E.b","event_id":"E","compatible":true}]}}}})
     }
     fn guide(row: Value) -> Value {
-        json!({"applies_to":{"country":"GER"},"tracks":{"operations":[row]}})
+        json!({"id":"g","applies_to":{"country":"GER"},"tracks":{"operations":[row]}})
     }
     fn answer(key: &str, quote: &str, option: &str) -> Value {
         json!({"guide_id":"g","step_key":key,"quote":quote,"event_id":"E","option_id":option,"confirmed_at":"2026-11-19T10:00:00Z"})
@@ -132,5 +137,43 @@ mod tests {
         let before = g.clone();
         apply(&mut g, &[answer("s2", "Mobilize The…", "E.b")], &index(), &json!("GER")).unwrap();
         assert_eq!(g, before);
+    }
+    #[test]
+    fn row_of_another_guide_id_is_not_applied() {
+        let mut g = guide(row("Mobilize The…", "Mobilize The…"));
+        let before = g.clone();
+        let mut a = answer("s1", "Mobilize The…", "E.b");
+        a["guide_id"] = json!("other");
+        apply(&mut g, &[a], &index(), &json!("GER")).unwrap();
+        assert_eq!(g, before);
+    }
+    #[test]
+    fn block_lead_line_records_but_stays_a_reminder() {
+        let mut g = guide(row("Mobilize The…
+Then do other work", "Mobilize The…"));
+        apply(&mut g, &[answer("s1", "Mobilize The…", "E.b")], &index(), &json!("GER")).unwrap();
+        let r = first(&g);
+        assert_eq!(r["tracking"], "reminder");
+        assert!(r["action"]["params"]["event_option_id"].is_null());
+        assert_eq!(r["action"]["params"]["reference_candidates"]["confirmed"]["option_id"], "E.b");
+    }
+    #[test]
+    fn line_with_trailing_work_records_but_stays_a_reminder() {
+        let line = "Mobilize The… + SPA war*";
+        assert!(!crate::reference_candidates::single_whole(line), "fixture must be a non-whole line");
+        let mut g = guide(row(line, "Mobilize The…"));
+        apply(&mut g, &[answer("s1", "Mobilize The…", "E.b")], &index(), &json!("GER")).unwrap();
+        let r = first(&g);
+        assert_eq!(r["tracking"], "reminder");
+        assert_eq!(r["action"]["params"]["reference_candidates"]["confirmed"]["option_id"], "E.b");
+    }
+    #[test]
+    fn listed_option_that_no_longer_binds_records_but_stays_a_reminder() {
+        let mut g = guide(row("Mobilize The…", "Mobilize The…"));
+        g["tracks"]["operations"][0]["action"]["params"]["reference_candidates"]["event_options"] = json!([{"id":"E.zzz","event_id":"E","compatible":true}]);
+        apply(&mut g, &[answer("s1", "Mobilize The…", "E.zzz")], &index(), &json!("GER")).unwrap();
+        let r = first(&g);
+        assert_eq!(r["tracking"], "reminder");
+        assert_eq!(r["action"]["params"]["reference_candidates"]["confirmed"]["option_id"], "E.zzz");
     }
 }
