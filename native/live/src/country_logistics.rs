@@ -114,7 +114,8 @@ impl<M:Memory> Reader<'_,M> {
             let model=self.object_pointer(variant+0x3f0,"CEquipmentType")?;
             let p=self.pointer(model+0x538)?;
             if !known.contains(&p) {return Err("Stockpile contains an unknown equipment archetype".into())}
-            let n=self.logistics_fixed(row+8)?;if n<0 {return Err("Negative gross stockpile".into())}
+            // HOI4 1.20 keeps an owed variant below zero; gross stock is the signed native sum.
+            let n=self.logistics_fixed(row+8)?;
             let v=gross.entry(p).or_default();*v=add(*v,n);
         }
         let mut output=BTreeMap::new();let mut invalid_output=HashSet::new();
