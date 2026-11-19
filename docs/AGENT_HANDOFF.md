@@ -3,32 +3,28 @@ Updated: 2026-11-19. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear; the agent rewrites it at every session end and shows it in chat):
-> Riqualifica HOI4 1.20, step resources (handoff 0b): la riga resources cattura 0x33e36e0, verificare lo slot come per buildings. File: `src/hoi4companion/live-abi-v1-hoi4-1.20.json`,
-> `native/live/src/abi.rs` (test), `native/live/src/country.rs` (fn resources). HOI4 aperto. A fine step: commit, deliver-build, verifica live.
-0. Live diplomacy (user priority), one step per session, spec `docs/superpowers/specs/2026-11-19-foreign-ideology-abbreviations-design.md`.
-   Next: Step 1 (live ruling ideology of all countries; needs HOI4 running, read-only), then Step 2 (NSPA abbreviations + "Attache to").
-   Start each step with superpowers:writing-plans on that step only. Tick here when done.
-   Waits on item 0b (remaining domains on HOI4 1.20).
-0b. Requalify HOI4 1.20.0.0 (user chose this; read-only copy `.local/hoi4-1.20/hoi4.exe`, sha256 `1beb2a38…b63a9f`), one domain per session.
-   Done `e98ccbb`: ABI relocation set `live-abi-v1-hoi4-1.20.json`, all 23 groups static; live core/production/diplomacy/intel/events/projects observed.
-   Done and live-observed: campaign_identity `d1851e7`, building database `a03f723`, equipment `7a91a2c`+`f21e668` (details: archive, commits).
-   Opt-in test `HOI4_QUALIFY_EXE=<copy> node scripts/dev-native.cjs test live abi::` checks token and building slots.
-   Resources row matches 6 getters (captures 0x33e36e0): same check needed. Slot-finding: getter list, then read-only RTTI probe of slots.
-   NEXT SESSION: resources. Then, in order: politics.advisors + advisor costs; commander_assignments (CArmyGroup); decisions (read limit); metrics; doctrines.
-   Also hash-pinned to old builds: map markers (`map_markers.rs`, 709f…) and production GUI (`gui_production.rs`, cf781…).
-   Scratch tools may be gone: crate `abiprobe` (iced-x86; probe, dis, xref, imm…) in scratchpad `cb8fd0a3…`;
-   cargo via `.local/toolchains` (set CARGO_HOME/RUSTUP_HOME);
-   rebuild if missing. Analyse only the copy; never name the game folder in a write command (guard `guard-game.cjs`).
-1. Verify the confirmed-event-answer work in game (read-only). `_native` backend rebuilt 2026-11-19 17:40 from `f21e668` (dev profile), app restarted; HOI4 1.20 running.
+> Verifica in gioco HOI4 1.20 (handoff 0c): chiedi all'utente war support mostrato, ideologia di ENG/FRA, decisioni prese da ROM; poi apri
+> pannello produzione e mappa costruzioni per marker e box HUD. Nessun file da cambiare se coincide. HOI4 aperto. A fine step: handoff.
+0. Live diplomacy spec `docs/superpowers/specs/2026-11-19-foreign-ideology-abbreviations-design.md`: DONE.
+   Step 1 `3f0dbb6` (diplomacy.ideologies, live 439 tags), Step 2 `22820a2` (NSPA/RSPA, "Attache to"; live ROM step bound, ready, SPR fascism observed).
+0b. HOI4 1.20.0.0 requalified (copy `.local/hoi4-1.20/hoi4.exe`, sha256 `1beb2a38…b63a9f`): all 17 country sections observed/partial live 2026-11-19.
+   Commits after `f21e668`: resources `0c82777`, advisors `5677f10`, advisor costs `4994479`, commanders `6d4d73f`, decisions `7b72bf4`,
+   metrics `ce550d0`, doctrines/design `fadd727`, map camera + production GUI `f5c0d0e` (evidence in each commit message).
+0c. Not yet checked against the game screen (needs the user): war support 0.588; ENG/FRA/YUG read as fascism; ROM decisions_taken and timed lists empty
+   (serializer-qualified +0x40/+0xa0); map markers and production GUI boxes on 1.20. Old metrics key "defensive" reads WAR_SUPPORT_OFFNSIVE_WAR
+   (kept from the reference build by slot position): confirm against the UI before changing it.
+   Tools: crate `abiprobe` (dis, xref) in scratchpad `cb8fd0a3…`; analyse only the copy (guard `guard-game.cjs`).
+1. Verify the confirmed-event-answer work in game (read-only). `_native` backend rebuilt 2026-11-19 from `22820a2` (dev profile), app restarted; HOI4 1.20 running.
 2. User exercises the Desktop shortcut and HUD in gameplay; investigate concrete issues with read-only game access.
 3. UX roadmap, one step per session (user runs /clear between steps): do the first unchecked item of `## Execution order` in `docs/ux-analysis-2026-11-19.md`, tick it there and here. Done: R1, R2, R3+R5. Next: R4.
 4. Decide IL-02 (event-answer narrowing binds nothing; options in `docs/improvement-backlog.md`), needs the user.
 
 ## In progress
-- Branch `auto/improve-2026-11-18` (UX R1, R2, R3+R5 committed and rebuilt; HOI4 1.20 relocation `e98ccbb`, `d1851e7`, `a03f723`, `7a91a2c`, `f21e668`), NOT merged, NOT pushed. Holds the first `/improve-loop` run and the confirmed-event-answer work.
+- Branch `auto/improve-2026-11-18` (UX R1, R2, R3+R5 committed and rebuilt; HOI4 1.20 requalification `e98ccbb..f5c0d0e`, ideology `3f0dbb6`, `22820a2`), NOT merged, NOT pushed. Holds the first `/improve-loop` run and the confirmed-event-answer work.
 - Improve-loop run report: `docs/improvement-backlog.md` `## Run report`. Done IL-01, 03, 05, 06, 07, 08; IL-04 dropped (no qualified war-goal field).
 
 ## Recently verified
+- 2026-11-19: npm test 470 pass / 0 fail / 3 skipped; Rust live 66, guides 94, model 7, backend all pass; presentation fixtures unchanged.
 - User-confirmed ambiguous event answers (`197f141..320d441`): SQLite `confirmed_event_answers`, re-applied by Rust `confirmed_answers.rs`, suite "Remove confirmation".
   Tests: JS 465 pass / 0 fail / 3 skipped (dev backend), Rust backend all pass, invariant review clean. Live behavior NOT VERIFIED. Details `docs/events-live.md` last section.
 - HUD event answers native (`bea90e8`): user saw Bosphorus answer A lit on screen. OCR path (`f6f620a`) stays as fallback, not verified on screen.
