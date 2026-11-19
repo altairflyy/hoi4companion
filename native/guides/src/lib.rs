@@ -37,6 +37,7 @@ pub mod political_binding;
 pub mod production_binding;
 pub mod production_milestones;
 pub mod progress_store;
+pub mod reading;
 pub mod reference_candidates;
 pub mod reference_library;
 pub mod reference_presets;

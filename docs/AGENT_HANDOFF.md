@@ -3,14 +3,14 @@ Updated: 2026-11-19. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> UX roadmap R8 (handoff 2): strato `reading` in Rust (crate `guides`) con nomi localizzati delle nazioni e titoli composti solo
-> per righe comprese per intero; leggi R8 e D.3 in `docs/ux-analysis-2026-11-19.md`. Verifica: fixture di contratto in `tests/fixtures/`.
-> Chiusura: test, invariant-reviewer, commit locale, spunta R8 lì e qui, handoff. Rebuild e verifiche dal vivo solo nello step finale.
+> UX roadmap R9 (handoff 3): modalità guidata "Ora / Dopo / In attesa" nella suite e nella card HUD; leggi R9 e C "Modalità guidata"
+> in `docs/ux-analysis-2026-11-19.md`; usa `reading` (R8) per i titoli. Verifica: test browser con valutazioni simulate, screenshot stretto.
+> Chiusura: test, invariant-reviewer, commit locale, spunta R9 lì e qui, handoff. Rebuild e verifiche dal vivo solo nello step finale.
 Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
 with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
 `docs/ux-analysis-2026-11-19.md` `## Execution order` and here, rewrite the Resume prompt. Details of each item: sections D and E there.
 1. DONE R7 · construction binder (see Recently verified).
-2. R8 · `reading` layer with localized nation names and composed titles (Rust `guides`). Check: contract fixture in `tests/fixtures/`.
+2. DONE R8 · `reading` layer (see Recently verified).
 3. R9 · guided mode "Now / Next / Waiting" in suite and HUD card. Check: browser tests with simulated evaluations, narrow-width screenshot.
 4. R10 · readable waiting reasons (one `runtime_reason` -> sentence table in `translations.json`) and truncated focuses ("On Revise…")
    resolved by unique prefix (Rust). Check: Rust tests for unique and ambiguous prefix.
@@ -19,7 +19,7 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
 7. R15 · library cleanup: group by nation, flag duplicates by definition hash, separate non-national entries.
 8. R13 (optional local AI for uninterpreted lines, user-approved proposals only) needs a user decision first; R14 blocked (no qualified war-goal field, IL-04).
 9. FINAL, user present, HOI4 open: user runs `/deliver-build` (R6 `4acda08` and later are NOT rebuilt yet), then verify live:
-   importer card on a real draft (R6), ROM "INFRAs, then MILs in Mun" shown as construction (R7), and every UI step above; confirmed event answers (`docs/events-live.md`); research "UP" steps;
+   importer card on a real draft (R6), ROM "INFRAs, then MILs in Mun" shown as construction (R7) with composed title (R8), every UI step above; confirmed event answers (`docs/events-live.md`); research "UP" steps;
    HUD highlight alignment; map marker pan/zoom; metrics key "defensive" (reads WAR_SUPPORT_OFFNSIVE_WAR) against the UI; YUG ideology.
    Then ask whether to merge `auto/improve-2026-11-18` into main and whether to push.
 
@@ -30,12 +30,13 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
   preview as `report.interpretation`; importer card `interpretationOverview`. Focus/research count as automatic (guide-core native membership).
 
 ## Recently verified
+- 2026-11-19 R8: `reading.rs` + contract `tests/fixtures/reading-contract.json` (Rust and `test_reading_contract.cjs`); Italian strings added.
+  guides 100 pass, backend all pass, npm test 475 / 0 / 3 skipped; invariant review clean. ROM guide on dev backend: 65 operations, 6 composed
+  titles ("Ungheria (HUN), Jugoslavia (YUG)"). HUD card does not use `reading` yet. NOT rebuilt, NOT live.
 - 2026-11-19 R7: binder accepts verbless lines, plurals, `then` (order only), unique national state prefixes (`start_owner`/`start_cores` new in catalog).
   Corpus 50 guides on a dev backend over a data copy: bound construction steps 7 -> 34, none ambiguous. guides 99 pass, backend all pass,
   npm test 472 / 0 / 3 skipped. Invariant review: no violation; `remove_core_of` fixed, other notes kept by design. NOT rebuilt, NOT live.
-- 2026-11-19 R6: guides 95 pass (new `interpretation_counts_each_step_once_by_verification_method`), backend all pass, npm test 472 / 0 / 3 skipped; invariant review: one note, answered in code comment. NOT rebuilt, NOT seen live.
 - 2026-11-19 HOI4 1.20 readings confirmed on screen by the user (war support, ENG/FRA ideology, ROM decisions, production boxes, map markers); details in the archive.
-- 2026-11-19 R4: dev build delivered, guide.html shows 36 glossary lists ("Never spend PP on events" kept + chip PP). npm test 471 pass / 0 fail / 3 skipped (one flaky native-service run, passes alone); invariant review clean.
 - User-confirmed ambiguous event answers (`197f141..320d441`): SQLite `confirmed_event_answers`, re-applied by Rust `confirmed_answers.rs`, suite "Remove confirmation".
   Tests: JS 465 pass / 0 fail / 3 skipped (dev backend), Rust backend all pass, invariant review clean. Live behavior NOT VERIFIED. Details `docs/events-live.md` last section.
 - HUD event answers native (`bea90e8`): user saw Bosphorus answer A lit on screen. OCR path (`f6f620a`) stays as fallback, not verified on screen.

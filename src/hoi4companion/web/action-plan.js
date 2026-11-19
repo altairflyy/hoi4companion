@@ -27,8 +27,16 @@
   if(all)for(const [topic,pattern]of topics)if(pattern.test(all))return topic;
   return p.category||'checkpoints';
  }
+ // Rust composes a title only for a line it understood in full (UX R8): the
+ // names arrive localized, the sentence templates are translated here.
+ function composedTitle(reading){
+  const parts=reading?.understood===true&&Array.isArray(reading.title?.parts)?reading.title.parts:null;
+  if(!parts?.length||!parts.every(p=>typeof p?.template==='string'&&Array.isArray(p.args)))return null;
+  const texts=parts.map(p=>t(p.template,...p.args.map(String)));
+  return texts.join(reading.title.joiner==='then'?', ':' · ');
+ }
  function describe(row,context={}){
-  const p=row.action?.params||{},instructions=[],observations=[];let panel=null,access=null,target=null,bound=false,constructionTitle=null;
+  const p=row.action?.params||{},instructions=[],observations=[],composed=composedTitle(row.reading);let panel=null,access=null,target=null,bound=false,constructionTitle=null;
   if(p.category==='production'&&row.tracking!=='reminder'){
    const source=Array.isArray(p.production_targets)?p.production_targets:[p],lines=source.filter(x=>x&&typeof x==='object'&&!Array.isArray(x));
    const naval=line=>line.production_selector?.category==='naval';
@@ -81,7 +89,7 @@
     const buildings=[...new Set(compound.map(x=>x.building_name||x.building_id).filter(Boolean))];
     const regions=[...new Set(compound.map(x=>x.state_name||x.state_id).filter(x=>x!=null))];
     constructionTitle=t('Build: {0}',buildings.join(t(' and ')));
-    instructions.push(regions.length===1?t('In {0}.',regions[0]):t('In {0} regions: {1}.',regions.length,regions.join(', ')));
+    if(!composed)instructions.push(regions.length===1?t('In {0}.',regions[0]):t('In {0} regions: {1}.',regions.length,regions.join(', ')));
    }else{
    const building=label(p,'building_name','building_id')||t('Building specified by the guide');
    const place=p.province_selector?.kind==='border'?t('Every land province bordering {0}',p.province_selector.country):Array.isArray(p.province_ids)?t('Provinces {0}',p.province_ids.join(', ')):label(p,'state_name')||(p.state_id!=null?t('State {0}',p.state_id):p.province_id!=null?t('Province {0}',p.province_id):t('Location not resolved'));
@@ -133,7 +141,7 @@
    t('Execution cannot be verified automatically from the available data.');
   const title=row.tracking!=='reminder'&&p.category==='production'?t('Set up production'):row.tracking!=='reminder'&&p.category==='construction'?(constructionTitle||instructions[0]):
    target&&['politics','event','projects'].includes(panel)?(panel==='politics'&&!label(p,'law_name','person_name','idea_name','trait_name')?(row.name||row.title||target):target):p.operation_id==='create_intelligence_agency'?t('Create intelligence agency'):null;
-  const titleReading=context.reader?.read(title||row.name||row.title||'',row),displayTitle=titleReading?.text||title;
+  const titleReading=composed?null:context.reader?.read(title||row.name||row.title||'',row),displayTitle=composed||titleReading?.text||title;
   return {title:displayTitle,instructions,observations,access,target,monitoring,hud:{panel,status,message},
    glossary:[...new Map([titleReading,...readings].filter(Boolean).flatMap(r=>r.terms).map(term=>[term.code,term])).values()],
    reading_notes:[...new Set(readings.flatMap(r=>r.notes))]};
@@ -162,5 +170,5 @@
   const next=actions.find(row=>row.event_observation?.visible===true&&!['completed','not_applicable'].includes(row.runtime_status))||eligible.find(row=>!['dependency_unknown','phase_condition_unknown','condition_unknown','live_state_unavailable'].includes(row.runtime_reason))||eligible[0]||null;
   return {next,active:actions.filter(r=>r.runtime_status==='active'),waiting:actions.filter(r=>r.key!==next?.key&&['waiting','unverifiable'].includes(r.runtime_status)).slice(0,3)};
  }
- const api={describe,blocks,category,compact,createReader:language=>reading.create(language)};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiActionPlan=api;
+ const api={describe,composedTitle,blocks,category,compact,createReader:language=>reading.create(language)};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiActionPlan=api;
 })(typeof window!=='undefined'?window:globalThis);

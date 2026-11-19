@@ -96,3 +96,7 @@ Updated: 2026-11-19. Read CLAUDE.md, this file and current Git diff before editi
 - Remaining semantic work: grounded decision/war/capitulation and composite triggers; justify/annex/integrate/invade/collab recognized only.
 - Construction: shared-slot factory maximum unqualified.
 - Pre-desktop fixes and migration notes: `docs/handoff-before-desktop-2026-11-17.md`. Production tracking: `docs/handoff-production-tracking.md`.
+
+## Moved from handoff (2026-11-19, R8 close)
+- 2026-11-19 R6: guides 95 pass (new `interpretation_counts_each_step_once_by_verification_method`), backend all pass, npm test 472 / 0 / 3 skipped; invariant review: one note, answered in code comment. NOT rebuilt, NOT seen live.
+- 2026-11-19 R4: dev build delivered, guide.html shows 36 glossary lists ("Never spend PP on events" kept + chip PP). npm test 471 pass / 0 fail / 3 skipped (one flaky native-service run, passes alone); invariant review clean.

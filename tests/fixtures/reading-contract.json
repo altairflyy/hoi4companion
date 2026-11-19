@@ -1,0 +1,72 @@
+{
+  "description": "Reading layer contract (UX R8). Rust native/guides/src/reading.rs must produce each `reading` from `step` and `labels`; tests/test_reading_contract.cjs renders the same readings in the web UI. A title is composed only for lines understood in full.",
+  "labels": {"HUN": "Ungheria", "ENG": "Regno Unito", "FRA": "Francia", "SOV": "[GetSovietName]"},
+  "cases": [
+    {
+      "name": "construction line with then phases and a guide note",
+      "step": {"key": "c1", "title": "INFRAs, then MILs in Mun (future in best)", "action": {"kind": "manual", "params": {"category": "construction", "construction_targets": [
+        {"building_id": "infrastructure", "building_name": "Infrastrutture", "state_id": 46, "state_name": "Muntenia", "order": 1},
+        {"building_id": "arms_factory", "building_name": "Fabbrica militare", "state_id": 46, "state_name": "Muntenia", "order": 2}]}}},
+      "reading": {"schema_version": 1, "original": "INFRAs, then MILs in Mun (future in best)", "understood": true, "verb": "build",
+        "targets": [{"kind": "building", "id": "infrastructure", "name": "Infrastrutture"}, {"kind": "state", "id": 46, "name": "Muntenia"}, {"kind": "building", "id": "arms_factory", "name": "Fabbrica militare"}],
+        "qualifiers": [{"kind": "note", "text": "future in best"}],
+        "title": {"parts": [{"template": "Build {0} in {1}", "args": ["Infrastrutture", "Muntenia"]}, {"template": "then build {0} in {1}", "args": ["Fabbrica militare", "Muntenia"]}], "joiner": "then"}}
+    },
+    {
+      "name": "construction targets bound from a line outside the instruction grammar",
+      "step": {"key": "c2", "title": "Build max forts along GER border", "action": {"kind": "manual", "params": {"category": "construction", "construction_targets": [
+        {"building_id": "bunker", "building_name": "Forte terrestre", "state_id": 10, "state_name": "Prussia orientale"}]}}},
+      "reading": {"schema_version": 1, "original": "Build max forts along GER border", "understood": false, "verb": "build",
+        "targets": [{"kind": "building", "id": "bunker", "name": "Forte terrestre"}, {"kind": "state", "id": 10, "name": "Prussia orientale"}],
+        "qualifiers": [], "title": null}
+    },
+    {
+      "name": "recognized justification with its political power cost",
+      "step": {"key": "j1", "title": "justify HUN (31PP)", "action": {"kind": "manual", "params": {"category": "checkpoints", "action_resolution": {"action": "justify_war_goal", "status": "not_observable", "targets": ["HUN"], "text": "justify HUN"}}}},
+      "reading": {"schema_version": 1, "original": "justify HUN (31PP)", "understood": true, "verb": "justify_war_goal",
+        "targets": [{"kind": "country", "id": "HUN", "name": "Ungheria"}],
+        "qualifiers": [{"kind": "political_power", "value": 31}],
+        "title": {"parts": [{"template": "Justify a war goal on {0}", "args": ["Ungheria (HUN)"]}], "joiner": "and"}}
+    },
+    {
+      "name": "ASAP prefix and a tag without a localized name",
+      "step": {"key": "j2", "title": "ASAP: Justify YUG", "action": {"kind": "manual", "params": {"category": "checkpoints", "action_resolution": {"action": "justify_war_goal", "status": "not_observable", "targets": ["YUG"], "text": "Justify YUG"}}}},
+      "reading": {"schema_version": 1, "original": "ASAP: Justify YUG", "understood": true, "verb": "justify_war_goal",
+        "targets": [{"kind": "country", "id": "YUG", "name": "YUG"}],
+        "qualifiers": [{"kind": "asap"}],
+        "title": {"parts": [{"template": "Justify a war goal on {0}", "args": ["YUG"]}], "joiner": "and"}}
+    },
+    {
+      "name": "bound action on several countries written with an alias",
+      "step": {"key": "r1", "title": "REL UK, FRA (40PP)", "action": {"kind": "manual", "params": {"category": "politics", "action_resolution": {"status": "bound", "actions": [{"action": "improve_relations", "target": "ENG"}, {"action": "improve_relations", "target": "FRA"}], "text": "REL ENG, FRA (40PP)"}}}},
+      "reading": {"schema_version": 1, "original": "REL UK, FRA (40PP)", "understood": true, "verb": "improve_relations",
+        "targets": [{"kind": "country", "id": "ENG", "name": "Regno Unito"}, {"kind": "country", "id": "FRA", "name": "Francia"}],
+        "qualifiers": [{"kind": "political_power", "value": 40}],
+        "title": {"parts": [{"template": "Improve relations with {0}", "args": ["Regno Unito (ENG), Francia (FRA)"]}], "joiner": "and"}}
+    },
+    {
+      "name": "a condition the action parser dropped keeps the original text",
+      "step": {"key": "j3", "title": "Justify BUL (if in Axis)", "action": {"kind": "manual", "params": {"category": "checkpoints", "action_resolution": {"action": "justify_war_goal", "status": "not_observable", "targets": ["BUL"], "text": "Justify BUL"}}}},
+      "reading": {"schema_version": 1, "original": "Justify BUL (if in Axis)", "understood": false, "verb": "justify_war_goal",
+        "targets": [{"kind": "country", "id": "BUL", "name": "BUL"}],
+        "qualifiers": [{"kind": "note", "text": "if in Axis"}], "title": null}
+    },
+    {
+      "name": "scripted localisation is never shown as a name",
+      "step": {"key": "j4", "title": "Justify SOV", "action": {"kind": "manual", "params": {"category": "checkpoints", "action_resolution": {"action": "justify_war_goal", "status": "not_observable", "targets": ["SOV"], "text": "Justify SOV"}}}},
+      "reading": {"schema_version": 1, "original": "Justify SOV", "understood": true, "verb": "justify_war_goal",
+        "targets": [{"kind": "country", "id": "SOV", "name": "SOV"}], "qualifiers": [],
+        "title": {"parts": [{"template": "Justify a war goal on {0}", "args": ["SOV"]}], "joiner": "and"}}
+    },
+    {
+      "name": "method reminder not interpreted",
+      "step": {"key": "m1", "title": "Never spend PP on events", "tracking": "reminder", "action": {"kind": "manual", "params": {"category": "checkpoints"}}},
+      "reading": {"schema_version": 1, "original": "Never spend PP on events", "understood": false, "verb": null, "targets": [], "qualifiers": [], "title": null}
+    },
+    {
+      "name": "focus steps have no reading",
+      "step": {"key": "f1", "title": "Revise the Constitution", "action": {"kind": "select_focus"}},
+      "reading": null
+    }
+  ]
+}

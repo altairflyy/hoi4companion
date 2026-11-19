@@ -560,7 +560,7 @@ pub fn trigger(line: &str) -> Option<(String, String)> {
 /// The step's only instruction, or the first line of a multi-line block
 /// (true): the block's lead line, whose trigger scopes the whole block.
 /// Community country abbreviations the game's names do not contain.
-fn country_aliases(text: &str) -> String {
+pub(crate) fn country_aliases(text: &str) -> String {
     let re = crate::import_catalog::regex;
     // "the USSR", "the UK": the article is not part of the name.
     let text = re(r"(?i)\bthe\s+(USSR|UK|US)\b").replace_all(text, "$1");

@@ -363,7 +363,14 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   Una fase senza luogo prende quello della fase seguente. Numeri, `%`, `*`, note diverse o prefissi ambigui: riga non legata.
   Corpus di 50 guide (backend dev su copia dei dati): passi di costruzione legati da 7 a 34, nessuna risoluzione ambigua per costruzione.
   Limite noto: i prefissi usano i possessi d'inizio partita, non quelli di bookmark successivi. Non ancora ricompilato né visto dal vivo.
-- Poi R8–R11, quindi il lungo periodo, nell'ordine delle tabelle sopra.
+- [x] **R8 · Strato `reading`** (2026-11-19). `native/guides/src/reading.rs`, chiamato da `guide_enrich`, aggiunge a ogni operazione
+  `reading`: testo originale, qualificatori (ASAP, ALL, priorità, costo PP, note), bersagli già risolti dai binder con nome localizzato
+  (nazioni dalla localizzazione del gioco, mai testi con script) e un titolo composto da modelli di frase solo se la riga è compresa per
+  intero (grammatica del binder di costruzione, o azione estera il cui testo senza qualificatori coincide con quello letto). La suite usa il
+  titolo composto (`composedTitle` in `web/action-plan.js`) e mostra qualificatori e "Testo originale". Contratto condiviso
+  `tests/fixtures/reading-contract.json` (Rust + `tests/test_reading_contract.cjs`). Guida Romania su backend dev: 65 operazioni,
+  6 titoli composti. HUD non ancora collegato. Non ricompilato né visto dal vivo.
+- Poi R9–R11, quindi il lungo periodo, nell'ordine delle tabelle sopra.
 
 ### Metrica guida proposta
 

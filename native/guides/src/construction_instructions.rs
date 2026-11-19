@@ -10,8 +10,8 @@ use crate::{import_catalog::Index, geography::Geography, construction_binding};
 use serde_json::{Value,json};
 fn s(v:&Value)->&str { v.as_str().unwrap_or("") }
 /// One `then` phase: building words and the places they go to.
-struct Phase { buildings:Vec<String>, places:Vec<String> }
-fn parse(text:&str)->Option<Vec<Phase>> {
+pub(crate) struct Phase { buildings:Vec<String>, places:Vec<String> }
+pub(crate) fn parse(text:&str)->Option<Vec<Phase>> {
     let re=crate::import_catalog::regex;
     let note=re(r"(?i)^(?:(?:max|maximum|highest|top|lowest)\s+)?(?:prio|priority)$|^future\s+in\s+best$");
     let trailing=re(r"\s*\(([^()]*)\)\s*$");

@@ -100,3 +100,5 @@ main{max-width:1240px;margin:auto;padding:28px 32px 60px}.hero{display:flex;just
 .guide-reference-body .guide-reference-text{font:14px/1.65 'Segoe UI',sans-serif;color:var(--text)}
 .badge-pair{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.badge-verification{background:transparent;border:1px solid var(--line);color:var(--text-secondary)}.badge-verification.verification-automatic{color:var(--green);border-color:#557449}.badge-verification.verification-uninterpreted{border-style:dashed}
 .operation-glossary{list-style:none;display:flex;flex-wrap:wrap;gap:6px;padding:0;margin:8px 0 12px;font-size:12px;line-height:1.5}.operation-glossary li{background:var(--pane2);border-radius:3px;padding:2px 8px;color:var(--text-secondary)}.operation-glossary abbr{font-weight:600;text-decoration:none;color:#e4d4aa;margin-right:2px}
+/* UX R8: qualifiers and the author's words under a composed title. */
+.operation-qualifiers{font-size:12px;color:#e1c88e;margin:6px 0}.operation-original-text{font-size:12px;color:var(--text-secondary);font-style:italic;margin:6px 0}

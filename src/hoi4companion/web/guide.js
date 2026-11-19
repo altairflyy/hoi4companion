@@ -142,6 +142,12 @@
   const heading=operational.title||name(row),answer=row.action?.params?.event_option_name||row.action?.params?.reference_resolution?.option_text;
   const completed=answer&&/(?:…|\.{3})/.test(heading)&&!heading.includes(answer)?`«${answer}» (${heading})`:heading;
   if(!repeatedTitle)node.append(referenceText('h3','',completed,row));
+  // A title composed from a fully understood line keeps the author's words visible.
+  if(HoiActionPlan.composedTitle(row.reading)){
+   const notes=(row.reading.qualifiers||[]).map(q=>q.kind==='asap'?HoiI18n.t('As soon as possible'):q.kind==='priority'?HoiI18n.t('Priority'):q.kind==='political_power'?HoiI18n.t('{0} PP',q.value):q.kind==='note'?HoiI18n.t('Guide note: {0}',q.text):null).filter(Boolean);
+   if(notes.length)node.append(el('p','operation-qualifiers',notes.join(' · ')));
+   node.append(el('p','operation-original-text',HoiI18n.t('Original text: {0}',row.reading.original)));
+  }
   if(row.action.params?.timing||!row.action.params?.source_action)node.append(referenceText('p','operation-timing',HoiI18n.t("When: ")+row.timing,row));
   if(unplacedOperations.has(row.key)&&!row.action.params?.source_action)node.append(el('p','operation-copy',HoiI18n.t("Chronological position is unverified: consult this instruction's timing and conditions.")));
   if(row.game_date)node.append(el('p','operation-timing',HoiI18n.t("Date shown in the guide: ")+row.game_date+HoiI18n.t(" · chronological reference, not an automatic deadline")));

@@ -431,6 +431,11 @@ fn enrich_view(view: View<'_>) -> Result<Value> {
                     params["category"].as_str().unwrap_or(""),
                     glossary_entries,
                 );
+                // Presentation only: what the line says, never its status.
+                let reading = crate::reading::read(step, labels);
+                if !reading.is_null() {
+                    step["reading"] = reading;
+                }
             }
             if truth(&step["action"]["entity"]) {
                 step["entity"] = json!({"schema_version":1,"ref":step["action"]["entity"],"name":step["name"],"properties":{"catalog_match":step["catalog_match"]}});
