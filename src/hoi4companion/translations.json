@@ -16,6 +16,10 @@
     "research_choice_waiting": "an earlier research choice is not completed yet"
   },
   "messages": {
+    "Not this?": "Non è questo?",
+    "Choose the right focus, technology or project for this step. Nothing changes until you save a correction.": "Scegli il focus, la tecnologia o il progetto giusto per questo passo. Non cambia nulla finché non salvi una correzione.",
+    "This step has no focus, technology or project binding to correct here. Its text stays as the source wrote it.": "Questo passo non ha un focus, una tecnologia o un progetto da correggere qui. Il testo resta come l'ha scritto la fonte.",
+    "Opened from the step card: pick the right entity below, then save. Nothing changes until you save.": "Aperta dalla card del passo: scegli qui sotto l'elemento giusto e salva. Non cambia nulla finché non salvi.",
     "Preview without the game": "Anteprima senza gioco",
     "Preview: the first steps of the active guide. Statuses come from the guide engine without game data; no step counts as done until HOI4 is open.": "Anteprima: i primi passi della guida attiva. Gli stati vengono dal motore della guida senza dati del gioco; nessun passo risulta fatto finché HOI4 non è aperto.",
     "Ready": "Pronto",

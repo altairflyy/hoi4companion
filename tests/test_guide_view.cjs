@@ -39,6 +39,8 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  // Guided mode (R9) is the default: one 'Now' list with category, when and verification; the single-card view is hidden.
  assert.equal(get('guidedPlan').hidden,false);assert.equal(get('nextOperation').hidden,true);
  assert.match(get('guidedPlan').textContent,/^Ora.*Fabbriche e infrastrutture.*Conferma tu/);
+ // R12: a manual line has no binding the associations page can change, so no "Not this?" link.
+ assert.doesNotMatch(get('guidedPlan').textContent+get('operationCards').textContent,/Non è questo/);
  get('advancedModeButton').onclick();await settle();
  assert.equal(get('guidedPlan').hidden,true);assert.equal(get('nextOperation').hidden,false);assert.equal(get('advancedModeButton')['aria-pressed'],'true');
  get('guidedModeButton').onclick();await settle();assert.equal(get('guidedPlan').hidden,false);

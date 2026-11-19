@@ -100,3 +100,7 @@ Updated: 2026-11-19. Read CLAUDE.md, this file and current Git diff before editi
 ## Moved from handoff (2026-11-19, R8 close)
 - 2026-11-19 R6: guides 95 pass (new `interpretation_counts_each_step_once_by_verification_method`), backend all pass, npm test 472 / 0 / 3 skipped; invariant review: one note, answered in code comment. NOT rebuilt, NOT seen live.
 - 2026-11-19 R4: dev build delivered, guide.html shows 36 glossary lists ("Never spend PP on events" kept + chip PP). npm test 471 pass / 0 fail / 3 skipped (one flaky native-service run, passes alone); invariant review clean.
+
+## Moved from handoff 2026-11-20
+- 2026-11-19 R7/R8: construction binder and `reading` layer, all tests pass; details in `docs/ux-analysis-2026-11-19.md`. NOT rebuilt, NOT live.
+- 2026-11-19 HOI4 1.20 readings confirmed on screen by the user (war support, ENG/FRA ideology, ROM decisions, production boxes, map markers); details in the archive.

@@ -138,11 +138,13 @@
   const heading=operational.title||name(row),answer=row.action?.params?.event_option_name||row.action?.params?.reference_resolution?.option_text;
   return answer&&/(?:…|\.{3})/.test(heading)&&!heading.includes(answer)?`«${answer}» (${heading})`:heading;
  }
+ // UX R12: "Not this?" opens the associations page on this step; only a saved user choice changes the binding.
+ function notThis(row){const href=HoiActionPlan.correctionHref(row);if(!href)return null;const a=el('a','not-this',HoiI18n.t("Not this?"));a.href=window.hoiGuide.withGuide(href);a.title=HoiI18n.t("Choose the right focus, technology or project for this step. Nothing changes until you save a correction.");return a;}
  function card(row,highlight=false){const node=el('article','operation-card'+(row.tracking==='reminder'?' reminder':'')+(row.event_observation?.visible?' event-visible':'')+(highlight?' highlighted':'')+(row.runtime_status==='completed'?' completed':'')+(row.runtime_status==='active'?' in-progress':''));node.id=(highlight?'next-operation-':'operation-')+row.key;node.dataset.step=row.key;
   const operational=describe(row);
   const hint=row.action.params?.category_hint;
   const label=(categories[row.category]||HoiI18n.t("INSTRUCTION"))+(hint&&hint!==row.category?' · '+hint:'');
-  const top=el('div','operation-top');top.append(el('span','eyebrow',label),badges(row));node.append(top);
+  const top=el('div','operation-top');top.append(el('span','eyebrow',label),badges(row));const fix=notThis(row);if(fix)top.append(fix);node.append(top);
   const repeatedTitle=row.tracking==='reminder'&&row.instructions?.some(text=>text.replace(/\s+/g,' ').startsWith(name(row).replace(/\s+/g,' ')));
   const completed=displayTitle(row,operational);
   if(!repeatedTitle)node.append(referenceText('h3','',completed,row));
@@ -267,7 +269,7 @@
  function guidedItem(row){
   const item=el('li','guided-item'+(row.runtime_status==='active'?' in-progress':''));item.dataset.step=row.key;
   const top=el('div','guided-meta');top.append(el('span','eyebrow',categories[row.category]||HoiI18n.t("Other instructions")),badges(row));
-  item.append(top,stepLink(row));
+  item.append(top,stepLink(row));const fix=notThis(row);if(fix)item.append(' ',fix);
   // One control: "Done" where the player confirms; none where the game shows it.
   if(['manual','special_project'].includes(row.action.kind)&&!row.completion_condition&&row.runtime_status!=='completed')item.append(confirm(row.key,HoiI18n.t("Done")));
   return item;
@@ -277,7 +279,7 @@
   const item=el('li','guided-item guided-lane'),top=el('div','guided-meta'),a=el('a','guided-title',name(row));
   a.href=window.hoiGuide.withGuide(row.href||(lane==='focus'?'/':'/technologies'));
   const how=el('span','badge-pair');how.append(el('span','badge badge-when',HoiI18n.t("Now")),el('span','badge badge-verification verification-automatic',HoiI18n.t("Automatic")));
-  top.append(el('span','eyebrow',label),how);item.append(top,a);return item;
+  top.append(el('span','eyebrow',label),how);item.append(top,a);const fix=notThis(row);if(fix)item.append(' ',fix);return item;
  }
  // The nearest wait in words (UX R10): prerequisite step, recognized trigger,
  // the author's unrecognized condition, or the Rust reason code through the

@@ -395,6 +395,15 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   un'altra guida o non Rust: nessuna anteprima. Con il gioco leggibile l'anteprima sparisce e torna il riepilogo live. Test DOM in modalità
   anteprima: `tests/test_suite.cjs`. Guida Romania sul backend in esecuzione: 9 passi, tutti "Da verificare in gioco". Non ricompilato
   (stringhe italiane nuove e titoli R8 assenti fino al rebuild) né visto senza gioco nella finestra reale.
+- [x] **R12 · "Non è questo?" dalla card** (2026-11-20). Le card delle operazioni, le voci "Ora" della modalità guidata e i prossimi
+  focus/ricerca in "Ora" mostrano "Non è questo?" solo se il passo ha un'associazione che la pagina associazioni sa correggere (azione
+  `select_focus`, `research` o `special_project` con entità: gli stessi tipi di `guide_repository::change`; `correctable()` in
+  `web/action-plan.js`). Il link apre `/associations?step=…&from=card` sul passo, dice che nulla cambia finché l'utente non salva, e
+  "Torna alla guida" riporta alla card. Un passo richiesto senza associazione correggibile (anche dai link dell'importer per le righe
+  non interpretate) viene nominato e non è più sostituito in silenzio dal primo passo dell'elenco. Nessun nuovo tipo di correzione:
+  salva solo la scelta esplicita dell'utente con l'API esistente; la valutazione resta in Rust. Limite: le 3.071 righe manuali del corpus
+  (54 progetti speciali sono le sole operazioni legate) non hanno nulla da correggere qui; serve un nuovo tipo di correzione (R13 o successivo).
+  Test: `tests/test_action_plan.cjs`, `tests/test_associations_view.cjs`, `tests/test_guide_view.cjs`. Non ricompilato né visto dal vivo.
 - Poi il lungo periodo, nell'ordine delle tabelle sopra.
 
 ### Metrica guida proposta

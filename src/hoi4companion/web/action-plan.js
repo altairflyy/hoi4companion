@@ -193,5 +193,10 @@
     typeof waiting.runtime_reason==='string'&&waiting.runtime_reason?{kind:'reason',code:waiting.runtime_reason}:null;}
   return {now,then,waiting,reason,active:actions.filter(r=>r.runtime_status==='active')};
  }
- const api={describe,composedTitle,blocks,category,compact,guided,createReader:language=>reading.create(language)};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiActionPlan=api;
+ // UX R12: a step offers "Not this?" only where the associations page can save a
+ // correction (the same action kinds Rust `guide_repository::change` accepts).
+ // The link opens the user's explicit choice; it never changes completion by itself.
+ function correctable(row){return ['select_focus','research','special_project'].includes(row?.action?.kind)&&!!row.action.entity?.kind&&!!row.action.entity?.id;}
+ function correctionHref(row){return correctable(row)?'/associations?step='+encodeURIComponent(row.key)+'&from=card':null;}
+ const api={describe,composedTitle,blocks,category,compact,guided,correctable,correctionHref,createReader:language=>reading.create(language)};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiActionPlan=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -2,8 +2,8 @@
 // Explicitly opened editor; guide definitions, corrections and run progress stay separate.
 (()=>{
  const $=id=>document.getElementById(id),node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
- let data=null,catalog=[],allSteps=[],busy=true,loaded=false;
- const query=new URLSearchParams(location.search),identity=ref=>JSON.stringify({kind:ref.kind,id:ref.id,...(ref.scope?{scope:ref.scope}:{})});
+ let data=null,catalog=[],allSteps=[],busy=true,loaded=false,missing=null;
+ const query=new URLSearchParams(location.search),fromCard=query.get('from')==='card',identity=ref=>JSON.stringify({kind:ref.kind,id:ref.id,...(ref.scope?{scope:ref.scope}:{})});
  const controls=['associationGuide','associationStep','stepSearch','associationSearch','associationMatches'];
  function error(e){$('associationError').hidden=false;$('associationError').textContent=e.message||String(e);}
  async function request(path,body){const r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}),v=await r.json();if(!r.ok)throw Error(v.error||HoiI18n.t("Request failed"));return v;}
@@ -24,7 +24,7 @@
   list.value='';$('associationMatchCount').textContent=matches.length+HoiI18n.t(" matches")+(matches.length>100?HoiI18n.t(" · first 100 results: narrow your search."):'.');enabled();
  }
  function step(){const row=current();$('associationSearch').value='';
-  $('currentAssociation').textContent=row?HoiI18n.t("Current: ")+(row.name||row.title||row.action.entity.id)+' · '+row.action.entity.id+(row.action.entity.scope?' · '+row.action.entity.scope:''):HoiI18n.t("No steps with an entity binding.");
+  $('currentAssociation').textContent=missing&&!row?HoiI18n.t("This step has no focus, technology or project binding to correct here. Its text stays as the source wrote it."):row?HoiI18n.t("Current: ")+(row.name||row.title||row.action.entity.id)+' · '+row.action.entity.id+(row.action.entity.scope?' · '+row.action.entity.scope:''):HoiI18n.t("No steps with an entity binding.");
   $('associationSourceNote').textContent=row?.title&&row.title!==row.name?HoiI18n.t("Original instruction: ")+row.title:'';search();
  }
  function steps(preferred){
@@ -32,22 +32,25 @@
   for(const row of allSteps.filter(row=>!text||[row.key,row.name,row.title,row.action.entity.id].some(v=>typeof v==='string'&&v.toLocaleLowerCase().includes(text)))){
    const option=node('option',row.key+' · '+(row.name||row.title||row.action.entity.id));option.value=row.key;select.append(option);
   }
-  select.value=allSteps.some(r=>r.key===preferred)&&[...select.options||[]].some(r=>r.value===preferred)?preferred:select.children[0]?.value||'';step();
+  select.value=allSteps.some(r=>r.key===preferred)&&[...select.options||[]].some(r=>r.value===preferred)?preferred:missing?'':select.children[0]?.value||'';step();
  }
  async function load(id,key){
   loaded=false;
   data=await request('/api/guide/associations'+(id?'?id='+encodeURIComponent(id):''));loaded=true;
-  $('associationGuide').value=data.guide.id;$('returnGuide').href='/walkthrough?guide='+encodeURIComponent(data.guide.id);
+  $('associationGuide').value=data.guide.id;
   allSteps=Object.values(data.guide.tracks).flat().filter(row=>row.action.entity);
-  $('stepSearch').value='';steps(key);$('associationNotice').textContent=HoiI18n.t("Guide: ")+data.guide.title+' · '+data.changes.length+HoiI18n.t(" local corrections.");
+  // A requested step that cannot be corrected here is named, never swapped for another step (UX R12).
+  missing=key&&!allSteps.some(row=>row.key===key)?key:null;
+  const back=fromCard&&key?'#operation-'+encodeURIComponent(key):'';$('returnGuide').href='/walkthrough?guide='+encodeURIComponent(data.guide.id)+back;
+  $('stepSearch').value='';steps(key);$('associationNotice').textContent=HoiI18n.t("Guide: ")+data.guide.title+' · '+data.changes.length+HoiI18n.t(" local corrections.")+(fromCard&&key&&!missing?' '+HoiI18n.t("Opened from the step card: pick the right entity below, then save. Nothing changes until you save."):'');
  }
  async function save(restore=false){const row=current();if(!row)return;
   const update={guide_id:data.guide.id,key:row.key,expected:row.action.entity,entity:restore?null:JSON.parse($('associationMatches').value)};
   await request('/api/guide/associations',update);await load(data.guide.id,row.key);
   $('associationNotice').textContent=restore?HoiI18n.t("Original binding restored."):HoiI18n.t("Correction saved. Return to the guide to use it in the trees; progress is preserved.");
  }
- $('associationGuide').onchange=()=>run(()=>load($('associationGuide').value));$('associationStep').onchange=step;
- $('stepSearch').oninput=()=>steps($('associationStep').value);$('associationSearch').oninput=search;$('associationMatches').onchange=enabled;
+ $('associationGuide').onchange=()=>run(()=>load($('associationGuide').value));$('associationStep').onchange=()=>{missing=null;step();};
+ $('stepSearch').oninput=()=>{missing=null;steps($('associationStep').value);};$('associationSearch').oninput=search;$('associationMatches').onchange=enabled;
  $('saveAssociation').onclick=()=>run(()=>save());$('restoreAssociation').onclick=()=>run(()=>save(true));
  (async()=>{try{const [guides,entities]=await Promise.all([request('/api/guides'),request('/api/import/catalog')]);catalog=entities.entities;
   for(const item of guides.guides){const option=node('option',item.title);option.value=item.id;$('associationGuide').append(option);}

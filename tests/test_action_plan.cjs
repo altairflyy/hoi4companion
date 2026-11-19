@@ -171,3 +171,11 @@ test('readable waiting reasons (R10): one runtime_reasons sentence per waiting c
  const dep=plan.guided([row('a',{}, {runtime_status:'waiting',runtime_reason:'condition_false'}),row('w',{}, {runtime_status:'waiting',runtime_reason:'dependency_not_completed',blocked_by:['a']})].reverse(),null);
  assert.equal(dep.reason.kind,'step');
 });
+test('"Not this?" is offered only where the associations page can save a correction (UX R12)',()=>{
+ const focus={key:'f 1',action:{kind:'select_focus',entity:{kind:'focus',id:'F',scope:'tree'}}};
+ assert.equal(plan.correctable(focus),true);assert.equal(plan.correctionHref(focus),'/associations?step=f%201&from=card');
+ assert.equal(plan.correctable({key:'p',action:{kind:'special_project',entity:{kind:'special_project',id:'P'}}}),true);
+ // Unbound or manual lines have nothing the page can rebind: no link, no silent fallback to another step.
+ for(const other of [row('m'),{key:'r',action:{kind:'research'}},{key:'d',action:{kind:'decision',entity:{kind:'decision',id:'D'}}},null])
+  {assert.equal(plan.correctable(other),false);assert.equal(plan.correctionHref(other||{}),null);}
+});
