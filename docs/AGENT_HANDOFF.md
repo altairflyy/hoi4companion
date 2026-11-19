@@ -3,9 +3,9 @@ Updated: 2026-11-19. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear; the agent rewrites it at every session end and shows it in chat):
-> UX roadmap R4 (handoff 3): in `src/hoi4companion/web/action-reading.js` niente sostituzioni a metà frase; riga non compresa per intero =
-> testo originale + glossario a fianco; test sulle tre frasi P3 di `docs/ux-analysis-2026-11-19.md`. Chiusura: test, invariant-reviewer,
-> commit locale, deliver-build, spunta R4 lì e qui, handoff.
+> Prima: `/deliver-build` se R4 (`4e8bb22`) non è ancora ricompilato. UX roadmap R6 (handoff 3): rapporto di interpretazione
+> all'import in Rust (`native/.../import_reports.rs`) e card panoramica; leggi la sezione R6 di `docs/ux-analysis-2026-11-19.md`.
+> Chiusura: test, invariant-reviewer, commit locale, deliver-build, spunta R6 lì e qui, handoff.
 0. Live diplomacy spec `docs/superpowers/specs/2026-11-19-foreign-ideology-abbreviations-design.md`: DONE.
    Step 1 `3f0dbb6` (diplomacy.ideologies, live 439 tags), Step 2 `22820a2` (NSPA/RSPA, "Attache to"; live ROM step bound, ready, SPR fascism observed).
 0b. HOI4 1.20.0.0 requalified (copy `.local/hoi4-1.20/hoi4.exe`, sha256 `1beb2a38…b63a9f`): all 17 country sections observed/partial live 2026-11-19.
@@ -17,7 +17,7 @@ Resume prompt (user pastes it after /clear; the agent rewrites it at every sessi
    Tools: crate `abiprobe` (dis, xref) in scratchpad `cb8fd0a3…`; analyse only the copy (guard `guard-game.cjs`).
 1. Verify the confirmed-event-answer work in game (read-only). `_native` backend rebuilt 2026-11-19 from `22820a2` (dev profile), app restarted; HOI4 1.20 running.
 2. User exercises the Desktop shortcut and HUD in gameplay; investigate concrete issues with read-only game access.
-3. NEXT. UX roadmap, one step per session (user runs /clear between steps): do the first unchecked item of `## Execution order` in `docs/ux-analysis-2026-11-19.md`, tick it there and here. Done: R1, R2, R3+R5. Next: R4.
+3. NEXT. UX roadmap, one step per session (user runs /clear between steps): do the first unchecked item of `## Execution order` in `docs/ux-analysis-2026-11-19.md`, tick it there and here. Done: R1, R2, R3+R5, R4 (`4e8bb22`, rebuild pending: user runs `/deliver-build`). Next: R6.
 4. Decide IL-02 (event-answer narrowing binds nothing; options in `docs/improvement-backlog.md`), needs the user.
 
 ## In progress
@@ -25,6 +25,7 @@ Resume prompt (user pastes it after /clear; the agent rewrites it at every sessi
 - Improve-loop run report: `docs/improvement-backlog.md` `## Run report`. Done IL-01, 03, 05, 06, 07, 08; IL-04 dropped (no qualified war-goal field).
 
 ## Recently verified
+- 2026-11-19 R4: npm test 471 pass / 0 fail / 3 skipped (one flaky native-service run, passes alone); invariant review clean.
 - 2026-11-19: npm test 470 pass / 0 fail / 3 skipped; Rust live 66, guides 94, model 7, backend all pass; presentation fixtures unchanged.
 - User-confirmed ambiguous event answers (`197f141..320d441`): SQLite `confirmed_event_answers`, re-applied by Rust `confirmed_answers.rs`, suite "Remove confirmation".
   Tests: JS 465 pass / 0 fail / 3 skipped (dev backend), Rust backend all pass, invariant review clean. Live behavior NOT VERIFIED. Details `docs/events-live.md` last section.

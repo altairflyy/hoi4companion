@@ -348,8 +348,10 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   (con la soglia della guida), PP attuali, requisiti dinamici; "Momento da verificare" diventa il badge "Ordine della
   fonte" con la frase completa come tooltip. Corretto il testo italiano fisso "insufficiente" nella riga PP.
   Test: `tests/test_guide_view.cjs` (helper e nota unica).
-- [ ] **R4 · Niente sostituzioni a metà frase.** In `web/action-reading.js`, se la riga non è compresa per
-  intero, mostrare il testo originale e le espansioni come glossario a fianco. Casi: le tre frasi di P3.
+- [x] **R4 · Niente sostituzioni a metà frase** (2026-11-19, `4e8bb22`). In `web/action-reading.js` ogni
+  riscrittura è un segnaposto con il testo sorgente; se restano lettere sorgente fuori dai segnaposto la riga
+  resta com'è scritta e i significati vanno nel glossario, mostrato come chip da `guide.js`. Le etichette
+  iniziali (ARMY:, Land Doc:) contano come struttura. Test: `tests/test_action_reading.cjs` (frasi P3).
 - [ ] **R6 · Rapporto di interpretazione all'import** (Rust, `import_reports.rs`) e card panoramica.
 - [ ] **R7 · Binder di costruzione esteso** (Rust, `construction_instructions.rs`).
 - Poi R8–R11, quindi il lungo periodo, nell'ordine delle tabelle sopra.
