@@ -504,7 +504,7 @@ impl<M: Memory> Reader<'_, M> {
     }
 }
 /// A runtime-created advisor role key: "type: <digits>, id: <digits>" followed by its slot type.
-fn generated_role_key(raw: &str, slot: &str) -> bool {
+pub(super) fn generated_role_key(raw: &str, slot: &str) -> bool {
     let digits = |s: &str| !s.is_empty() && s.len() <= 10 && s.bytes().all(|b| b.is_ascii_digit());
     let Some(rest) = raw.strip_prefix("type: ") else { return false };
     let Some((kind, rest)) = rest.split_once(", id: ") else { return false };

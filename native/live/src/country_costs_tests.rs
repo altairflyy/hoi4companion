@@ -66,3 +66,16 @@ fn advisor(m:&mut Fixture,a:&mut Value)->u64 {
     let(mut m,mut a,_,_,_)=fixture();a["political_cost_ids"].as_array_mut().unwrap().push(json!({"id":"unknown_advisor","group":"high_command"}));
     let v=m.request("politics",a).unwrap();let c=&v["costs"];assert_eq!(c["status"],"partial");assert_eq!(c["rows"][0]["effective"],210.);assert_eq!(c["rows"][1]["status"],"unknown");assert!(c["rows"][1]["reason"].is_string());assert_eq!(c["coverage"]["advisors"]["status"],"unknown");
 }
+#[test]fn runtime_high_command_role_without_template_is_not_a_purchase_target() {
+    // HOI4 1.20 appoints a unit leader to high command through a runtime role with no template.
+    let(mut m,mut a,_,_,_)=fixture();let role=advisor(&mut m,&mut a);m.string(role+0x30,"type: 73, id: 4067high_command");m.u(role+0x18,0);
+    let costs=m.request("politics",a.clone()).unwrap()["costs"].clone();assert_eq!(costs["coverage"]["advisors"]["status"],"qualified");
+    assert!(costs["rows"].as_array().unwrap().iter().all(|r|r["status"]!="calculated"),"{costs}");
+    m.string(role+0x30,"type: 73, id: 4067air_chief");assert_eq!(m.request("politics",a).unwrap()["costs"]["coverage"]["advisors"]["status"],"unknown");
+}
+#[test]fn advisor_not_yet_hired_keeps_its_price_without_a_template() {
+    // HOI4 1.20 leaves CAdvisor+0x18 empty until hired; a non-empty one must be a template.
+    let(mut m,mut a,_,_,_)=fixture();let role=advisor(&mut m,&mut a);m.u(role+0x18,0);
+    let costs=m.request("politics",a.clone()).unwrap()["costs"].clone();assert_eq!(costs["rows"][0]["status"],"calculated","{costs}");assert_eq!(costs["rows"][0]["base"],200.);
+    m.u(role+0x18,WORLD);assert_eq!(m.request("politics",a).unwrap()["costs"]["coverage"]["advisors"]["status"],"unknown");
+}

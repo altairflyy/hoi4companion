@@ -195,8 +195,17 @@ impl<M: Memory> Reader<'_, M> {
                 pending.push((self.pointer(node)?,node));pending.push((self.pointer(node+0x10)?,node));
                 let role=self.object_pointer(node+0x48,"CAdvisor")?;
                 if self.pointer(role+0x10)?!=character {return Err("Advisor cost reciprocal character mismatch".into());}
-                self.object_pointer(role+0x18,"CAdvisorTemplate")?;
-                let id=self.d.string(role+0x30)?;let group=self.d.string(role+0x80)?;
+                let group=self.d.string(role+0x80)?;
+                let id=match self.d.string(role+0x30) {
+                    Ok(id)=>id,
+                    // HOI4 1.20 runtime high command roles have no template and no script
+                    // token, so no purchase target can name them.
+                    Err(reason)=>if super::actions::generated_role_key(&self.name(role+0x30)?,&group) {continue} else {return Err(reason)},
+                };
+                // HOI4 1.20 leaves the template empty on roles not yet hired (seen live:
+                // scripted ROM_nicolae_sova); a present template must still be typed.
+                let template=self.pointer(role+0x18)?;
+                if template!=0 {self.typed(template,"CAdvisorTemplate")?;}
                 if !wanted.get(&group).is_some_and(|ids|ids.contains(&id)) {continue;}
                 if !identities.insert((group.clone(),id.clone())) {return Err("Ambiguous advisor price identity".into());}
                 let calculation=(||->Result<(i64,i64,i64)>{
