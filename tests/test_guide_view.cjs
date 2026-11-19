@@ -74,7 +74,8 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  assert.equal(descendants(get('operationCards')).some(node=>node['data-start']),false);
  run.started={build:true};run.revision++;await push(current);
  assert.equal(run.started.build,true);assert.equal(get('operationProgress').textContent,'0/1');assert.equal(get('operationActive').textContent,'1 in corso');
- assert.match(get('operationCards').textContent,/Avviata · in corso \(manuale\)/);
+ // Status and verification are two separate labels: a user-ticked step is in progress and confirmed by the player.
+ {const pair=descendants(get('operationCards')).find(node=>node.className==='badge-pair');assert.deepEqual(pair.children.map(node=>node.textContent),['In corso','Conferma tu']);}
  assert.equal(get('nextOperation').textContent.includes('Construction'),false);
  const finish=descendants(get('operationCards')).find(node=>node['data-check']==='done');finish.checked=true;finish.onchange();await settle();
  assert.equal(get('operationProgress').textContent,'1/1');assert.equal(get('operationActive').textContent,'');
@@ -99,7 +100,7 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  await push(live([line]));
  assert.match(get('summaryCards').textContent,/Costruzione avviata/);
  assert.equal(get('operationActive').textContent,'1 in corso');assert.equal(get('operationProgress').textContent,'0/1');
- assert.match(get('operationCards').textContent,/In corso · avvio rilevato live/);assert.match(get('operationCards').textContent,/3 in coda · 0 fabbriche attive/);
+ assert.match(get('operationCards').textContent,/In corsoConferma tu/);assert.match(get('operationCards').textContent,/3 in coda · 0 fabbriche attive/);
  await push(live([{...line,amount:4}]));assert.match(get('operationCards').textContent,/4 in coda/);
  await push(live([]));assert.equal(get('operationActive').textContent,'');assert.equal(get('operationProgress').textContent,'0/1');assert.match(get('operationCards').textContent,/Nessun ordine rilevato/);
  await push({...live([line]),usable:false});assert.equal(get('operationActive').textContent,'');assert.match(get('operationCards').textContent,/Avvio non verificabile/);assert.equal(get('operationCards').textContent.includes('ORDINI LETTI LIVE'),false);
@@ -109,6 +110,16 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  const reminder=descendants(get('operationCards')).find(node=>node.dataset?.step==='method');
  assert.match(reminder.textContent,/Promemoria/);assert.equal(descendants(reminder).some(node=>node['data-check']||node['data-start']),false);
  assert.equal(get('operationProgress').textContent,'0/1');assert.equal(get('nextOperation').textContent.includes('Follow supply hubs'),false);
+ // The verification label comes from the prepared step: a waiting reminder keeps both labels,
+ // a game-state criterion is automatic, an unbound Actions line is not interpreted.
+ const pairOf=key=>descendants(descendants(get('operationCards')).find(node=>node.dataset?.step===key)).find(node=>node.className==='badge-pair').children.map(node=>node.textContent);
+ assert.deepEqual(pairOf('method'),['In attesa','Promemoria']);
+ guide.tracks.operations.push({key:'auto',depends_on:[],title:'Raise stability',completion:{op:'fact',key:'country.stability',test:'gte',value:50},action:{kind:'manual',params:{category:'politics'}}},
+  {key:'loose',depends_on:[],title:'INFRAs, then MILs in Mun',action:{kind:'manual',params:{category:'checkpoints',source_action:{key:'w1',ordinal:1}}}},
+  {key:'bound',depends_on:[],title:'Justify HUN',action:{kind:'manual',params:{category:'checkpoints',source_action:{key:'w2',ordinal:2},action_resolution:{status:'not_observable',action:'justify_war_goal',targets:['HUN']}}}});
+ await redefine();await push(live([]));
+ assert.equal(pairOf('auto')[1],'Automatica');assert.equal(pairOf('loose')[1],'Non interpretata');assert.equal(pairOf('bound')[1],'Conferma tu');
+ guide.tracks.operations.splice(-3,3);await redefine();await push(live([]));
  guide.tracks.operations.push({key:'event',depends_on:[],title:'Choose event answer',started_when:{op:'fact',key:'events.visible_options',test:'contains',value:'example.1:example.1.a'},action:{kind:'manual',params:{event_id:'example.1',event_option_id:'example.1.a',event_option_name:'Recommended answer'}}});
  const eventLive=live([]);eventLive.sample.country_overview.events={status:'observed',visible:[{instance_id:'1',event_id:'example.1',option_ids:['example.1.a']}]};
  await redefine();await push(eventLive);assert.match(get('operationCards').textContent,/EVENTO APERTO.*Scelta consigliata: Recommended answer · disponibile nella finestra/);

@@ -87,7 +87,26 @@
  const sourceLink=(seconds,referenceUrl=null)=>{try{const url=new URL(referenceUrl||value.guide.source?.url||value.guide.sources?.[0]?.url);if(!['http:','https:'].includes(url.protocol))return null;if(Number.isFinite(seconds))url.searchParams.set('t',String(Math.floor(seconds)));return url.href;}catch{return null;}};
  const clock=seconds=>Math.floor(seconds/60)+':'+String(Math.floor(seconds%60)).padStart(2,'0');
  const name=row=>row.name||row.title||row.key;
- function badge(row){if(row.runtime_reason==='production_superseded')return HoiI18n.t('Superseded');if(row.tracking==='reminder')return row.runtime_status==='waiting'?HoiI18n.t("Reminder · upcoming"):row.runtime_status==='unverifiable'?HoiI18n.t("Reminder · timing needs verification"):HoiI18n.t("Reminder");return row.runtime_status==='completed'?(row.construction?.targets?.some(x=>Number.isInteger(x.target)&&Number.isInteger(x.current)&&x.current<x.target)?HoiI18n.t("Ordered · in the construction queue"):HoiI18n.t("Completed")):row.runtime_status==='not_applicable'?HoiI18n.t("Not applicable"):row.runtime_status==='waiting'?HoiI18n.t("Waiting"):row.runtime_status==='active'?(row.start_basis==='live'?HoiI18n.t("In progress · start detected live"):row.start_basis==='condition'?HoiI18n.t("In progress · criterion verified"):HoiI18n.t("Started · in progress (manual)")):row.started_when?(row.selection?.value===false?HoiI18n.t("No order detected"):HoiI18n.t("Start cannot be verified")):row.runtime_reason==='manual_confirmation_required'||row.runtime_status==='ready'?HoiI18n.t("Check in the game"):HoiI18n.t("Timing needs verification");}
+ // Two separate labels: when the step applies (status) and how its completion is
+ // known (verification). Both only present the Rust evaluation and the prepared
+ // step; neither decides status or progress.
+ function whenLabel(row){if(row.runtime_reason==='production_superseded')return HoiI18n.t('Superseded');if(row.tracking==='reminder')return row.runtime_status==='waiting'?HoiI18n.t("Waiting"):row.runtime_status==='unverifiable'?HoiI18n.t("Timing needs verification"):null;return row.runtime_status==='completed'?(row.construction?.targets?.some(x=>Number.isInteger(x.target)&&Number.isInteger(x.current)&&x.current<x.target)?HoiI18n.t("Ordered · in the construction queue"):HoiI18n.t("Completed")):row.runtime_status==='not_applicable'?HoiI18n.t("Not applicable"):row.runtime_status==='waiting'?HoiI18n.t("Waiting"):row.runtime_status==='active'?HoiI18n.t("In progress"):row.started_when?(row.selection?.value===false?HoiI18n.t("No order detected"):HoiI18n.t("Start cannot be verified")):row.runtime_status==='ready'?HoiI18n.t("Now"):HoiI18n.t("Timing needs verification");}
+ // The method comes from the prepared step's `verification` (set in Rust by guide_enrich).
+ // Only a step prepared without it falls back to its completion reading game state,
+ // not just the player's ticks. The label names the method; the status label says
+ // whether the evaluation can currently apply it.
+ const observable=node=>!!node&&(node.op==='fact'||(node.args||[]).some(observable)||observable(node.arg));
+ function verification(row){
+  if(row.tracking==='reminder')return 'reminder';
+  if(row.verification?row.verification==='automatic'&&observable(row.completion_condition):observable(row.completion_condition))return 'automatic';
+  // Unbound fallback lines of the Actions column: nothing in them was understood.
+  const p=row.action?.params||{};
+  if(p.source_action&&(!p.category||p.category==='checkpoints')&&!p.reference_resolution&&!['bound','not_observable'].includes(p.action_resolution?.status))return 'uninterpreted';
+  return 'manual';
+ }
+ const verificationLabels={automatic:HoiI18n.t("Automatic"),manual:HoiI18n.t("Confirm yourself"),reminder:HoiI18n.t("Reminder"),uninterpreted:HoiI18n.t("Not interpreted")};
+ function badges(row){const box=el('span','badge-pair'),when=whenLabel(row),how=verification(row);if(when)box.append(el('span','badge badge-when',when));const v=el('span','badge badge-verification verification-'+how,verificationLabels[how]);v.title=HoiI18n.t("How completion is known");box.append(v);return box;}
+ function badge(row){return [whenLabel(row),verificationLabels[verification(row)]].filter(Boolean).join(' · ');}
  function confirm(key,text){const label=el('label','checkpoint-check'),input=el('input');input.type='checkbox';input.checked=value.progress.checks[key]===true;input.disabled=value.pending>0;input.setAttribute('data-check',key);input.addEventListener('change',()=>window.hoiGuide.confirm(key,input.checked).catch(()=>{}));label.title=HoiI18n.t("Tick it when you have done this in the game. The ✓ on the in-game card does the same.");label.append(input,el('span','',text));return label;}
  function controls(row,box){
   if(row.superseded_by?.length){box.append(el('p','operation-copy',HoiI18n.t('Superseded targets are no longer requested; this does not prove the earlier setup was completed.')),dependencyItems(row.superseded_by,row));if(row.runtime_reason==='production_superseded')return;}
@@ -116,7 +135,7 @@
   const operational=HoiActionPlan.describe(row,{reader:actionReader,usable:value.view.mode==='live',guide_id:value.guide.id,expected_guide_id:value.guide.id,overlay:value.state?.overlay,political_key:value.view.model.runtime.action_sequence?.political});
   const hint=row.action.params?.category_hint;
   const label=(categories[row.category]||HoiI18n.t("INSTRUCTION"))+(hint&&hint!==row.category?' · '+hint:'');
-  const top=el('div','operation-top');top.append(el('span','eyebrow',label),el('span','badge',badge(row)));node.append(top);
+  const top=el('div','operation-top');top.append(el('span','eyebrow',label),badges(row));node.append(top);
   const repeatedTitle=row.tracking==='reminder'&&row.instructions?.some(text=>text.replace(/\s+/g,' ').startsWith(name(row).replace(/\s+/g,' ')));
   // Abbreviated event answers are completed like LPF: full in-game answer
   // first, the author's shorthand in parentheses.

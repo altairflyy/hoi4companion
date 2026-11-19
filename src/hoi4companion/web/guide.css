@@ -98,3 +98,4 @@ main{max-width:1240px;margin:auto;padding:28px 32px 60px}.hero{display:flex;just
 .guide-reference-table .reference-column-heading th{background:var(--pane);color:var(--text)}
 .guide-reference-table tr:nth-child(even){background:var(--pane)}
 .guide-reference-body .guide-reference-text{font:14px/1.65 'Segoe UI',sans-serif;color:var(--text)}
+.badge-pair{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.badge-verification{background:transparent;border:1px solid var(--line);color:var(--text-secondary)}.badge-verification.verification-automatic{color:var(--green);border-color:#557449}.badge-verification.verification-uninterpreted{border-style:dashed}

@@ -64,7 +64,7 @@ test('retired status variants are gone from the code and the translations',()=>{
 });
 
 test('a manual step has no standalone status word that competes with the others',()=>{
- // Manual steps are presented through action phrases ("Check in the game",
- // "Started · in progress (manual)"), never through a separate status word.
+ // Manual steps show their status word plus a separate verification label
+ // ("Confirm yourself"), never a separate "manual" status word.
  for(const text of ['Manual','MANUAL','manual'])assert.ok(!Object.hasOwn(messages,text),text);
 });

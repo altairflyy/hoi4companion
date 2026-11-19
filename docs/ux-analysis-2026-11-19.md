@@ -334,11 +334,13 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   condizioni" diventa "Altre istruzioni"; nuove categorie "Guerra e diplomazia" e "Commercio e risorse".
   Corpus di 50 guide: ripiego da 3.483 a 633 righe su 4.415. `params.category` e i binding non cambiano.
   Test: `tests/test_action_plan.cjs`.
-- [ ] **R2 · Stato e verifica separati.** Dividere `badge()` in `web/guide.js:90` in due etichette:
-  Quando (Ora / In attesa / In corso / Fatto) e Verifica (Automatica / Conferma tu / Promemoria /
-  Non interpretata). Derivare la verifica da `completion`, `tracking`, `started_when` e
-  `runtime_reason` già presenti nella riga; nessuna nuova valutazione in JS. Test browser con
-  `tests/fixtures/presentation-evaluations.json`.
+- [x] **R2 · Stato e verifica separati** (2026-11-19). `badge()` in `web/guide.js` diventa `whenLabel()`
+  (Ora / In attesa / In corso / Completata / Momento da verificare…) e `verification()` (Automatica /
+  Conferma tu / Promemoria / Non interpretata), mostrate come due badge. "Automatica" viene dal campo
+  `verification` preparato in Rust (`guide_enrich.rs`); "Non interpretata" è un'euristica JS di sola
+  presentazione (riga della colonna Actions senza binding né riferimenti risolti): R6 deve spostarla in
+  Rust per i conteggi dell'import (avviso della revisione invarianti). Corpus di 50 guide: automatica 885,
+  conferma tu 242, promemoria 160, non interpretata 3.128 su 4.415. Test: `tests/test_guide_view.cjs`.
 - [ ] **R3+R5 · Meno rumore, messaggi chiari.** Chiudere in un `<details>` "Perché?" le righe ripetute
   su PP e requisiti dinamici; mostrare una sola volta la nota "Colonna Actions"; riscrivere i messaggi della
   tabella "Linguaggio dei messaggi di limite" (sezione C) con la skill `add-translation`.
