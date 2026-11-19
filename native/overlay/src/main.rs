@@ -13,6 +13,7 @@ mod visual_worker;
 mod stability;
 mod card;
 mod card_images;
+mod palette;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
@@ -28,6 +29,7 @@ use windows::Win32::UI::WindowsAndMessaging::{GetClientRect,GetForegroundWindow,
 use capture::{Capture,Frame};
 use render::{Renderer,TargetWindow,Highlight,OverlayFrame,ControlAction,StepCard};
 use stability::{CardHold,MarkHold,Observation};
+use palette::Role;
 
 struct Options {
     ui_language:String, port:u16, guide:String, start:bool, proof:Option<PathBuf>,
@@ -173,10 +175,36 @@ fn marks(rows:&[Value],width:u32,height:u32)->Vec<Highlight> {
             else if panel=="research_tab" {format!("{} · {} {}",title,count,if count==1{"ricerca"}else{"ricerche"})}
             else if let Some(quantity)=row["quantity"].as_u64() {format!("{} · totale {} fabbriche",title,quantity)}
             else {title.to_owned()};
-        Some(Highlight {rect:rect.map(|n|n as f32),caption:caption.chars().take(140).collect(),
-             choice:row["tone"]=="choice",
-             active:if panel=="production"{row["goal_satisfied"]==true&&row["navigation_stage"]=="line"}else{row["status"]=="active"&&panel!="event"},panel})
+        let role=mark_role(row,&panel);
+        let mut caption:String=caption.chars().take(140).collect();
+        // An ambiguous answer reads as a question; one the player confirmed says so.
+        if role==Role::Ambiguous {caption.insert_str(0,"? ");}
+        if row["confirmed_by_user"]==true {caption.push_str(" · ");caption.push_str(&i18n::text("confirmed by you"));}
+        Some(Highlight {rect:rect.map(|n|n as f32),caption,role,panel})
     }).take(64).collect()
+}
+/// The palette role of a proposal: the backend's `role`, an unknown one being
+/// the next action. Rows the geometry builds itself (research tabs) carry only
+/// a tone. Production keeps its own rule: active only for a qualified line
+/// whose goal is met.
+fn mark_role(row:&Value,panel:&str)->Role {
+    let role=match row["role"].as_str() {
+        Some(role)=>Role::parse(role).unwrap_or(Role::Next),
+        None if row["tone"]=="choice"=>Role::Choice,
+        None if row["status"]=="active"&&panel!="event"=>Role::Active,
+        None=>Role::Next,
+    };
+    if panel!="production" || role==Role::Choice {return role;}
+    if row["goal_satisfied"]==true&&row["navigation_stage"]=="line" {Role::Active} else {Role::Next}
+}
+/// The ambiguous event answer the card offers to confirm: the one for the
+/// card's step, else the only one proposed. None without every identity.
+fn card_answer(snapshot:&Value,key:&str,guide_id:&str)->Option<render::Answer> {
+    if guide_id.is_empty() {return None;}
+    let ambiguous:Vec<&Value>=snapshot["proposed"].as_array().into_iter().flatten().filter(|p|p["role"]=="ambiguous").collect();
+    let row=ambiguous.iter().find(|p|!key.is_empty()&&p["key"]==key).or_else(||ambiguous.first().filter(|_|ambiguous.len()==1))?;
+    let field=|name:&str|row[name].as_str().map(str::trim).filter(|s|!s.is_empty()).map(str::to_owned);
+    Some(render::Answer {key:field("key")?,quote:field("reference_text")?,event_id:field("event_id")?,option_id:field("option_id")?})
 }
 /// Guide name for the card header without file extension, nation prefix or
 /// difficulty suffix: "RUSSIA (Communist)_ Reverse Barbarossa — Difficulty_⭐.docx"
@@ -271,6 +299,13 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
     let key=card["key"].as_str().unwrap_or("").to_owned();
     let guide_id=snapshot["guide_id"].as_str().unwrap_or("").to_owned();
     let checkable=card["checkable"]==true&&!key.is_empty()&&!guide_id.is_empty();
+    let answer=card_answer(snapshot,&key,&guide_id);
+    let badge=match answer.as_ref() {
+        Some(answer)=>format!("? {}: “{}”",i18n::text("ambiguous answer"),answer.quote),
+        None=>badge,
+    };
+    let confirmed_by_user=!key.is_empty()&&snapshot["proposed"].as_array().into_iter().flatten()
+        .any(|p|p["key"]==key.as_str()&&p["confirmed_by_user"]==true);
     let images=card["images"].as_array().into_iter().flatten().filter_map(|image|{
         let id=image["id"].as_str().map(str::trim).filter(|s|!s.is_empty())?.to_owned();
         Some(card_images::CardImage {id,name:text(&image["name"]),thumb:None})
@@ -286,7 +321,7 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
         (!rows.is_empty()).then_some(render::RefSection {label,rows})
     }).take(8).collect();
     let references_scope=card["references_scope"].as_str().unwrap_or("").to_owned();
-    Some(StepCard {header,heading,note,body,badge,key,guide_id,checkable,images,production,references,references_scope})
+    Some(StepCard {header,heading,note,body,badge,key,guide_id,checkable,images,production,references,references_scope,answer,confirmed_by_user})
 }
 /// The card for this sample: the backend's current card, or the last one kept
 /// briefly while the delivery is unknown (see the stability module), with
@@ -318,7 +353,38 @@ fn check_notice(response:&Value,guide_id:&str,key:&str,checked:bool)->card::Noti
         (true,false)=>i18n::text("Step unchecked again."),
         _=>i18n::format("Not changed: {0}",&[response["error"].as_str().filter(|s|!s.is_empty()).unwrap_or("?")]),
     };
-    card::Notice {text,undo:(done&&checked).then(||(guide_id.to_owned(),key.to_owned())),at:Instant::now()}
+    card::Notice {text,undo:(done&&checked).then(||card::Undo::Check {guide_id:guide_id.to_owned(),key:key.to_owned()}),at:Instant::now()}
+}
+/// Card feedback for "I chose this". Undo is offered only when the backend
+/// returned what the confirmation replaced, so it can be put back exactly.
+fn answer_notice(response:&Value,guide_id:&str,key:&str,quote:&str)->card::Notice {
+    let done=response["key"]==key&&response["error"].is_null()&&response.get("previous").is_some()&&response["previous_checked"].is_boolean();
+    let text=if done {
+        let short:String=quote.chars().take(80).collect();
+        format!("✓ “{short}” · {}",i18n::text("confirmed by you"))
+    }else{
+        i18n::format("Not changed: {0}",&[response["error"].as_str().filter(|s|!s.is_empty()).unwrap_or("?")])
+    };
+    let undo=done.then(||card::Undo::Answer {guide_id:guide_id.to_owned(),key:key.to_owned(),quote:quote.to_owned(),
+        previous:response["previous"].clone(),previous_checked:response["previous_checked"]==true});
+    card::Notice {text,undo,at:Instant::now()}
+}
+/// Card feedback for the Undo of "I chose this".
+fn restore_notice(response:&Value)->card::Notice {
+    let text=if response["restored"]==true {i18n::text("Confirmation undone.")}
+        else {i18n::format("Not changed: {0}",&[response["error"].as_str().filter(|s|!s.is_empty()).unwrap_or("?")])};
+    card::Notice {text,undo:None,at:Instant::now()}
+}
+/// The backend request for a card action; None for actions handled locally.
+fn action_request(action:&ControlAction)->Option<Value> {
+    match action {
+        ControlAction::Check {guide_id,key,checked}=>Some(json!({"kind":"check","guide_id":guide_id,"key":key,"checked":checked})),
+        ControlAction::ConfirmAnswer {guide_id,key,quote,event_id,option_id}=>
+            Some(json!({"kind":"confirm_answer","guide_id":guide_id,"key":key,"quote":quote,"event_id":event_id,"option_id":option_id})),
+        ControlAction::RestoreAnswer {guide_id,key,quote,previous,previous_checked}=>
+            Some(json!({"kind":"restore_answer","guide_id":guide_id,"key":key,"quote":quote,"previous":previous,"previous_checked":previous_checked})),
+        _=>None,
+    }
 }
 fn guides(snapshot:&Value)->Vec<(String,String)> {
     snapshot["guides"].as_array().into_iter().flatten().filter_map(|g|
@@ -422,9 +488,17 @@ fn run(options:Options)->Result<(),String> {
                     let _=bridge.request(json!({"kind":"select","guide_id":id}),&[])?;
                 },
                 ControlAction::RefreshGuides=>refresh=true,
-                ControlAction::Check{guide_id,key,checked}=>{
-                    let response=bridge.request(json!({"kind":"check","guide_id":guide_id,"key":key,"checked":checked}),&[])?;
-                    renderer.set_notice(Some(check_notice(&response,&guide_id,&key,checked)));
+                ControlAction::Check{ref guide_id,ref key,checked}=>{
+                    let response=bridge.request(action_request(&action).unwrap_or_default(),&[])?;
+                    renderer.set_notice(Some(check_notice(&response,guide_id,key,checked)));
+                },
+                ControlAction::ConfirmAnswer{ref guide_id,ref key,ref quote,..}=>{
+                    let response=bridge.request(action_request(&action).unwrap_or_default(),&[])?;
+                    renderer.set_notice(Some(answer_notice(&response,guide_id,key,quote)));
+                },
+                ControlAction::RestoreAnswer{..}=>{
+                    let response=bridge.request(action_request(&action).unwrap_or_default(),&[])?;
+                    renderer.set_notice(Some(restore_notice(&response)));
                 },
                 ControlAction::OpenSuite=>{
                     // Start/reuse only our launcher, never issue game input.
@@ -679,21 +753,21 @@ mod tests {
         assert!(production_caption(&saved,"Required recipe").contains("folder: delete"));
         let mut changed=candidate.clone();changed["production_design_check"]=json!({"status":"different","candidates":[{"differences":[{},{}]}]});
         assert!(production_caption(&changed,"Required recipe").contains("configuration differs (2)"));
-        assert!(!marks(&[candidate],2560,1440)[0].active);
+        assert_eq!(marks(&[candidate],2560,1440)[0].role,Role::Next);
     }
 
     #[test]
     fn production_highlights_turn_blue_only_after_a_qualified_goal_and_keep_missing_products_actionable() {
         let row=json!({"panel":"production","title":"Support","rect":[10,20,100,80],"quantity":7,"requested":7,"assigned":3,"navigation_stage":"line","status":"completed","goal_satisfied":true});
         let blue=marks(std::slice::from_ref(&row),2560,1440);
-        assert_eq!(blue.len(),1);assert!(blue[0].active);assert!(blue[0].caption.contains("Target met"));
+        assert_eq!(blue.len(),1);assert_eq!(blue[0].role,Role::Active);assert!(blue[0].caption.contains("Target met"));
         let mut pending=row.clone();pending["goal_satisfied"]=json!(false);pending["status"]=json!("active");
-        assert!(!marks(&[pending],2560,1440)[0].active);
+        assert_eq!(marks(&[pending],2560,1440)[0].role,Role::Next);
         let mut unknown=row.clone();unknown["goal_satisfied"]=Value::Null;
-        assert!(!marks(&[unknown],2560,1440)[0].active);
+        assert_eq!(marks(&[unknown],2560,1440)[0].role,Role::Next);
         assert_eq!(production_caption(&json!({"navigation_stage":"add","production_add_names":["Truck","Support"]}),"Truck"),"Add production: Truck, Support");
         let mut selected=row;selected["navigation_stage"]=json!("equipment");selected["goal_satisfied"]=json!(false);
-        let mark=marks(&[selected],2560,1440);assert!(!mark[0].active);assert!(mark[0].caption.starts_with("Select product:"));
+        let mark=marks(&[selected],2560,1440);assert_eq!(mark[0].role,Role::Next);assert!(mark[0].caption.starts_with("Select product:"));
     }
     #[test]
     fn research_choice_tone_reaches_native_renderer_for_nodes_and_tabs() {
@@ -701,7 +775,7 @@ mod tests {
                       json!({"rect":[90,20,160,70],"panel":"research_tab","tone":"choice","title":"Industry"})];
         let result=marks(&rows,500,400);
         assert_eq!(result.len(),2);
-        assert!(result.iter().all(|mark|mark.choice&&!mark.active));
+        assert!(result.iter().all(|mark|mark.role==Role::Choice));
     }
     #[test]
     fn construction_card_is_said_in_words_with_one_line_per_region() {
@@ -763,11 +837,91 @@ mod tests {
     #[test]
     fn done_feedback_offers_undo_only_after_a_confirmed_check() {
         let ok=check_notice(&json!({"key":"k","checked":true}),"g","k",true);
-        assert_eq!(ok.undo,Some(("g".into(),"k".into())));
+        assert_eq!(ok.undo,Some(card::Undo::Check {guide_id:"g".into(),key:"k".into()}));
         let refused=check_notice(&json!({"error":"The current step changed: nothing was marked done"}),"g","k",true);
         assert!(refused.undo.is_none());assert!(refused.text.contains("current step changed"));
         let undone=check_notice(&json!({"key":"k","checked":false}),"g","k",false);
         assert!(undone.undo.is_none());
+    }
+    #[test]
+    fn marks_map_role_from_proposal() {
+        use palette::Role;
+        let row=|extra:Value|{
+            let mut row=json!({"rect":[10,20,80,70],"panel":"event","labels":["We cannot allow this"],"status":"ready"});
+            for (k,v) in extra.as_object().unwrap() {row[k]=v.clone();}
+            row
+        };
+        let one=|extra:Value|marks(&[row(extra)],500,400).remove(0);
+        let ambiguous=one(json!({"role":"ambiguous","reference_text":"We cannot…","key":"k","event_id":"e.1","option_id":"e.1.b"}));
+        assert_eq!(ambiguous.role,Role::Ambiguous);
+        assert_eq!(ambiguous.caption,"? We cannot allow this");
+        let confirmed=one(json!({"role":"next","confirmed_by_user":true}));
+        assert_eq!(confirmed.role,Role::Next);
+        assert_eq!(confirmed.caption,"We cannot allow this · confirmed by you");
+        assert_eq!(one(json!({"role":"choice"})).role,Role::Choice);
+        assert_eq!(one(json!({"role":"active","panel":"focus"})).role,Role::Active);
+        assert_eq!(one(json!({"role":"next"})).caption,"We cannot allow this");
+        assert_eq!(one(json!({"role":"bogus","tone":"choice"})).role,Role::Next,"an unknown role is the guide's next action");
+        // Rows the geometry builds itself (research tabs) carry only the tone.
+        assert_eq!(one(json!({"panel":"research_tab","title":"Industry","tone":"choice"})).role,Role::Choice);
+        assert_eq!(one(json!({})).role,Role::Next);
+        // Production keeps its own rule: active only for a qualified, met line.
+        let production=json!({"rect":[10,20,100,80],"panel":"production","title":"Support","quantity":7,"requested":7,"assigned":7,"navigation_stage":"line","goal_satisfied":true});
+        let mut met=production.clone();met["role"]=json!("next");
+        assert_eq!(marks(&[met],500,400)[0].role,Role::Active);
+        let mut pending=production;pending["role"]=json!("active");pending["goal_satisfied"]=json!(false);
+        assert_eq!(marks(&[pending],500,400)[0].role,Role::Next);
+    }
+    #[test]
+    fn card_offers_the_visible_ambiguous_answer_for_its_step() {
+        let mut snapshot=json!({"guide_id":"g","step_card":{"heading":"Event","key":"k","checkable":true},
+            "proposed":[{"key":"other","role":"ambiguous","reference_text":"Other…","event_id":"x.1","option_id":"x.1.a"},
+                        {"key":"k","role":"ambiguous","reference_text":"We cannot…","event_id":"e.1","option_id":"e.1.b"}]});
+        let card=step_card(&snapshot).unwrap();
+        assert_eq!(card.answer,Some(render::Answer {key:"k".into(),quote:"We cannot…".into(),event_id:"e.1".into(),option_id:"e.1.b".into()}));
+        assert!(!card.confirmed_by_user);
+        assert!(card.badge.contains("ambiguous answer"));
+        // Only another step's answer, alone: still the one shown now.
+        snapshot["proposed"].as_array_mut().unwrap().remove(1);
+        assert_eq!(step_card(&snapshot).unwrap().answer.map(|a|a.key),Some("other".into()));
+        // Two other steps' answers: none is chosen for this card.
+        snapshot["proposed"]=json!([{"key":"a","role":"ambiguous","event_id":"a","option_id":"a.1"},{"key":"b","role":"ambiguous","event_id":"b","option_id":"b.1"}]);
+        assert!(step_card(&snapshot).unwrap().answer.is_none());
+        // Without identities or the guide id nothing can be confirmed.
+        snapshot["proposed"]=json!([{"key":"k","role":"ambiguous","event_id":"e.1"}]);
+        assert!(step_card(&snapshot).unwrap().answer.is_none());
+        snapshot["proposed"]=json!([{"key":"k","role":"ambiguous","event_id":"e.1","option_id":"e.1.b"}]);snapshot["guide_id"]=Value::Null;
+        assert!(step_card(&snapshot).unwrap().answer.is_none());
+        // A user-confirmed answer for this step: Done reads "I chose this".
+        let confirmed=json!({"guide_id":"g","step_card":{"heading":"Event","key":"k","checkable":true},
+            "proposed":[{"key":"k","role":"next","confirmed_by_user":true}]});
+        let card=step_card(&confirmed).unwrap();
+        assert!(card.confirmed_by_user&&card.answer.is_none());
+    }
+    #[test]
+    fn undo_after_confirm_sends_restore_with_previous() {
+        let confirm=ControlAction::ConfirmAnswer {guide_id:"g".into(),key:"k".into(),quote:"We cannot…".into(),event_id:"e.1".into(),option_id:"e.1.b".into()};
+        assert_eq!(action_request(&confirm),Some(json!({"kind":"confirm_answer","guide_id":"g","key":"k","quote":"We cannot…","event_id":"e.1","option_id":"e.1.b"})));
+        let previous=json!({"key":"k","quote":"We cannot…","event_id":"e.1","option_id":"e.1.a"});
+        let notice=answer_notice(&json!({"key":"k","previous":previous,"previous_checked":true,"checked":true}),"g","k","We cannot…");
+        assert!(notice.text.contains("confirmed by you"));
+        let undo=notice.undo.expect("Undo is offered after a confirmed answer");
+        let restore=render::undo_action(&undo);
+        assert_eq!(restore,ControlAction::RestoreAnswer {guide_id:"g".into(),key:"k".into(),quote:"We cannot…".into(),previous:previous.clone(),previous_checked:true});
+        assert_eq!(action_request(&restore),Some(json!({"kind":"restore_answer","guide_id":"g","key":"k","quote":"We cannot…","previous":previous,"previous_checked":true})));
+        // No earlier row: Undo removes the confirmation and keeps the step's check as it was.
+        let fresh=answer_notice(&json!({"key":"k","previous":null,"previous_checked":false,"checked":true}),"g","k","We cannot…");
+        let request=action_request(&render::undo_action(&fresh.undo.unwrap())).unwrap();
+        assert_eq!((&request["previous"],&request["previous_checked"]),(&Value::Null,&json!(false)));
+        // A refusal offers no Undo and says why.
+        let refused=answer_notice(&json!({"error":"The event answer is no longer shown: nothing was confirmed"}),"g","k","We cannot…");
+        assert!(refused.undo.is_none());assert!(refused.text.contains("no longer shown"));
+        assert!(answer_notice(&json!({"key":"k","checked":true}),"g","k","q").undo.is_none(),"no Undo without the previous state");
+        // The plain Done keeps its own Undo.
+        assert_eq!(render::undo_action(&card::Undo::Check {guide_id:"g".into(),key:"k".into()}),ControlAction::Check {guide_id:"g".into(),key:"k".into(),checked:false});
+        let restored=restore_notice(&json!({"key":"k","restored":true}));
+        assert!(restored.undo.is_none()&&!restored.text.starts_with("Not changed"));
+        assert!(restore_notice(&json!({"error":"x"})).text.starts_with("Not changed"));
     }
     #[test]
     fn explanations_separate_unknown_evidence_from_visible_marks_and_errors() {

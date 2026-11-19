@@ -66,10 +66,46 @@ pub fn position_of(left: f32, top: f32, client: (f32, f32)) -> Option<[f32; 2]> 
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Button {Done, Collapse, Hide, Undo,
+    /// "I chose this" on an ambiguous event answer: confirms the guide's
+    /// answer the event popup shows now.
+    ConfirmAnswer,
     /// A quick-reference tag (army setup, war plans, events): opens its section.
     Tag(u8),
     /// A row's checkbox in the open section.
     Item(u16)}
+
+/// The card's header buttons, right to left. An ambiguous answer replaces
+/// Done, so the card never offers two confirmations at once.
+pub fn header_buttons(answer: bool, checkable: bool) -> Vec<Button> {
+    let mut buttons = vec![Button::Hide, Button::Collapse];
+    if answer {
+        buttons.push(Button::ConfirmAnswer);
+    } else if checkable {
+        buttons.push(Button::Done);
+    }
+    buttons
+}
+
+/// English text of a labeled header button (translated when drawn). Done on
+/// an answer the player already confirmed reads like the confirmation.
+pub fn header_label(button: Button, confirmed_by_user: bool) -> Option<&'static str> {
+    match button {
+        Button::ConfirmAnswer => Some("I chose this"),
+        Button::Done => Some(if confirmed_by_user {"I chose this"} else {"Mark done"}),
+        _ => None,
+    }
+}
+
+/// Places header buttons of the given widths right to left from `right`,
+/// `gap` apart. Returns their rectangles and where the header text must end.
+pub fn header_layout(buttons: &[(Button, f32)], mut right: f32, top: f32, row: f32, gap: f32) -> (Vec<(Button, [f32; 4])>, f32) {
+    let mut placed = Vec::new();
+    for (button, width) in buttons {
+        placed.push((*button, [right - width, top, right, top + row]));
+        right -= width + gap;
+    }
+    (placed, right)
+}
 
 /// Quick-reference rows the player ticked as done, per checklist run
 /// ("guide:run"), in the HUD's data folder. Only the HUD reads them: they
@@ -104,12 +140,23 @@ impl Marks {
     }
 }
 
-/// Result of the last "Done" click, shown on the card for `NOTICE_FOR`.
+/// What the card's Undo button takes back.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Undo {
+    /// A step marked done with "Done": uncheck it.
+    Check {guide_id: String, key: String},
+    /// An event answer confirmed with "I chose this": put back the row it
+    /// replaced (or none) and the step's check as they were.
+    Answer {guide_id: String, key: String, quote: String, previous: serde_json::Value, previous_checked: bool},
+}
+
+/// Result of the last "Done" or "I chose this" click, shown on the card for
+/// `NOTICE_FOR`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Notice {
     pub text: String,
-    /// Step that can still be unchecked from the card.
-    pub undo: Option<(String, String)>,
+    /// What can still be taken back from the card.
+    pub undo: Option<Undo>,
     pub at: Instant,
 }
 impl Notice {
@@ -304,6 +351,34 @@ mod tests {
         assert_eq!(hit(&buttons, 321.9, 29.9), Some(Button::Hide));
         assert_eq!(hit(&buttons, 280.0, 10.0), None, "the rest of the card drags it");
         assert_eq!(hit(&buttons, 260.0, 10.0), None);
+    }
+
+    #[test]
+    fn confirm_button_only_for_ambiguous_or_confirmed() {
+        let ids = |buttons: &[(Button, [f32; 4])]| buttons.iter().map(|(b, _)| *b).collect::<Vec<_>>();
+        let layout = |answer: bool, checkable: bool| {
+            let sized: Vec<(Button, f32)> = header_buttons(answer, checkable).into_iter()
+                .map(|b| (b, if matches!(b, Button::ConfirmAnswer | Button::Done) {90.0} else {24.0})).collect();
+            header_layout(&sized, 350.0, 10.0, 24.0, 6.0)
+        };
+        assert_eq!(ids(&layout(false, false).0), [Button::Hide, Button::Collapse]);
+        assert_eq!(ids(&layout(false, true).0), [Button::Hide, Button::Collapse, Button::Done]);
+        // An ambiguous answer replaces Done: one confirmation, never two.
+        assert_eq!(ids(&layout(true, true).0), [Button::Hide, Button::Collapse, Button::ConfirmAnswer]);
+        let (buttons, right) = layout(true, false);
+        assert_eq!(ids(&buttons), [Button::Hide, Button::Collapse, Button::ConfirmAnswer]);
+        assert_eq!(buttons[0].1, [326.0, 10.0, 350.0, 34.0]);
+        assert_eq!(buttons[1].1, [296.0, 10.0, 320.0, 34.0]);
+        assert_eq!(buttons[2].1, [200.0, 10.0, 290.0, 34.0]);
+        assert_eq!(right, 194.0, "the header text ends before the leftmost button");
+        assert_eq!(hit(&buttons, 210.0, 12.0), Some(Button::ConfirmAnswer));
+        assert_eq!(hit(&buttons, 293.0, 12.0), None, "the gap between buttons drags the card");
+        assert_eq!(hit(&buttons, 300.0, 12.0), Some(Button::Collapse));
+        // The label: a user-confirmed answer keeps "I chose this" on Done.
+        assert_eq!(header_label(Button::ConfirmAnswer, false), Some("I chose this"));
+        assert_eq!(header_label(Button::Done, true), Some("I chose this"));
+        assert_eq!(header_label(Button::Done, false), Some("Mark done"));
+        assert_eq!(header_label(Button::Hide, true), None);
     }
 
     #[test]

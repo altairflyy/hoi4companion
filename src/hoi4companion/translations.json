@@ -1,6 +1,10 @@
 {
   "schema_version": 1,
   "messages": {
+    "I chose this": "Ho scelto questa",
+    "confirmed by you": "confermata da te",
+    "ambiguous answer": "risposta ambigua",
+    "Confirmation undone.": "Conferma annullata.",
     "Recognized: {0}.": "Riconosciuto: {0}.",
     "Recognized: {0} {1}. The game does not show this live: confirm it yourself.": "Riconosciuto: {0} {1}. Il gioco non lo mostra dal vivo: confermalo tu.",
     "stop improving relations": "smetti di migliorare le relazioni",

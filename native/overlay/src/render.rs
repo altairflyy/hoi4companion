@@ -33,6 +33,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{RegisterHotKey,UnregisterHotKe
 use windows::Win32::UI::Shell::{Shell_NotifyIconW,NOTIFYICONDATAW,NIF_MESSAGE,NIF_ICON,NIF_TIP,NIM_ADD,NIM_DELETE};
 use crate::wake::Wake;
 use crate::card::{self,Button,Notice,Prefs};
+use crate::palette::{self,Role};
 
 thread_local! {static FOREGROUND_WAKE:std::cell::RefCell<Option<Arc<Wake>>>=const {std::cell::RefCell::new(None)};}
 unsafe extern "system" fn foreground_changed(_hook:HWINEVENTHOOK,_event:u32,_window:HWND,
@@ -74,8 +75,8 @@ pub struct TargetWindow {
 pub struct Highlight {
     pub rect: [f32; 4],
     pub caption: String,
-    pub active: bool,
-    pub choice: bool,
+    /// What the highlight means, and so its color (see `palette`).
+    pub role: Role,
     pub panel: String,
 }
 
@@ -105,7 +106,7 @@ fn caption_slots(frame:&OverlayFrame,scale:f32,avoid:&[[f32;4]],preferred:&HashM
     let mut placed:Vec<[f32;4]>=avoid.to_vec();let mut result=Vec::new();
     for mark in &frame.marks {
         let production=mark.panel=="production";
-        if mark.caption.is_empty() || production&&mark.active {result.push(None);continue;}
+        if mark.caption.is_empty() || production&&mark.role==Role::Active {result.push(None);continue;}
         let label_height=if production {20.0}else{25.0}*scale;
         let label_width=((mark.caption.chars().count() as f32*if production {6.5}else{7.6}+16.0)*scale)
             .min(if production {300.0}else{460.0}*scale).min(width);
@@ -199,7 +200,16 @@ pub struct StepCard {
     pub references: Vec<RefSection>,
     /// Checklist run the reference marks belong to ("guide:run").
     pub references_scope: String,
+    /// The ambiguous event answer the popup shows now, which the player can
+    /// confirm as the guide's answer ("I chose this").
+    pub answer: Option<Answer>,
+    /// The step's event answer was confirmed by the player earlier.
+    pub confirmed_by_user: bool,
 }
+/// An ambiguous event answer as the backend proposes it: the guide line
+/// (`key` and its `quote`) and the visible option it may mean.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct Answer {pub key:String, pub quote:String, pub event_id:String, pub option_id:String}
 /// Card frame on the right edge, below the game's top bar and theater selector.
 fn card_origin(width:f32,height:f32,scale:f32)->(f32,f32,f32) {
     let card_width=(360.0*scale).min(width*0.42);
@@ -214,6 +224,18 @@ pub enum ControlAction {
     OpenSuite,
     /// "Done" or "Undo" on the step card: a manual confirmation of that step.
     Check {guide_id:String,key:String,checked:bool},
+    /// "I chose this" on the card: confirm the visible answer as the guide's.
+    ConfirmAnswer {guide_id:String,key:String,quote:String,event_id:String,option_id:String},
+    /// "Undo" after "I chose this": restore what the confirmation replaced.
+    RestoreAnswer {guide_id:String,key:String,quote:String,previous:serde_json::Value,previous_checked:bool},
+}
+/// The request the card's Undo button sends.
+pub fn undo_action(undo:&card::Undo)->ControlAction {
+    match undo {
+        card::Undo::Check {guide_id,key}=>ControlAction::Check {guide_id:guide_id.clone(),key:key.clone(),checked:false},
+        card::Undo::Answer {guide_id,key,quote,previous,previous_checked}=>ControlAction::RestoreAnswer {
+            guide_id:guide_id.clone(),key:key.clone(),quote:quote.clone(),previous:previous.clone(),previous_checked:*previous_checked},
+    }
 }
 
 #[derive(Default)]
@@ -427,40 +449,43 @@ fn border_path(rect:[f32;4],stroke:f32,scale:f32)->D2D1_ROUNDED_RECT {
     D2D1_ROUNDED_RECT {rect,radiusX:radius,radiusY:radius}
 }
 
+/// Brushes, all from `palette`: one stroke and one fill per role.
 struct Paint {
-    strokes:[ID2D1SolidColorBrush;3],
-    fills:[ID2D1SolidColorBrush;3],
+    strokes:[ID2D1SolidColorBrush;5],
+    fills:[ID2D1SolidColorBrush;5],
+    /// Border of an ambiguous answer's highlight.
+    dashed:ID2D1StrokeStyle,
     shadow:ID2D1SolidColorBrush,
     label_bg:ID2D1SolidColorBrush,
     card_bg:ID2D1SolidColorBrush,
     card_border:ID2D1SolidColorBrush,
     text:ID2D1SolidColorBrush,
     muted:ID2D1SolidColorBrush,
-    /// Card checklist emphasis (see `card::Hue`): reached, to do, queued.
-    done:ID2D1SolidColorBrush,
+    /// Card checklist emphasis (see `card::Hue`): still to do.
     todo:ID2D1SolidColorBrush,
-    queued:ID2D1SolidColorBrush,
 }
 impl Paint {
     unsafe fn new(context:&ID2D1DeviceContext)->windows::core::Result<Self> {
         unsafe {
-            let colors=[D2D1_COLOR_F {r:1.0,g:0.83,b:0.30,a:1.0},
-                        D2D1_COLOR_F {r:0.27,g:0.84,b:1.0,a:1.0},
-                        D2D1_COLOR_F {r:0.78,g:0.59,b:1.0,a:1.0}];
-            let stroke=|i:usize|context.CreateSolidColorBrush(&colors[i],None);
-            let fill=|i:usize|context.CreateSolidColorBrush(&D2D1_COLOR_F {a:0.09,..colors[i]},None);
-            Ok(Self {strokes:[stroke(0)?,stroke(1)?,stroke(2)?],fills:[fill(0)?,fill(1)?,fill(2)?],
-                shadow:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.01,g:0.02,b:0.03,a:0.85},None)?,
-                label_bg:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.035,g:0.055,b:0.075,a:0.82},None)?,
-                card_bg:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.035,g:0.055,b:0.075,a:0.88},None)?,
-                card_border:context.CreateSolidColorBrush(&D2D1_COLOR_F {a:0.55,..colors[0]},None)?,
-                text:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.86,g:0.89,b:0.91,a:1.0},None)?,
-                muted:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.62,g:0.69,b:0.73,a:1.0},None)?,
-                done:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.42,g:0.88,b:0.52,a:1.0},None)?,
-                todo:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:1.0,g:0.64,b:0.32,a:1.0},None)?,
-                queued:context.CreateSolidColorBrush(&D2D1_COLOR_F {r:0.27,g:0.84,b:1.0,a:1.0},None)?})
+            let brush=|color:D2D1_COLOR_F|context.CreateSolidColorBrush(&color,None);
+            let [a,b,c,d,e]=Role::ALL;
+            let stroke=|role:Role|brush(palette::color(role));
+            let fill=|role:Role|brush(palette::with_alpha(palette::color(role),palette::FILL_ALPHA));
+            let dashed=context.GetFactory()?.CreateStrokeStyle(&D2D1_STROKE_STYLE_PROPERTIES {
+                dashStyle:D2D1_DASH_STYLE_DASH,dashCap:D2D1_CAP_STYLE_FLAT,..Default::default()},None)?;
+            Ok(Self {strokes:[stroke(a)?,stroke(b)?,stroke(c)?,stroke(d)?,stroke(e)?],
+                fills:[fill(a)?,fill(b)?,fill(c)?,fill(d)?,fill(e)?],dashed,
+                shadow:brush(palette::SHADOW)?,
+                label_bg:brush(palette::LABEL_BACKGROUND)?,
+                card_bg:brush(palette::CARD_BACKGROUND)?,
+                card_border:brush(palette::with_alpha(palette::color(Role::Next),palette::CARD_BORDER_ALPHA))?,
+                text:brush(palette::TEXT)?,
+                muted:brush(palette::MUTED)?,
+                todo:brush(palette::TODO)?})
         }
     }
+    fn stroke(&self,role:Role)->&ID2D1SolidColorBrush {&self.strokes[role.index()]}
+    fn fill(&self,role:Role)->&ID2D1SolidColorBrush {&self.fills[role.index()]}
 }
 
 struct Graphics {
@@ -571,21 +596,24 @@ impl Graphics {
         unsafe {
             self.ensure_card_formats(scale)?;
             let pad=14.0*scale;let inner=(width-2.0*pad).max(40.0);let row=24.0*scale;let gap=6.0*scale;
-            // Header buttons, right to left: hide, collapse, done.
-            let mut buttons:Vec<(Button,String,[f32;4])>=Vec::new();
-            let mut right=width-pad+4.0*scale;
-            let mut push=|button:Button,label:String,w:f32,right:&mut f32,top:f32|{
-                buttons.push((button,label,[*right-w,top,*right,top+row]));*right-=w+gap;
-            };
+            // Header buttons, right to left: hide, collapse, then "I chose
+            // this" for an ambiguous answer or "Done" for a checkable step.
             let top=10.0*scale;
-            push(Button::Hide,"×".into(),row,&mut right,top);
-            push(Button::Collapse,if collapsed {"+".into()}else{"–".into()},row,&mut right,top);
-            if card.checkable && !card.key.is_empty() {
-                let label=format!("✓ {}",crate::i18n::text("Mark done"));
-                let wide:Vec<u16>=label.encode_utf16().collect();
-                let w=self.measure(&wide,4,400.0*scale,row)?.0+18.0*scale;
-                push(Button::Done,label,w,&mut right,top);
+            let mut sized:Vec<(Button,String,f32)>=Vec::new();
+            for button in card::header_buttons(card.answer.is_some(),card.checkable && !card.key.is_empty()) {
+                let label=match (button,card::header_label(button,card.confirmed_by_user)) {
+                    (_,Some(label))=>format!("✓ {}",crate::i18n::text(label)),
+                    (Button::Collapse,_)=>if collapsed {"+".into()}else{"–".into()},
+                    _=>"×".into(),
+                };
+                let w=if matches!(button,Button::Hide|Button::Collapse) {row} else {
+                    let wide:Vec<u16>=label.encode_utf16().collect();
+                    self.measure(&wide,4,400.0*scale,row)?.0+18.0*scale
+                };
+                sized.push((button,label,w));
             }
+            let (placed,right)=card::header_layout(&sized.iter().map(|(b,_,w)|(*b,*w)).collect::<Vec<_>>(),width-pad+4.0*scale,top,row,gap);
+            let mut buttons:Vec<(Button,String,[f32;4])>=placed.into_iter().zip(sized).map(|((b,r),(_,label,_))|(b,label,r)).collect();
             let mut lines:Vec<(Vec<u16>,usize,D2D_RECT_F,u8)>=Vec::new();
             let header:Vec<u16>=card.header.chars().filter(|c|!c.is_control()).collect::<String>().encode_utf16().collect();
             let header_width=(right+gap-8.0*scale-pad).max(40.0*scale);
@@ -601,7 +629,8 @@ impl Graphics {
                 blocks.push((card.heading.clone(),1,1));
                 // An open reference section replaces the step details below.
                 if open.is_none() {
-                    for (text,format,tone) in [(&card.note,2usize,2u8),(&card.body,3,4),(&card.badge,2,3)] {
+                    // An ambiguous answer's badge takes the ambiguous color (tone 5).
+                    for (text,format,tone) in [(&card.note,2usize,2u8),(&card.body,3,4),(&card.badge,2,if card.answer.is_some() {5} else {3})] {
                         blocks.push((text.clone(),format,tone));
                     }
                 }
@@ -695,7 +724,7 @@ impl Graphics {
                     Some(thumb.bgra.as_ptr().cast()),thumb.width*4,&properties).ok().map(|bitmap|(bitmap,*rect))
             }).collect();
             let formats=&self.card_formats.as_ref().unwrap().1;
-            self.context.BeginDraw();self.context.Clear(Some(&D2D1_COLOR_F {r:0.0,g:0.0,b:0.0,a:0.0}));
+            self.context.BeginDraw();self.context.Clear(Some(&palette::TRANSPARENT));
             let panel=D2D1_ROUNDED_RECT {rect:D2D_RECT_F {left:0.5,top:0.5,right:width-0.5,bottom:height-0.5},radiusX:6.0*scale,radiusY:6.0*scale};
             self.context.FillRoundedRectangle(&panel,&self.paint.card_bg);
             self.context.DrawRoundedRectangle(&panel,&self.paint.card_border,1.0*scale,None);
@@ -704,7 +733,7 @@ impl Graphics {
                 self.context.DrawRectangle(rect,&self.paint.card_border,1.0*scale,None);
             }
             for (text,format,rect,tone) in &lines {
-                let brush=match tone {0=>&self.paint.strokes[0],1|4=>&self.paint.text,2=>&self.paint.muted,_=>&self.paint.strokes[2]};
+                let brush=match tone {0=>self.paint.stroke(Role::Next),1|4=>&self.paint.text,2=>&self.paint.muted,5=>self.paint.stroke(Role::Ambiguous),_=>self.paint.stroke(Role::Choice)};
                 if *tone!=4 {
                     self.context.DrawText(text,&formats[*format],rect,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
                     continue;
@@ -714,8 +743,8 @@ impl Graphics {
                 for (start,length,hue) in crate::card::spans(&String::from_utf16_lossy(text)) {
                     let range=DWRITE_TEXT_RANGE {startPosition:start,length};
                     let effect=match hue {
-                        crate::card::Hue::Done=>Some(&self.paint.done),crate::card::Hue::Todo=>Some(&self.paint.todo),
-                        crate::card::Hue::Queued=>Some(&self.paint.queued),crate::card::Hue::Unknown=>Some(&self.paint.muted),
+                        crate::card::Hue::Done=>Some(self.paint.stroke(Role::Done)),crate::card::Hue::Todo=>Some(&self.paint.todo),
+                        crate::card::Hue::Queued=>Some(self.paint.stroke(Role::Active)),crate::card::Hue::Unknown=>Some(&self.paint.muted),
                         crate::card::Hue::Strong=>None,
                     };
                     if let Some(effect)=effect {layout.SetDrawingEffect(&effect.cast::<windows::core::IUnknown>()?,range)?;}
@@ -727,11 +756,14 @@ impl Graphics {
                 let rect=D2D_RECT_F {left:*left,top:*top,right:*right,bottom:*bottom};
                 let shape=D2D1_ROUNDED_RECT {rect,radiusX:4.0*scale,radiusY:4.0*scale};
                 self.context.FillRoundedRectangle(&shape,&self.paint.label_bg);
-                let border=if matches!(button,Button::Done|Button::Undo) || matches!(button,Button::Tag(i) if open==Some(*i as usize)) {&self.paint.strokes[1]}
+                let accent=if matches!(button,Button::ConfirmAnswer) {Some(self.paint.stroke(Role::Ambiguous))}
+                    else if matches!(button,Button::Done|Button::Undo) {Some(self.paint.stroke(Role::Active))} else {None};
+                let border=if let Some(accent)=accent {accent}
+                    else if matches!(button,Button::Tag(i) if open==Some(*i as usize)) {self.paint.stroke(Role::Active)}
                     else if matches!(button,Button::Item(_)) {&self.paint.text}else{&self.paint.muted};
                 self.context.DrawRoundedRectangle(&shape,border,1.0*scale,None);
                 let text:Vec<u16>=label.encode_utf16().collect();
-                let brush=if matches!(button,Button::Done|Button::Undo) {&self.paint.strokes[1]}else if matches!(button,Button::Item(_)) {&self.paint.done}else{&self.paint.text};
+                let brush=if let Some(accent)=accent {accent}else if matches!(button,Button::Item(_)) {self.paint.stroke(Role::Done)}else{&self.paint.text};
                 self.context.DrawText(&text,&formats[4],&rect,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
             }
             self.context.EndDraw(None,None)?;self.swap.Present(0,DXGI_PRESENT(0)).ok()?;
@@ -759,11 +791,12 @@ impl Graphics {
             let slots=caption_slots(frame,scale,avoid,&self.caption_sides);
             self.caption_sides=frame.marks.iter().zip(&slots).filter_map(|(mark,slot)|slot.map(|(i,_)|(caption_key(mark),i))).collect();
             let captions:Vec<Option<[f32;4]>>=slots.into_iter().map(|slot|slot.map(|(_,rect)|rect)).collect();
-            self.context.BeginDraw();self.context.Clear(Some(&D2D1_COLOR_F {r:0.0,g:0.0,b:0.0,a:0.0}));
+            self.context.BeginDraw();self.context.Clear(Some(&palette::TRANSPARENT));
             let result={
                 for (index,mark) in frame.marks.iter().enumerate() {
-                    let tone=if mark.choice {2}else if mark.active && mark.panel!="event" {1}else{0};
-                    let stroke=&self.paint.strokes[tone];let fill=&self.paint.fills[tone];
+                    let stroke=self.paint.stroke(mark.role);let fill=self.paint.fill(mark.role);
+                    // An ambiguous answer is outlined with dashes: a guess to confirm.
+                    let style=(mark.role==Role::Ambiguous).then_some(&self.paint.dashed);
                     let width=border_width(mark.rect,if mark.panel=="production" {1.4}else{1.8}*scale);
                     let round=border_path(mark.rect,width,scale);
                     if mark.panel!="production" {
@@ -771,7 +804,7 @@ impl Graphics {
                         self.context.DrawRoundedRectangle(&border_path(mark.rect,shadow_width,scale),&self.paint.shadow,shadow_width,None);
                         self.context.FillRoundedRectangle(&round,fill);
                     }
-                    self.context.DrawRoundedRectangle(&round,stroke,width,None);
+                    self.context.DrawRoundedRectangle(&round,stroke,width,style);
                     let caption:Vec<u16>=mark.caption.chars().filter(|c|!c.is_control()).take(150).collect::<String>().encode_utf16().collect();
                     if caption.is_empty() {continue;}
                     let Some([left,top,right,bottom])=captions[index] else {continue;};
@@ -1058,10 +1091,19 @@ impl Ui {
                     }
                     self.wake.notify();
                 }
-                Button::Undo=>{
-                    if let Some((guide_id,key))=self.notice.as_ref().and_then(|n|n.undo.clone())
+                Button::ConfirmAnswer=>{
+                    if let Some(card)=self.card_content.as_ref().filter(|c|!c.guide_id.is_empty())
+                        && let Some(answer)=card.answer.as_ref()
                         && let Ok(mut s)=self.shared.lock() && s.actions.len()<32 {
-                        s.actions.push_back(ControlAction::Check {guide_id,key,checked:false});
+                        s.actions.push_back(ControlAction::ConfirmAnswer {guide_id:card.guide_id.clone(),key:answer.key.clone(),
+                            quote:answer.quote.clone(),event_id:answer.event_id.clone(),option_id:answer.option_id.clone()});
+                    }
+                    self.wake.notify();
+                }
+                Button::Undo=>{
+                    if let Some(undo)=self.notice.as_ref().and_then(|n|n.undo.as_ref())
+                        && let Ok(mut s)=self.shared.lock() && s.actions.len()<32 {
+                        s.actions.push_back(undo_action(undo));
                     }
                     self.wake.notify();
                 }
@@ -1255,7 +1297,7 @@ mod tests {
         }
     }
     fn frame()->OverlayFrame {OverlayFrame {target:TargetWindow {hwnd:1,pid:1,x:0,y:0,width:800,height:600},
-        marks:vec![Highlight {rect:[10.0,20.0,80.0,60.0],caption:"Ricerca".into(),active:false,choice:false,panel:"research".into()}],
+        marks:vec![Highlight {rect:[10.0,20.0,80.0,60.0],caption:"Ricerca".into(),role:Role::Next,panel:"research".into()}],
         card:None,observed_at:Instant::now(),valid_for:Duration::from_secs(1),card_observed_at:Instant::now()}}
     #[test]
     fn expired_highlights_leave_the_card_and_each_layer_keeps_its_own_deadline() {
@@ -1325,10 +1367,10 @@ mod tests {
         for scale in [1.0,1.5,2.0] {
             let mut f=frame();f.target.width=(1280.0*scale) as u32;f.target.height=(900.0*scale) as u32;
             f.marks=(0..8).map(|i|Highlight {rect:[8.0*scale,(120.0+i as f32*80.0)*scale,508.0*scale,(190.0+i as f32*80.0)*scale],
-                caption:"Tank · requested factories and configuration".into(),active:false,choice:false,panel:"production".into()}).collect();
+                caption:"Tank · requested factories and configuration".into(),role:Role::Next,panel:"production".into()}).collect();
             // The add-category cue can be close to the first row without its
             // caption covering any game controls or colliding with the row cue.
-            f.marks.push(Highlight {rect:[100.0*scale,90.0*scale,170.0*scale,120.0*scale],caption:"Add tank".into(),active:false,choice:false,panel:"production".into()});
+            f.marks.push(Highlight {rect:[100.0*scale,90.0*scale,170.0*scale,120.0*scale],caption:"Add tank".into(),role:Role::Next,panel:"production".into()});
             let layout=caption_layout(&f,scale);
             assert!(layout.iter().all(Option::is_some));
             for (i,rect) in layout.iter().enumerate() {
@@ -1355,9 +1397,9 @@ mod tests {
     }
     #[test]
     fn completed_production_keeps_border_without_caption_and_narrow_view_never_covers_controls() {
-        let mut f=frame();f.marks[0].panel="production".into();f.marks[0].active=true;
+        let mut f=frame();f.marks[0].panel="production".into();f.marks[0].role=Role::Active;
         assert_eq!(caption_layout(&f,1.0),vec![None]);
-        f.marks[0].active=false;f.marks[0].rect=[0.0,60.0,800.0,150.0];
+        f.marks[0].role=Role::Next;f.marks[0].rect=[0.0,60.0,800.0,150.0];
         assert_eq!(caption_layout(&f,1.0),vec![None]);
     }
     #[test]
