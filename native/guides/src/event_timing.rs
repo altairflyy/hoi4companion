@@ -276,6 +276,29 @@ impl<'a> Timing<'a> {
             _ => None,
         }
     }
+    /// Whether `event` can fire only after `earlier` has fired: every traced
+    /// caller of `event` (callers complete) is `earlier` itself or an event
+    /// that can fire only after it. A focus, decision, flag, unknown caller or
+    /// cycle on any route: false (not certain).
+    pub fn only_after(&self, event: &str, earlier: &str) -> bool {
+        event != earlier && self.only_after_seen(event, earlier, &mut HashSet::new())
+    }
+    fn only_after_seen(&self, event: &str, earlier: &str, seen: &mut HashSet<String>) -> bool {
+        if event == earlier {
+            return true;
+        }
+        if !seen.insert(event.to_owned()) {
+            return false;
+        }
+        let Some(rows) = self.events.get(event) else { return false };
+        let certain = rows.iter().all(|row| {
+            let sources = row["triggered_by"].as_array().map(Vec::as_slice).unwrap_or_default();
+            truth(&row["callers_complete"]) && !sources.is_empty() && sources.len() < 64
+                && sources.iter().all(|source| s(source).strip_prefix("event:").is_some_and(|caller| self.only_after_seen(caller, earlier, seen)))
+        });
+        seen.remove(event);
+        certain
+    }
     /// Written focus cost in days for a guide's plan (10 when unknown, the game's default).
     pub fn planned_cost(&self, id: &str) -> f64 {
         self.focuses.get(id).and_then(|rows| rows.iter().filter_map(|r| r["cost"].as_f64()).reduce(f64::max)).unwrap_or(10.0) * FOCUS_POINT_DAYS
@@ -360,6 +383,11 @@ mod tests {
             json!({"kind":"decision","id":"AST_m","required_focuses":["AST_b"],"mission":true}),
             json!({"kind":"event","id":"active.1","triggered_by":["decision:AST_x"],"callers_complete":true}),
             json!({"kind":"decision","id":"AST_x","required_focuses":["AST_b"],"activated":true}),
+            // A targeted decision (ETH_host_country_decision): its event goes to
+            // the target, no earlier than the focus its `visible` requires.
+            focus("ETH_rally", 5.0, json!([])),
+            json!({"kind":"event","id":"eth.100","triggered_by":["decision:ETH_host"],"callers_complete":true}),
+            json!({"kind":"decision","id":"ETH_host","targeted":true,"required_focuses":["ETH_rally"]}),
         ]
     }
 
@@ -374,11 +402,26 @@ mod tests {
         assert_eq!(timing.earliest_event("ast.1"), Some(175.0 / FOCUS_SPEED_FACTOR));
         assert_eq!(timing.earliest_event("ast.2"), Some(175.0 / FOCUS_SPEED_FACTOR));
         assert_eq!(timing.earliest_event("chl.1"), Some(140.0 / FOCUS_SPEED_FACTOR));
+        assert_eq!(timing.earliest_event("eth.100"), Some(35.0 / FOCUS_SPEED_FACTOR), "targeted decision");
         // Unknown routes: untraced callers, a flag, a decision with no certain requirement.
         // A mission or an activated decision: its requirements bound nothing.
         for id in ["free.1", "flag.1", "open.1", "missing.1", "mission.1", "active.1"] {
             assert_eq!(timing.earliest_event(id), None, "{id}");
         }
+    }
+
+    #[test]
+    fn an_event_fires_only_after_another_only_when_every_caller_route_passes_it() {
+        let rows = rows();
+        let timing = Timing::new(&rows);
+        // chl.1 is fired only by chl.0: it cannot come before it.
+        assert!(timing.only_after("chl.1", "chl.0"));
+        assert!(!timing.only_after("chl.0", "chl.1"));
+        assert!(!timing.only_after("chl.0", "chl.0"), "the same event");
+        // A focus, decision or untraced caller on the route: not certain.
+        assert!(!timing.only_after("ast.1", "chl.0"));
+        assert!(!timing.only_after("free.1", "chl.0"));
+        assert!(!timing.only_after("missing.1", "chl.0"));
     }
 
     #[test]

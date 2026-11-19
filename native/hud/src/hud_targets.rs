@@ -26,6 +26,69 @@ fn labels(values: impl Iterator<Item = Value>) -> Vec<Value> {
 }
 use crate::hud_geometry::resource_ready as ready;
 
+/// The event answer of a guide line with several possible answers
+/// (`reference_candidates.event_options`) that the player sees right now,
+/// proposed for highlight with its own basis (`resolution`
+/// "visible_candidate"), never as a proven binding and never as completion
+/// (the evaluation alone decides the step's status). Only when: the qualified
+/// popup reader observes exactly one visible popup answer among the line's
+/// candidates; that answer's text starts with the guide's words; the line is
+/// the current one of its track (not done, every earlier non-reminder step
+/// done) and the next focus anchor after it is not done.
+fn visible_candidate(guide: &Value, row: &Value, item: &Value, statuses: &HashMap<&str, &str>, events: &Value, index: &Index, country: &Value) -> Option<Value> {
+    let params = &row["action"]["params"];
+    let candidates = &params["reference_candidates"];
+    let options = a(&candidates["event_options"]);
+    let text = s(&candidates["text"]);
+    if options.is_empty() || text.is_empty() || state::truth(&params["event_option_id"]) || events["status"] != "observed" {
+        return None;
+    }
+    let status = s(&item["status"]);
+    if !["ready", "active", "unverifiable"].contains(&status) {
+        return None;
+    }
+    let key = s(&row["key"]);
+    let steps = guide["tracks"].as_object()?.values().map(a).find(|steps| steps.iter().any(|r| r["key"] == row["key"]))?;
+    let position = steps.iter().position(|r| r["key"] == row["key"])?;
+    let done = |r: &Value| matches!(statuses.get(s(&r["key"])), Some(&"completed") | Some(&"not_applicable"));
+    if steps[..position].iter().any(|r| r["tracking"] != "reminder" && !done(r)) {
+        return None;
+    }
+    let anchor = |r: &Value| {
+        r["action"]["entity"]["kind"] == "focus"
+            || r["action"]["params"]["trigger_resolution"]["status"] == "compiled" && r["action"]["params"]["trigger_resolution"]["entity"]["kind"] == "focus"
+    };
+    // The window stays open only while the anchor is known to be open: an
+    // unverifiable or unevaluated anchor may already be done.
+    if steps[position + 1..].iter().find(|r| anchor(r))
+        .is_some_and(|r| !matches!(statuses.get(s(&r["key"])), Some(&"ready") | Some(&"active") | Some(&"waiting") | Some(&"blocked")))
+    {
+        return None;
+    }
+    // Candidate answers on screen now: (event, option, popup instance).
+    let mut shown: Vec<(&str, &str, Vec<&str>)> = vec![];
+    for option in options {
+        let (event, id) = (s(&option["event_id"]), s(&option["id"]));
+        let instances: Vec<&str> = a(&events["visible"]).iter()
+            .filter(|e| e["event_id"] == event && a(&e["option_ids"]).iter().any(|o| o == id))
+            .filter_map(|e| e["instance_id"].as_str()).collect();
+        if !instances.is_empty() && !shown.iter().any(|(e, o, _)| *e == event && *o == id) {
+            shown.push((event, id, instances));
+        }
+    }
+    let [(event, id, instances)] = shown.as_slice() else { return None };
+    let rows = index.rows();
+    let answers: Vec<&Value> = rows.iter().filter(|r| r["kind"] == "event_option" && r["event_id"] == *event && r["id"] == *id).collect();
+    let names = labels(answers.iter().flat_map(|r| [r["localized_name"].clone(), r["name"].clone()].into_iter().chain(a(&r["aliases"]).iter().cloned())));
+    if answers.is_empty() || !names.iter().any(|n| crate::reference_candidates::answer_matches(text, s(n))) {
+        return None;
+    }
+    let titles = labels(rows.iter().filter(|r| r["kind"] == "event" && r["id"] == *event).flat_map(|r| [r["localized_name"].clone(), r["name"].clone()]));
+    Some(json!({"key":key,"panel":"event","identity":format!("{event}:{id}"),"event_id":event,"option_id":id,"labels":names,
+        "event_titles":titles,"event_title":titles.first().cloned().unwrap_or(json!(event)),"title":names.first().cloned().unwrap_or(json!(id)),
+        "resolution":"visible_candidate","status":status,"country":country,"watch":false,"instances":instances,"live_visible":true,"ocr_only":false}))
+}
+
 pub fn targets(
     guide: &Value,
     runtime: &Value,
@@ -140,6 +203,7 @@ pub fn targets(
     items.sort_by_key(|item| order.get(s(&item["key"])).copied().unwrap_or(order.len()));
     let mut result = vec![];
     let mut seen = HashSet::<(String, String)>::new();
+    let statuses: HashMap<&str, &str> = a(&runtime["steps"]).iter().map(|r| (s(&r["key"]), s(&r["status"]))).collect();
     for item in items {
         let key = s(&item["key"]);
         let Some(row) = rows.get(key).copied() else {
@@ -149,6 +213,12 @@ pub fn targets(
         let reason = s(&item["reason"]);
         let action = &row["action"];
         let params = &action["params"];
+        if let Some(proposal) = visible_candidate(guide, row, item, &statuses, events, index, country) {
+            if seen.insert(("event".into(), s(&proposal["identity"]).into())) {
+                result.push(proposal);
+            }
+            continue;
+        }
         if row["tracking"] != "reminder" && params["category"] == "production" {
             if (["ready", "active", "completed"].contains(&status)
                 || status == "not_applicable" && reason == "production_superseded"
@@ -368,4 +438,93 @@ pub fn targets(
                 .is_some_and(|v| v.len() == 1)
     });
     Ok(json!(result))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A guide line with several possible event answers, between a done step
+    /// and the focus anchor that follows it, and the live popup reader.
+    fn fixture() -> (Value, Value, Index, Value) {
+        let index = Index::new(&json!({"entries":[
+            {"kind":"country","id":"ENG","name":"United Kingdom"},
+            {"kind":"event","id":"eth.100","name":"A Request from Ethiopia"},
+            {"kind":"event_option","id":"eth.100.b","event_id":"eth.100","name":"We cannot allow this"},
+            {"kind":"event_option","id":"eth.100.a","event_id":"eth.100","name":"Of course"},
+            {"kind":"event","id":"hol.4","name":"Dutch question"},
+            {"kind":"event_option","id":"hol.4.b","event_id":"hol.4","name":"We cannot help them"},
+        ]})).unwrap();
+        let options = json!([{"id":"eth.100.b","event_id":"eth.100","compatible":true},{"id":"hol.4.b","event_id":"hol.4","compatible":true}]);
+        let guide = json!({"id":"g","applies_to":{"country":"ENG"},"tracks":{"operations":[
+            {"key":"a","title":"Done","action":{"kind":"manual","params":{"instructions":["Done"]}}},
+            {"key":"b","title":"We cannot…","tracking":"reminder","action":{"kind":"manual","params":{"instructions":["We cannot…"],
+                "reference_candidates":{"status":"ambiguous","text":"We cannot…","candidates":options,"event_options":options}}}},
+            {"key":"c","action":{"kind":"select_focus","entity":{"kind":"focus","id":"ENG_organize"}}},
+        ]}});
+        let runtime = json!({"guide_id":"g","mode":"live","country":"ENG","steps":[
+            {"key":"a","status":"completed"},{"key":"b","status":"ready","reason":"reminder_available"},{"key":"c","status":"ready"}]});
+        let live = json!({"usable":true,"sample":{"country":"ENG","country_overview":{"country":"ENG","events":{"status":"observed",
+            "visible":[{"event_id":"eth.100","instance_id":"i1","option_ids":["eth.100.a","eth.100.b"]}]}}}});
+        (guide, runtime, index, live)
+    }
+    fn events(result: &Value) -> Vec<Value> {
+        result.as_array().unwrap().iter().filter(|p| p["panel"] == "event").cloned().collect()
+    }
+
+    #[test]
+    fn a_visible_popup_highlights_the_only_candidate_answer_of_the_current_line() {
+        let (guide, runtime, index, live) = fixture();
+        let found = events(&targets(&guide, &runtime, &index, &live, false, &Value::Null).unwrap());
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0]["identity"], "eth.100:eth.100.b");
+        assert_eq!(found[0]["key"], "b");
+        // Its own basis: a candidate the popup shows, not a proven binding.
+        assert_eq!(found[0]["resolution"], "visible_candidate");
+        assert_eq!(found[0]["instances"], json!(["i1"]));
+        // Only a highlight: the step's status is the evaluation's, never completed here.
+        assert_eq!(found[0]["status"], "ready");
+        assert!(found[0].get("completion").is_none());
+    }
+
+    #[test]
+    fn no_highlight_without_every_condition() {
+        let (guide, runtime, index, live) = fixture();
+        let none = |guide: &Value, runtime: &Value, live: &Value| events(&targets(guide, runtime, &index, live, false, &Value::Null).unwrap()).is_empty();
+        // An earlier step not done: the line is not the current one.
+        let mut r = runtime.clone();
+        r["steps"][0]["status"] = json!("ready");
+        assert!(none(&guide, &r, &live), "previous step open");
+        // The next focus anchor already done: the line's window is over.
+        let mut r = runtime.clone();
+        r["steps"][2]["status"] = json!("completed");
+        assert!(none(&guide, &r, &live), "anchor done");
+        // An anchor whose status is unknown may be done already.
+        for unknown in [json!("unverifiable"), json!("not_applicable"), Value::Null] {
+            let mut r = runtime.clone();
+            r["steps"][2]["status"] = unknown.clone();
+            assert!(none(&guide, &r, &live), "anchor {unknown}");
+        }
+        // The line itself done.
+        let mut r = runtime.clone();
+        r["steps"][1]["status"] = json!("completed");
+        assert!(none(&guide, &r, &live), "line done");
+        // Two candidates of the line visible at once.
+        let mut l = live.clone();
+        l["sample"]["country_overview"]["events"]["visible"].as_array_mut().unwrap()
+            .push(json!({"event_id":"hol.4","instance_id":"i2","option_ids":["hol.4.b"]}));
+        assert!(none(&guide, &runtime, &l), "two candidates visible");
+        // The popup's options do not include the candidate answer.
+        let mut l = live.clone();
+        l["sample"]["country_overview"]["events"]["visible"][0]["option_ids"] = json!(["eth.100.a"]);
+        assert!(none(&guide, &runtime, &l), "answer not shown");
+        // Unknown or unqualified popup reading.
+        let mut l = live.clone();
+        l["sample"]["country_overview"]["events"]["status"] = json!("unavailable");
+        assert!(none(&guide, &runtime, &l), "reader not observed");
+        // The answer's text does not start with the guide's words.
+        let mut g = guide.clone();
+        g["tracks"]["operations"][1]["action"]["params"]["reference_candidates"]["text"] = json!("We shall…");
+        assert!(none(&g, &runtime, &live), "text differs");
+    }
 }

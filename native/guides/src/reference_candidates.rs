@@ -112,24 +112,38 @@ impl AnswerNames {
     }
     /// Rows whose answer text starts with (truncated) or equals the reference.
     fn rows<'a>(&self, index: &'a Index, text: &str) -> Vec<&'a Value> {
+        self.spelled_rows(index, text).into_iter().map(|(row, _)| row).collect()
+    }
+    /// The same rows, each with whether it matches the reference's own words
+    /// (true) or only one of their other spellings (false, `spellings`).
+    fn spelled_rows<'a>(&self, index: &'a Index, text: &str) -> Vec<(&'a Value, bool)> {
         let q = normalize(&query(text));
         let cut = truncated(text);
         // A full-text reference must be a real sentence, not "Accept".
         if q.chars().filter(|c| c.is_alphanumeric()).count() < 4 || !cut && q.split(' ').count() < 3 {
             return vec![];
         }
-        let mut out: Vec<usize> = vec![];
-        for q in spellings(&q) {
+        let mut out: Vec<(usize, bool)> = vec![];
+        for (n, q) in spellings(&q).into_iter().enumerate() {
             // Sorted names: every match sits in one run starting at the query.
             let start = self.0.partition_point(|(name, _)| name.as_str() < q.as_str());
             for (_, i) in self.0[start..].iter().take_while(|(name, _)| if cut { name.starts_with(&q) } else { *name == q }) {
-                if !out.contains(i) {
-                    out.push(*i);
+                match out.iter_mut().find(|(j, _)| j == i) {
+                    Some((_, literal)) => *literal |= n == 0,
+                    None => out.push((*i, n == 0)),
                 }
             }
         }
-        out.into_iter().filter_map(|i| index.rows().get(i)).collect()
+        out.into_iter().filter_map(|(i, literal)| index.rows().get(i).map(|row| (row, literal))).collect()
     }
+}
+/// Whether an answer's text starts with (a truncated reference) or equals the
+/// reference's words, in any of their spellings: the test the search uses.
+pub fn answer_matches(reference: &str, answer: &str) -> bool {
+    let q = normalize(&query(reference));
+    let name = normalize(answer);
+    let cut = truncated(reference);
+    !q.is_empty() && !name.is_empty() && spellings(&q).iter().any(|q| if cut { name.starts_with(q.as_str()) } else { name == *q })
 }
 /// The same words in their other spellings, for a normalized query: "cannot",
 /// "can not" and "can't" (apostrophes are already gone: "cant"). Only whole
@@ -785,6 +799,7 @@ pub fn ground_references(guide: &mut Value, index: &Index, historical: &Value) -
         let mut grounded: Vec<(&Reference, Value, &'static str, Value)> = vec![];
         let mut unresolved = vec![];
         let mut timelines: Vec<(String, Value)> = vec![];
+        let mut literals: Vec<(String, Value)> = vec![];
         for reference in &refs {
             let found = candidates_with(&reference.text, index, &country, &scope, Some(&names))?;
             let mut found = found.as_array().cloned().unwrap_or_default();
@@ -792,6 +807,27 @@ pub fn ground_references(guide: &mut Value, index: &Index, historical: &Value) -
             if chosen.is_none() && found.iter().filter(|c| c["kind"] == "event_option" && c["compatible"] != false).count() > 0 {
                 let routes = routes.get_or_insert_with(|| crate::event_routes::chains(index.rows(), &tag));
                 chosen = reached(&found, routes, &tag, &guide_focuses, &historical);
+            }
+            // Still several: answers with the guide's own words come before
+            // those found only through another spelling ("can't" for "cannot").
+            if chosen.is_none() {
+                let dropped = spelling_only(&found);
+                if !dropped.is_empty() {
+                    found.retain(|c| !(c["kind"] == "event_option" && dropped.iter().any(|d| c["id"] == *d)));
+                    let mut record = json!({"dropped":dropped});
+                    let mut left = choose(&found, reference.cost, index, &tag)?;
+                    if left.is_none() {
+                        let routes = routes.get_or_insert_with(|| crate::event_routes::chains(index.rows(), &tag));
+                        left = reached(&found, routes, &tag, &guide_focuses, &historical);
+                    }
+                    if let Some((mut one, then)) = left {
+                        record["then"] = json!(then);
+                        one["literal"] = record;
+                        chosen = Some((one, "literal_text"));
+                    } else {
+                        literals.push((reference.text.clone(), record));
+                    }
+                }
             }
             // Still several: drop answers whose event cannot fire before the
             // day the guide plans to reach the next focus after this line.
@@ -856,6 +892,10 @@ pub fn ground_references(guide: &mut Value, index: &Index, historical: &Value) -
                 // A plan, not a proof: the guide timeline that left this answer.
                 if e["timeline"].is_object() {
                     out["timeline"] = e["timeline"].clone();
+                }
+                // The answers set aside because only another spelling matched.
+                if e["literal"].is_object() {
+                    out["literal"] = e["literal"].clone();
                 }
                 out
             } else {
@@ -944,6 +984,16 @@ pub fn ground_references(guide: &mut Value, index: &Index, historical: &Value) -
             if let Some((_, record)) = timelines.iter().find(|(text, _)| *text == reference.text) {
                 row["action"]["params"]["reference_candidates"]["timeline"] = record.clone();
             }
+            if let Some((_, record)) = literals.iter().find(|(text, _)| *text == reference.text) {
+                row["action"]["params"]["reference_candidates"]["literal"] = record.clone();
+            }
+            // Every event answer still possible (the list above shows a few):
+            // what the HUD may recognize in a visible popup (`hud_targets`).
+            let options: Vec<Value> = found.iter().filter(|c| c["kind"] == "event_option" && c["compatible"] != false)
+                .map(|c| json!({"id":c["id"],"event_id":c["event_id"],"compatible":c["compatible"]})).collect();
+            if !options.is_empty() && options.len() <= MAX_EVENT_OPTIONS {
+                row["action"]["params"]["reference_candidates"]["event_options"] = json!(options);
+            }
         }
     }
     }
@@ -987,6 +1037,19 @@ fn earliest_days(rows: &[Value]) -> std::collections::HashMap<&str, Option<f64>>
 }
 fn earliest_of(days: &std::collections::HashMap<&str, Option<f64>>, event: &str) -> Option<f64> {
     days.get(event).copied().flatten()
+}
+/// Most event answers a candidate line keeps in full (`event_options`); a
+/// longer list is not kept, so nothing is recognized from it.
+const MAX_EVENT_OPTIONS: usize = 128;
+/// Event answers among several compatible ones found only through another
+/// spelling of the reference's words, when some compatible answer matches
+/// those words literally; none otherwise (the spellings are then all there is).
+fn spelling_only(found: &[Value]) -> Vec<String> {
+    let options: Vec<&Value> = found.iter().filter(|c| c["compatible"] != false && c["kind"] == "event_option").collect();
+    if options.len() < 2 || !options.iter().any(|c| c["spelling_variant"] != true) {
+        return vec![];
+    }
+    options.into_iter().filter(|c| c["spelling_variant"] == true).filter_map(|c| c["id"].as_str().map(str::to_owned)).collect()
 }
 /// Event answers among several compatible ones whose event certainly cannot
 /// fire by `planned` (its earliest possible day is later), with that day.
@@ -1033,7 +1096,11 @@ fn candidates_with(text: &str, index: &Index, country: &Value, scope: &Value, na
     };
     // Event answers the abbreviation is a prefix of come first: the author's
     // own convention; the catalog matcher adds other kinds of entries.
-    let mut rows: Vec<Value> = names.rows(index, text).into_iter().cloned().collect();
+    let spelled = names.spelled_rows(index, text);
+    // Rows found only through another spelling of the reference's words.
+    let variants: std::collections::HashSet<(String, String)> = spelled.iter().filter(|(_, literal)| !literal)
+        .map(|(r, _)| (r["kind"].as_str().unwrap_or("").to_owned(), r["id"].as_str().unwrap_or("").to_owned())).collect();
+    let mut rows: Vec<Value> = spelled.into_iter().map(|(row, _)| row.clone()).collect();
     if truncated(text) {
         rows.extend(index.matches(&q, KINDS, country, scope, false)?);
     }
@@ -1080,9 +1147,13 @@ fn candidates_with(text: &str, index: &Index, country: &Value, scope: &Value, na
             && prefix.len() == 3
             && prefix.chars().all(|c| c.is_ascii_uppercase())
             && actor.is_some_and(|a| a != prefix);
-        out.push(json!({"kind":kind,"id":id,"name":row["name"],"event_id":row["event_id"],"political_power_cost":row["political_power_cost"],
+        let mut candidate = json!({"kind":kind,"id":id,"name":row["name"],"event_id":row["event_id"],"political_power_cost":row["political_power_cost"],
             "compatible":match ownership { Some(true) => json!(true), _ => if foreign { json!(false) } else { Value::Null } },
-            "foreign_tag":foreign}));
+            "foreign_tag":foreign});
+        if variants.contains(&(kind.to_owned(), id.to_owned())) {
+            candidate["spelling_variant"] = json!(true);
+        }
+        out.push(candidate);
     }
     Ok(json!(out))
 }
@@ -1368,6 +1439,46 @@ mod tests {
         let mut ids: Vec<&str> = found.as_array().unwrap().iter().filter_map(|c| c["id"].as_str()).collect();
         ids.sort();
         assert_eq!(ids, ["v.1.a", "v.2.a", "v.3.a"]);
+    }
+    #[test]
+    fn literal_answers_beat_the_ones_found_only_through_other_spellings() {
+        // Every event is received by GER: several confirmed answers per line.
+        let event = |id: &str| json!({"kind":"event","id":id,"name":id,"receivers":["GER"],"receivers_unknown":false});
+        let option = |id: &str, name: &str| json!({"kind":"event_option","id":format!("{id}.a"),"event_id":id,"name":name});
+        let index = Index::new(&json!({"entries":[
+            {"kind":"country","id":"GER","name":"Germany"},
+            event("v.1"), option("v.1", "We can't allow this"),
+            event("v.2"), option("v.2", "We can not allow that"),
+            event("v.3"), option("v.3", "We cannot allow it"),
+            event("v.4"), option("v.4", "We cannot stop now"),
+            event("t.1"), option("t.1", "They cannot win"),
+            event("t.2"), option("t.2", "They can't lose"),
+        ]})).unwrap();
+        let row = |key: &str, line: &str| json!({"key":key,"title":line,"tracking":"reminder","action":{"kind":"manual","params":{"instructions":[line]}}});
+        let mut guide = json!({"applies_to":{"country":"GER","tree_id":"tree"},"tracks":{
+            "operations":[row("a", "We cannot allow…"), row("b", "We cannot…"), row("c", "They can not…")]}});
+        ground_references(&mut guide, &index, &Value::Null).unwrap();
+        let rows = guide["tracks"]["operations"].as_array().unwrap().clone();
+        let p = |i: usize| rows[i]["action"]["params"].clone();
+        let ids = |i: usize| p(i)["reference_candidates"]["candidates"].as_array().unwrap().iter().filter_map(|c| c["id"].as_str().map(str::to_owned)).collect::<Vec<_>>();
+        // One literal answer left: it binds, with its own basis and record.
+        assert_eq!(p(0)["event_option_id"], "v.3.a");
+        assert_eq!(p(0)["reference_resolution"]["basis"], "literal_text");
+        assert_eq!(p(0)["reference_resolution"]["literal"]["then"], "event_received_by_nation");
+        let first = p(0);
+        let mut dropped: Vec<&str> = first["reference_resolution"]["literal"]["dropped"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
+        dropped.sort();
+        assert_eq!(dropped, ["v.1.a", "v.2.a"]);
+        // Two literal answers: the variants leave the list, the line stays open.
+        assert!(p(1)["event_option_id"].is_null());
+        let mut left = ids(1);
+        left.sort();
+        assert_eq!(left, ["v.3.a", "v.4.a"]);
+        assert_eq!(p(1)["reference_candidates"]["literal"]["dropped"].as_array().unwrap().len(), 2);
+        // No literal answer: the spellings are all there is, nothing dropped.
+        assert!(p(2)["event_option_id"].is_null());
+        assert_eq!(ids(2).len(), 2);
+        assert!(p(2)["reference_candidates"]["literal"].is_null());
     }
     #[test]
     fn event_answers_a_single_player_game_cannot_show_are_dropped() {

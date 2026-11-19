@@ -64,7 +64,7 @@ impl Effects<'_> {
             return Some(Rc::new(vec![]));
         }
         let mut out = vec![];
-        calls(body, "effect", &Receiver::Owner, &mut out, 0, self);
+        calls(body, "effect", &Receiver::Owner, &mut out, 0, self, None);
         self.active.borrow_mut().remove(name);
         let out = Rc::new(out);
         self.memo.borrow_mut().insert(name.to_owned(), out.clone());
@@ -104,7 +104,10 @@ fn unlock_key(id: String) -> String {
     id.strip_prefix("tooltip:").map(str::to_owned).unwrap_or(id)
 }
 
-fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String, Receiver)>, depth: usize, effects: &Effects) {
+/// `from`: the tags a targeted decision's `FROM` (its target) certainly is one
+/// of (`target_tags`); a `FROM` block then sends to each of them. Elsewhere,
+/// or under another scope, `FROM` stays an unknown receiver.
+fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String, Receiver)>, depth: usize, effects: &Effects, from: Option<&BTreeSet<String>>) {
     if depth > 64 {
         return;
     }
@@ -146,6 +149,14 @@ fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String,
         if value.get("entries").is_none() {
             continue;
         }
+        if key == "FROM"
+            && let Some(tags) = from
+        {
+            for tag in tags {
+                calls(value, key, &Receiver::Tag(tag.clone()), out, depth + 1, effects, None);
+            }
+            continue;
+        }
         // Control keywords are case-insensitive in the game files (`IF`, `ELSE_IF`, `ElSE`, `Hidden_effect`).
         let lower = key.to_ascii_lowercase();
         let next = if is_tag(key) {
@@ -162,8 +173,43 @@ fn calls(node: &Value, parent: &str, receiver: &Receiver, out: &mut Vec<(String,
         } else {
             Receiver::Unknown
         };
-        calls(value, key, &next, out, depth + 1, effects);
+        // Only a block that keeps the scope keeps the meaning of FROM.
+        let keep = if next == *receiver && !is_tag(key) { from } else { None };
+        calls(value, key, &next, out, depth + 1, effects, keep);
     }
+}
+/// The tags a targeted decision's target (`FROM`) certainly is one of: a
+/// `target_trigger` whose top level holds `FROM = { tag = X }` or `FROM = {
+/// OR = { tag = X tag = Y } }` (other conditions there only narrow the list;
+/// several such lists intersect). None when not understood for certain: no
+/// such list, a list under `OR`, `NOT` or `if`, or a state target.
+pub fn target_tags(decision: &Value) -> Option<BTreeSet<String>> {
+    if scalar(decision, "state_target") == "yes" {
+        return None;
+    }
+    let mut set: Option<BTreeSet<String>> = None;
+    for block in blocks(decision, "target_trigger") {
+        for (_, target) in entries(block).filter(|(k, v)| *k == "FROM" && v.get("entries").is_some()) {
+            for (key, value) in entries(target) {
+                let found: Option<BTreeSet<String>> = match key {
+                    "tag" => value.as_str().filter(|t| is_tag(t)).map(|t| BTreeSet::from([t.to_owned()])),
+                    "OR" => {
+                        let listed: Vec<Option<&str>> =
+                            entries(value).map(|(k, v)| if k == "tag" { v.as_str().filter(|t| is_tag(t)) } else { None }).collect();
+                        (!listed.is_empty() && listed.iter().all(Option::is_some)).then(|| listed.into_iter().flatten().map(str::to_owned).collect())
+                    }
+                    _ => None,
+                };
+                if let Some(found) = found {
+                    set = Some(match set {
+                        Some(old) => old.intersection(&found).cloned().collect(),
+                        None => found,
+                    });
+                }
+            }
+        }
+    }
+    set.filter(|s| !s.is_empty())
 }
 fn tags(node: &Value, out: &mut BTreeSet<String>, depth: usize) {
     if depth > 64 {
@@ -258,7 +304,7 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
             let focuses: Vec<&Value> = if key == "focus_tree" { blocks(tree, "focus").collect() } else if key == "shared_focus" { vec![tree] } else { vec![] };
             for focus in focuses {
                 let mut out = vec![];
-                calls(focus, "focus", &Receiver::Owner, &mut out, 0, effects);
+                calls(focus, "focus", &Receiver::Owner, &mut out, 0, effects, None);
                 let source = format!("focus:{}", scalar(focus, "id"));
                 for (id, to) in out {
                     if gate(&id) {
@@ -292,7 +338,8 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
                 }
                 let node = format!("decision:{decision_id}");
                 let mut out = vec![];
-                calls(decision, "decision", &Receiver::Owner, &mut out, 0, effects);
+                let target = target_tags(decision);
+                calls(decision, "decision", &Receiver::Owner, &mut out, 0, effects, target.as_ref());
                 for (id, to) in out {
                     if gate(&id) {
                         flag_owner(&id, &to, Some(&owners), &mut flag_tags);
@@ -339,7 +386,7 @@ pub fn compute(focus_docs: &[Value], decision_docs: &[Value], event_docs: &[Valu
                 reach.requires.entry(id.clone()).or_default().extend(needs);
             }
             let mut out = vec![];
-            calls(event, "event", &Receiver::Owner, &mut out, 0, effects);
+            calls(event, "event", &Receiver::Owner, &mut out, 0, effects, None);
             let (unlocked, out): (Vec<_>, Vec<_>) = out.into_iter().partition(|(to, _)| gate(to));
             for (unlocked, to) in unlocked {
                 if unlocked.starts_with("flag:") {
@@ -525,6 +572,36 @@ mod tests {
         assert_eq!(set(&r.receivers, "spr.seize"), ["SOV"], "a timed event reaches the nation its flag is set on");
         assert_eq!(set(&r.requires, "spr.seize"), ["event:spr.gold"]);
         assert_eq!(set(&r.receivers, "sov.trial"), ["SOV"], "flag set by a SOV focus");
+    }
+
+    #[test]
+    fn a_targeted_decision_sends_events_to_the_tags_its_target_trigger_lists() {
+        // ETH.txt: `ETH_host_country_decision` targets `FROM = { OR = { tag = ENG ... } }`
+        // and its complete_effect sends BBA_italo_ethiopian_war_events.100 to FROM.
+        let target = |trigger: Value| node(vec![("allowed", node(vec![("tag", json!("ETH"))])), ("target_trigger", trigger),
+            ("complete_effect", node(vec![("FROM", node(vec![("country_event", node(vec![("id", json!("eth.host"))]))]))]))]);
+        let tags = node(vec![("FROM", node(vec![("OR", node(vec![("tag", json!("ENG")), ("tag", json!("JAP"))]))]))]);
+        let one = node(vec![("FROM", node(vec![("tag", json!("SWE")), ("has_war", json!("yes"))]))]);
+        let open = node(vec![("FROM", node(vec![("is_major", json!("yes"))]))]);
+        let either = node(vec![("OR", node(vec![("FROM", node(vec![("tag", json!("ENG"))])), ("always", json!("yes"))]))]);
+        let mut state = target(node(vec![("FROM", node(vec![("tag", json!("ENG"))]))]));
+        state["entries"].as_array_mut().unwrap().push(json!(["state_target", "yes"]));
+        let decision = |id: &str, body: Value| (id.to_owned(), body);
+        let rows: Vec<(String, Value)> = vec![decision("ETH_host", target(tags.clone())), decision("SWE_one", target(one)),
+            decision("ETH_open", target(open)), decision("ETH_either", target(either)), decision("ETH_state", state)];
+        for (id, body) in rows {
+            let decisions = node(vec![("cat", node(vec![(id.as_str(), body)]))]);
+            let r = compute(&[], &[decisions], &[], &[]);
+            let set = r.receivers.get("eth.host").cloned().unwrap_or_default().into_iter().collect::<Vec<_>>();
+            match id.as_str() {
+                "ETH_host" => assert_eq!((set, r.unknown.contains("eth.host")), (vec!["ENG".to_owned(), "JAP".to_owned()], false)),
+                "SWE_one" => assert_eq!((set, r.unknown.contains("eth.host")), (vec!["SWE".to_owned()], false), "other conditions only narrow"),
+                _ => assert!(r.unknown.contains("eth.host"), "{id}: a target not restricted to tags for certain stays unknown"),
+            }
+        }
+        // FROM outside a targeted decision (an event's sender) stays unknown.
+        let events = node(vec![("country_event", node(vec![("id", json!("x.1")), ("option", node(vec![("FROM", node(vec![("country_event", json!("x.2"))]))]))]))]);
+        assert!(compute(&[], &[], &[events], &[]).unknown.contains("x.2"));
     }
 
     #[test]

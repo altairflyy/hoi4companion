@@ -315,8 +315,57 @@ fn event_reference_survey() {
             .into_iter().map(move |n| (n, r)))
         .collect();
     eprintln!("GUARDED options in catalog: {}", entities["entries"].as_array().unwrap().iter().filter(|r| r["kind"] == "event_option" && !r["player_requirement"].is_null()).count());
-    let mut candidate_events: BTreeMap<(String, String), &'static str> = BTreeMap::new();
+    // Catalog rows of the events named in HOI4_SURVEY_EVENTS (comma-separated), for hand checks.
+    for id in std::env::var("HOI4_SURVEY_EVENTS").unwrap_or_default().split(',').filter(|s| !s.is_empty()) {
+        for row in entities["entries"].as_array().unwrap().iter().filter(|r| (r["kind"] == "event" || r["kind"] == "decision") && r["id"] == id) {
+            eprintln!("EVROW {id} kind={} receivers={} unknown={} earliest={} triggered_by={} callers_complete={} required_focuses={}", row["kind"], row["receivers"], row["receivers_unknown"],
+                row["earliest_day"], row["triggered_by"], row["callers_complete"], row["required_focuses"]);
+        }
+    }
     let mut buckets: BTreeMap<String, usize> = BTreeMap::new();
+    // Neighbouring guide events (IL-12 rule 4): for each candidate line, the
+    // nearest bound event-answer lines of the same track, and which candidate
+    // events a certain causal order with them rules out.
+    let catalog_rows: Vec<Value> = entities["entries"].as_array().cloned().unwrap_or_default();
+    let timing = hoi4companion_backend::event_timing::Timing::new(&catalog_rows);
+    for (guide, compiled) in list.iter().zip(&definitions) {
+        let country = guide["applies_to"]["country"].as_str().unwrap_or("?");
+        for (track, steps) in compiled["tracks"].as_object().into_iter().flatten() {
+            let steps = steps.as_array().cloned().unwrap_or_default();
+            let bound: Vec<(usize, String)> = steps.iter().enumerate()
+                .filter_map(|(i, s)| s["action"]["params"]["event_option_id"].as_str().and(s["action"]["params"]["event_id"].as_str()).map(|e| (i, e.to_owned()))).collect();
+            for (i, s) in steps.iter().enumerate() {
+                let Some(options) = s["action"]["params"]["reference_candidates"]["event_options"].as_array() else { continue };
+                let before: Vec<&String> = bound.iter().rev().filter(|(j, _)| *j < i).take(2).map(|(_, e)| e).collect();
+                let after: Vec<&String> = bound.iter().filter(|(j, _)| *j > i).take(2).map(|(_, e)| e).collect();
+                *buckets.entry("neighbour candidate lines".into()).or_default() += 1;
+                if !before.is_empty() || !after.is_empty() {
+                    *buckets.entry("neighbour lines with a bound neighbour".into()).or_default() += 1;
+                }
+                let mut drops = vec![];
+                let mut related = vec![];
+                for o in options {
+                    let c = o["event_id"].as_str().unwrap_or("");
+                    let later = after.iter().find(|n| timing.only_after(c, n));
+                    let earlier = before.iter().find(|p| timing.only_after(p, c));
+                    if later.is_some() || earlier.is_some() {
+                        drops.push(format!("{} (after {:?} / before {:?})", o["id"].as_str().unwrap_or(""), later, earlier));
+                    }
+                    let ns = c.split('.').next().unwrap_or("");
+                    if before.iter().chain(after.iter()).any(|n| n.split('.').next() == Some(ns)) {
+                        related.push(o["id"].as_str().unwrap_or("").to_owned());
+                    }
+                }
+                *buckets.entry("neighbour dropped answers".into()).or_default() += drops.len();
+                if !related.is_empty() {
+                    *buckets.entry("neighbour lines with a same-namespace candidate".into()).or_default() += 1;
+                }
+                eprintln!("NEIGH {country} {track} {} | {} | options={} before={before:?} after={after:?} drops={drops:?} same_namespace={related:?}", s["key"],
+                    s["action"]["params"]["instructions"][0].as_str().unwrap_or("").chars().take(60).collect::<String>(), options.len());
+            }
+        }
+    }
+    let mut candidate_events: BTreeMap<(String, String), &'static str> = BTreeMap::new();
     let only = std::env::var("HOI4_SURVEY_COUNTRY").ok();
     for (guide, compiled) in list.iter().zip(&definitions) {
         let country = guide["applies_to"]["country"].as_str().unwrap_or("?").to_owned();
@@ -399,6 +448,16 @@ fn event_reference_survey() {
                 eprintln!("TIMELINE {country} {} | {} | {outcome} | anchor={} planned={} earliest={} dropped={}", s["key"], text.chars().take(80).collect::<String>(),
                     record["anchor_focus"], record["planned_day"], record["earliest_day"], record["dropped"]);
                 eprintln!("TIMELEFT {country} {} | {} | left={} received={} then={}", s["key"], text.chars().take(40).collect::<String>(), record["left"], record["left_received"], record["then"]);
+            }
+            // Literal words before other spellings (IL-12): answers set aside.
+            let literals = std::iter::once(resolution).chain(resolution["also"].as_array().into_iter().flatten())
+                .filter(|r| r["literal"].is_object()).map(|r| (&r["literal"], format!("bound {} «{}» basis={}", r["id"].as_str().unwrap_or(""), r["name"].as_str().unwrap_or(""), r["basis"])))
+                .chain(p["reference_candidates"]["literal"].is_object().then(|| (&p["reference_candidates"]["literal"], format!("narrowed to {}", p["reference_candidates"]["candidates"].as_array().map_or(0, Vec::len)))))
+                .collect::<Vec<_>>();
+            for (record, outcome) in literals {
+                *buckets.entry(if outcome.starts_with("bound") { "literal_text bindings".into() } else { "literal_text narrowed lines".into() }).or_default() += 1;
+                *buckets.entry("literal_text dropped answers".into()).or_default() += record["dropped"].as_array().map_or(0, Vec::len);
+                eprintln!("LITERAL {country} {} | {} | {outcome} | dropped={} then={}", s["key"], text.chars().take(80).collect::<String>(), record["dropped"], record["then"]);
             }
             if only.as_deref().is_none_or(|c| c == country) && state != "event_bound" && state != "other_bound" {
                 eprintln!("EVREF {country} {} [{state}] kind={} | {} | cand={}", s["key"], s["action"]["kind"], text.chars().take(140).collect::<String>(),
