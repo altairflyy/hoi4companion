@@ -91,6 +91,7 @@ impl<M: Memory> Reader<'_, M> {
             return Err("Incarichi di un’altra nazione".into());
         }
         let mut rows = vec![];
+        let mut generated = vec![];
         let mut identities = HashSet::new();
         for role in self.array(manager + 0x58, 4096)? {
             self.typed(role, "CAdvisor")?;
@@ -98,7 +99,25 @@ impl<M: Memory> Reader<'_, M> {
             if self.integer(character + 0x68, 0, 8191)? != self.tag as i64 {
                 return Err("Personaggio di un’altra nazione".into());
             }
-            let key = self.d.string(role + 0x30)?;
+            let key = match self.d.string(role + 0x30) {
+                Ok(key) => key,
+                Err(reason) => {
+                    // HOI4 1.20 appoints a unit leader to a high command slot through a role
+                    // created at runtime, keyed "type: <n>, id: <n><slot>". No script token
+                    // names it, so it is listed apart and never enters the advisor tokens.
+                    let raw = self.name(role + 0x30)?;
+                    let slot = self.d.string(role + 0x80)?;
+                    if !generated_role_key(&raw, &slot) {
+                        return Err(reason);
+                    }
+                    let character_name = self.name(character + 0x48)?;
+                    if character_name.is_empty() || character_name.chars().any(char::is_control) {
+                        return Err("Invalid advisor character label".into());
+                    }
+                    generated.push(json!({"generated_key":raw,"slot_type":slot,"character_name":character_name}));
+                    continue;
+                }
+            };
             // CCharacter stores a display name or localization key here, not
             // necessarily an identifier. Appointment identity comes from CAdvisor.
             let character_name = self.name(character + 0x48)?;
@@ -117,7 +136,7 @@ impl<M: Memory> Reader<'_, M> {
             }
             rows.push(row);
         }
-        Ok(json!({"status":"observed","items":rows}))
+        Ok(json!({"status":"observed","items":rows,"generated_items":generated}))
     }
     fn characters(&mut self) -> Result<Value> {
         self.function_signatures("characters", "Character role state is not qualified")?;
@@ -483,4 +502,12 @@ impl<M: Memory> Reader<'_, M> {
             json!({"status":"observed","listed_ids":listed,"execution_counters":counters,"reason":"Appartenenza al manager e contatori nativi. Disponibilità, avvio, scelta ed effetti non ancora qualificati."}),
         )
     }
+}
+/// A runtime-created advisor role key: "type: <digits>, id: <digits>" followed by its slot type.
+fn generated_role_key(raw: &str, slot: &str) -> bool {
+    let digits = |s: &str| !s.is_empty() && s.len() <= 10 && s.bytes().all(|b| b.is_ascii_digit());
+    let Some(rest) = raw.strip_prefix("type: ") else { return false };
+    let Some((kind, rest)) = rest.split_once(", id: ") else { return false };
+    let Some(id) = rest.strip_suffix(slot) else { return false };
+    !slot.is_empty() && digits(kind) && digits(id)
 }

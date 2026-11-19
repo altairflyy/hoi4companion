@@ -66,9 +66,11 @@
   $('characterCoverage').textContent=characters?.status==='observed'?HoiI18n.t('Current native role status; appointments are listed separately.'):HoiI18n.t('Character roles unavailable.');
   rows('characterRows',characters?.status==='observed'?characters.items:[],(r,x)=>{nameCell(r,x);cell(r,[['country_leader','Country leader'],['advisor','Advisor'],['unit_leader','Unit leader'],['scientist','Scientist']].filter(([k])=>x[k]===true).map(([,name])=>HoiI18n.t(name)).join(', '));});
   $('politicsIdeasCoverage').textContent=ideas?.status==='observed'?HoiI18n.t("Complete membership in the current sample."):HoiI18n.t("Ideas and laws unavailable.");
-  $('politicsAdvisorsCoverage').textContent=advisors?.status==='observed'?(advisors.items.length?HoiI18n.t("Currently active appointments."):HoiI18n.t("No active appointments observed.")):HoiI18n.t("Appointments unavailable.");
+  $('politicsAdvisorsCoverage').textContent=advisors?.status==='observed'?(advisors.items.length||advisors.generated_items?.length?HoiI18n.t("Currently active appointments."):HoiI18n.t("No active appointments observed.")):HoiI18n.t("Appointments unavailable.");
   rows('politicsIdeaRows',ideas?.status==='observed'?ideas.items:[],(r,x)=>{nameCell(r,x);cell(r,x.group_name||x.group);cell(r,x.is_law?HoiI18n.t("Law"):'Idea');});
-  rows('politicsAdvisorRows',advisors?.status==='observed'?advisors.items:[],(r,x)=>{nameCell(r,x);cell(r,x.character_name??x.character_id);});
+  // HOI4 1.20 runtime high command roles have no script token: shown by slot, never as an advisor id.
+  const runtimeRoles=list(advisors?.status==='observed'?advisors.generated_items:[]).map(x=>({name:HoiI18n.t('{0} (runtime role)',String(x.slot_type).replaceAll('_',' ')),character_name:x.character_name}));
+  rows('politicsAdvisorRows',advisors?.status==='observed'?[...advisors.items,...runtimeRoles]:[],(r,x)=>{nameCell(r,x);cell(r,x.character_name??x.character_id);});
   const events=header('events');$('visibleEvents').replaceChildren();
   for(const event of list(events.visible)){const article=document.createElement('article'),title=document.createElement('h3');title.textContent=event.name||event.event_id;article.append(title);const id=document.createElement('p');id.textContent=event.event_id;article.append(id);for(const option of list(event.options)){const p=document.createElement('p');p.textContent=(option.name||option.id)+' · '+option.id;article.append(p);}$('visibleEvents').append(article);}empty('events',list(events.visible).length);
   const decisions=header('decisions'),history=decisions.execution_history;

@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "messages": {
+    "{0} (runtime role)": "{0} (ruolo generato)",
     "Why?": "Perché?",
     "Current PP cannot be read: check your political power in the game.": "PP attuali non leggibili: controlla il potere politico nel gioco.",
     "Current PP cost cannot be read: check that you have {0} PP.": "Costo in PP non leggibile: controlla di avere {0} PP.",

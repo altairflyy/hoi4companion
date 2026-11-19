@@ -273,3 +273,16 @@ fn owed_equipment_variants_keep_their_negative_native_balance(){
     assert_eq!(v["variants"][1]["stockpile"],-1.0);assert_eq!(v["items"][0]["stockpile"],1.5);
     m.put(entries+24,&i64::MIN.to_le_bytes());assert!(m.request("equipment",json!({})).unwrap_err().contains("quantità non valida"));
 }
+#[test]
+fn runtime_high_command_roles_are_listed_apart_from_advisor_tokens(){
+    // HOI4 1.20 keys a unit leader appointed to high command "type: <n>, id: <n><slot>".
+    let mut m=Fixture::new();m.object(COUNTRY,"CCountry");m.i(COUNTRY+8,1);let manager=m.alloc();m.object(manager,"CCountryCharacters");m.u(COUNTRY+0xff0,manager);m.u(manager+8,COUNTRY);
+    let role=|m:&mut Fixture,key:&str,who:&str|{let c=m.alloc();m.object(c,"CCharacter");m.i(c+0x68,1);m.string(c+0x48,who);let r=m.alloc();m.object(r,"CAdvisor");m.u(r+0x10,c);m.string(r+0x30,key);m.string(r+0x80,"high_command");r};
+    let token=role(&mut m,"TST_advisor","TST_planner");let generated=role(&mut m,"type: 73, id: 4067high_command","TST_general");
+    m.array(manager+0x58,&[token,generated]);
+    let a=json!({"layout_id":"hoi4-x64-abi-v1","function_signatures":[],"abi_action_signatures":{"advisors":[]}});
+    let v=m.request("politics",a.clone()).unwrap();let advisors=&v["advisors"];
+    assert_eq!(advisors["status"],"observed");assert_eq!(advisors["items"].as_array().unwrap().len(),1);assert_eq!(advisors["items"][0]["id"],"TST_advisor");
+    assert_eq!(advisors["generated_items"],json!([{"generated_key":"type: 73, id: 4067high_command","slot_type":"high_command","character_name":"TST_general"}]));
+    m.string(generated+0x30,"type: 73, id: 4067air_chief");assert_eq!(m.request("politics",a).unwrap()["advisors"]["status"],"unavailable");
+}
