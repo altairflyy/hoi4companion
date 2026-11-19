@@ -1,6 +1,7 @@
 use super::*;
-const FOREIGN: [&str; 7] = [
+const FOREIGN: [&str; 8] = [
     "diplomacy.countries",
+    "diplomacy.ideologies",
     "diplomacy.improving_relations",
     "diplomacy.non_aggression_pacts",
     "diplomacy.outgoing",
@@ -51,6 +52,12 @@ pub(super) fn valid(key: &str, value: &Value) -> bool {
     if ["diplomacy.outgoing", "diplomacy.incoming"].contains(&key) {
         return value.as_array().is_some_and(|rows| rows.len() <= 8192 && unique(rows) && rows.iter().all(|v| {
             v.as_str().and_then(|s| s.split_once(':')).is_some_and(|(kind, target)| RELATION_KINDS.contains(&kind) && tag(&json!(target)))
+        }));
+    }
+    if key == "diplomacy.ideologies" {
+        // "TAG:ideology_group"; a country absent from the list is unknown, not "other".
+        return value.as_array().is_some_and(|rows| rows.len() <= 8192 && unique(rows) && rows.iter().all(|v| {
+            v.as_str().and_then(|s| s.split_once(':')).is_some_and(|(target, ideology)| tag(&json!(target)) && id(&json!(ideology)))
         }));
     }
     if key != "intelligence.active_missions" {
@@ -130,6 +137,16 @@ pub(super) fn foreign(overview: &Value) -> Map<String, Value> {
                 "foreign_interaction_adapter",
             );
         }
+    }
+    let ideologies = &d["ideologies"];
+    if dip["status"] == "observed" && d["status"] == "observed" && tags(countries)
+        && ideologies["status"] == "observed" && ideologies["source"] == "native_ruling_party"
+        && ideologies["items"].as_array().is_some_and(|rows| rows.len() <= 8192
+            && rows.iter().all(|r| tag(&r["country"]) && list(countries).contains(&r["country"]) && id(&r["ideology"]))
+            && rows.iter().map(|r| text(&r["country"])).collect::<BTreeSet<_>>().len() == rows.len())
+    {
+        publish(&mut facts, "diplomacy.ideologies", list(&ideologies["items"]).iter()
+            .map(|r| format!("{}:{}", text(&r["country"]), text(&r["ideology"]))), "native_ruling_party_adapter");
     }
     let intel = &overview["intelligence"];
     let m = &intel["missions"];

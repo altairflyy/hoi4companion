@@ -223,7 +223,48 @@ impl<M: Memory> Reader<'_, M> {
             Ok(value) => value,
             Err(reason) => json!({"status":"unavailable","reason":reason}),
         };
-        Ok(json!({"status":"observed","countries":countries.names.values().collect::<BTreeSet<_>>(),"improving_relations":improved,"non_aggression_pacts":pacts,"relations":relations}))
+        let ideologies = match self.ruling_ideologies(&countries) {
+            Ok(value) => value,
+            Err(reason) => json!({"status":"unavailable","reason":reason}),
+        };
+        Ok(json!({"status":"observed","countries":countries.names.values().collect::<BTreeSet<_>>(),"improving_relations":improved,"non_aggression_pacts":pacts,"relations":relations,"ideologies":ideologies}))
+    }
+    /// Ruling party ideology group of one country, checked by RTTI and reciprocity:
+    /// CPoliticalStatus (+0xc8 owner) -> ruling CPoliticalParty (+0xd0, one of the
+    /// +0x20 parties) -> its CCountryCharacters owner and CIdeologyGroup key.
+    fn ruling_ideology(&mut self, country: u64) -> Result<String> {
+        let status = self.object_pointer(country + 0xf90, "CPoliticalStatus")?;
+        if self.pointer(status + 0xc8)? != country {
+            return Err("Political status owner mismatch.".into());
+        }
+        let ruling = self.object_pointer(status + 0xd0, "CPoliticalParty")?;
+        if !self.array(status + 0x20, 16)?.contains(&ruling) {
+            return Err("Ruling party is not one of the country parties.".into());
+        }
+        let characters = self.object_pointer(ruling + 0x10, "CCountryCharacters")?;
+        if self.pointer(characters + 8)? != country {
+            return Err("Ruling party owner mismatch.".into());
+        }
+        let group = self.object_pointer(ruling + 0x18, "CIdeologyGroup")?;
+        self.d.string(group + 0x18)
+    }
+    /// Observed ruling ideology for every unambiguous country tag. A country whose
+    /// read fails is listed as unobserved and never given an ideology.
+    fn ruling_ideologies(&mut self, countries: &Countries) -> Result<Value> {
+        let pointers = self.array(self.world + 0x310, 8192)?;
+        let mut items = vec![];
+        let mut unobserved = BTreeSet::new();
+        for (slot, tags) in &countries.aliases {
+            if tags.is_empty() {
+                continue;
+            }
+            let country = *pointers.get(usize::try_from(*slot).map_err(|_| "Invalid country slot.")?).ok_or("Invalid country slot.")?;
+            match self.ruling_ideology(country) {
+                Ok(ideology) => items.extend(tags.iter().map(|tag| json!({"country":tag,"ideology":ideology}))),
+                Err(_) => unobserved.extend(tags.iter().cloned()),
+            }
+        }
+        Ok(json!({"status":"observed","source":"native_ruling_party","items":items,"unobserved":unobserved}))
     }
     fn relation_records(&mut self, status: u64, countries: &Countries) -> Result<Value> {
         self.function_signatures("foreign_records", "Common diplomatic relation layout is not qualified")?;

@@ -491,6 +491,21 @@ fn foreign_wire() -> Value {
         "diplomacy":{"status":"observed","at_war":false,"interactions":{"status":"observed","countries":["ROM","ITA"],"improving_relations":["ITA"],"non_aggression_pacts":[]}},
         "intelligence":{"status":"observed","is_created":true,"in_creation":false,"missions":{"status":"observed","countries":["ROM","ITA"],"items":[{"id":"agent","mission_id":"diplomatic_pressure","target_country":"ITA","state":"active"}]}}}}})
 }
+#[test]
+fn ruling_ideologies_are_facts_only_for_observed_known_countries() {
+    let ideology = |items: Value| {
+        let mut wire = foreign_wire();
+        wire["sample"]["country_overview"]["diplomacy"]["interactions"]["ideologies"] = json!({"status":"observed","source":"native_ruling_party","items":items,"unobserved":[]});
+        let guide = json!({"schema_version":1,"id":"guide","title":"Ideology","dependency_policy":"explicit","applies_to":{"country":"ROM"},"tracks":{"politics":[
+            {"key":"fascist_italy","action":{"kind":"manual"},"completion":{"op":"fact","key":"diplomacy.ideologies","test":"contains","value":"ITA:fascism"}}]}});
+        eval0(&guide, &wire)["steps"][0]["status"].clone()
+    };
+    assert_eq!(ideology(json!([{"country":"ITA","ideology":"fascism"}])), "completed");
+    assert_ne!(ideology(json!([{"country":"ITA","ideology":"communism"}])), "completed");
+    // A tag outside the observed country registry withholds the whole fact.
+    let withheld = ideology(json!([{"country":"ITA","ideology":"fascism"},{"country":"GER","ideology":"fascism"}]));
+    assert_ne!(withheld, "completed");
+}
 fn foreign_guide() -> Value {
     let f = |key: &str, test: &str, value: Value| json!({"op":"fact","key":key,"test":test,"value":value});
     let current = json!({"op":"all","args":[f("diplomacy.countries","contains",json!("ITA")),f("diplomacy.improving_relations","contains",json!("ITA"))]});

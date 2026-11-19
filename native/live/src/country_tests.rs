@@ -293,3 +293,21 @@ fn war_support_defines_come_from_the_relocation_set_on_the_structural_layout(){
     assert_eq!(read(&mut m,json!({"layout_id":"hoi4-x64-abi-v1","war_support_globals":{"defensive":0x7000}})).unwrap(),20_000);
     assert!(read(&mut m,json!({"layout_id":"hoi4-x64-abi-v1"})).unwrap_err().contains("not qualified"));
 }
+#[test]
+fn ruling_ideology_needs_the_owned_ruling_party_and_its_ideology_group(){
+    let(mut m,a,_,_)=foreign();
+    let list=u64::from_le_bytes(m.read(WORLD+0x310,8).unwrap().try_into().unwrap());let other=u64::from_le_bytes(m.read(list+8,8).unwrap().try_into().unwrap());
+    let govern=|m:&mut Fixture,country:u64,ideology:&str|{
+        let status=m.alloc();m.object(status,"CPoliticalStatus");m.u(country+0xf90,status);m.u(status+0xc8,country);
+        let party=m.alloc();m.object(party,"CPoliticalParty");m.u(status+0xd0,party);m.array(status+0x20,&[party]);
+        let characters=m.alloc();m.object(characters,"CCountryCharacters");m.u(characters+8,country);m.u(party+0x10,characters);
+        let group=m.alloc();m.object(group,"CIdeologyGroup");m.string(group+0x18,ideology);m.u(party+0x18,group);(status,party)
+    };
+    govern(&mut m,COUNTRY,"fascism");let(_,party)=govern(&mut m,other,"communism");
+    let v=m.request("foreign_relations",a.clone()).unwrap();
+    assert_eq!(v["ideologies"]["items"],json!([{"country":"TST","ideology":"fascism"},{"country":"OTH","ideology":"communism"}]));
+    // A party owned by another country leaves that country unobserved, never guessed.
+    let foreign_characters=m.alloc();m.object(foreign_characters,"CCountryCharacters");m.u(foreign_characters+8,COUNTRY);m.u(party+0x10,foreign_characters);
+    let v=m.request("foreign_relations",a).unwrap();
+    assert_eq!(v["ideologies"]["items"],json!([{"country":"TST","ideology":"fascism"}]));assert_eq!(v["ideologies"]["unobserved"],json!(["OTH"]));
+}
