@@ -14,6 +14,9 @@ impl<M: Memory> Reader<'_, M> {
         let mut records = vec![];
         let mut instances = HashSet::new();
         let mut state_registry: Option<(u64, Vec<u64>)> = None;
+        // One witnessed country mapping per read: re-reading it for every country target
+        // exhausted the 2 MiB budget on HOI4 1.20.
+        let mut country_registry: Option<(Vec<i64>, Vec<u64>)> = None;
         for (offset, timed) in [(0xe8, false), (0x100, true)] {
             for instance in self.array(manager + offset, 4096)? {
                 self.typed(instance, "CTargetedDecision")?;
@@ -29,7 +32,10 @@ impl<M: Memory> Reader<'_, M> {
                 let state = self.integer(target + 12, 0, 4095)?;
                 if (country > 0) == (state > 0) { return Err("Ambiguous or missing decision target".into()); }
                 let target = if country > 0 {
-                    let (mapping, countries) = self.country_mapping("Decision country changed", "Invalid decision country mapping")?;
+                    if country_registry.is_none() {
+                        country_registry = Some(self.country_mapping("Decision country changed", "Invalid decision country mapping")?);
+                    }
+                    let (mapping, countries) = country_registry.clone().unwrap();
                     let slot = *mapping.get(country as usize).ok_or("Unknown decision country target")?;
                     let pointer = *countries.get(usize::try_from(slot).map_err(|_| "Unknown decision country target")?).ok_or("Unknown decision country target")?;
                     self.typed(pointer, "CCountry")?;
