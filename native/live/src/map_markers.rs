@@ -46,14 +46,25 @@ pub fn geometry(
     proposals: &Value,
     view: &Value,
 ) -> Result<Value> {
-    if profile["sha256"] != "709f916afbebcfe64a26678702691aeb40945d206074c2a80de8e9d601fce148" {
+    // (build, CInGameIdler slot, CGameGraphics slot, CMap slot, RTTI checked). HOI4 1.20
+    // slots were found live by viewport/width agreement and confirmed by their RTTI.
+    const BUILDS: [(&str, u64, u64, u64, bool); 2] = [
+        ("709f916afbebcfe64a26678702691aeb40945d206074c2a80de8e9d601fce148", 0x33ddb08, 0x3500ed0, 0x33e7700, false),
+        ("1beb2a38fe2d747e5b7adb9b9648e350b0b851845dd228ffb87d2d2ac1b63a9f", 0x33e3f88, 0x3507360, 0x33edb80, true),
+    ];
+    let Some(&(_, idler_rva, gfx_rva, map_rva, rtti)) = BUILDS.iter().find(|b| profile["sha256"] == b.0) else {
         return Err("Map camera is not qualified for this build".into());
-    }
+    };
     let mut s = Sample::new(memory, base, profile);
-    let idler = s.u(base + 0x33ddb08)?;
+    let idler = s.u(base + idler_rva)?;
+    let gfx = s.u(base + gfx_rva)?;
+    let map = s.u(base + map_rva)?;
+    if rtti {
+        s.typed(idler, "CInGameIdler")?;
+        s.typed(gfx, "CGameGraphics")?;
+        s.typed(map, "CMap")?;
+    }
     let camera = s.u(idler + 0x760)?;
-    let gfx = s.u(base + 0x3500ed0)?;
-    let map = s.u(base + 0x33e7700)?;
     let width = s.i(camera + 0x6c8)?;
     let height = s.i(camera + 0x6cc)?;
     let resolution = [s.i(gfx + 0x180)?, s.i(gfx + 0x184)?];
@@ -167,6 +178,12 @@ mod tests {
             json!([494., 244., 506., 256.])
         );
         assert!(geometry(&mut m, base, &json!({"sha256":"other"}), &proposals, &view).is_err());
+        // HOI4 1.20 slots are admitted only with their RTTI, which this fixture lacks.
+        let v120 = json!({"sha256":"1beb2a38fe2d747e5b7adb9b9648e350b0b851845dd228ffb87d2d2ac1b63a9f"});
+        m.u(base + 0x33e3f88, 0x400000);
+        m.u(base + 0x3507360, 0x600000);
+        m.u(base + 0x33edb80, 0x700000);
+        assert!(geometry(&mut m, base, &v120, &proposals, &view).is_err());
         m.i(0x600180, 1200);
         assert!(geometry(&mut m, base, &profile, &proposals, &view).is_err());
     }

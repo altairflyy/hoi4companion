@@ -8,7 +8,12 @@ use crate::{
 use serde_json::{Value, json};
 use std::collections::HashSet;
 type Result<T> = std::result::Result<T, String>;
-const BUILD: &str = "cf781ed178cd801643b233b7e3fcd1c0efd19bd01aecd24bf07a35f69f10476f";
+// Every step below is RTTI- and name-checked and fails closed. HOI4 1.20 is admitted
+// with its relocated gui_layout; its on-screen boxes are not yet verified in game.
+const BUILDS: [&str; 2] = [
+    "cf781ed178cd801643b233b7e3fcd1c0efd19bd01aecd24bf07a35f69f10476f",
+    "1beb2a38fe2d747e5b7adb9b9648e350b0b851845dd228ffb87d2d2ac1b63a9f",
+];
 fn pointer(v: &Value) -> Result<u64> {
     v.as_u64().ok_or("Invalid production GUI pointer".into())
 }
@@ -204,7 +209,7 @@ pub fn read(
     resolution: [i32; 2],
     country: u64,
 ) -> Result<Value> {
-    if s.profile["sha256"] != BUILD {
+    if !BUILDS.iter().any(|b| s.profile["sha256"] == *b) {
         return Ok(json!({"status":"unavailable","reason":"Production GUI profile unavailable"}));
     }
     let owners = &bindings["production_owners"];
