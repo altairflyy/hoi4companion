@@ -8,7 +8,7 @@ Resume prompt (user pastes it after /clear; the agent rewrites it at every sessi
 0. Live diplomacy spec `docs/superpowers/specs/2026-11-19-foreign-ideology-abbreviations-design.md`: DONE.
    Step 1 `3f0dbb6` (diplomacy.ideologies, live 439 tags), Step 2 `22820a2` (NSPA/RSPA, "Attache to"; live ROM step bound, ready, SPR fascism observed).
 0b. HOI4 1.20.0.0 requalified (copy `.local/hoi4-1.20/hoi4.exe`, sha256 `1beb2a38…b63a9f`): all 17 country sections observed/partial live 2026-11-19.
-   Commits after `f21e668`: resources `0c82777`, advisors `5677f10`, advisor costs `4994479`, commanders `6d4d73f`, decisions `7b72bf4`,
+   Commits after `f21e668`: resources `0c82777`, advisors `5677f10`, advisor costs `4994479`, commanders `f24566b`, decisions `7b72bf4`,
    metrics `ce550d0`, doctrines/design `fadd727`, map camera + production GUI `f5c0d0e` (evidence in each commit message).
 0c. Not yet checked against the game screen (needs the user): war support 0.588; ENG/FRA/YUG read as fascism; ROM decisions_taken and timed lists empty
    (serializer-qualified +0x40/+0xa0); map markers and production GUI boxes on 1.20. Old metrics key "defensive" reads WAR_SUPPORT_OFFNSIVE_WAR
