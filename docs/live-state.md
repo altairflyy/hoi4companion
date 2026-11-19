@@ -11,6 +11,13 @@ field offsets and writable-global constraints must still agree. Ambiguous or
 missing core evidence rejects acquisition. Optional domains are qualified
 independently and report unavailable rather than borrowing unverified offsets.
 
+Each relocation set (`live-abi-v1*.json`) carries the same groups, rows and field bytes;
+only globals, rel32/RIP displacements, jump tables and frame offsets differ. `qualify`
+tries every set and rejects an image admitted by more than one. `live-abi-v1-hoi4-1.20.json`
+was relocated on 2026-11-19 from the exact 1.20.0.0 PE (sha256 `1beb2a38…b63a9f`); all 23
+groups qualify statically (opt-in test `HOI4_QUALIFY_EXE`). Static qualification does not
+prove every country domain: some 1.20 domains still report unavailable (see the handoff).
+
 The immutable profile records structural qualification separately from a
 successful live sample. Country identity, ownership, bounds, executable bytes,
 campaign identity and repeated-read coherence checks remain mandatory. No

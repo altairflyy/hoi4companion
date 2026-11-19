@@ -13,7 +13,7 @@ This file provides permanent project instructions for coding agents working in t
 - **Unknown stays unknown:** missing or stale observations are `unknown`/`unverifiable` and never imply completion. The HUD withholds highlights it cannot verify.
 - **Rust is the only guide evaluator:** `native/guide-core`, via the backend, decides step status, progress and recommendations for every guide; the backend stamps each one `runtime_engine: 'rust-guide-core'`. The web JS only presents the evaluation from `/api/guide/projection` and rejects one whose guide or run doesn't match. Without a valid evaluation, steps stay unverifiable; never recompute them in JS. Put evaluation changes in Rust.
 - **No Python:** none in source, build, CI or the package (enforced by packaging and `tests/test_native_tooling.cjs`). Keep the code that reads data written by older Python versions, such as the legacy text, ID and equality rules noted in Rust comments. Shared behavior contracts live in `tests/fixtures/*.json`.
-- **Live memory reading** is limited to the builds qualified in `src/hoi4companion/live-profiles-v1.json` and `live-abi-v1.json`. A similar version string does not make a build valid.
+- **Live memory reading** is limited to the builds qualified in `src/hoi4companion/live-profiles-v1.json` and the ABI relocation sets `live-abi-v1*.json`. A similar version string does not make a build valid.
 
 ## Build and run (Windows, Node 24+, Rust/MSVC; .NET only for CWTools)
 ```powershell

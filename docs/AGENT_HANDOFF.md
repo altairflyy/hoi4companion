@@ -5,8 +5,14 @@ Updated: 2026-11-19. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 0. Live diplomacy (user priority), one step per session, spec `docs/superpowers/specs/2026-11-19-foreign-ideology-abbreviations-design.md`.
    Next: Step 1 (live ruling ideology of all countries; needs HOI4 running, read-only), then Step 2 (NSPA abbreviations + "Attache to").
    Start each step with superpowers:writing-plans on that step only. Tick here when done.
-   BLOCKED: Steam updated HOI4 on 2026-11-19 16:32 to v1.20.0.0 (`hoi4.exe` sha256 `1beb2a38…b63a9f`). No profile in
-   `live-profiles-v1.json` matches, so every live read is off. User decides: roll back the game build, or requalify live for 1.20.
+   Waits on item 0b (campaign identity + domains on HOI4 1.20).
+0b. Requalify HOI4 1.20.0.0 (user chose this; read-only copy `.local/hoi4-1.20/hoi4.exe`, sha256 `1beb2a38…b63a9f`), one domain per session.
+   Done `e98ccbb`: ABI relocation set `live-abi-v1-hoi4-1.20.json`, all 23 groups static; live core/production/diplomacy/intel/events/projects observed.
+   Still unavailable live, in this order: campaign_identity ("Token identità campagna non qualificato": inferred token RVA `0x34d6fa8`,
+   neighbour delta +0x6490, slot stride 0x48, is wrong or moved); states/construction/fortifications (CBuildingDatabase); equipment; resources;
+   politics.advisors + advisor costs; commander_assignments (CArmyGroup); decisions (read limit); metrics; doctrines.
+   Also hash-pinned to old builds: map markers (`map_markers.rs`, 709f…) and production GUI (`gui_production.rs`, cf781…).
+   Static tools (scratch, not in repo): row probe, fuzzy matcher, iced-x86 regenerator. Never name the game folder in a write command (guard).
 1. Verify the confirmed-event-answer work in game (read-only). `_native` is current since 2026-11-19 14:44 (backend 11:28 build = HEAD sources, overlay rebuilt), app restarted; HOI4 was not running.
 2. User exercises the Desktop shortcut and HUD in gameplay; investigate concrete issues with read-only game access.
 3. UX roadmap, one step per session (user runs /clear between steps): do the first unchecked item of `## Execution order` in `docs/ux-analysis-2026-11-19.md`, tick it there and here. Done: R1, R2, R3+R5. Next: R4.

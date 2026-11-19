@@ -15,7 +15,7 @@ Check each hunk for these violations:
 2. **Unknown stays unknown.** Missing, stale, partial or foreign observations turned into `completed`, `true`, `0`, an empty list or a highlight. A default that makes a guess look observed. HUD highlights shown without a verified basis.
 3. **Rust is the only guide evaluator.** JS (`src/hoi4companion/web/`) computing step status, progress, completion or recommendations instead of presenting `/api/guide/projection`. Evaluation logic added outside `native/guide-core` / backend. An evaluation used without matching guide and run.
 4. **No Python** anywhere in source, build, CI or package.
-5. **Live memory reading** outside the builds qualified in `live-profiles-v1.json` / `live-abi-v1.json`, or a version string treated as proof of compatibility.
+5. **Live memory reading** outside the builds qualified in `live-profiles-v1.json` / `live-abi-v1*.json`, or a version string treated as proof of compatibility.
 6. **Rust JSON pitfall.** Indexing a `serde_json::Value` mutably with `v["key"]` on a path that may be absent (it inserts `null`, e.g. creating `params: null`); use `get_mut`.
 7. **Contracts and fixtures.** A change to evaluation or to `tests/fixtures/presentation-cases.json` without regenerating `presentation-evaluations.json` (`HOI4_UPDATE_PRESENTATION_FIXTURES=1 node scripts/test-native.cjs backend`). Shared behavior changed in only one of JS/Rust when `tests/fixtures/*.json` defines it.
 8. **Translations.** New user-visible English text in web/HUD code without an Italian entry in `src/hoi4companion/translations.json`; `{0}` placeholders that differ between key and value.
