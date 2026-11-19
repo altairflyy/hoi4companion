@@ -10,7 +10,7 @@
 <section class="hero"><div><p class="eyebrow">YOUR CAMPAIGN'S OPERATIONAL PLAN</p><label>Guide <select id="guideSelect" aria-label="Guide"></select></label><h1 id="guideTitle">Walkthrough</h1><p id="guideMetadata" class="guide-metadata" hidden></p><p id="subtitle">Loading instructions…</p></div><a id="sourceLink" target="_blank" rel="noopener noreferrer" hidden>Original source ↗</a></section>
 <p class="guide-tools"><a href="/importer">Import a guide from YouTube, the web or a JSON file →</a> <a id="editAssociations" href="/associations">Correct bindings</a></p>
 <p id="error" role="alert" hidden></p>
-<section class="run-bar" aria-label="Guide mode"><div><strong id="mode">Guide preview</strong><p id="modeNote">Connect a valid game to update the path.</p></div></section>
+<section class="run-bar" aria-label="Guide mode"><div><strong id="mode">Guide preview</strong><p id="modeNote">Connect a valid game to update the path.</p></div><div class="view-switch" role="group" aria-label="View"><button id="guidedModeButton" type="button" aria-pressed="true">Guided</button><button id="advancedModeButton" type="button" aria-pressed="false">Advanced</button></div></section>
 <p id="resetNotice" role="status" hidden></p>
 <p id="campaignStatus" role="status"></p>
 <details><summary>Saved checklists for this campaign</summary><label>Checklist <select id="runHistory" aria-label="Saved checklists"></select></label> <button id="refreshHistory" type="button">Reload history</button> <button id="restoreHistory" type="button">Use selected checklist</button><p>A new game or nation starts its own checklist automatically.</p><button id="reset" type="button">Start this checklist over</button></details>
@@ -25,6 +25,7 @@
 <p id="summaryNotice" role="status"></p><div id="summaryCards" class="summary-cards"></div><p id="summaryRemaining" class="section-note" hidden></p>
 <details id="hudDiagnostics"><summary>In-game highlight status</summary><p id="hudDiagnosticMessage"></p><ul id="hudDiagnosticItems"></ul></details>
 </details></section>
+<section id="guidedPlan" class="guided-plan" aria-label="Guided mode" hidden></section>
 <section id="nextOperation" class="next-operation" aria-label="Next operational instruction"></section>
 <section id="ongoingOperations" class="compact-activity" hidden><h2>In progress</h2><ul id="ongoingOperationsList"></ul></section>
 <details id="waitingOperations" class="compact-activity" hidden><summary>Waiting for conditions</summary><ul id="waitingOperationsList"></ul></details>

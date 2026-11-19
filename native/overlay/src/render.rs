@@ -183,6 +183,10 @@ pub struct RefRow {pub id:String, pub text:String, pub heading:bool}
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct StepCard {
     pub header: String,
+    /// Guided line (UX R9): "Category · When · Verification", as in the suite.
+    pub status_line: String,
+    /// What follows: the next step and the nearest waiting one.
+    pub upcoming: String,
     pub heading: String,
     pub note: String,
     pub body: String,
@@ -628,11 +632,12 @@ impl Graphics {
             let mut blocks:Vec<(String,usize,u8)>=Vec::new();
             let open=open.filter(|i|*i<card.references.len()&&!collapsed);
             if !collapsed {
+                blocks.push((card.status_line.clone(),2,3));
                 blocks.push((card.heading.clone(),1,1));
                 // An open reference section replaces the step details below.
                 if open.is_none() {
                     // An ambiguous answer's badge takes the ambiguous color (tone 5).
-                    for (text,format,tone) in [(&card.note,2usize,2u8),(&card.body,3,4),(&card.badge,2,if card.answer.is_some() {5} else {3})] {
+                    for (text,format,tone) in [(&card.note,2usize,2u8),(&card.body,3,4),(&card.upcoming,2,2),(&card.badge,2,if card.answer.is_some() {5} else {3})] {
                         blocks.push((text.clone(),format,tone));
                     }
                 }
@@ -651,7 +656,8 @@ impl Graphics {
                 Ok(Some(rect))
             };
             let mut blocks=blocks.into_iter();
-            if let Some((text,format,tone))=blocks.next() {block(self,&text,format,tone,&mut y,&mut lines)?;}
+            // The guided line and the heading come before the quick-reference tags.
+            for (text,format,tone) in blocks.by_ref().take(2) {block(self,&text,format,tone,&mut y,&mut lines)?;}
             // Quick-reference tags: a click opens the section (never a hover).
             if !collapsed && !card.references.is_empty() && y+row<=limit {
                 let mut x=pad;

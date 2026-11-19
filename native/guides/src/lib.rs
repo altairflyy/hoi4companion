@@ -12,6 +12,7 @@ pub mod decision_admission;
 #[cfg(test)]
 pub mod decision_admission_tests;
 pub mod decomposition;
+pub mod display_category;
 pub mod definition_archive;
 pub mod entity_resolution;
 pub mod event_instructions;

@@ -131,16 +131,20 @@
   if(previous?.node.querySelectorAll){const old=[...previous.node.querySelectorAll('details')],fresh=[...node.querySelectorAll('details')];old.forEach((detail,i)=>{if(detail.open&&fresh[i]?.querySelector('summary')?.textContent===detail.querySelector('summary')?.textContent)fresh[i].open=true;});}
   cardCache.set(key,{signature,node});return node;
  }
+ const describe=row=>HoiActionPlan.describe(row,{reader:actionReader,usable:value.view.mode==='live',guide_id:value.guide.id,expected_guide_id:value.guide.id,overlay:value.state?.overlay,political_key:value.view.model.runtime.action_sequence?.political});
+ // Abbreviated event answers are completed like LPF: full in-game answer
+ // first, the author's shorthand in parentheses.
+ function displayTitle(row,operational=describe(row)){
+  const heading=operational.title||name(row),answer=row.action?.params?.event_option_name||row.action?.params?.reference_resolution?.option_text;
+  return answer&&/(?:…|\.{3})/.test(heading)&&!heading.includes(answer)?`«${answer}» (${heading})`:heading;
+ }
  function card(row,highlight=false){const node=el('article','operation-card'+(row.tracking==='reminder'?' reminder':'')+(row.event_observation?.visible?' event-visible':'')+(highlight?' highlighted':'')+(row.runtime_status==='completed'?' completed':'')+(row.runtime_status==='active'?' in-progress':''));node.id=(highlight?'next-operation-':'operation-')+row.key;node.dataset.step=row.key;
-  const operational=HoiActionPlan.describe(row,{reader:actionReader,usable:value.view.mode==='live',guide_id:value.guide.id,expected_guide_id:value.guide.id,overlay:value.state?.overlay,political_key:value.view.model.runtime.action_sequence?.political});
+  const operational=describe(row);
   const hint=row.action.params?.category_hint;
   const label=(categories[row.category]||HoiI18n.t("INSTRUCTION"))+(hint&&hint!==row.category?' · '+hint:'');
   const top=el('div','operation-top');top.append(el('span','eyebrow',label),badges(row));node.append(top);
   const repeatedTitle=row.tracking==='reminder'&&row.instructions?.some(text=>text.replace(/\s+/g,' ').startsWith(name(row).replace(/\s+/g,' ')));
-  // Abbreviated event answers are completed like LPF: full in-game answer
-  // first, the author's shorthand in parentheses.
-  const heading=operational.title||name(row),answer=row.action?.params?.event_option_name||row.action?.params?.reference_resolution?.option_text;
-  const completed=answer&&/(?:…|\.{3})/.test(heading)&&!heading.includes(answer)?`«${answer}» (${heading})`:heading;
+  const completed=displayTitle(row,operational);
   if(!repeatedTitle)node.append(referenceText('h3','',completed,row));
   // A title composed from a fully understood line keeps the author's words visible.
   if(HoiActionPlan.composedTitle(row.reading)){
@@ -254,6 +258,42 @@
   if(reference||visualReferenceSteps.has(row.key)||(row.evidence||[]).some(e=>Number.isFinite(e.timestamp_seconds)))node.append(sourceFrame(row));
   const href=sourceLink(reference?.seconds,reference?.url);if(href){const a=el('a','operation-source',HoiI18n.t("Source")+(reference?' · video '+clock(reference.seconds):'')+' ↗');a.href=href;a.target='_blank';a.rel='noopener noreferrer';node.append(a);}return node;
  }
+ // Guided mode (UX R9): "Now / Then / Waiting" from the Rust statuses, the
+ // complete plan stays below. The choice is a per-viewer convenience.
+ const viewKey='hoi4companion.guideView';
+ let guidedView=(()=>{try{return localStorage.getItem(viewKey)!=='advanced';}catch{return true;}})(),guidedKey='';
+ function setGuidedView(on){guidedView=on;try{localStorage.setItem(viewKey,on?'guided':'advanced');}catch{}if(value?.guide)render(value);}
+ function stepLink(row){const a=el('a','guided-title',displayTitle(row));a.href='#operation-'+row.key;a.onclick=revealPlan;return a;}
+ function guidedItem(row){
+  const item=el('li','guided-item'+(row.runtime_status==='active'?' in-progress':''));item.dataset.step=row.key;
+  const top=el('div','guided-meta');top.append(el('span','eyebrow',categories[row.category]||HoiI18n.t("Other instructions")),badges(row));
+  item.append(top,stepLink(row));
+  // One control: "Done" where the player confirms; none where the game shows it.
+  if(['manual','special_project'].includes(row.action.kind)&&!row.completion_condition&&row.runtime_status!=='completed')item.append(confirm(row.key,HoiI18n.t("Done")));
+  return item;
+ }
+ function laneItem(lane,label){
+  const row=value.view.lanes[lane]?.next;if(value.view.mode!=='live'||row?.runtime_status!=='ready')return null;
+  const item=el('li','guided-item guided-lane'),top=el('div','guided-meta'),a=el('a','guided-title',name(row));
+  a.href=window.hoiGuide.withGuide(row.href||(lane==='focus'?'/':'/technologies'));
+  const how=el('span','badge-pair');how.append(el('span','badge badge-when',HoiI18n.t("Now")),el('span','badge badge-verification verification-automatic',HoiI18n.t("Automatic")));
+  top.append(el('span','eyebrow',label),how);item.append(top,a);return item;
+ }
+ function renderGuided(rows,political){
+  const box=$('guidedPlan');box.hidden=!guidedView;if(!guidedView)return;
+  const g=HoiActionPlan.guided(rows,political),lanes=[['focus',HoiI18n.t("National focuses")],['research',HoiI18n.t("Technology research")]];
+  const signature=JSON.stringify([value.guide.id,value.view.mode,value.pending,[...g.now,g.then,g.waiting,g.reason?.row,...g.active].filter(Boolean).map(r=>[r.key,r.runtime_status,r.title,r.name,r.reading,value.progress.checks?.[r.key]]),lanes.map(([l])=>[value.view.lanes[l]?.next?.key,value.view.lanes[l]?.next?.runtime_status])]);
+  if(signature===guidedKey)return;guidedKey=signature;
+  const parts=[el('h2','guided-heading',HoiI18n.t("Now"))];
+  const list=el('ul','guided-now');for(const row of g.now)list.append(guidedItem(row));
+  for(const [lane,label]of lanes){if(list.children.length>=5)break;const item=laneItem(lane,label);if(item)list.append(item);}
+  parts.push(list.children.length?list:el('p','section-note',rows.length?HoiI18n.t("Nothing to do now: the open steps wait for a condition."):HoiI18n.t("This guide does not contain operational instructions yet.")));
+  if(g.active.length){const p=el('p','guided-line');p.append(el('strong','',HoiI18n.t("In progress")+': '));g.active.slice(0,3).forEach((row,i)=>{if(i)p.append(' · ');p.append(stepLink(row));});parts.push(p);}
+  if(g.then){const p=el('p','guided-line');p.append(el('strong','',HoiI18n.t("Then")+': '),stepLink(g.then));parts.push(p);}
+  if(g.waiting){const p=el('p','guided-line guided-waiting');p.append(el('strong','',HoiI18n.t("Waiting")+': '),stepLink(g.waiting));
+   const r=g.reason;if(r)p.append(el('span','guided-reason',' · '+(r.kind==='step'?HoiI18n.t("after “{0}”",displayTitle(r.row)):HoiI18n.t("condition: “{0}”",r.kind==='entity'?r.name:r.text))));parts.push(p);}
+  box.replaceChildren(...parts);
+ }
  function links(){const {guide,view}=value;const focus=view.lanes.focus.next,tech=view.lanes.research.next;
   const scope=guide.applies_to?.tree_id;const baseFocus=scope?'/?tree='+encodeURIComponent(scope):'/';
   $('editAssociations').href=window.hoiGuide.withGuide('/associations');
@@ -330,8 +370,10 @@
    current.push(el('p','eyebrow',Number.isInteger(ordinal)?HoiI18n.t('Current step {0}',ordinal):HoiI18n.t('NEXT INSTRUCTION TO CHECK')),cachedCard(upcoming,true));
   }else current.push(el('p','',rows.length?HoiI18n.t("No further instructions to check now. See upcoming activities."):HoiI18n.t("This guide does not contain operational instructions yet.")));
   sync($('nextOperation'),current);
+  for(const id of ['guidedModeButton','advancedModeButton'])$(id).setAttribute('aria-pressed',String((id==='guidedModeButton')===guidedView));
+  renderGuided(allRows,political);$('nextOperation').hidden=guidedView;
   for(const [id,items]of [['ongoingOperations',compact.active],['waitingOperations',compact.waiting]]){
-   $(id).hidden=!items.length;const list=$(id+'List');
+   $(id).hidden=guidedView||!items.length;const list=$(id+'List');
    const signature=JSON.stringify(items.map(r=>[r.key,r.runtime_status,r.runtime_reason,r.title,r.name,r.construction,r.production]));
    if(list.dataset.signature!==signature){list.dataset.signature=signature;list.replaceChildren();for(const row of items){const item=el('li'),link=el('a','',name(row));link.href='#operation-'+row.key;link.onclick=revealPlan;item.append(link,el('span','', ' · '+badge(row)));list.append(item);}}
   }
@@ -359,6 +401,7 @@
   }
   guideReferences?.refresh();
  }
+ $('guidedModeButton').onclick=()=>setGuidedView(true);$('advancedModeButton').onclick=()=>setGuidedView(false);
  $('guideSelect').onchange=()=>window.hoiGuide.select($('guideSelect').value);
  $('operationsPlan').ontoggle=()=>{if(value&&$('operationsPlan').open)render(value);};
  $('hideDone').onchange=()=>render(value);

@@ -36,6 +36,12 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  assert.match(get('sourceDocuments').textContent,/Original\.docx/);assert.match(get('sourceDocuments').textContent,/<script>not executable<\/script>/);
  assert.equal(get('sourceDocuments').children[0].children[2].textContent,guide.sources[0].text);
  assert.match(get('operationCards').textContent,/See Initial Setup/);
+ // Guided mode (R9) is the default: one 'Now' list with category, when and verification; the single-card view is hidden.
+ assert.equal(get('guidedPlan').hidden,false);assert.equal(get('nextOperation').hidden,true);
+ assert.match(get('guidedPlan').textContent,/^Ora.*Fabbriche e infrastrutture.*Conferma tu/);
+ get('advancedModeButton').onclick();await settle();
+ assert.equal(get('guidedPlan').hidden,true);assert.equal(get('nextOperation').hidden,false);assert.equal(get('advancedModeButton')['aria-pressed'],'true');
+ get('guidedModeButton').onclick();await settle();assert.equal(get('guidedPlan').hidden,false);
  const referenceButton=get('operationCards').children.flatMap(function walk(n){return [n,...(n.children||[]).flatMap(walk)];}).find(n=>n.className==='guide-reference-link');
  assert.ok(referenceButton);assert.equal(referenceButton.textContent,'Initial Setup');assert.equal(referenceButton['aria-haspopup'],'dialog');
  assert.ok(get('operationCards').children.flatMap(function walk(n){return [n,...(n.children||[]).flatMap(walk)];}).some(n=>n.className==='guide-reference-related'));

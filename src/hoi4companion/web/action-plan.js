@@ -170,5 +170,26 @@
   const next=actions.find(row=>row.event_observation?.visible===true&&!['completed','not_applicable'].includes(row.runtime_status))||eligible.find(row=>!['dependency_unknown','phase_condition_unknown','condition_unknown','live_state_unavailable'].includes(row.runtime_reason))||eligible[0]||null;
   return {next,active:actions.filter(r=>r.runtime_status==='active'),waiting:actions.filter(r=>r.key!==next?.key&&['waiting','unverifiable'].includes(r.runtime_status)).slice(0,3)};
  }
- const api={describe,composedTitle,blocks,category,compact,createReader:language=>reading.create(language)};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiActionPlan=api;
+ // Guided mode (UX R9): what to do now, what comes next and the nearest wait,
+ // only from the Rust statuses already in each row. "Now" is the step compact()
+ // picks plus the other open actions of its Actions block (done together in the
+ // source), at most `limit`; it never reorders or completes anything.
+ const blockKey=row=>{const p=row.action?.params?.source_action;return p&&typeof p.source_id==='string'&&typeof p.key==='string'?JSON.stringify([p.source_id,p.key]):null;};
+ function guided(rows,political,limit=5){
+  const actions=rows.filter(r=>r.tracking!=='reminder'),byKey=new Map(rows.map(r=>[r.key,r]));
+  const {next}=compact(rows,political);
+  const eligible=row=>['ready','unverifiable'].includes(row.runtime_status)&&(!row.action_readiness||row.action_readiness.domain!=='political'||row.key===political);
+  const now=next?[next]:[],block=next&&blockKey(next);
+  if(block)for(const row of actions)if(now.length<limit&&row!==next&&blockKey(row)===block&&eligible(row))now.push(row);
+  const taken=new Set(now.map(r=>r.key));
+  const then=actions.find(r=>!taken.has(r.key)&&eligible(r))||null;
+  const waiting=actions.find(r=>!taken.has(r.key)&&r.runtime_status==='waiting')||null;
+  // The nearest condition in words: the first prerequisite step, else the
+  // author's trigger as recognized by Rust, else nothing (never guessed).
+  let reason=null;
+  if(waiting){const dep=(waiting.blocked_by||[]).map(k=>byKey.get(k)).find(Boolean),trig=waiting.action?.params?.trigger_resolution;
+   reason=dep?{kind:'step',key:dep.key,row:dep}:trig?.status==='compiled'&&trig.entity?{kind:'entity',name:trig.entity.name||trig.entity.id,relation:trig.relation}:trig?.text?{kind:'text',text:trig.text}:null;}
+  return {now,then,waiting,reason,active:actions.filter(r=>r.runtime_status==='active')};
+ }
+ const api={describe,composedTitle,blocks,category,compact,guided,createReader:language=>reading.create(language)};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiActionPlan=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -265,6 +265,36 @@ fn card_production_line(row:&Value)->String {
     if let Some(priority)=row["production_priority"].as_str() {line.push_str(" · ");line.push_str(&i18n::text(if priority=="first"{"first line"}else{"last line"}));}
     format!("{} {line}",if row["goal_satisfied"]==true {"✓"} else {"•"})
 }
+/// The title composed by Rust from sentence templates and localized names,
+/// translated here as the suite does (`composedTitle` in web/action-plan.js).
+fn reading_title(title:&Value)->Option<String> {
+    let parts=title["parts"].as_array().filter(|p|!p.is_empty())?;
+    let texts=parts.iter().map(|p|{
+        let template=p["template"].as_str()?;
+        let args=p["args"].as_array()?.iter().map(|a|a.as_str().map(str::to_owned).unwrap_or_else(||a.to_string())).collect::<Vec<_>>();
+        Some(i18n::format(template,&args.iter().map(String::as_str).collect::<Vec<_>>()))
+    }).collect::<Option<Vec<_>>>()?;
+    Some(texts.join(if title["joiner"]=="then" {", "} else {" · "}))
+}
+/// "Category · When · Verification" (UX R9), the same three labels as the
+/// suite's cards (`categories`, `whenLabel`, `verificationLabels` in web/guide.js).
+fn guided_line(card:&Value)->String {
+    let category=match card["category"].as_str().unwrap_or("") {
+        "construction"=>"Factories and infrastructure","production"=>"Production","projects"=>"Special projects",
+        "politics"=>"Politics and laws","characters"=>"Characters","army"=>"Armed forces","templates"=>"Templates and vehicles",
+        "diplomacy"=>"War and diplomacy","trade"=>"Trade and resources","checkpoints"=>"Other instructions",_=>"",
+    };
+    let started=card["started_when"]==true;
+    let when=match card["status"].as_str().unwrap_or("") {
+        // No status from the evaluation: no "when" label, never a neutral order.
+        ""=>"","completed"=>"Completed","waiting"=>"Waiting","active"=>"In progress","not_applicable"=>"Not applicable",
+        _ if started=>"Start cannot be verified","ready"=>"Now","unverifiable"=>"Source order",_=>"",
+    };
+    let verification=match card["verification"].as_str().unwrap_or("") {
+        "automatic"=>"Automatic","manual"=>"Confirm yourself","reminder"=>"Reminder","uninterpreted"=>"Not interpreted",_=>"",
+    };
+    [category,when,verification].iter().filter(|s|!s.is_empty()).map(|s|i18n::text(s)).collect::<Vec<_>>().join(" · ")
+}
 /// The step to do now (backend `step_card`), localized labels around the
 /// author's text. None when the guide does not apply to the observed game.
 fn step_card(snapshot:&Value)->Option<StepCard> {
@@ -295,6 +325,19 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
     }
     lines.extend(card["body"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::trim)
         .filter(|l|!l.is_empty()).map(str::to_owned));
+    // A title Rust composed for a line understood in full (`reading`, UX R8)
+    // replaces the author's shorthand, which stays once as the guide's note.
+    if card["event_answer"]!=true && let Some(composed)=reading_title(&card["reading_title"]) {
+        let original=card["original"].as_str().map(str::trim).filter(|s|!s.is_empty()).unwrap_or(&heading).to_owned();
+        if note.is_empty() && original!=composed {note=i18n::format("In the guide: “{0}”",&[&original]);}
+        heading=composed;
+    }
+    let status_line=guided_line(card);
+    let upcoming=[("then","Then: {0}"),("waiting","Waiting: {0}")].iter().filter_map(|(field,label)|{
+        let next=&card[*field];
+        let title=reading_title(&next["reading_title"]).or_else(||next["heading"].as_str().map(str::trim).filter(|s|!s.is_empty()).map(str::to_owned))?;
+        Some(i18n::format(label,&[&title]))
+    }).collect::<Vec<_>>().join("\n");
     let body=lines.join("
 ");
     let badge=if card["event_answer"]==true {i18n::text("Event answer recognized: the button is highlighted when the event appears.")}else{String::new()};
@@ -323,7 +366,7 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
         (!rows.is_empty()).then_some(render::RefSection {label,rows})
     }).take(8).collect();
     let references_scope=card["references_scope"].as_str().unwrap_or("").to_owned();
-    Some(StepCard {header,heading,note,body,badge,key,guide_id,checkable,images,production,references,references_scope,answer,confirmed_by_user})
+    Some(StepCard {header,status_line,upcoming,heading,note,body,badge,key,guide_id,checkable,images,production,references,references_scope,answer,confirmed_by_user})
 }
 /// The card for this sample: the backend's current card, or the last one kept
 /// briefly while the delivery is unknown (see the stability module), with
@@ -778,6 +821,28 @@ mod tests {
         let result=marks(&rows,500,400);
         assert_eq!(result.len(),2);
         assert!(result.iter().all(|mark|mark.role==Role::Choice));
+    }
+    #[test]
+    fn guided_card_shows_category_when_verification_readable_title_then_and_waiting() {
+        let title=json!({"parts":[{"template":"Build {0} in {1}","args":["Infrastructure","Muntenia"]},{"template":"then build {0} in {1}","args":["Military factory","Muntenia"]}],"joiner":"then"});
+        let snapshot=json!({"title":"Romania.docx","guide_id":"rom","step_card":{"index":1,"total":9,"key":"c1","heading":"INFRAs, then MILs in Mun","body":[],
+            "status":"ready","category":"construction","verification":"manual","reading_title":title,"original":"INFRAs, then MILs in Mun",
+            "then":{"key":"j","heading":"Justify HUN","reading_title":{"parts":[{"template":"Justify a war goal on {0}","args":["Hungary (HUN)"]}],"joiner":"and"}},
+            "waiting":{"key":"w","heading":"On Revise…: appoint X","reading_title":null}}});
+        let card=step_card(&snapshot).unwrap();
+        assert_eq!(card.status_line,"Factories and infrastructure · Now · Confirm yourself");
+        assert_eq!(card.heading,"Build Infrastructure in Muntenia, then build Military factory in Muntenia");
+        assert_eq!(card.note,"In the guide: “INFRAs, then MILs in Mun”");
+        assert_eq!(card.upcoming,"Then: Justify a war goal on Hungary (HUN)\nWaiting: On Revise…: appoint X");
+        let mut plain=snapshot.clone();
+        plain["step_card"]=json!({"heading":"Hire X","status":"waiting","category":"politics","verification":"automatic","started_when":true});
+        let card=step_card(&plain).unwrap();
+        assert_eq!(card.status_line,"Politics and laws · Waiting · Automatic");
+        assert_eq!((card.heading.as_str(),card.note.as_str(),card.upcoming.as_str()),("Hire X","",""));
+        plain["step_card"]["status"]=json!("ready");
+        assert_eq!(step_card(&plain).unwrap().status_line,"Politics and laws · Start cannot be verified · Automatic");
+        plain["step_card"]["status"]=Value::Null;
+        assert_eq!(step_card(&plain).unwrap().status_line,"Politics and laws · Automatic","no status: no when label");
     }
     #[test]
     fn construction_card_is_said_in_words_with_one_line_per_region() {

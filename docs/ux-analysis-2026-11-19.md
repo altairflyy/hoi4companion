@@ -370,7 +370,16 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   titolo composto (`composedTitle` in `web/action-plan.js`) e mostra qualificatori e "Testo originale". Contratto condiviso
   `tests/fixtures/reading-contract.json` (Rust + `tests/test_reading_contract.cjs`). Guida Romania su backend dev: 65 operazioni,
   6 titoli composti. HUD non ancora collegato. Non ricompilato né visto dal vivo.
-- Poi R9–R11, quindi il lungo periodo, nell'ordine delle tabelle sopra.
+- [x] **R9 · Modalità guidata "Ora / Poi / In attesa"** (2026-11-19). Suite: `guided()` in `web/action-plan.js` prende dagli stati Rust il passo
+  scelto da `compact()` più le altre azioni aperte dello stesso blocco Actions (massimo 5), poi il primo altro passo eseguibile e il primo in
+  attesa, con la condizione più vicina (passo prerequisito o trigger riconosciuto da Rust, mai indovinata). `guide.js` lo mostra come sezione
+  "Ora" (categoria, quando, verifica, titolo `reading`, solo "Fatto" se serve una conferma) con righe "In corso", "Poi", "In attesa"; un
+  interruttore Guidata/Avanzata (ricordato nel browser) torna alla vista precedente. Prossimo focus e ricerca entrano in "Ora" se pronti dal vivo.
+  Card HUD: `step_card` aggiunge `category` (porta Rust `guides::display_category` della categoria JS, contratto condiviso
+  `tests/fixtures/display-category-contract.json`), `verification` (la stessa di `import_reports`), `reading_title`, `then`, `waiting`;
+  l'overlay disegna la riga "Categoria · Quando · Verifica", il titolo composto e le righe Poi/In attesa. Screenshot a 375 px senza overflow
+  sul backend in esecuzione (binario vecchio: stringhe nuove in inglese e titoli R8 assenti fino al rebuild). Non ricompilato né visto dal vivo.
+- Poi R10–R11, quindi il lungo periodo, nell'ordine delle tabelle sopra.
 
 ### Metrica guida proposta
 

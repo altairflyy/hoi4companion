@@ -148,9 +148,31 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
     // The HUD offers "Done" only where the suite offers a manual confirmation
     // of this very step; observed steps complete from the game alone.
     let checkable = status != "completed" && crate::application::manual_keys(guide).contains(key);
+    // Guided mode (UX R9): the line "Category · When · Verification" and the
+    // readable title, as in the suite, then the next step and the nearest
+    // waiting one. Presentation only, from the prepared step and the evaluation.
+    let status_of = |r: &Value| statuses.get(r["key"].as_str().unwrap_or("")).map(|s| (*s).clone()).unwrap_or(Value::Null);
+    let brief = |r: &Value| json!({"key":r["key"],"heading":clean(&r["title"]).or_else(|| clean(&r["name"])).or_else(|| r["action"]["params"]["instructions"].as_array().into_iter().flatten().find_map(clean)).unwrap_or_default(),"reading_title":reading_title(r)});
+    let later: Vec<&Value> = rows[position + 1..].iter()
+        .filter(|r| r["tracking"] != "reminder" && !matches!(status_of(r).as_str(), Some("completed" | "not_applicable")))
+        .collect();
+    let then = later.iter().find(|r| matches!(status_of(r).as_str(), Some("ready" | "unverifiable"))).map(|r| brief(r)).unwrap_or(Value::Null);
+    let waiting = later.iter().find(|r| status_of(r) == "waiting").map(|r| brief(r)).unwrap_or(Value::Null);
     json!({"key":key,"track":track,"index":index,"total":total,"heading":heading,"abbreviation":abbreviation,
         "body":body,"status":status,"event_answer":resolved.is_some(),"checkable":checkable,"images":card_images(params),
-        "construction":card_construction(runtime, key)})
+        "construction":card_construction(runtime, key),
+        "category":hoi4companion_guides::display_category::category(step),
+        "verification":hoi4companion_guides::import_reports::verification(step),
+        "started_when":step.get("started_when").is_some_and(|v| !v.is_null()),
+        "reading_title":reading_title(step),"original":step["reading"]["original"],
+        "then":then,"waiting":waiting})
+}
+/// The title Rust composed for a line understood in full (`reading`, UX R8):
+/// sentence templates and localized names, translated by the HUD. Null otherwise.
+fn reading_title(step: &Value) -> Value {
+    let reading = &step["reading"];
+    let parts = reading["title"]["parts"].as_array().filter(|p| !p.is_empty());
+    if reading["understood"] == true && parts.is_some() { reading["title"].clone() } else { Value::Null }
 }
 /// Most regions the HUD card lists for one construction step.
 const CARD_REGIONS: usize = 12;
@@ -337,6 +359,36 @@ mod tests {
         assert_eq!(step_card(&gated, &runtime)["checkable"], true);
         assert!(step_card(&guide, &json!({"tracks":{"operations":{"next":null}},"steps":[{"key":"word-0001","status":"completed"},{"key":"word-0003","status":"completed"}]})).is_null());
         assert_eq!(card["images"], json!([]));
+    }
+    #[test]
+    fn step_card_carries_the_guided_line_readable_title_then_and_waiting() {
+        let title = json!({"parts":[{"template":"Justify a war goal on {0}","args":["Ungheria (HUN)"]}],"joiner":"and"});
+        let guide = json!({"tracks":{"operations":[
+            {"key":"a","title":"Justify HUN","action":{"kind":"manual","params":{"source_action":{},"instructions":["Justify HUN"]}},
+                "reading":{"understood":true,"original":"Justify HUN","title":title}},
+            {"key":"memo","tracking":"reminder","title":"Never cancel","action":{"kind":"manual"}},
+            {"key":"b","title":"On Revise…: appoint X","action":{"kind":"manual","params":{"category":"characters"}}},
+            {"key":"c","title":"Build 2 civs in Mun","action":{"kind":"manual","params":{"category":"construction"}},
+                "reading":{"understood":false,"original":"Build 2 civs in Mun","title":null}},
+            {"key":"d","title":"Later","action":{"kind":"manual"}}]}});
+        let runtime = json!({"tracks":{"operations":{"next":"a"}},"steps":[
+            {"key":"a","status":"ready"},{"key":"b","status":"waiting"},{"key":"c","status":"ready"},{"key":"d","status":"waiting"}]});
+        let card = step_card(&guide, &runtime);
+        assert_eq!(card["category"], "diplomacy");
+        assert_eq!(card["verification"], "uninterpreted", "same method as the import report");
+        assert_eq!(card["reading_title"], title);
+        assert_eq!(card["original"], "Justify HUN");
+        assert_eq!(card["then"], json!({"key":"c","heading":"Build 2 civs in Mun","reading_title":null}), "a reminder and a waiting step are not 'then'");
+        assert_eq!(card["waiting"]["key"], "b", "the nearest waiting step");
+        let mut unknown = runtime.clone();
+        unknown["steps"][2] = json!({"key":"x","status":"ready"});
+        assert!(step_card(&guide, &unknown)["then"].is_null(), "a step without a Rust status is never 'then'");
+        let mut done = runtime.clone();
+        done["steps"][1]["status"] = json!("completed");
+        done["steps"][2]["status"] = json!("completed");
+        done["steps"][3]["status"] = json!("completed");
+        let card = step_card(&guide, &done);
+        assert!(card["then"].is_null() && card["waiting"].is_null(), "nothing left after the card");
     }
     #[test]
     fn step_card_keeps_the_first_incomplete_operation_even_when_next_skips_it() {

@@ -123,3 +123,29 @@ test('production targets show the Rust match status and why an unmatched target 
   'infantry equipment: detected, but it is not the last military line.']);
  assert.deepEqual(plan.describe(row('q',{category:'production',equipment_name:'Tank',requested_factories:2,...sel})).observations,[]);
 });
+
+test('guided mode (R9): now is the current step plus its open Actions-block siblings, then the next doable step and the nearest wait',()=>{
+ const block=(key,ordinal,extra={})=>row(key,{source_action:{source_id:'doc',key:'b'+ordinal,ordinal}},extra);
+ const rows=[block('done',1,{runtime_status:'completed'}),
+  block('a1',2),block('a2',2,{runtime_status:'unverifiable',runtime_reason:'manual_confirmation_required'}),block('a3',2,{runtime_status:'waiting',blocked_by:['a1']}),
+  block('memo',2,{tracking:'reminder'}),block('a4',2,{runtime_status:'completed'}),
+  block('build',3,{runtime_status:'active'}),
+  block('trigger',4,{runtime_status:'waiting',action:{kind:'manual',params:{trigger_resolution:{status:'compiled',relation:'completed',entity:{kind:'focus',id:'ROM_revise',name:'Revise the Constitution'}}}}}),
+  block('b1',5)];
+ const g=plan.guided(rows,null);
+ assert.deepEqual(g.now.map(r=>r.key),['a1','a2'],'waiting, reminder and completed rows of the block are not "now"');
+ assert.equal(g.then.key,'b1');
+ assert.equal(g.waiting.key,'a3');
+ assert.deepEqual([g.reason.kind,g.reason.key],['step','a1'],'the nearest condition names the prerequisite step');
+ assert.deepEqual(g.active.map(r=>r.key),['build']);
+ const later=plan.guided(rows.map(r=>r.key==='a3'?{...r,runtime_status:'completed'}:r),null);
+ assert.deepEqual(later.reason,{kind:'entity',name:'Revise the Constitution',relation:'completed'},'a recognized trigger is named, never guessed');
+ assert.equal(plan.guided(rows,null,1).now.length,1,'never more than the limit');
+ assert.equal(plan.guided(rows,null).now.length<=5,true);
+ // A political action out of the runtime's political sequence is never "now".
+ const political=[block('law',7,{action_readiness:{domain:'political'}}),block('law2',7,{action_readiness:{domain:'political'}})];
+ assert.deepEqual(plan.guided(political,'law2').now.map(r=>r.key),['law2']);
+ assert.equal(plan.guided(political,'law2').then,null);
+ const none=plan.guided([block('w',1,{runtime_status:'waiting'})],null);
+ assert.deepEqual([none.now,none.then,none.waiting.key,none.reason],[[],null,'w',null],'nothing doable: no invented step');
+});

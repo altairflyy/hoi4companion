@@ -1,6 +1,16 @@
 {
   "schema_version": 1,
   "messages": {
+    "Guided": "Guidata",
+    "Advanced": "Avanzata",
+    "Guided mode": "Modalità guidata",
+    "View": "Vista",
+    "Then": "Poi",
+    "Then: {0}": "Poi: {0}",
+    "Waiting: {0}": "In attesa: {0}",
+    "Nothing to do now: the open steps wait for a condition.": "Niente da fare ora: i passi aperti aspettano una condizione.",
+    "after “{0}”": "dopo «{0}»",
+    "condition: “{0}”": "condizione: «{0}»",
     "Build {0} in {1}": "Costruisci {0} in {1}",
     "then build {0} in {1}": "poi costruisci {0} in {1}",
     "Justify a war goal on {0}": "Giustifica un obiettivo di guerra contro {0}",

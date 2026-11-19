@@ -1,0 +1,20 @@
+{
+  "description": "Display category contract (UX R1, R9). The web UI (`category()` in src/hoi4companion/web/action-plan.js) and the HUD card (native/guides/src/display_category.rs, used by hud_service::step_card) must give each step the same category. Presentation only: it never changes params.category, bindings, status or completion.",
+  "cases": [
+    {"name": "bound category wins", "step": {"name": "Anything", "action": {"kind": "manual", "params": {"category": "politics", "instructions": ["Build 3 civs"]}}}, "category": "politics"},
+    {"name": "BUILD prefix", "step": {"name": "x", "action": {"kind": "manual", "params": {"category": "checkpoints", "instructions": ["BUILD: whatever"]}}}, "category": "construction"},
+    {"name": "ARMY prefix", "step": {"name": "x", "action": {"kind": "manual", "params": {"instructions": ["ARMY: 7w inf"]}}}, "category": "army"},
+    {"name": "MIL prefix", "step": {"name": "x", "action": {"kind": "manual", "params": {"instructions": ["MIL: guns"]}}}, "category": "production"},
+    {"name": "special project kind", "step": {"name": "Rocket", "action": {"kind": "special_project", "params": {}}}, "category": "projects"},
+    {"name": "abbreviated construction with a place", "step": {"name": "INFRAs, then MILs in Mun", "action": {"kind": "manual", "params": {"source_action": {}, "instructions": ["INFRAs, then MILs in Mun"]}}}, "category": "construction"},
+    {"name": "production arrow", "step": {"name": "Change I-16 -> F1ca", "action": {"kind": "manual", "params": {"instructions": ["Change I-16 -> F1ca"]}}}, "category": "production"},
+    {"name": "justify is war and diplomacy", "step": {"name": "Justify HUN, YUG", "action": {"kind": "manual", "params": {"instructions": ["Justify HUN, YUG"]}}}, "category": "diplomacy"},
+    {"name": "war industrialist is not war", "step": {"name": "Hire the war industrialist advisor", "action": {"kind": "manual", "params": {"instructions": ["Hire the war industrialist advisor"]}}}, "category": "politics"},
+    {"name": "trade line", "step": {"name": "Import oil from USA", "action": {"kind": "manual", "params": {"instructions": ["Import oil from USA"]}}}, "category": "trade"},
+    {"name": "political power cost", "step": {"name": "Take Partial Mobilisation (150 PP)", "action": {"kind": "manual", "params": {"instructions": ["Take Partial Mobilisation (150 PP)"]}}}, "category": "politics"},
+    {"name": "army words", "step": {"name": "Train 10 divisions", "action": {"kind": "manual", "params": {"instructions": ["Train 10 divisions"]}}}, "category": "army"},
+    {"name": "attache without accent", "step": {"name": "Send attache to Spain", "action": {"kind": "manual", "params": {"instructions": ["Send attache to Spain"]}}}, "category": "diplomacy"},
+    {"name": "nothing recognizable", "step": {"name": "Save the game here", "action": {"kind": "manual", "params": {"category": "checkpoints", "instructions": ["Save the game here"]}}}, "category": "checkpoints"},
+    {"name": "no params category and nothing recognizable", "step": {"title": "Wait for spring", "action": {"kind": "manual", "params": {}}}, "category": "checkpoints"}
+  ]
+}

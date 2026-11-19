@@ -145,7 +145,7 @@ fn observable(node: &Value) -> bool {
 /// because guide-core evaluates them by native membership (completed focuses,
 /// researched technologies); the other rules follow the walkthrough's verification
 /// label (`web/guide.js`). Presentation only: it never changes status.
-fn verification(step: &Value) -> &'static str {
+pub fn verification(step: &Value) -> &'static str {
     let kind = s(&step["action"]["kind"]);
     let p = &step["action"]["params"];
     if step["tracking"] == "reminder" {
