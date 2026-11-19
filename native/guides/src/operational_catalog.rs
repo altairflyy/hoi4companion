@@ -201,6 +201,31 @@ fn label_key<'a>(instance: &'a Value, node: &'a Value, id: &'a str) -> &'a str {
                 .unwrap_or(id)
         })
 }
+/// Focuses a decision certainly requires: `has_completed_focus` at the top of
+/// its `allowed`, `visible` or `available` blocks or inside `AND` there; never
+/// read through `OR`, `NOT`, `if` or another scope.
+pub fn required_focuses(node: &Value) -> Vec<String> {
+    fn walk(block: &Value, out: &mut Vec<String>, depth: usize) {
+        for (key, value) in entries(block) {
+            match key {
+                "has_completed_focus" => {
+                    if let Some(id) = value.as_str().filter(|id| !out.iter().any(|o| o == id)) {
+                        out.push(id.to_owned());
+                    }
+                }
+                "AND" if depth < 16 && value.get("entries").is_some() => walk(value, out, depth + 1),
+                _ => {}
+            }
+        }
+    }
+    let mut out = vec![];
+    for key in ["allowed", "visible", "available"] {
+        for block in blocks(node, key) {
+            walk(block, &mut out, 0);
+        }
+    }
+    out
+}
 pub fn political(source: &mut Source) -> Result<Vec<Value>> {
     let mut rows = vec![];
     let metadata = [
@@ -390,6 +415,9 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
                 let targeted = ["targets", "target_array", "target_trigger", "target_root_trigger"]
                     .iter().any(|k| crate::script_document::first(node,k).is_some()) || scalar(node,"state_target") == "yes";
                 row.as_object_mut().unwrap().extend(json!({"kind":"decision","id":id,"group":category,"country_condition":condition,"targeted":targeted,"operational_criteria":crate::focus_source_rules::operational(&[group,node])}).as_object().unwrap().clone());
+                // Focuses the decision certainly needs: bounds when it can be taken.
+                row["required_focuses"] = json!(required_focuses(node));
+                row["mission"] = json!(crate::script_document::first(node, "days_mission_timeout").is_some());
                 // Real cost, so an author note ("(50PP)", "(25 CP)") can be
                 // checked: the numeric `cost` (political power), and the
                 // command power the completion effect removes.
@@ -448,6 +476,11 @@ pub fn political(source: &mut Source) -> Result<Vec<Value>> {
         if let Some(&i) = keys.get(&key) {
             let old: &mut Value = &mut out[i];
             if row["targeted"] == true { old["targeted"] = json!(true); }
+            // An event defined twice fires on its own if either definition does.
+            if row["kind"] == "event" {
+                if row["triggered_only"] == false { old["triggered_only"] = json!(false); }
+                if row["timed"] == true { old["timed"] = json!(true); }
+            }
             if row.get("country_condition").is_some() {
                 old["country_condition"] = recipient::combine(
                     "any",

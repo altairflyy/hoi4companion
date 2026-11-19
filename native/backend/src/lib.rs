@@ -88,6 +88,7 @@ pub use hoi4companion_guides::entity_resolution;
 pub use hoi4companion_guides::reference_candidates;
 pub use hoi4companion_guides::event_reach;
 pub use hoi4companion_guides::event_routes;
+pub use hoi4companion_guides::event_timing;
 pub use hoi4companion_guides::progress_store;
 #[cfg(windows)]
 mod provider;

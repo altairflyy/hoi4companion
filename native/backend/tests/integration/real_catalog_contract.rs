@@ -386,6 +386,20 @@ fn event_reference_survey() {
                 eprintln!("NAMED {country} {} | {} -> {}:{} «{}» basis={} also={} open={}", s["key"], text.chars().take(120).collect::<String>(), p["reference_resolution"]["kind"].as_str().unwrap_or(""),
                     p["reference_resolution"]["id"].as_str().unwrap_or(""), p["reference_resolution"]["name"].as_str().unwrap_or(""), p["reference_resolution"]["basis"], p["reference_resolution"]["also"], p["reference_resolution"]["unresolved"]);
             }
+            // The guide timeline (IL-11): answers dropped because their event
+            // cannot fire by the line's planned day, and the bindings it left.
+            let resolution = &p["reference_resolution"];
+            let timelines = std::iter::once(resolution).chain(resolution["also"].as_array().into_iter().flatten())
+                .filter(|r| r["basis"] == "guide_timeline").map(|r| (&r["timeline"], format!("bound {} «{}»", r["id"].as_str().unwrap_or(""), r["name"].as_str().unwrap_or(""))))
+                .chain(p["reference_candidates"]["timeline"].is_object().then(|| (&p["reference_candidates"]["timeline"], format!("narrowed to {}", p["reference_candidates"]["candidates"].as_array().map_or(0, Vec::len)))))
+                .collect::<Vec<_>>();
+            for (record, outcome) in timelines {
+                *buckets.entry(if outcome.starts_with("bound") { "guide_timeline bindings".into() } else { "guide_timeline narrowed lines".into() }).or_default() += 1;
+                *buckets.entry("guide_timeline dropped answers".into()).or_default() += record["dropped"].as_array().map_or(0, Vec::len);
+                eprintln!("TIMELINE {country} {} | {} | {outcome} | anchor={} planned={} earliest={} dropped={}", s["key"], text.chars().take(80).collect::<String>(),
+                    record["anchor_focus"], record["planned_day"], record["earliest_day"], record["dropped"]);
+                eprintln!("TIMELEFT {country} {} | {} | left={} received={} then={}", s["key"], text.chars().take(40).collect::<String>(), record["left"], record["left_received"], record["then"]);
+            }
             if only.as_deref().is_none_or(|c| c == country) && state != "event_bound" && state != "other_bound" {
                 eprintln!("EVREF {country} {} [{state}] kind={} | {} | cand={}", s["key"], s["action"]["kind"], text.chars().take(140).collect::<String>(),
                     p["reference_candidates"]["candidates"].as_array().map(|c| c.iter().take(3).map(|x| format!("{}:{}", x["kind"].as_str().unwrap_or(""), x["id"].as_str().unwrap_or(""))).collect::<Vec<_>>().join(",")).unwrap_or_default());

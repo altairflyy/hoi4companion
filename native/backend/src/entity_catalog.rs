@@ -279,7 +279,7 @@ pub fn entities(args: &Value) -> Result<Value, String> {
                         .chain(variants.into_iter().map(|s| json!(s)))
                 ));
             }
-            row.as_object_mut().unwrap().extend(json!({"kind":"focus","id":key,"scope":scope,"countries":countries,"prerequisites":focus.get("prerequisites").cloned().unwrap_or(json!([])),"mutually_exclusive":focus.get("mutually_exclusive").cloned().unwrap_or(json!([])),"bypass_possible":focus["bypass_possible"],"sequence_effects_safe":focus["sequence_effects_safe"],"external_completion_possible":focus["external_completion_possible"],"repeatable":focus.get("repeatable").cloned().unwrap_or(json!(false)),"excluded_governments":excluded_governments(&tree["branch_conditions"][key])}).as_object().unwrap().clone());
+            row.as_object_mut().unwrap().extend(json!({"kind":"focus","id":key,"scope":scope,"countries":countries,"prerequisites":focus.get("prerequisites").cloned().unwrap_or(json!([])),"mutually_exclusive":focus.get("mutually_exclusive").cloned().unwrap_or(json!([])),"bypass_possible":focus["bypass_possible"],"sequence_effects_safe":focus["sequence_effects_safe"],"external_completion_possible":focus["external_completion_possible"],"cost":if focus["cost_known"]==true{focus["cost"].clone()}else{Value::Null},"repeatable":focus.get("repeatable").cloned().unwrap_or(json!(false)),"excluded_governments":excluded_governments(&tree["branch_conditions"][key])}).as_object().unwrap().clone());
             result.push(row);
         }
     }
@@ -336,6 +336,7 @@ pub fn export(entries: &Value, reference: &Value) -> Result<Value, String> {
             "sequence_effects_safe",
             "external_completion_possible",
             "repeatable",
+            "cost",
         ] {
             map.remove(field);
         }

@@ -118,16 +118,43 @@ impl AnswerNames {
         if q.chars().filter(|c| c.is_alphanumeric()).count() < 4 || !cut && q.split(' ').count() < 3 {
             return vec![];
         }
-        // Sorted names: every match sits in one run starting at the query.
-        let start = self.0.partition_point(|(name, _)| name.as_str() < q.as_str());
         let mut out: Vec<usize> = vec![];
-        for (_, i) in self.0[start..].iter().take_while(|(name, _)| if cut { name.starts_with(&q) } else { *name == q }) {
-            if !out.contains(i) {
-                out.push(*i);
+        for q in spellings(&q) {
+            // Sorted names: every match sits in one run starting at the query.
+            let start = self.0.partition_point(|(name, _)| name.as_str() < q.as_str());
+            for (_, i) in self.0[start..].iter().take_while(|(name, _)| if cut { name.starts_with(&q) } else { *name == q }) {
+                if !out.contains(i) {
+                    out.push(*i);
+                }
             }
         }
         out.into_iter().filter_map(|i| index.rows().get(i)).collect()
     }
+}
+/// The same words in their other spellings, for a normalized query: "cannot",
+/// "can not" and "can't" (apostrophes are already gone: "cant"). Only whole
+/// words change; the query itself comes first.
+fn spellings(q: &str) -> Vec<String> {
+    let words: Vec<&str> = q.split(' ').collect();
+    let mut out = vec![q.to_owned()];
+    for (i, word) in words.iter().enumerate() {
+        let (len, found) = match (*word, words.get(i + 1)) {
+            ("can", Some(&"not")) => (2, true),
+            ("cannot" | "cant", _) => (1, true),
+            _ => (0, false),
+        };
+        if !found {
+            continue;
+        }
+        for spelling in ["cannot", "can not", "cant"] {
+            let variant = [&words[..i], &[spelling], &words[i + len..]].concat().join(" ");
+            if !out.contains(&variant) {
+                out.push(variant);
+            }
+        }
+        break;
+    }
+    out
 }
 
 /// Does the event belong to the playing nation? Either the catalog tags the
@@ -727,10 +754,18 @@ pub fn ground_references(guide: &mut Value, index: &Index, historical: &Value) -
         crate::entity_resolution::catalog_candidates(index.rows(), guide),
     );
     let tracks = guide["tracks"].as_object_mut().ok_or("Missing guide tracks")?;
+    // Triggers first, so every line can see the focus anchor that follows it.
     for row in tracks.values_mut().filter_map(Value::as_array_mut).flatten() {
         if row["action"]["kind"] == "manual" {
             ground_trigger(row, &triggers, index);
         }
+    }
+    let timing = crate::event_timing::Timing::new(index.rows());
+    let plan = crate::event_timing::planned_days(&guide_focuses, &timing);
+    let earliest = earliest_days(index.rows());
+    for steps in tracks.values_mut().filter_map(Value::as_array_mut) {
+    let anchors = line_anchors(steps, &plan);
+    for (position, row) in steps.iter_mut().enumerate() {
         let params = &row["action"]["params"];
         let Some((line, block)) = first_line(row) else { continue };
         if row["action"]["kind"] != "manual" || bound(params) || !params["reference_resolution"].is_null() {
@@ -749,6 +784,7 @@ pub fn ground_references(guide: &mut Value, index: &Index, historical: &Value) -
         // a decision, advisor, technology or idea named by its abbreviation.
         let mut grounded: Vec<(&Reference, Value, &'static str, Value)> = vec![];
         let mut unresolved = vec![];
+        let mut timelines: Vec<(String, Value)> = vec![];
         for reference in &refs {
             let found = candidates_with(&reference.text, index, &country, &scope, Some(&names))?;
             let mut found = found.as_array().cloned().unwrap_or_default();
@@ -756,6 +792,40 @@ pub fn ground_references(guide: &mut Value, index: &Index, historical: &Value) -
             if chosen.is_none() && found.iter().filter(|c| c["kind"] == "event_option" && c["compatible"] != false).count() > 0 {
                 let routes = routes.get_or_insert_with(|| crate::event_routes::chains(index.rows(), &tag));
                 chosen = reached(&found, routes, &tag, &guide_focuses, &historical);
+            }
+            // Still several: drop answers whose event cannot fire before the
+            // day the guide plans to reach the next focus after this line.
+            if chosen.is_none()
+                && let Some((anchor, planned)) = &anchors[position]
+            {
+                let dropped = timeline(&found, &earliest, *planned);
+                if !dropped.is_empty() {
+                    found.retain(|c| !(c["kind"] == "event_option" && dropped.iter().any(|(d, _)| c["id"] == *d)));
+                    let mut record = json!({"anchor_focus":anchor,"planned_day":planned,"focus_speed_factor":crate::event_timing::FOCUS_SPEED_FACTOR,
+                        "dropped":dropped.iter().map(|(id, day)| json!({"id":id,"earliest_day":day})).collect::<Vec<_>>()});
+                    // The existing rules again on what is left; else the only answer left.
+                    let compatible: Vec<&Value> = found.iter().filter(|c| c["compatible"] != false).collect();
+                    record["left"] = json!(compatible.len());
+                    record["left_received"] = json!(compatible.iter().filter(|c| c["compatible"] == true).filter_map(|c| c["id"].as_str()).collect::<Vec<_>>());
+                    let mut left = choose(&found, reference.cost, index, &tag)?;
+                    if left.is_none() {
+                        let routes = routes.get_or_insert_with(|| crate::event_routes::chains(index.rows(), &tag));
+                        left = reached(&found, routes, &tag, &guide_focuses, &historical);
+                    }
+                    // Only an answer the nation provably receives: the plan alone
+                    // never turns an unconfirmed answer into a binding.
+                    if left.is_none() && let [one] = compatible.as_slice() && one["kind"] == "event_option" && one["compatible"] == true {
+                        left = Some(((*one).clone(), "single_answer_left"));
+                    }
+                    if let Some((mut one, then)) = left {
+                        record["then"] = json!(then);
+                        record["earliest_day"] = json!(earliest_of(&earliest, one["event_id"].as_str().unwrap_or("")));
+                        one["timeline"] = record;
+                        chosen = Some((one, "guide_timeline"));
+                    } else {
+                        timelines.push((reference.text.clone(), record));
+                    }
+                }
             }
             if let Some((option, basis)) = chosen
                 && let Some(result) = bind(&option, index, &country)?
@@ -782,7 +852,12 @@ pub fn ground_references(guide: &mut Value, index: &Index, historical: &Value) -
         }
         let describe = |r: &Reference, e: &Value, basis: &str| {
             if e["kind"] == "event_option" {
-                json!({"text":r.text,"basis":basis,"kind":"event_option","id":e["id"],"name":e["name"],"event_id":e["event_id"],"option_id":e["id"],"option_text":e["name"]})
+                let mut out = json!({"text":r.text,"basis":basis,"kind":"event_option","id":e["id"],"name":e["name"],"event_id":e["event_id"],"option_id":e["id"],"option_text":e["name"]});
+                // A plan, not a proof: the guide timeline that left this answer.
+                if e["timeline"].is_object() {
+                    out["timeline"] = e["timeline"].clone();
+                }
+                out
             } else {
                 json!({"text":r.text,"basis":basis,"kind":e["kind"],"id":e["id"],"name":e["name"]})
             }
@@ -865,9 +940,67 @@ pub fn ground_references(guide: &mut Value, index: &Index, historical: &Value) -
                 json!({"status":if compatible.len() == 1 {"single_unconfirmed"} else {"ambiguous"},"text":reference.text,
                     "candidates":compatible.into_iter().take(6).collect::<Vec<_>>()})
             };
+            // What the guide timeline ruled out, when it narrowed the list.
+            if let Some((_, record)) = timelines.iter().find(|(text, _)| *text == reference.text) {
+                row["action"]["params"]["reference_candidates"]["timeline"] = record.clone();
+            }
         }
     }
+    }
     Ok(())
+}
+
+/// The guide focus each line comes before: the next step in the same track
+/// that is a focus step or whose trigger compiled to a focus ("On Organize…"),
+/// with the day the guide plans that focus to complete (`event_timing::planned_days`).
+fn line_anchors(steps: &[Value], plan: &std::collections::HashMap<String, f64>) -> Vec<Option<(String, f64)>> {
+    let anchor = |row: &Value| -> Option<String> {
+        if row["action"]["entity"]["kind"] == "focus" {
+            return row["action"]["entity"]["id"].as_str().map(str::to_owned);
+        }
+        let trigger = &row["action"]["params"]["trigger_resolution"];
+        (trigger["status"] == "compiled" && trigger["entity"]["kind"] == "focus").then(|| trigger["entity"]["id"].as_str().map(str::to_owned)).flatten()
+    };
+    let mut out = vec![None; steps.len()];
+    let mut next: Option<(String, f64)> = None;
+    for (i, row) in steps.iter().enumerate().rev() {
+        out[i] = next.clone();
+        if let Some(focus) = anchor(row) {
+            next = plan.get(&focus).map(|day| (focus, *day));
+        }
+    }
+    out
+}
+/// Earliest possible day of each event, from the catalog (`earliest_day`,
+/// `event_timing`): `None` when any definition of the event has no bound.
+fn earliest_days(rows: &[Value]) -> std::collections::HashMap<&str, Option<f64>> {
+    let mut out: std::collections::HashMap<&str, Option<f64>> = std::collections::HashMap::new();
+    for row in rows.iter().filter(|r| r["kind"] == "event") {
+        let day = row["earliest_day"].as_f64();
+        let entry = out.entry(row["id"].as_str().unwrap_or("")).or_insert(day);
+        *entry = match (*entry, day) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            _ => None,
+        };
+    }
+    out
+}
+fn earliest_of(days: &std::collections::HashMap<&str, Option<f64>>, event: &str) -> Option<f64> {
+    days.get(event).copied().flatten()
+}
+/// Event answers among several compatible ones whose event certainly cannot
+/// fire by `planned` (its earliest possible day is later), with that day.
+/// Candidates whose timing is unknown, and other kinds, are never dropped.
+fn timeline(found: &[Value], days: &std::collections::HashMap<&str, Option<f64>>, planned: f64) -> Vec<(String, f64)> {
+    let compatible: Vec<&Value> = found.iter().filter(|c| c["compatible"] != false).collect();
+    if compatible.iter().filter(|c| c["kind"] == "event_option").count() < 2 {
+        return vec![];
+    }
+    compatible
+        .into_iter()
+        .filter(|c| c["kind"] == "event_option")
+        .filter_map(|c| earliest_of(days, c["event_id"].as_str().unwrap_or("")).filter(|day| *day > planned).map(|day| (c["id"].as_str().unwrap_or("").to_owned(), day)))
+        .collect()
 }
 
 /// Whether an event answer can show in a single-player game where the human
@@ -1161,6 +1294,80 @@ mod tests {
         let mut plain = json!({"applies_to":{"country":"GER","tree_id":"ger_tree"},"tracks":{"operations":[row("b", "Bravo…")]}});
         ground_references(&mut plain, &index, &Value::Null).unwrap();
         assert!(plain["tracks"]["operations"][0]["action"]["params"]["event_option_id"].is_null());
+    }
+    #[test]
+    fn answers_whose_event_cannot_fire_by_the_planned_day_are_dropped() {
+        // Every event is received by GER; the catalog gives each event its
+        // earliest possible day (`event_timing`, speed factor applied) or none.
+        let event = |id: &str, day: Option<f64>| json!({"kind":"event","id":id,"name":id,"receivers":["GER"],"receivers_unknown":false,"earliest_day":day});
+        let option = |id: &str, name: &str| json!({"kind":"event_option","id":format!("{id}.a"),"event_id":id,"name":name});
+        let focus = |id: &str, cost: f64, pre: Value| json!({"kind":"focus","id":id,"name":id,"scope":"tree","cost":cost,"prerequisites":pre,"bypass_possible":false,"external_completion_possible":false});
+        let index = Index::new(&json!({"entries":[
+            {"kind":"country","id":"GER","name":"Germany"},
+            focus("GER_a", 5.0, json!([])), focus("GER_b", 10.0, json!([["GER_a"]])),
+            // Days from other nations' focuses: 70, 140 and 175 written, divided by 1.5.
+            event("alpha.1", Some(70.0 / 1.5)), option("alpha.1", "Alpha early"),
+            event("alpha.2", Some(175.0 / 1.5)), option("alpha.2", "Alpha late"),
+            // No bound (callers the trace may not hold): kept.
+            event("bravo.1", Some(70.0 / 1.5)), option("bravo.1", "Bravo early"),
+            event("bravo.2", None), option("bravo.2", "Bravo unknown"),
+            // Later than the plan as written (140), not with the speed factor: kept.
+            event("charlie.1", Some(70.0 / 1.5)), option("charlie.1", "Charlie early"),
+            event("charlie.2", Some(140.0 / 1.5)), option("charlie.2", "Charlie faster"),
+            // Two early answers stay; the late one is dropped from the list.
+            event("delta.1", Some(70.0 / 1.5)), option("delta.1", "Delta one"),
+            event("delta.2", Some(70.0 / 1.5)), option("delta.2", "Delta two"),
+            event("delta.3", Some(175.0 / 1.5)), option("delta.3", "Delta late"),
+        ]})).unwrap();
+        let row = |key: &str, line: &str| json!({"key":key,"title":line,"tracking":"reminder","action":{"kind":"manual","params":{"instructions":[line]}}});
+        let step = |id: &str| json!({"key":id,"action":{"kind":"select_focus","entity":{"kind":"focus","id":id}}});
+        let mut guide = json!({"applies_to":{"country":"GER","tree_id":"tree"},"tracks":{
+            "focus":[step("GER_a"), step("GER_b")],
+            // GER_b is planned for day 105 (5 + 10 cost units, 7 days each).
+            "operations":[row("a", "Alpha…"), row("b", "Bravo…"), row("c", "Charlie…"), row("d", "Delta…"), step("GER_b"), row("e", "Alpha…")]}});
+        ground_references(&mut guide, &index, &Value::Null).unwrap();
+        let rows = guide["tracks"]["operations"].as_array().unwrap().clone();
+        let p = |i: usize| rows[i]["action"]["params"].clone();
+        assert_eq!(p(0)["event_option_id"], "alpha.1.a");
+        assert_eq!(p(0)["reference_resolution"]["basis"], "guide_timeline");
+        assert_eq!(p(0)["reference_resolution"]["timeline"]["anchor_focus"], "GER_b");
+        assert_eq!(p(0)["reference_resolution"]["timeline"]["planned_day"], 105.0);
+        assert_eq!(p(0)["reference_resolution"]["timeline"]["dropped"][0]["id"], "alpha.2.a");
+        // What chose it once the late answer was gone: the nation receives it.
+        assert_eq!(p(0)["reference_resolution"]["timeline"]["then"], "event_received_by_nation");
+        // The binding observes the event like any other: no completion without it.
+        assert_eq!(rows[0]["started_when"]["value"], "alpha.1:alpha.1.a");
+        for i in [1, 2] {
+            assert!(p(i)["event_option_id"].is_null(), "row {i}");
+            assert_eq!(p(i)["reference_candidates"]["status"], "ambiguous", "row {i}");
+            assert!(p(i)["reference_candidates"]["timeline"].is_null(), "row {i}");
+        }
+        assert!(p(3)["event_option_id"].is_null());
+        let delta = p(3);
+        let ids: Vec<&str> = delta["reference_candidates"]["candidates"].as_array().unwrap().iter().filter_map(|c| c["id"].as_str()).collect();
+        assert_eq!(ids, ["delta.1.a", "delta.2.a"]);
+        assert_eq!(p(3)["reference_candidates"]["timeline"]["dropped"][0]["id"], "delta.3.a");
+        // No focus anchor after the line: no plan, nothing dropped.
+        assert!(p(5)["event_option_id"].is_null());
+        assert_eq!(p(5)["reference_candidates"]["candidates"].as_array().unwrap().len(), 2);
+    }
+    #[test]
+    fn cannot_is_also_searched_as_can_not_and_cant() {
+        assert_eq!(spellings("we cannot"), ["we cannot", "we can not", "we cant"]);
+        assert_eq!(spellings("we can not accept"), ["we can not accept", "we cannot accept", "we cant accept"]);
+        assert_eq!(spellings("we can win"), ["we can win"]);
+        let event = |id: &str| json!({"kind":"event","id":id,"name":id,"receivers":["GER"],"receivers_unknown":false});
+        let option = |id: &str, name: &str| json!({"kind":"event_option","id":format!("{id}.a"),"event_id":id,"name":name});
+        let index = Index::new(&json!({"entries":[
+            {"kind":"country","id":"GER","name":"Germany"},
+            event("v.1"), option("v.1", "We can't allow this"),
+            event("v.2"), option("v.2", "We can not allow that"),
+            event("v.3"), option("v.3", "We cannot allow it"),
+        ]})).unwrap();
+        let found = candidates("We cannot…", &index, &json!("GER"), &json!("tree")).unwrap();
+        let mut ids: Vec<&str> = found.as_array().unwrap().iter().filter_map(|c| c["id"].as_str()).collect();
+        ids.sort();
+        assert_eq!(ids, ["v.1.a", "v.2.a", "v.3.a"]);
     }
     #[test]
     fn event_answers_a_single_player_game_cannot_show_are_dropped() {

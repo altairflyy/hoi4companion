@@ -8,7 +8,7 @@ use crate::{
 };
 use serde_json::{Map, Value, json};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex, OnceLock,
@@ -337,6 +337,42 @@ impl Catalog {
             }
             for row in operation_entities.as_array_mut().into_iter().flatten() {
                 if row["operational_criteria"].is_object() { row["operational_criteria"] = focus_source_rules::expand(&row["operational_criteria"], &scripts, &dlcs); }
+            }
+            // Event timing facts the trace does not hold (`event_timing`): which
+            // events only traced callers fire, and which focuses a script completes.
+            let event_ids: HashSet<String> = operation_entities.as_array().into_iter().flatten()
+                .filter(|r| r["kind"] == "event").filter_map(|r| r["id"].as_str().map(str::to_owned)).collect();
+            let scanned = crate::event_timing::scan(&game, &mods, &event_ids)?;
+            let mut own_only: HashMap<String, bool> = HashMap::new();
+            for row in operation_entities.as_array().into_iter().flatten().filter(|r| r["kind"] == "event") {
+                let ok = row["triggered_only"] == true && row["timed"] != true;
+                *own_only.entry(row["id"].as_str().unwrap_or("").to_owned()).or_insert(true) &= ok;
+            }
+            for row in operation_entities.as_array_mut().into_iter().flatten().filter(|r| r["kind"] == "event") {
+                let id = row["id"].as_str().unwrap_or("").to_owned();
+                row["callers_complete"] = json!(own_only.get(&id) == Some(&true) && !scanned.untraced.contains(&id));
+            }
+            // Earliest day each event can fire (a lower bound; absent when not
+            // understood for certain), over every focus tree, eligible or not.
+            let mut timing_rows: Vec<Value> = all_trees.as_object().into_iter().flat_map(|m| m.values())
+                .flat_map(|t| t["focuses"].as_object().into_iter().flat_map(|m| m.values()))
+                .map(|f| json!({"kind":"focus","id":f["id"],"cost":if f["cost_known"] == true { f["cost"].clone() } else { Value::Null },
+                    "prerequisites":f["prerequisites"],"bypass_possible":f["bypass_possible"],"external_completion_possible":f["external_completion_possible"],
+                    "script_completion_possible":f["id"].as_str().is_some_and(|id| scanned.script_completed.contains(id))}))
+                .collect();
+            timing_rows.extend(operation_entities.as_array().into_iter().flatten().filter(|r| r["kind"] == "event" || r["kind"] == "decision").cloned().map(|mut r| {
+                if r["kind"] == "decision" && r["id"].as_str().is_some_and(|id| scanned.activated.contains(id)) {
+                    r["activated"] = json!(true);
+                }
+                r
+            }));
+            let timing = crate::event_timing::Timing::new(&timing_rows);
+            let earliest: HashMap<String, f64> = event_ids.iter().filter_map(|id| timing.earliest_event(id).map(|d| (id.clone(), d))).collect();
+            drop(timing);
+            for row in operation_entities.as_array_mut().into_iter().flatten().filter(|r| r["kind"] == "event") {
+                if let Some(day) = row["id"].as_str().and_then(|id| earliest.get(id)) {
+                    row["earliest_day"] = json!(day);
+                }
             }
             let tech_files = files(&game, &mods, "common/technologies", ".txt", &mut warnings)?;
             let tag_files = files(
