@@ -3,7 +3,7 @@
 const fs=require('node:fs'),path=require('node:path'),{ROOT,sha,json,write,run,powershell,files,temporary,options,archive}=require('./native-tooling.cjs');
 const PACKAGE=path.join(ROOT,'src/hoi4companion');
 const RESOURCE_FOLDERS=['web','examples','licenses','rules'];
-const RESOURCE_FILES=['guide-import-prompt.md','guide_language.json','authoring-actions-v1.json','foreign-tasks-v1.json','live-profiles-v1.json','live-abi-v1.json','design-profile-v1.json','country-functions-v1.json','translations.json'];
+const RESOURCE_FILES=['guide-import-prompt.md','guide_language.json','authoring-actions-v1.json','foreign-tasks-v1.json','live-profiles-v1.json','live-abi-v1.json','live-abi-v1-hoi4-1.20.json','design-profile-v1.json','country-functions-v1.json','translations.json'];
 function locate(name,explicit){
  const candidates=[explicit,path.join(PACKAGE,'_native/tools',name)];
  if(name==='ffmpeg.exe'){const d=path.join(ROOT,'.local/media-tools/imageio_ffmpeg/binaries');if(fs.existsSync(d))candidates.push(...fs.readdirSync(d).filter(n=>/^ffmpeg.*\.exe$/.test(n)).sort().map(n=>path.join(d,n)));}

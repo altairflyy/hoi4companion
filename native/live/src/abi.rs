@@ -6,6 +6,10 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 type Result<T> = std::result::Result<T, String>;
 const ABI: &str = include_str!("../../../src/hoi4companion/live-abi-v1.json");
+// Same native field layout, relocated for the exact HOI4 1.20.0.0 PE: globals,
+// branch/RIP displacements, jump tables and frame offsets re-read from that build.
+const ABI_1_20: &str = include_str!("../../../src/hoi4companion/live-abi-v1-hoi4-1.20.json");
+const ABIS: [&str; 2] = [ABI, ABI_1_20];
 // Optional captured globals may be absent from the older reference layout.
 // Declare only reviewed root slots; set() must never create arbitrary paths.
 const OPTIONAL_CAPTURE_GLOBALS: &[&str] = &[
@@ -160,12 +164,29 @@ fn set(value: &mut Value, path: &str, new: Value) -> Result<()> {
     *slot = new;
     Ok(())
 }
+/// Qualifies against every relocation set. Exactly one may admit the image;
+/// two admitting definitions are ambiguous evidence and reject acquisition.
 pub fn qualify(data: &[u8], manifest: &Value) -> Result<Value> {
+    let mut admitted = vec![];
+    let mut errors = vec![];
+    for text in ABIS {
+        match qualify_with(data, manifest, text) {
+            Ok(profile) => admitted.push(profile),
+            Err(error) => errors.push(error),
+        }
+    }
+    match admitted.len() {
+        1 => Ok(admitted.pop().unwrap()),
+        0 => Err(errors.join("; ")),
+        _ => Err("Ambiguous ABI relocation sets".into()),
+    }
+}
+fn qualify_with(data: &[u8], manifest: &Value, text: &str) -> Result<Value> {
     if data.get(..2) != Some(b"MZ") {
         return Err("Invalid PE image".into());
     }
     let pe = Pe::new(data)?;
-    let definition: Value = serde_json::from_str(ABI).map_err(|e| e.to_string())?;
+    let definition: Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
     let mut profile = manifest["profiles"][definition["reference_profile"]
         .as_str()
         .ok_or("Missing ABI reference")?]
@@ -300,7 +321,7 @@ pub fn qualify(data: &[u8], manifest: &Value) -> Result<Value> {
             }
         }
     }
-    profile["compatibility"] = json!({"method":"structural","layout_id":definition["layout_id"],"groups":qualified,"live_validated":false});
+    profile["compatibility"] = json!({"method":"structural","layout_id":definition["layout_id"],"relocation_source":definition["provenance"]["source_sha256"],"groups":qualified,"live_validated":false});
     Ok(profile)
 }
 
@@ -308,8 +329,38 @@ pub fn qualify(data: &[u8], manifest: &Value) -> Result<Value> {
 mod tests {
     use super::*;
     #[test]
+    fn local_executable_qualifies_every_group_when_provided() {
+        // Opt-in static evidence: HOI4_QUALIFY_EXE names a read-only copy of a game PE.
+        let Ok(path)=std::env::var("HOI4_QUALIFY_EXE") else {return};
+        let data=std::fs::read(path).unwrap();
+        let manifest:Value=serde_json::from_str(include_str!("../../../src/hoi4companion/live-profiles-v1.json")).unwrap();
+        let profile=qualify(&data,&manifest).unwrap();
+        let groups=profile["compatibility"]["groups"].as_object().unwrap();
+        let failed=groups.iter().filter(|(_,v)|**v!=true).collect::<Vec<_>>();
+        assert!(failed.is_empty(),"{failed:?}");
+        eprintln!("qualified by {} with {} groups",profile["compatibility"]["relocation_source"],groups.len());
+    }
+    #[test]
+    fn relocation_sets_share_one_field_layout() {
+        // Readers check evidence counts per group; a relocation set may change
+        // bytes and globals only, never the groups, rows or what they set.
+        let shape=|text:&str|{let d:Value=serde_json::from_str(text).unwrap();
+            let groups=d["groups"].as_object().unwrap().iter().map(|(g,rows)|(g.clone(),rows.as_array().unwrap().iter().map(|r|{
+                let mut r=r.clone();let o=r.as_object_mut().unwrap();
+                for k in ["bytes","mask"]{assert_eq!(o[k].as_str().unwrap().len(),o["bytes"].as_str().unwrap().len());}
+                o.remove("bytes");o.remove("mask");
+                if let Some(g)=o.get_mut("globals"){for x in g.as_array_mut().unwrap(){x.as_array_mut().unwrap().pop();}}
+                r}).collect::<Vec<_>>())).collect::<Vec<_>>();
+            (d["layout_id"].clone(),d["reference_profile"].clone(),d["rtti"].clone(),d["sections"].clone(),d["construction_layout"].clone(),groups)};
+        let reference=shape(ABI);
+        for text in ABIS{assert_eq!(shape(text),reference);}
+        let sources=ABIS.iter().map(|t|serde_json::from_str::<Value>(t).unwrap()["provenance"]["source_sha256"].clone()).collect::<std::collections::HashSet<_>>();
+        assert_eq!(sources.len(),ABIS.len());
+    }
+    #[test]
     fn compiled_capture_paths_are_admitted_by_the_reference_layout() {
-        let definition:Value=serde_json::from_str(ABI).unwrap();
+      for text in ABIS {
+        let definition:Value=serde_json::from_str(text).unwrap();
         let manifest:Value=serde_json::from_str(include_str!("../../../src/hoi4companion/live-profiles-v1.json")).unwrap();
         let mut profile=manifest["profiles"][definition["reference_profile"].as_str().unwrap()].clone();
         optional_slots(&mut profile);
@@ -321,6 +372,7 @@ mod tests {
                 }
             }
         }
+      }
     }
     #[test]
     fn reviewed_optional_captures_have_slots_without_arbitrary_path_creation() {
