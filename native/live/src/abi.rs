@@ -363,6 +363,18 @@ mod tests {
                         .filter_map(|j|pe.class_name(rel(ctor,body,j+3,j+7)).ok()).collect::<Vec<_>>()}).collect::<Vec<_>>()}).collect::<Vec<_>>();
         assert_eq!(classes,vec![vec![".?AV?$TGameItemDatabase@VCBuildingDatabase@@@@".to_string(),".?AVCBuildingDatabase@@".to_string()]],
             "building database slot {slot:#x}");
+        // The resources database slot is stored once, `call ctor; mov rbx,rax; jmp; ...;
+        // mov [rip+slot],rbx`, and that constructor installs the base TGameItemDatabase vtable,
+        // then CStrategicResourceDatabase last.
+        let slot=profile["resources_database_rva"].as_u64().unwrap();
+        let classes=sections(&data,&pe,true).unwrap().into_iter().flat_map(|(base,code)|{
+            (14..code.len().saturating_sub(7)).filter(|&i|code[i..i+3]==[0x48,0x89,0x1d] && rel(base,code,i+3,i+7)==slot)
+                .map(|i|{assert_eq!((code[i-14],&code[i-9..i-6]),(0xe8,&[0x48,0x8b,0xd8][..]),"resources database store {:#x}",base+i as u64);
+                    let ctor=rel(base,code,i-13,i-9);let body=pe.bytes(ctor,0x80).unwrap();
+                    (0..0x79).filter(|&j|matches!(body[j],0x48|0x4c)&&body[j+1]==0x8d&&body[j+2]&0xc7==5)
+                        .filter_map(|j|pe.class_name(rel(ctor,body,j+3,j+7)).ok()).collect::<Vec<_>>()}).collect::<Vec<_>>()}).collect::<Vec<_>>();
+        assert_eq!(classes,vec![vec![".?AV?$TGameItemDatabase@VCStrategicResourceDatabase@@@@".to_string(),".?AVCStrategicResourceDatabase@@".to_string()]],
+            "resources database slot {slot:#x}");
         eprintln!("qualified by {} with {} groups",profile["compatibility"]["relocation_source"],groups.len());
     }
     #[test]
