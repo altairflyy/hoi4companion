@@ -286,3 +286,10 @@ fn runtime_high_command_roles_are_listed_apart_from_advisor_tokens(){
     assert_eq!(advisors["generated_items"],json!([{"generated_key":"type: 73, id: 4067high_command","slot_type":"high_command","character_name":"TST_general"}]));
     m.string(generated+0x30,"type: 73, id: 4067air_chief");assert_eq!(m.request("politics",a).unwrap()["advisors"]["status"],"unavailable");
 }
+#[test]
+fn war_support_defines_come_from_the_relocation_set_on_the_structural_layout(){
+    let mut m=Fixture::new();m.put(BASE+0x7000,&20_000i64.to_le_bytes());
+    let read=|m:&mut Fixture,attributes:Value|Reader{d:Decoder{memory:m,base:BASE},world:WORLD,country:COUNTRY,tag:1,watch:BTreeMap::new(),attributes,event_cache:None}.war_global("defensive",10_000_000);
+    assert_eq!(read(&mut m,json!({"layout_id":"hoi4-x64-abi-v1","war_support_globals":{"defensive":0x7000}})).unwrap(),20_000);
+    assert!(read(&mut m,json!({"layout_id":"hoi4-x64-abi-v1"})).unwrap_err().contains("not qualified"));
+}

@@ -265,6 +265,7 @@ pub unsafe extern "C" fn hoi4_backend_country_profile_process(
                 "gui_layout",
                 "political_power_offset",
                 "construction_layout",
+                "war_support_globals",
             ] {
                 request.attributes.as_object_mut().unwrap().remove(key);
                 if let Some(value) = profile.metadata()["selected"].get(key) {

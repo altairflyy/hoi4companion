@@ -328,7 +328,12 @@ impl<M: Memory> Reader<'_, M> {
             }
         }
         let Some(value) = found else { return Ok(0) };
-        let definitions = self.pointer(self.d.base + 0x33dd1d0)?;
+        let definitions_rva = if self.attributes["layout_id"] == "hoi4-x64-abi-v1" {
+            self.attributes["modifier_definitions_rva"].as_u64().ok_or("Modifier definitions unavailable")?
+        } else {
+            0x33dd1d0
+        };
+        let definitions = self.pointer(self.d.base + definitions_rva)?;
         let flags = u32::from_le_bytes(
             self.track(definitions + index as u64 * 0x78 + 0x60, 4)?
                 .try_into()
@@ -400,12 +405,27 @@ impl<M: Memory> Reader<'_, M> {
         }
         let mut result = 0;
         if at_war && defensive {
-            result += self.metric64(self.d.base + 0x33e2c48, 10_000_000)?
+            result += self.war_global("defensive", 10_000_000)?
         }
         if at_war && offensive {
-            result += self.metric64(self.d.base + 0x33e2ce0, 10_000_000)?
+            result += self.war_global("offensive", 10_000_000)?
         }
         Ok(result)
+    }
+    /// War support defines: named per relocation set on the structural layout, the
+    /// reviewed reference globals on the hash-pinned build.
+    pub(super) fn war_global(&mut self, name: &str, limit: i64) -> Result<i128> {
+        let rva = if self.attributes["layout_id"] == "hoi4-x64-abi-v1" {
+            self.attributes["war_support_globals"][name].as_u64().ok_or("War support defines are not qualified for this executable.")?
+        } else {
+            match name {
+                "defensive" => 0x33e2c48, "offensive" => 0x33e2ce0, "tension" => 0x33e2d70,
+                "history_factor" => 0x33df5f0, "history_limit" => 0x33df678,
+                "upper" => 0x33e4528, "lower" => 0x33e45d8,
+                _ => return Err("Unknown war support define.".into()),
+            }
+        };
+        self.metric64(self.d.base + rva, limit)
     }
     pub(super) fn metrics(&mut self) -> Result<Value> {
         if (self.attributes["sha256"] != functions()["sha256"]
@@ -430,12 +450,12 @@ impl<M: Memory> Reader<'_, M> {
         if tension < 0 {
             return Err("World tension is outside its qualified range.".into());
         }
-        value += tension * self.metric64(self.d.base + 0x33e2d70, 10_000_000)? / 100000;
+        value += tension * self.war_global("tension", 10_000_000)? / 100000;
         value += from_q15(self.metric64(self.country + 0x14c8, 10_000_000_000)?);
         let history = (to_q15(self.history_sum()?)
-            * self.metric64(self.d.base + 0x33df5f0, 32768 * 1000)?)
+            * self.war_global("history_factor", 32768 * 1000)?)
             >> 15;
-        let limit = self.metric64(self.d.base + 0x33df678, 10_000_000)?;
+        let limit = self.war_global("history_limit", 10_000_000)?;
         if limit < 0 {
             return Err("War support history limit is invalid.".into());
         }
@@ -444,8 +464,8 @@ impl<M: Memory> Reader<'_, M> {
             value += from_q15(self.metric64(self.country + off, 10_000_000_000)?)
         }
         value += self.metric_modifier(149)?;
-        let upper = self.metric64(self.d.base + 0x33e4528, 10_000_000_000)?;
-        let lower = self.metric64(self.d.base + 0x33e45d8, 10_000_000_000)?;
+        let upper = self.war_global("upper", 10_000_000_000)?;
+        let lower = self.war_global("lower", 10_000_000_000)?;
         if (lower, upper) != (0, 100000) {
             return Err("War support bounds are outside the qualified 0..1 scale.".into());
         }

@@ -304,6 +304,11 @@ fn qualify_with(data: &[u8], manifest: &Value, text: &str) -> Result<Value> {
             profile.as_object_mut().unwrap().remove(key);
         }
     }
+    // War support defines are build-specific globals named by the relocation set; they
+    // are admitted only with the metrics code that reads them.
+    if qualified["metrics"] == true {
+        profile["war_support_globals"] = definition["war_support_globals"].clone();
+    }
     profile["layout_id"] = definition["layout_id"].clone();
     if qualified["construction"] == true {
         profile["construction_layout"] = definition["construction_layout"].clone();
@@ -388,7 +393,8 @@ mod tests {
                 o.remove("bytes");o.remove("mask");
                 if let Some(g)=o.get_mut("globals"){for x in g.as_array_mut().unwrap(){x.as_array_mut().unwrap().pop();}}
                 r}).collect::<Vec<_>>())).collect::<Vec<_>>();
-            (d["layout_id"].clone(),d["reference_profile"].clone(),d["rtti"].clone(),d["sections"].clone(),d["construction_layout"].clone(),groups)};
+            (d["layout_id"].clone(),d["reference_profile"].clone(),d["rtti"].clone(),d["sections"].clone(),d["construction_layout"].clone(),
+                d["war_support_globals"].as_object().unwrap().keys().cloned().collect::<Vec<_>>(),groups)};
         let reference=shape(ABI);
         for text in ABIS{assert_eq!(shape(text),reference);}
         let sources=ABIS.iter().map(|t|serde_json::from_str::<Value>(t).unwrap()["provenance"]["source_sha256"].clone()).collect::<std::collections::HashSet<_>>();
