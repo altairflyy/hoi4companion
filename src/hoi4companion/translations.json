@@ -1,6 +1,8 @@
 {
   "schema_version": 1,
   "messages": {
+    "Confirmed by you: {0}": "Confermata da te: {0}",
+    "Remove confirmation": "Rimuovi conferma",
     "I chose this": "Ho scelto questa",
     "confirmed by you": "confermata da te",
     "ambiguous answer": "risposta ambigua",

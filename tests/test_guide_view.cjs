@@ -251,6 +251,49 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  assert.match(css,/\.guide-page \.operation-reading-note\{[^}]*font-size:14px[^}]*color:var\(--text\)/);
 });
 
+test('confirmed candidate shows label and remove action',async()=>{
+ class Node{
+  constructor(){this.children=[];this.dataset={};this.hidden=false;this.text='';this.style={};}
+  set textContent(value){this.text=String(value);this.children=[];}
+  get textContent(){return this.text+this.children.map(x=>x.textContent||'').join('');}
+  append(...nodes){this.children.push(...nodes);}
+  replaceChildren(...nodes){this.text='';this.children=nodes;}
+  setAttribute(key,value){this[key]=value;}getAttribute(key){return this[key];}addEventListener(type,fn){this['on'+type]=fn;}
+  pause(){}load(){}removeAttribute(key){delete this[key];}showModal(){this.open=true;}close(){this.open=false;}
+ }
+ const nodes=new Map(),get=id=>{if(!nodes.has(id))nodes.set(id,new Node());return nodes.get(id);};get('hideDone').checked=true;
+ const base={schema_version:1,id:'two',title:'Generic',runtime_engine:'rust-guide-core',runtime_definition_revision:'a'.repeat(64),phases:[{id:'phase',title:'Phase',when:{op:'check',key:'phase_open'}}],tracks:{focus:[{key:'f',kind:'focus',target:'F',name:'NATIVE FOCUS'}],research:[{key:'r',kind:'technology',target:'R',name:'NATIVE TECH'}],operations:[{key:'build',kind:'gate',name:'Construction',phase:'phase',completion:{op:'check',key:'done'},depends_on:[],action:{kind:'manual',params:{category:'construction',timing:'1936',instructions:['Build first']}}}]}};
+ base.sources=[{id:'doc',type:'file',title:'Original.docx',text:'Original notes <script>not executable</script>\n# Initial Setup\nPrepare the starting army.'}];
+ base.tracks.operations[0].evidence=[{source_id:'doc',basis:'explicit',quote:'See Initial Setup'}];
+ base.tracks.operations[0].action.params.reference_images=[{id:'a'.repeat(64),name:'OFF'}];
+ base.tracks.operations[0].action.params.design_reference={name:'T-I1',image_id:'b'.repeat(64),modules:{gun:'cannon'},upgrades:{engine:0}};
+ const options=[{kind:'event_option',id:'E.a',event_id:'E',name:'Alpha',compatible:true},{kind:'event_option',id:'E.b',event_id:'E',name:'Bravo',compatible:true}];
+ let confirmed=true;const posts=[];let projections=0;
+ const served=()=>{const g=structuredClone(base);g.tracks.operations[0].action.params.reference_candidates={status:'ambiguous',text:'Mobilize The…',candidates:options,event_options:options,...(confirmed?{confirmed:{event_id:'E',option_id:'E.b',basis:'user_confirmed'}}:{})};return g;};
+ const run={schema_version:1,guide_id:'two',run_id:'first',session_id:null,checks:{},started:{},revision:0};
+ const window={hoiLive:{enabled:true,subscribe(){}},addEventListener(){}};
+ const document={getElementById:get,createElement:()=>new Node(),createTextNode:text=>({textContent:text}),querySelectorAll:()=>[],body:{classList:{add(){}}}};
+ const fetch=async(url,options)=>{
+  if(url==='/api/guide/active')return {ok:true,json:async()=>options?{guide_id:'two',revision:1}:{}};
+  if(url==='/api/guide/answers'&&options){posts.push(JSON.parse(options.body));confirmed=false;return {ok:true,json:async()=>({})};}
+  if(url.startsWith('/api/guide/projection')){projections++;const id=new URL(url,'http://localhost').searchParams.get('id'),state={schema_version:1,usable:false,session_id:null,facts:{}};
+   return {ok:true,json:async()=>({schema_version:1,engine:'rust-guide-core',server_id:'core',guide_id:id,definition_revision:base.runtime_definition_revision,state,progress:run,evaluation:walkthroughEvaluation(base,state,run)})};}
+  return {ok:true,json:async()=>url.startsWith('/api/guide/progress')?run:url==='/api/guides'?{guides:[{id:'two',title:'Generic'}]}:served()};};
+ const context={window,document,fetch,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{pathname:'/walkthrough',search:'?guide=two',href:'http://localhost/walkthrough?guide=two'},HoiContracts:require('../src/hoi4companion/web/contracts.js'),HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js'),HoiOperationalSummary:require('../src/hoi4companion/web/operational-summary.js')};
+ context.HoiActionPlan=require('../src/hoi4companion/web/action-plan.js');
+ context.HoiGuideReferences=require('../src/hoi4companion/web/guide-references.js');
+ const settle=async()=>{for(let i=0;i<8;i++)await new Promise(setImmediate);};
+ const descendants=node=>[node,...(node.children||[]).flatMap(descendants)];
+ runLocalized(fs.readFileSync('src/hoi4companion/web/guide-session.js','utf8'),context);
+ runLocalized(fs.readFileSync('src/hoi4companion/web/guide.js','utf8'),context);await settle();
+ assert.match(get('operationCards').textContent,/Confermata da te: Bravo/);
+ const button=descendants(get('operationCards')).find(n=>n.className==='remove-confirmation');
+ assert.ok(button);assert.equal(button.textContent,'Rimuovi conferma');
+ await button.onclick();await settle();
+ assert.deepEqual(posts,[{guide_id:'two',key:'build',quote:'Mobilize The…',op:'remove'}]);
+ assert.equal(get('operationCards').textContent.includes('Confermata da te'),false);
+});
+
 function walkthroughEvaluation(guide,state,progress){
  const {runtime_engine,runtime_definition_revision,...definition}=guide;
  const {revision,...record}=progress;

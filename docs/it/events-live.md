@@ -216,3 +216,7 @@ Work. Test DOM simulati e API non vengono dichiarati prova visuale. Nessuna
 nuova verifica reale di nomina non vuota, cambio legge, scelta evento o avvio
 decisione. Il rilevamento della finestra aperta è stato invece osservato sulla
 partita POL e verificato dopo il riavvio del server.
+
+## Risposte confermate dall'utente sulle righe ambigue, 19 novembre 2026
+
+Se una riga della guida cita una risposta di evento che corrisponde a più risposte, dall'HUD si può confermare quella voluta. La conferma appartiene alla riga della guida (id guida, chiave del passo, testo citato) e non a una run. È salvata nella tabella SQLite `confirmed_event_answers` del database dei progressi. Rust la riapplica a ogni preparazione della guida, se chiave e citazione coincidono e l'opzione è ancora tra quelle della riga (`reference_candidates.confirmed`, base `user_confirmed`). Una riga con un solo riferimento diventa un passo evento collegato. Nella suite la scheda mostra "Confermata da te" e il pulsante "Rimuovi conferma" (`POST /api/guide/answers`, `op: "remove"`), che cancella la riga e la spunta della run per quel passo. Non verificato nel gioco reale.

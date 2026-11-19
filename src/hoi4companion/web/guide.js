@@ -196,6 +196,14 @@
   if(act?.status==='bound'&&Array.isArray(act.actions))node.append(el('p','operation-copy',HoiI18n.t("Recognized: {0}.",act.actions.map(a=>`${actionLabel(a.action)} ${a.target}`).join(' · '))));
   else if(act?.status==='not_observable')node.append(el('p','operation-copy',HoiI18n.t("Recognized: {0} {1}. The game does not show this live: confirm it yourself.",actionLabel(act.action),(act.targets||[]).join(', '))));
   if(ref.binding_withdrawn)node.append(el('p','operation-copy',HoiI18n.t("Link removed: {0} ({1}) is not compatible with this nation. Track it manually.",ref.binding_withdrawn.name||ref.binding_withdrawn.id,ref.binding_withdrawn.id)));
+  // The player's own answer for an ambiguous line (stored by the backend, applied by Rust).
+  const confirmedAnswer=ref.reference_candidates?.confirmed;
+  if(confirmedAnswer?.basis==='user_confirmed'){
+   const listed=[...(ref.reference_candidates.candidates||[]),...(ref.reference_candidates.event_options||[])].find(c=>c.id===confirmedAnswer.option_id&&(!c.event_id||c.event_id===confirmedAnswer.event_id));
+   const line=el('p','operation-copy',HoiI18n.t("Confirmed by you: {0}",listed?.name||confirmedAnswer.option_id)),remove=el('button','remove-confirmation',HoiI18n.t("Remove confirmation"));remove.type='button';
+   remove.onclick=async()=>{remove.disabled=true;try{const response=await fetch('/api/guide/answers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({guide_id:value.guide.id,key:row.key,quote:ref.reference_candidates.text,op:'remove'})});if(!response.ok)throw Error();await window.hoiGuide.select(value.guide.id,false);}catch{remove.disabled=false;}};
+   line.append(' ',remove);node.append(line);
+  }
   if(Array.isArray(ref.reference_candidates?.candidates)&&ref.reference_candidates.candidates.length)node.append(el('p','operation-copy',HoiI18n.t(ref.reference_candidates.status==='no_compatible_candidate'?"No match for this nation. Similar names in the game: {0}":"Possible references: {0}",ref.reference_candidates.candidates.map(c=>`${c.name||c.id} (${kindLabel(c.kind)})`).join(' · '))));
   // Items listed without a quantity stay in this step; never a completion target.
   const unquantified=Array.isArray(row.action?.params?.production_unquantified)?row.action.params.production_unquantified:[];
