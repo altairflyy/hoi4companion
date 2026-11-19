@@ -1,5 +1,5 @@
 # Shared agent handoff
-Updated: 2026-11-18. Read CLAUDE.md, this file and current Git diff before editing.
+Updated: 2026-11-19. Read CLAUDE.md, this file and current Git diff before editing.
 
 ## Desktop lifecycle — installed 2026-11-17
 - `native/desktop` is now the lightweight Rust host (tao + wry / system WebView2); backend no longer builds a desktop binary. Normal launch is resident, embeds suite.html, and keeps a port-scoped mutex for its lifetime. Repeated launch verifies the existing window's PID/image, restores it and exits.
@@ -62,4 +62,4 @@ Updated: 2026-11-18. Read CLAUDE.md, this file and current Git diff before editi
 - Preserve active guide, campaigns, imports and existing concurrent edits. Do not touch live-building readers for desktop work. User permits closing/installing/restarting Companion/HUD; never close, foreground or control HOI4.
 - Check source status before changes: branch guide-identity-decomposition; all work is committed locally as of e1d4bfb (2026-11-17, at the user's request). User preference: commit finished work locally in focused commits, then rebuild/restart the app; never push without asking; do not alter agent hooks/configuration.
 - Next: user exercise Desktop shortcut and HUD in gameplay; investigate any concrete issues, with read-only game access. Use isolated profiles and owned child handles for lifecycle regressions. Further optimize cold guide preparation only with correctness-preserving cache evidence.
-- User-confirmed ambiguous event answers (2026-11-19, branch auto/improve-2026-11-18): stored in SQLite `confirmed_event_answers`, re-applied by Rust (`confirmed_answers.rs`), HUD roles/colors, suite label + "Remove confirmation" (`guide.js`, test in `tests/test_guide_view.cjs`). Details `docs/events-live.md` last section. Live behavior NOT VERIFIED in game; `_native` backend/overlay NOT rebuilt for this feature.
+- User-confirmed ambiguous event answers DONE (2026-11-19, branch auto/improve-2026-11-18, commits 197f141..320d441, not merged/pushed; log `.superpowers/sdd/2026-11-19-ambiguous-event-confirmation/progress.md`): stored in SQLite `confirmed_event_answers`, re-applied by Rust (`confirmed_answers.rs`), HUD roles/colors, suite label + "Remove confirmation" (`guide.js`, test in `tests/test_guide_view.cjs`). Details `docs/events-live.md` last section. All 6 task reviews clean; invariant review no violations; JS 465 pass / 0 fail / 3 skipped (dev backend), Rust backend all pass. Next: rebuild `_native` backend + overlay (stale), then verify in game; live behavior NOT VERIFIED.
