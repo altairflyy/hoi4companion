@@ -3,8 +3,8 @@ Updated: 2026-11-19. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear; the agent rewrites it at every session end and shows it in chat):
-> Riqualifica HOI4 1.20, step equipment (handoff 0b; live: "Variante scorte duplicata o quantità non valida"). File: `src/hoi4companion/live-abi-v1-hoi4-1.20.json`,
-> `native/live/src/abi.rs` (test), `native/live/src/country.rs` (fn equipment), `country_logistics.rs`. HOI4 aperto. A fine step: commit, deliver-build, verifica live.
+> Riqualifica HOI4 1.20, step resources (handoff 0b): la riga resources cattura 0x33e36e0, verificare lo slot come per buildings. File: `src/hoi4companion/live-abi-v1-hoi4-1.20.json`,
+> `native/live/src/abi.rs` (test), `native/live/src/country.rs` (fn resources). HOI4 aperto. A fine step: commit, deliver-build, verifica live.
 0. Live diplomacy (user priority), one step per session, spec `docs/superpowers/specs/2026-11-19-foreign-ideology-abbreviations-design.md`.
    Next: Step 1 (live ruling ideology of all countries; needs HOI4 running, read-only), then Step 2 (NSPA abbreviations + "Attache to").
    Start each step with superpowers:writing-plans on that step only. Tick here when done.
@@ -15,19 +15,21 @@ Resume prompt (user pastes it after /clear; the agent rewrites it at every sessi
    Opt-in test `HOI4_QUALIFY_EXE=<copy> node scripts/dev-native.cjs test live abi::` checks token and building slots.
    Done `a03f723`: building database row -> slot 0x33e36e8 (getter 0x169ddb; writer 0x198d7c after ctor 0x6c9870 with CBuildingDatabase vtable);
    live states/fortifications observed, construction partial (lines in occupied provinces/states), 2026-11-19 17:16.
+   Done `7a91a2c`, `f21e668`: equipment. Pool layout unchanged; 1.20 keeps an owed variant below zero (live support_equipment_1 = -1.0), so gross
+   stock is now signed. Live 2026-11-19 17:40: equipment observed (54 types, 569 variants), logistics observed (29 archetypes); not compared with the in-game UI.
    Resources row matches 6 getters (captures 0x33e36e0): same check needed. Slot-finding: getter list, then read-only RTTI probe of slots.
-   NEXT SESSION: equipment. Then, in order: resources; politics.advisors + advisor costs; commander_assignments (CArmyGroup); decisions (read limit); metrics; doctrines.
+   NEXT SESSION: resources. Then, in order: politics.advisors + advisor costs; commander_assignments (CArmyGroup); decisions (read limit); metrics; doctrines.
    Also hash-pinned to old builds: map markers (`map_markers.rs`, 709f…) and production GUI (`gui_production.rs`, cf781…).
    Scratch tools may be gone: crate `abiprobe` (iced-x86; probe, dis, xref, imm…) in scratchpad `cb8fd0a3…`;
    cargo via `.local/toolchains` (set CARGO_HOME/RUSTUP_HOME);
    rebuild if missing. Analyse only the copy; never name the game folder in a write command (guard `guard-game.cjs`).
-1. Verify the confirmed-event-answer work in game (read-only). `_native` backend rebuilt 2026-11-19 17:16 from `a03f723` (dev profile), app restarted; HOI4 1.20 running.
+1. Verify the confirmed-event-answer work in game (read-only). `_native` backend rebuilt 2026-11-19 17:40 from `f21e668` (dev profile), app restarted; HOI4 1.20 running.
 2. User exercises the Desktop shortcut and HUD in gameplay; investigate concrete issues with read-only game access.
 3. UX roadmap, one step per session (user runs /clear between steps): do the first unchecked item of `## Execution order` in `docs/ux-analysis-2026-11-19.md`, tick it there and here. Done: R1, R2, R3+R5. Next: R4.
 4. Decide IL-02 (event-answer narrowing binds nothing; options in `docs/improvement-backlog.md`), needs the user.
 
 ## In progress
-- Branch `auto/improve-2026-11-18` (UX R1, R2, R3+R5 committed and rebuilt; HOI4 1.20 relocation `e98ccbb`, `d1851e7`, `a03f723`), NOT merged, NOT pushed. Holds the first `/improve-loop` run and the confirmed-event-answer work.
+- Branch `auto/improve-2026-11-18` (UX R1, R2, R3+R5 committed and rebuilt; HOI4 1.20 relocation `e98ccbb`, `d1851e7`, `a03f723`, `7a91a2c`, `f21e668`), NOT merged, NOT pushed. Holds the first `/improve-loop` run and the confirmed-event-answer work.
 - Improve-loop run report: `docs/improvement-backlog.md` `## Run report`. Done IL-01, 03, 05, 06, 07, 08; IL-04 dropped (no qualified war-goal field).
 
 ## Recently verified
