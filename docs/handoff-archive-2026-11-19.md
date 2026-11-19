@@ -76,3 +76,23 @@ Updated: 2026-11-19. Read CLAUDE.md, this file and current Git diff before editi
   live states/fortifications observed, construction partial (lines in occupied provinces/states), 2026-11-19 17:16.
 - `7a91a2c`, `f21e668`: equipment. Pool layout unchanged; 1.20 keeps an owed variant below zero (live support_equipment_1 = -1.0), so gross
   stock is now signed. Live 2026-11-19 17:40: equipment observed (54 types, 569 variants), logistics observed (29 archetypes); not compared with the in-game UI.
+
+
+## Moved from the handoff on 2026-11-19 (after UX R6)
+0. Live diplomacy spec `docs/superpowers/specs/2026-11-19-foreign-ideology-abbreviations-design.md`: DONE.
+   Step 1 `3f0dbb6` (diplomacy.ideologies, live 439 tags), Step 2 `22820a2` (NSPA/RSPA, "Attache to"; live ROM step bound, ready, SPR fascism observed).
+0b. HOI4 1.20.0.0 requalified (copy `.local/hoi4-1.20/hoi4.exe`, sha256 `1beb2a38…b63a9f`): all 17 country sections observed/partial live 2026-11-19.
+   Commits after `f21e668`: resources `0c82777`, advisors `5677f10`, advisor costs `4994479`, commanders `f24566b`, decisions `7b72bf4`,
+   metrics `ce550d0`, doctrines/design `fadd727`, map camera + production GUI `f5c0d0e` (evidence in each commit message).
+0c. DONE 2026-11-19, user confirmed on screen: war support 0.588; ENG/FRA fascism (ROM puppets); ROM no active decisions, random counters right
+   (improved_worker_conditions 2, war_propaganda_convoys 1, war_propaganda_casualties 1); production HUD boxes and construction map markers OK on 1.20.
+   Still open: old metrics key "defensive" reads WAR_SUPPORT_OFFNSIVE_WAR (slot position); confirm against the UI before changing it. YUG not checked.
+   Tools: crate `abiprobe` (dis, xref) in scratchpad `cb8fd0a3…`; analyse only the copy (guard `guard-game.cjs`).
+- 2026-11-19: npm test 470 pass / 0 fail / 3 skipped; Rust live 66, guides 94, model 7, backend all pass; presentation fixtures unchanged.
+- Guide follows the played nation (`8703617`, `2a5aefe`): verified live ROM guide -> SOV guide.
+- User confirmed floating card and map markers visible in game (2026-11-17).
+- Full live read still ~1.35 s (provincial section for all provinces); a reader-side province filter is a possible next step. Profile before optimizing.
+- Compiled-guide cache keyed by backend binary hash (narrowing rejected as unsafe).
+- Remaining semantic work: grounded decision/war/capitulation and composite triggers; justify/annex/integrate/invade/collab recognized only.
+- Construction: shared-slot factory maximum unqualified.
+- Pre-desktop fixes and migration notes: `docs/handoff-before-desktop-2026-11-17.md`. Production tracking: `docs/handoff-production-tracking.md`.

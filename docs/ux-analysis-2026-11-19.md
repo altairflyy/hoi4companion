@@ -352,7 +352,10 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   riscrittura è un segnaposto con il testo sorgente; se restano lettere sorgente fuori dai segnaposto la riga
   resta com'è scritta e i significati vanno nel glossario, mostrato come chip da `guide.js`. Le etichette
   iniziali (ARMY:, Land Doc:) contano come struttura. Test: `tests/test_action_reading.cjs` (frasi P3).
-- [ ] **R6 · Rapporto di interpretazione all'import** (Rust, `import_reports.rs`) e card panoramica.
+- [x] **R6 · Rapporto di interpretazione all'import** (2026-11-19, `4acda08`). `import_reports::interpretation` conta i passi per
+  verifica (automatica, da confermare, promemoria, non interpretata) ed elenca le righe non interpretate; l'importer lo mostra
+  nella card `interpretationOverview` con i collegamenti a Correggi associazioni. Conteggi per categoria non inclusi: la
+  categoria resta calcolata in JS (R1). Non ancora ricompilato né visto dal vivo.
 - [ ] **R7 · Binder di costruzione esteso** (Rust, `construction_instructions.rs`).
 - Poi R8–R11, quindi il lungo periodo, nell'ordine delle tabelle sopra.
 
