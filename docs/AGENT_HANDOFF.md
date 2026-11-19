@@ -3,30 +3,30 @@ Updated: 2026-11-19. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear; the agent rewrites it at every session end and shows it in chat):
-> Riqualifica HOI4 1.20, step identità campagna (handoff 0b). File: `src/hoi4companion/live-abi-v1-hoi4-1.20.json` (riga core:10),
-> `native/live/src/abi.rs` (test), `native/live/src/country_campaign.rs` (solo lettura). HOI4 aperto. A fine step: commit, deliver-build, verifica live.
+> Riqualifica HOI4 1.20, step stati/costruzioni/fortificazioni (handoff 0b, CBuildingDatabase). File: `src/hoi4companion/live-abi-v1-hoi4-1.20.json`,
+> `native/live/src/abi.rs` (test), `native/live/src/country_forts.rs`/`country.rs` (lettura). HOI4 aperto. A fine step: commit, deliver-build, verifica live.
 0. Live diplomacy (user priority), one step per session, spec `docs/superpowers/specs/2026-11-19-foreign-ideology-abbreviations-design.md`.
    Next: Step 1 (live ruling ideology of all countries; needs HOI4 running, read-only), then Step 2 (NSPA abbreviations + "Attache to").
    Start each step with superpowers:writing-plans on that step only. Tick here when done.
-   Waits on item 0b (campaign identity + domains on HOI4 1.20).
+   Waits on item 0b (remaining domains on HOI4 1.20).
 0b. Requalify HOI4 1.20.0.0 (user chose this; read-only copy `.local/hoi4-1.20/hoi4.exe`, sha256 `1beb2a38…b63a9f`), one domain per session.
    Done `e98ccbb`: ABI relocation set `live-abi-v1-hoi4-1.20.json`, all 23 groups static; live core/production/diplomacy/intel/events/projects observed.
-   NEXT SESSION (user confirmed): campaign_identity, `native/live/src/country_campaign.rs` ("Token identità campagna non qualificato").
-   Runtime needs u32 0x3b80 at `campaign_token_rva`. ABI row core:10 (exception funclet `lea rcx,[token-0x48]`..`lea rcx,[token]`)
-   was resolved by inference to `0x34d6fa8` (+0x6490 like neighbours; static array, stride 0x48, slots 0x34d6db0..0x34d71a0): wrong.
-   Find the real slot statically (xrefs of the token object, code using 0x3b80) and fix row core:10 in the 1.20 set; then live check.
-   Then, in this order: states/construction/fortifications (CBuildingDatabase); equipment; resources;
+   Done `d1851e7`: campaign_identity. Row core:10 now captures slot 0x34d6f18 (static initializer at 0xfa022 loads id 0x3b80; the
+   inferred 0x34d6f60 held 0x3b84). Opt-in test `HOI4_QUALIFY_EXE` checks the slot's id; live `campaign_identity` observed 2026-11-19 17:07.
+   Method that worked: find `mov edx,[rip+id]` .. `lea rcx,[slot]` static initializers, compare the rdata id (new bin `xref`, `imm`).
+   NEXT SESSION: states/construction/fortifications (CBuildingDatabase). Then, in order: equipment; resources;
    politics.advisors + advisor costs; commander_assignments (CArmyGroup); decisions (read limit); metrics; doctrines.
    Also hash-pinned to old builds: map markers (`map_markers.rs`, 709f…) and production GUI (`gui_production.rs`, cf781…).
-   Static tools (scratch, may be gone): crate `abiprobe` (row probe, fuzzy, gen, dis, pat bins; iced-x86) in the session scratchpad;
+   Static tools (scratch, may be gone): crate `abiprobe` (probe, fuzzy, gen, dis, pat, xref, imm; iced-x86) in scratchpad `cb8fd0a3…`;
+   cargo via `.local/toolchains` (set CARGO_HOME/RUSTUP_HOME);
    rebuild if missing. Analyse only the copy; never name the game folder in a write command (guard `guard-game.cjs`).
-1. Verify the confirmed-event-answer work in game (read-only). `_native` backend rebuilt 2026-11-19 16:55 from `e98ccbb` (dev profile), app restarted; HOI4 1.20 running.
+1. Verify the confirmed-event-answer work in game (read-only). `_native` backend rebuilt 2026-11-19 17:06 from `d1851e7` (dev profile), app restarted; HOI4 1.20 running.
 2. User exercises the Desktop shortcut and HUD in gameplay; investigate concrete issues with read-only game access.
 3. UX roadmap, one step per session (user runs /clear between steps): do the first unchecked item of `## Execution order` in `docs/ux-analysis-2026-11-19.md`, tick it there and here. Done: R1, R2, R3+R5. Next: R4.
 4. Decide IL-02 (event-answer narrowing binds nothing; options in `docs/improvement-backlog.md`), needs the user.
 
 ## In progress
-- Branch `auto/improve-2026-11-18` (UX R1, R2, R3+R5 committed and rebuilt; HOI4 1.20 relocation `e98ccbb`), NOT merged, NOT pushed. Holds the first `/improve-loop` run and the confirmed-event-answer work.
+- Branch `auto/improve-2026-11-18` (UX R1, R2, R3+R5 committed and rebuilt; HOI4 1.20 relocation `e98ccbb`, `d1851e7`), NOT merged, NOT pushed. Holds the first `/improve-loop` run and the confirmed-event-answer work.
 - Improve-loop run report: `docs/improvement-backlog.md` `## Run report`. Done IL-01, 03, 05, 06, 07, 08; IL-04 dropped (no qualified war-goal field).
 
 ## Recently verified
