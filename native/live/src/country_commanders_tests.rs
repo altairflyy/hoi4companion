@@ -41,6 +41,12 @@ fn exact_commander_assignments_decode_all_three_roles(){for(role,name,kind)in[(0
 fn commander_roster_and_pending_target_do_not_prove_assignment(){let(mut m,l,_,_,manager)=fixture(1);let current=u64::from_le_bytes(m.read(l+0x1048,8).unwrap().try_into().unwrap());m.u(l+0x1048,0);m.u(l+0x1050,current);assert_eq!(m.read_assignments().unwrap()["items"],json!([]));m.i(manager+0x1c,0);assert_eq!(m.read_assignments().unwrap()["items"],json!([]));m.i(manager+0x1c,2);assert!(m.read_assignments().is_err());}
 #[test]
 fn commander_assignment_rejects_owner_identity_reciprocity_and_role_mismatches(){
-    for mutation in 0..7 {let(mut m,l,t,p,_)=fixture(1);match mutation{0=>m.i(p+0x68,2),1=>m.i(l+0x120,2),2=>m.i(t+0x3c,2),3=>m.u(t+8,0x300000035),4=>m.u(t+0x88,COUNTRY),5=>m.i(l+0xe7c,0),_=>m.object(t,"CFleet")};assert!(m.read_assignments().is_err(),"mutation {mutation}");}
+    for mutation in 0..7 {let(mut m,l,t,p,_)=fixture(1);match mutation{0=>m.i(p+0x68,2),1=>m.i(l+0x120,2),2=>m.i(t+0x3c,2),3=>m.u(t+8,0x300000035),4=>m.u(t+0x88,COUNTRY),5=>m.object(t,"CArmyGroup"),_=>m.object(t,"CFleet")};assert!(m.read_assignments().is_err(),"mutation {mutation}");}
     let(mut m,_,t,_,_)=fixture(2);m.u(t+0xa8,COUNTRY+1);assert!(m.read_assignments().is_err());
+}
+#[test]
+fn field_marshal_may_lead_a_single_army(){
+    // Seen live on HOI4 1.20: a field marshal (role 0) assigned to a COrdersGroup.
+    let(mut m,l,_,_,_)=fixture(1);m.i(l+0xe7c,0);let v=m.read_assignments().unwrap();
+    assert_eq!(v["items"][0]["role"],"field_marshal");assert_eq!(v["items"][0]["target_kind"],"army");
 }

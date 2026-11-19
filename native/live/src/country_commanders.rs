@@ -86,11 +86,18 @@ impl<M: Memory> Reader<'_, M> {
                 }
                 ("navy_leader", "fleet", self.name(target + 0xe0)?)
             } else {
-                self.typed(target, if role == 0 { "CArmyGroup" } else { "COrdersGroup" })?;
+                // A field marshal may lead an army group or, seen live on HOI4 1.20, a single
+                // army (COrdersGroup); a corps commander leads only an army.
+                let kind = self.d.kind(target)?.1;
+                let kind = match (role, kind.as_str()) {
+                    (0, ".?AVCArmyGroup@@") => "army_group",
+                    (_, ".?AVCOrdersGroup@@") => "army",
+                    _ => return Err(format!("Tipo inatteso nel riepilogo: {}", if role == 0 { "CArmyGroup" } else { "COrdersGroup" })),
+                };
                 if self.integer(target + 0x3c,1,8191)? != self.tag as i64 || self.pointer(target + 0x88)? != leader {
                     return Err("Army commander owner or reciprocity mismatch".into());
                 }
-                (if role == 0 {"field_marshal"} else {"corps_commander"}, if role == 0 {"army_group"} else {"army"}, self.name(target + 0x160)?)
+                (if role == 0 {"field_marshal"} else {"corps_commander"}, kind, self.name(target + 0x160)?)
             };
             if !targets.insert(handle.clone()) { return Err("Duplicate commander target assignment".into()); }
             items.push(json!({"commander_id":id,"role":role_name,"target_kind":kind,"instance_id":super::hex(&handle),"name":label}));
