@@ -122,7 +122,7 @@ Commit backlog changes: `docs: update the improvement backlog`.
    and tools used, harness changes, tests PASS / FAIL / NOT VERIFIED (live game behavior is always
    NOT VERIFIED unless checked in game), commits (`git log --oneline <start>..HEAD`), `needs-user` questions,
    stashes left, next priority.
-3. Add 3-5 lines on the run to `docs/AGENT_HANDOFF.md` (keep it under 100 lines).
+3. Add 3-5 lines on the run to `docs/AGENT_HANDOFF.md` (within its 6 KB cap).
 4. Commit `docs: report the improvement run`. Post the same report in chat.
 
 ## Never

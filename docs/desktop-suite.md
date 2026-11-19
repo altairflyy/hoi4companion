@@ -52,7 +52,7 @@ without adding Electron or an AI strategy engine.
 - Verify navigation, empty/live states, language, campaign/guide changes, keyboard
   access and desktop lifecycle without giving game input or changing saves.
 
-Current implementation and measured qualification: `AGENT_HANDOFF.md`.
+Measured qualification of the 2026-11-17 desktop host: `handoff-archive-2026-11-19.md`.
 The dated results below describe previous releases, including the retired Edge
 app-mode launcher, and do not describe current desktop ownership.
 

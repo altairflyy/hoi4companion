@@ -4,7 +4,8 @@ This file provides permanent project instructions for coding agents working in t
 
 ## Shared handoff
 - At the start or resumption of development, read `docs/AGENT_HANDOFF.md` and inspect `git status` and relevant diffs before editing; never overwrite, discard, commit or push unrelated work.
-- Update that handoff incrementally after each meaningful milestone, before switching tasks and at session end; do not wait until a long task finishes. Replace outdated state, keep it under 100 lines, and link to evidence rather than copying it.
+- Update that handoff incrementally after each meaningful milestone, before switching tasks and at session end; do not wait until a long task finishes. Replace outdated state and link to evidence rather than copying it. Hard cap: 6 KB, lines of at most 300 characters (enforced by `tests/test_agent_handoff_size.cjs`). Move finished history to a dated `docs/handoff-archive-*.md`, never into the handoff.
+- Keep its section order: `Next actions`, `In progress`, `Recently verified`, `Open questions / hypotheses`, `Working boundaries`, so a reader can stop after the first sections.
 - Separate verified results, hypotheses and pending work; record actual test outcomes and exact next actions. This repository file is shared across agents and requires no memory plugin or conversation history.
 
 ## Invariants
@@ -28,11 +29,10 @@ node --test tests/test_guide_model.cjs    # one JS file
 node scripts/test-native.cjs [crate] [--dev|--lto]   # cargo test --release --locked, fast non-LTO profile; --lto = production profile; crates: parser observer guide-core catalog-core tools storage model guides backend overlay desktop
 node scripts/dev-native.cjs test backend --test integration guide_evaluation::   # one backend integration module
 ```
-- **Fast local loop:** local `test-native.cjs`, `dev-native.cjs` and the `-Dev` build switch (`build-backend.ps1 -Dev`, `build-overlay.ps1 -Dev`) share `.local/rust-dev-<backend|core|desktop>-target`: optimized, incremental, no LTO. The deliver-build skill uses `-Dev` by default (`--release` for LTO). Packaging always builds with the production LTO profile; never package `-Dev` output. Put the crate before flags: `test-native.cjs backend --lto`.
-- **Local tests of the backend crates (`BACKEND_CRATES` in `scripts/native-tooling.cjs`) are unoptimized for those crates only** (`opt-level=0` via `--config`, dependencies stay optimized, cache `.local/rust-dev-backend-tests-target`; their builds use the backend cache family, never the core one): about 17 s instead of 59 s after a one-line edit (measured with `test-native.cjs backend`). Semantics are unchanged (release profile: no debug assertions or overflow checks). CI (`--ci`) and `--lto` still test the optimized backend.
+- **Fast local loop:** local `test-native.cjs`, `dev-native.cjs` and `-Dev` builds share an incremental no-LTO cache; caches, profiles and timings are in `docs/fast-local-rust.md`. Never package `-Dev` output. Put the crate before flags: `test-native.cjs backend --lto`.
+- **Filtered Rust tests:** use `node scripts/dev-native.cjs test <crate> [cargo args]`, not raw `cargo test` (which rebuilds from scratch without the same cache variables).
 - **Rebuild the backend after Rust changes:** `tests/test_native_service.cjs` runs `src/hoi4companion/_native/hoi4-backend.exe` (or `HOI4_BACKEND_EXE`). Without a rebuild it tests a stale binary. It is skipped when not on win32.
-- **Filtered Rust tests:** prefer `node scripts/dev-native.cjs test <crate> [cargo args]`, which uses the same cache as local `test-native.cjs`. Raw `cargo test` needs the same `CARGO_TARGET_DIR` and `CARGO_PROFILE_RELEASE_*` variables, or everything rebuilds from scratch.
-- **Backend integration tests are one executable:** `native/backend/tests/integration/main.rs` declares each former `tests/<name>.rs` as a module, so a change links one test binary, not thirteen. Add new integration tests as modules there.
+- **Backend integration tests are one executable** (`native/backend/tests/integration/main.rs`): add new integration tests as modules there.
 - **Browser tests never evaluate guides.** They read Rust evaluations from `tests/fixtures/presentation-evaluations.json`, generated from `presentation-cases.json` by `native/backend/tests/integration/presentation_fixtures.rs`. Evaluation rules are asserted in Rust (`native/backend/tests/integration/guide_evaluation.rs`, `contracts.rs`). After a change to evaluation or to a case, run `HOI4_UPDATE_PRESENTATION_FIXTURES=1 node scripts/test-native.cjs backend`, then review the fixture's git diff before keeping it.
 - CI runs `test-native.cjs --ci` (LTO off, so never package from that output). A release tag must equal `v` + the `package.json` version.
 
