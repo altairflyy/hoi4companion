@@ -413,6 +413,13 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   ripetuti); i due "HUNGARY BROKEN EU Path!" hanno sorgenti diverse e risultano versioni diverse; "VIDEO LINK" e "How to Import My Equipment
   Designs" vanno in "Altri documenti". I doppioni FRANCE/ROMANIA di P9 non esistono più nella libreria attuale (FRANCE ha NEW e OLD).
   Test: Rust `library_rows_carry_a_definition_hash_that_ignores_only_the_id`, JS `tests/test_suite.cjs`. Non ricompilato né visto dal vivo.
+- [ ] **R13 · Decisione dell'utente (2026-11-20): solo fase A, nessuna IA.** Fase A = interpretazione manuale delle righe manuali e
+  non interpretate. Nuovo tipo di correzione salvato accanto alle associazioni esistenti (`native/guides/src/guide_repository.rs`
+  `change`): l'utente sceglie una categoria di presentazione e, se vuole, un bersaglio del catalogo (focus, decisione, stato, edificio,
+  tag). Rust la applica allo strato `reading` (titolo e categoria) e al rapporto d'import (`import_reports::interpretation`); non diventa
+  mai un criterio di completamento: il passo resta manuale o promemoria. Due sessioni: A1 tipo di correzione in Rust con test d'integrazione;
+  A2 interfaccia nella pagina associazioni, link "Non è questo?" anche per queste righe, copia dell'importer allineata. Fase B (modello
+  locale con proposte approvate) rinviata: si decide dopo aver visto quante righe l'utente corregge a mano.
 - Poi il lungo periodo, nell'ordine delle tabelle sopra.
 
 ### Metrica guida proposta

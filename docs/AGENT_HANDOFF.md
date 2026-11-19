@@ -3,8 +3,9 @@ Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> UX roadmap passo 8 (handoff): R13 (IA locale facoltativa per righe non interpretate) richiede prima una decisione dell'utente; chiedila
-> (sì/no, quale runtime locale). Se no o rinviato, passa al passo 9 finale con l'utente presente: /deliver-build e verifiche in gioco.
+> UX roadmap R13 fase A1 (handoff 8): nuovo tipo di correzione per righe manuali/non interpretate (categoria + bersaglio opzionale del
+> catalogo), solo presentazione, mai completamento. Leggi R13 in `docs/ux-analysis-2026-11-19.md` `## Execution order`,
+> `native/guides/src/guide_repository.rs` `change`, `reading.rs`, `import_reports`. Chiusura: test, invariant-reviewer, commit, handoff.
 Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
 with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
 `docs/ux-analysis-2026-11-19.md` `## Execution order` and here, rewrite the Resume prompt. Details of each item: sections D and E there.
@@ -14,7 +15,7 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
 5. DONE R11 · suite home preview without the game (see Recently verified).
 6. DONE R12 · "Not this?" from the card (see Recently verified).
 7. DONE R15 · library cleanup (see Recently verified).
-8. R13 (optional local AI for uninterpreted lines, user-approved proposals only) needs a user decision first; R14 blocked (no qualified war-goal field, IL-04).
+8. R13 Stage A only (user, 2026-11-20; no AI): A1 Rust correction type for manual/uninterpreted lines; A2 associations UI + importer copy. R14 blocked (IL-04).
 9. FINAL, user present, HOI4 open: user runs `/deliver-build` (R6 `4acda08` and later are NOT rebuilt yet), then verify live:
    importer card on a real draft (R6), ROM "INFRAs, then MILs in Mun" shown as construction (R7) with composed title (R8) in suite and HUD card (R9),
    waiting reasons and "On Revise…" resolved (R10), home preview with HOI4 closed (R11), every UI step above; confirmed event answers (`docs/events-live.md`); research "UP" steps;
