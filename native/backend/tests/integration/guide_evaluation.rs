@@ -506,6 +506,25 @@ fn ruling_ideologies_are_facts_only_for_observed_known_countries() {
     let withheld = ideology(json!([{"country":"ITA","ideology":"fascism"},{"country":"GER","ideology":"fascism"}]));
     assert_ne!(withheld, "completed");
 }
+#[test]
+fn attache_to_nationalist_spain_completes_only_for_the_observed_nationalist_candidate() {
+    use hoi4companion_guides::guide_prepare::foreign_predicate;
+    let completion = foreign_predicate(&json!({"operation_id":"send_attache","target_country":"NSPA"})).unwrap();
+    let guide = json!({"schema_version":1,"id":"guide","title":"Spain","dependency_policy":"explicit","applies_to":{"country":"ROM"},"tracks":{"operations":[
+        {"key":"attache","action":{"kind":"manual"},"completion":completion}]}});
+    let state = |ideologies: Option<Value>, outgoing: Value| {
+        let mut facts = json!({"country":observed(json!("ROM")),"diplomacy.countries":observed(json!(["ROM","SPA","SPR"])),
+            "diplomacy.outgoing":observed(outgoing),"diplomacy.incoming":observed(json!([]))});
+        if let Some(values) = ideologies { facts["diplomacy.ideologies"] = observed(values); }
+        json!({"schema_version":1,"usable":true,"session_id":"s","facts":facts})
+    };
+    let status = |s: &Value| eval0(&guide, s)["steps"][0]["status"].clone();
+    assert_eq!(status(&state(Some(json!(["SPA:fascism","SPR:communism"])), json!(["attache:SPA"]))), "completed");
+    // The attache went to the republican side: not Nationalist Spain.
+    assert_ne!(status(&state(Some(json!(["SPA:communism","SPR:fascism"])), json!(["attache:SPA"]))), "completed");
+    // Ruling ideologies unobserved: never completed on a guess.
+    assert_eq!(status(&state(None, json!(["attache:SPA"]))), "unverifiable");
+}
 fn foreign_guide() -> Value {
     let f = |key: &str, test: &str, value: Value| json!({"op":"fact","key":key,"test":test,"value":value});
     let current = json!({"op":"all","args":[f("diplomacy.countries","contains",json!("ITA")),f("diplomacy.improving_relations","contains",json!("ITA"))]});

@@ -80,7 +80,9 @@
     ],
     "send_attache": [
       "send attache",
-      "send attaché"
+      "send attaché",
+      "attache",
+      "attaché"
     ],
     "recall_attache": [
       "recall attache",
@@ -147,6 +149,50 @@
       "kind": "war",
       "direction": "outgoing",
       "present": true
+    }
+  },
+  "country_abbreviations": {
+    "_comment": "Guide author shorthand for a country named by ideology. A candidate counts only while its observed ruling ideology gives that name (game localisation countries_l_english.yml).",
+    "NSPA": {
+      "name": "Nationalist Spain",
+      "candidates": {
+        "SPA": [
+          "fascism",
+          "neutrality"
+        ],
+        "SPR": [
+          "fascism"
+        ],
+        "SPB": [
+          "fascism"
+        ],
+        "SPC": [
+          "fascism"
+        ],
+        "SPD": [
+          "fascism"
+        ]
+      }
+    },
+    "RSPA": {
+      "name": "Republican Spain",
+      "candidates": {
+        "SPA": [
+          "communism"
+        ],
+        "SPR": [
+          "communism"
+        ],
+        "SPB": [
+          "communism"
+        ],
+        "SPC": [
+          "communism"
+        ],
+        "SPD": [
+          "communism"
+        ]
+      }
     }
   }
 }

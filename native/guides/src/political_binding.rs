@@ -445,6 +445,12 @@ pub fn foreign_tasks() -> &'static Value {
         .expect("checked-in foreign task vocabulary")
     })
 }
+/// Author shorthand for a country named by its ideology (e.g. NSPA), as the
+/// table key. It is resolved only at evaluation, from observed ruling ideologies.
+pub fn country_abbreviation(query: &str) -> Option<String> {
+    foreign_tasks()["country_abbreviations"].as_object()?.keys()
+        .find(|key| !key.starts_with('_') && normal_name(key) == normal_name(query)).cloned()
+}
 pub fn foreign(step: &Value, index: &Index) -> Result<Value, String> {
     let data = foreign_tasks();
     let tasks = data["tasks"]
@@ -486,9 +492,12 @@ pub fn foreign(step: &Value, index: &Index) -> Result<Value, String> {
     let Some(query) = params["target_country"].as_str() else {
         return Ok(json!({"step":step,"bound":false}));
     };
-    let target = index.query(json!({"op":"resolve_country","query":query}))?;
+    let mut target = index.query(json!({"op":"resolve_country","query":query}))?;
     if !target.is_string() {
-        return Ok(json!({"step":step,"bound":false}));
+        let Some(abbreviation) = country_abbreviation(query) else {
+            return Ok(json!({"step":step,"bound":false}));
+        };
+        target = json!(abbreviation);
     }
     params["target_country"] = target;
     params["operation_id"] = json!(key);

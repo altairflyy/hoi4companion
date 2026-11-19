@@ -44,12 +44,15 @@ pub fn foreign(text: &str, index: &Index) -> Result<Option<Value>> {
         let clause = cost.map(|m| clause[..m.start()].trim()).unwrap_or(clause);
         let mut body = None;
         let mut target = None;
-        for hit in regex(r"(?i)\s+(?:(?:with|in|against|on|verso|con)\s+)?").find_iter(clause) {
+        for hit in regex(r"(?i)\s+(?:(?:with|in|against|on|to|verso|con)\s+)?").find_iter(clause) {
             let query = &clause[hit.end()..];
             let candidate = if aliases.contains_key(&normal_name(query)) {
                 Value::Null
             } else {
-                index.query(json!({"op":"resolve_country","query":query}))?
+                match index.query(json!({"op":"resolve_country","query":query}))? {
+                    Value::String(tag) => json!(tag),
+                    _ => political_binding::country_abbreviation(query).map(Value::from).unwrap_or(Value::Null),
+                }
             };
             if let Some(candidate) = candidate.as_str().filter(|s| !s.is_empty()) {
                 body = Some(clause[..hit.start()].trim());

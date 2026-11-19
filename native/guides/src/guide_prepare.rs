@@ -215,6 +215,22 @@ pub fn foreign_predicate(params: &Value) -> Option<Value> {
         return None;
     }
     let target = text(&params["target_country"]);
+    // A shorthand such as NSPA holds for a candidate only while its observed ruling
+    // ideology gives that name; an unknown ideology keeps the step unverifiable.
+    let abbreviation = &crate::political_binding::foreign_tasks()["country_abbreviations"][target];
+    if !target.starts_with('_') && abbreviation["candidates"].is_object() {
+        let mut alternatives = vec![];
+        for (tag, ideologies) in abbreviation["candidates"].as_object()? {
+            let mut candidate = params.clone();
+            candidate["target_country"] = json!(tag);
+            let action = foreign_predicate(&candidate)?;
+            let named = ideologies.as_array()?.iter().map(|ideology| {
+                json!({"op":"fact","key":"diplomacy.ideologies","test":"contains","value":format!("{tag}:{}", ideology.as_str().unwrap_or(""))})
+            }).collect::<Vec<_>>();
+            alternatives.push(json!({"op":"all","args":[{"op":"any","args":named},action]}));
+        }
+        return Some(json!({"op":"any","args":alternatives}));
+    }
     if target.len() != 3
         || !target
             .bytes()

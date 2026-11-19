@@ -1587,6 +1587,28 @@ mod tests {
         assert_eq!(guide, once);
     }
     #[test]
+    fn attache_to_an_ideology_named_country_binds_every_candidate_by_ideology() {
+        // ROMANIA (Fascist) "The Glory of Romania is Eternal!", step 8.
+        let index = Index::new(&json!({"entries":[
+            {"kind":"country","id":"ROM","name":"Romania"},
+            {"kind":"country","id":"SPA","name":"Spain"},
+            {"kind":"country","id":"SPR","name":"Spain"}
+        ]})).unwrap();
+        let line = "ASAP: Attache to NSPA (100PP)";
+        let mut guide = json!({"applies_to":{"country":"ROM"},"tracks":{"operations":[
+            {"key":"a","title":line,"tracking":"reminder","action":{"kind":"manual","params":{"instructions":[line]}}}]}});
+        ground_references(&mut guide, &index, &Value::Null).unwrap();
+        let row = &guide["tracks"]["operations"][0];
+        assert_eq!(row["action"]["params"]["operation_id"], "send_attache", "{row}");
+        assert_eq!(row["action"]["params"]["target_country"], "NSPA");
+        assert!(row.get("tracking").is_none());
+        let text = row["completion"].to_string();
+        for needle in ["SPA:fascism", "SPA:neutrality", "SPR:fascism", "attache:SPA", "attache:SPR"] {
+            assert!(text.contains(needle), "{needle} in {text}");
+        }
+        assert!(!text.contains("SPA:communism"));
+    }
+    #[test]
     fn normalization_ignores_case_accents_and_punctuation() {
         assert_eq!(normalize("Which, by God, …"), "which by god");
         assert_eq!(normalize("That’s Capitalism!"), "thats capitalism");
