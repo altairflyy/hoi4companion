@@ -2,7 +2,7 @@
 Updated: 2026-11-19. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `git log`.
 
 ## Next actions
-1. Rebuild the stale `_native` backend + overlay (deliver-build skill) for the confirmed-event-answer work, then verify it in game (read-only).
+1. Verify the confirmed-event-answer work in game (read-only). `_native` is current since 2026-11-19 14:44 (backend 11:28 build = HEAD sources, overlay rebuilt), app restarted; HOI4 was not running.
 2. User exercises the Desktop shortcut and HUD in gameplay; investigate concrete issues with read-only game access.
 3. Decide IL-02 (event-answer narrowing binds nothing; options in `docs/improvement-backlog.md`), needs the user.
 
