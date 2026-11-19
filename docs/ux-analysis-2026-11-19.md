@@ -356,7 +356,13 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   verifica (automatica, da confermare, promemoria, non interpretata) ed elenca le righe non interpretate; l'importer lo mostra
   nella card `interpretationOverview` con i collegamenti a Correggi associazioni. Conteggi per categoria non inclusi: la
   categoria resta calcolata in JS (R1). Non ancora ricompilato né visto dal vivo.
-- [ ] **R7 · Binder di costruzione esteso** (Rust, `construction_instructions.rs`).
+- [x] **R7 · Binder di costruzione esteso** (2026-11-19). `construction_instructions.rs` accetta righe senza verbo, plurali,
+  `full`/`max`, più edifici e luoghi, fasi `then` (campo `order`, solo ordine di lettura: servono tutti i bersagli) e note finali
+  `(prio)`/`(future in best)`. Un luogo è un nome esatto o un prefisso univoco per parole ("Mun", "N Slo") tra gli stati che la
+  nazione della guida possiede o ha come core all'inizio partita (`start_owner`/`start_cores`, nuovi nel catalogo da `history/states`).
+  Una fase senza luogo prende quello della fase seguente. Numeri, `%`, `*`, note diverse o prefissi ambigui: riga non legata.
+  Corpus di 50 guide (backend dev su copia dei dati): passi di costruzione legati da 7 a 34, nessuna risoluzione ambigua per costruzione.
+  Limite noto: i prefissi usano i possessi d'inizio partita, non quelli di bookmark successivi. Non ancora ricompilato né visto dal vivo.
 - Poi R8–R11, quindi il lungo periodo, nell'ordine delle tabelle sopra.
 
 ### Metrica guida proposta

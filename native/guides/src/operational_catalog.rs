@@ -645,6 +645,47 @@ fn geography(state: &Value, labels: &Labels) -> Value {
     }
     json!({"province_ids":provinces,"cities":result.into_values().collect::<Vec<_>>()})
 }
+/// Owner and cores written directly in a state's `history` block: the game's
+/// start setup only. Dated sub-blocks (later bookmarks) and live ownership are
+/// ignored, so these fields never describe the current campaign.
+fn start_control(state: &Value) -> Map<String, Value> {
+    let tag = |v: &str| (v.len() == 3 && v.bytes().all(|b| b.is_ascii_alphanumeric())).then(|| v.to_ascii_uppercase());
+    let mut owners = std::collections::BTreeSet::new();
+    let mut cores = std::collections::BTreeSet::new();
+    for history in blocks(state, "history") {
+        for (key, value) in entries(history) {
+            let Some(value) = value.as_str().and_then(tag) else { continue };
+            match key {
+                "owner" => { owners.insert(value); }
+                "add_core_of" => { cores.insert(value); }
+                "remove_core_of" => { cores.remove(&value); }
+                _ => {}
+            }
+        }
+    }
+    let mut result = Map::new();
+    // Two different start owners are a source conflict: none is claimed.
+    if owners.len() == 1 {
+        result.insert("start_owner".into(), json!(owners.first()));
+    }
+    if !cores.is_empty() {
+        result.insert("start_cores".into(), json!(cores));
+    }
+    result
+}
+#[cfg(test)]
+mod start_control_tests {
+    use super::*;
+    fn node(items: Value) -> Value { json!({"entries": items}) }
+    #[test]
+    fn only_undated_history_owner_and_cores_are_read() {
+        let history = node(json!([["owner","ROM"],["add_core_of","ROM"],["add_core_of","hun"],["add_core_of","BUL"],["remove_core_of","BUL"],["1939.1.1",node(json!([["owner","GER"]]))]]));
+        let state = node(json!([["id","46"],["history",history]]));
+        assert_eq!(Value::Object(start_control(&state)), json!({"start_owner":"ROM","start_cores":["HUN","ROM"]}));
+        let conflict = node(json!([["history",node(json!([["owner","ROM"],["owner","BUL"]]))]]));
+        assert!(start_control(&conflict).is_empty());
+    }
+}
 fn family<'a>(identifier: &'a str, definitions: &'a Map<String, Value>) -> Option<&'a str> {
     let mut identifier = identifier;
     let mut seen = std::collections::HashSet::new();
@@ -747,6 +788,7 @@ pub fn operations(source: &mut Source) -> Result<Vec<Value>> {
                             .unwrap_or(&fallback);
                         let mut row = labels.names(name);
                         row.as_object_mut().unwrap().extend(json!({"kind":kind,"id":identifier.to_string(),"geography":geography(state,&labels)}).as_object().unwrap().clone());
+                        row.as_object_mut().unwrap().extend(start_control(state));
                         rows.push(row);
                     }
                 }
