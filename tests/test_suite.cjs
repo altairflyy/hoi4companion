@@ -1,13 +1,13 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const model=require('../src/hoi4companion/web/suite-model.js');
-function suiteHarness(sidebarButtons=[],emptyActive=false,projectionBody=null){
+function suiteHarness(sidebarButtons=[],emptyActive=false,projectionBody=null,libraryGuides=[]){
  const elements=new Map(),events={},calls=[];let listener;
  const element=id=>{if(!elements.has(id))elements.set(id,{id,dataset:{},value:'',checked:false,hidden:id==='suiteError',src:'about:blank',contentWindow:{dispatchEvent(){}},addEventListener(){},children:[],replaceChildren(){this.children=[];},append(...c){this.children.push(...c);},setAttribute(){},removeAttribute(){}});return elements.get(id);};
- const document={visibilityState:'visible',focused:true,hasFocus(){return this.focused;},getElementById:element,createElement:tag=>({tag,className:'',textContent:'',children:[],append(...c){this.children.push(...c);},setAttribute(){},addEventListener(){}}),querySelectorAll:selector=>selector==='.suite-sidebar [data-view]'?sidebarButtons:[],addEventListener(name,fn){events[name]=fn;}};
+ const document={visibilityState:'visible',focused:true,hasFocus(){return this.focused;},getElementById:element,createElement:tag=>({tag,className:'',textContent:'',dataset:{},children:[],append(...c){this.children.push(...c);},setAttribute(){},addEventListener(){}}),querySelectorAll:selector=>selector==='.suite-sidebar [data-view]'?sidebarButtons:[],addEventListener(name,fn){events[name]=fn;}};
  const window={hoiLive:{subscribe(fn){listener=fn;}},addEventListener(name,fn){events[name]=fn;}};
  const location={origin:'http://localhost',hash:'#overview'};
- const fetch=async path=>{calls.push(path);return {ok:!(emptyActive&&path==='/api/guide/active'),json:async()=>path==='/api/guides'?{guides:[]}:path==='/api/guide/active'?(emptyActive?{error:'No guide available'}:{guide_id:'a'}):(projectionBody||{schema_version:1,engine:'rust-guide-core',guide_id:'a',guide:{tracks:{}},evaluation:{guide_id:'a'},progress:{guide_id:'a'},state:{usable:false}})};};
+ const fetch=async path=>{calls.push(path);return {ok:!(emptyActive&&path==='/api/guide/active'),json:async()=>path==='/api/guides'?{guides:libraryGuides}:path==='/api/guide/active'?(emptyActive?{error:'No guide available'}:{guide_id:'a'}):(projectionBody||{schema_version:1,engine:'rust-guide-core',guide_id:'a',guide:{tracks:{}},evaluation:{guide_id:'a'},progress:{guide_id:'a'},state:{usable:false}})};};
  const source=fs.readFileSync(require.resolve('../src/hoi4companion/web/suite.js'),'utf8').replace(/\}\)\(\);\s*$/, 'window.__suiteSettled=()=>loading;})();');
  vm.runInNewContext(source,{window,document,location,fetch,HoiSuiteModel:model,HoiI18n:{t:s=>s,language:'english'},Intl,URL,Event});
  return {document,location,events,calls,element,settled:()=>window.__suiteSettled(),send:value=>listener(value),flush:()=>new Promise(resolve=>setImmediate(resolve))};
@@ -61,6 +61,39 @@ test('suite library scopes recommendations without discarding guides or bypassin
  assert.equal(model.library(guides,'AAA',false,'name')[0].title,'Guide_Name.docx');
  assert.equal(model.selectable(guides[0],'AAA'),false);assert.equal(model.selectable(guides[2],'AAA'),false);
  assert.equal(model.title('Guide_Name.docx'),'Guide Name');
+});
+test('library groups guides by nation, flags duplicates by definition hash and keeps non-national entries apart (UX R15)',()=>{
+ const guides=[
+  {id:'h2',title:'HUNGARY Broken EU.docx',applies_to:{country:'HUN'},definition_hash:'x'},
+  {id:'h1',title:'HUNGARY Broken EU.docx',applies_to:{country:'HUN'},definition_hash:'y'},
+  {id:'r1',title:'ROMANIA Eternal.docx',applies_to:{country:'ROM'},definition_hash:'r'},
+  {id:'r0',title:'ROMANIA Eternal copy.docx',applies_to:{country:'ROM'},definition_hash:'r'},
+  {id:'v',title:'VIDEO LINK.docx',applies_to:{},definition_hash:'v'},
+  {id:'n',title:'No hash.docx',applies_to:{country:'AUS'}},{id:'n2',title:'No hash 2.docx',applies_to:{country:'AUS'}}];
+ const groups=model.libraryGroups(guides,'ROM',true);
+ assert.deepEqual(groups.nations.map(g=>g.country),['ROM','AUS','HUN'],'observed nation first, then by tag');
+ assert.deepEqual(groups.other.map(r=>r.guide.id),['v']);
+ const rom=groups.nations[0].guides;
+ assert.equal(rom.find(r=>r.guide.id==='r0').duplicateOf.id,'r1','the later guide in title order is the duplicate');
+ assert.equal(rom.find(r=>r.guide.id==='r1').duplicateOf,null);
+ assert.equal(rom.some(r=>r.sameTitle),false,'a duplicate is not also a different version');
+ const hun=groups.nations[2].guides;assert.equal(hun.length,2,'nothing is hidden');
+ assert.ok(hun.every(r=>r.sameTitle&&!r.duplicateOf),'same title with different content is a version, not a duplicate');
+ assert.ok(groups.nations[1].guides.every(r=>!r.duplicateOf&&!r.sameTitle),'a missing hash never makes a duplicate');
+ assert.equal(model.libraryGroups(guides,'ROM',false).nations.map(g=>g.country).join(),'ROM','country scope still applies');
+ assert.equal(model.libraryGroups(guides,'ROM',false).other.length,1,'non-national entries stay listed');
+ assert.equal(model.libraryGroups(guides,null,true,'eternal copy').nations[0].guides[0].duplicateOf?.id,'r1','flags are computed on the whole library, not the filtered view');
+});
+test('library view draws nation sections, a duplicate note and an Other documents section',async()=>{
+ const guides=[{id:'r0',title:'ROMANIA A.docx',applies_to:{country:'ROM'},definition_hash:'r'},{id:'r1',title:'ROMANIA B.docx',applies_to:{country:'ROM'},definition_hash:'r'},{id:'v',title:'VIDEO LINK.docx',definition_hash:'v'}];
+ const h=suiteHarness([],false,null,guides);h.location.hash='#library';h.events.hashchange();await h.flush();await h.flush();
+ const sections=h.element('guideCards').children;assert.equal(sections.length,2);
+ const text=node=>[node.textContent,...(node.children||[]).map(text)].join(' ');
+ assert.match(text(sections[0].children[0]),/ROM/);assert.match(text(sections[1].children[0]),/Other documents/);
+ const cards=sections[0].children[1].children;assert.equal(cards.length,2);
+ assert.equal(cards[1].dataset.duplicate,'true');assert.match(text(cards[1]),/Duplicate: same content as/);
+ assert.equal(cards[0].dataset.duplicate,'false');
+ assert.match(text(sections[1].children[1].children[0]),/Not a national guide/);
 });
 test('suite rejects prior guide/campaign/session projections before displaying operational guidance',()=>{
  const packet={usable:true,active_guide_id:'a',guide_runs:{a:{run_id:'r',country:'AAA',campaign_id:'campaign'}},sample:{country:'AAA',session_id:'session',campaign_identity:{status:'observed',id:'campaign'}}};

@@ -7,6 +7,24 @@
   return {current:model.current,country:model.country,divisions:country.number(s.divisions.total,{integer:true}),politicalPower:s.politics.power?.status==='observed'?country.number(s.politics.power.available,{signed:true}):null,factories:country.number(s.production.effective_factories?.military,{integer:true})};
  }
  function library(guides,tag,all,query=''){const needle=query.trim().toLocaleLowerCase();return (Array.isArray(guides)?guides:[]).filter(g=>g&&typeof g.id==='string'&&(!tag||all||!g.applies_to?.country||g.applies_to.country===tag)&&(!needle||(title(g.title)+' '+(g.applies_to?.country||'')).toLocaleLowerCase().includes(needle))).slice().sort((a,b)=>Number(b.applies_to?.country===tag)-Number(a.applies_to?.country===tag)||title(a.title).localeCompare(title(b.title)));}
+ // Library cleanup (UX R15), presentation only: nothing is merged, hidden or
+ // deleted. Guides are grouped by their declared nation (the observed one
+ // first); entries without a nation are kept apart. A duplicate is a guide whose
+ // backend definition_hash equals an earlier one in the whole library (title,
+ // then id order); a guide sharing only its title is flagged as a different
+ // version. A missing hash never makes a duplicate.
+ function libraryGroups(guides,tag,all,query=''){
+  const every=(Array.isArray(guides)?guides:[]).filter(g=>g&&typeof g.id==='string').slice().sort((a,b)=>title(a.title).localeCompare(title(b.title))||a.id.localeCompare(b.id));
+  const first=new Map(),titles=new Map();
+  for(const g of every){const h=typeof g.definition_hash==='string'&&g.definition_hash?g.definition_hash:null;if(h&&!first.has(h))first.set(h,g);const name=title(g.title).toLocaleLowerCase();titles.set(name,(titles.get(name)||new Set()).add(h||g.id));}
+  const nations=new Map(),other=[];
+  for(const guide of library(guides,tag,all,query)){const h=typeof guide.definition_hash==='string'&&guide.definition_hash?guide.definition_hash:null,original=h&&first.get(h);
+   const row={guide,duplicateOf:original&&original.id!==guide.id?original:null,sameTitle:(titles.get(title(guide.title).toLocaleLowerCase())?.size||0)>1};
+   const nation=typeof guide.applies_to?.country==='string'&&guide.applies_to.country?guide.applies_to.country:null;
+   if(!nation){other.push(row);continue;}if(!nations.has(nation))nations.set(nation,[]);nations.get(nation).push(row);}
+  const ordered=[...nations].sort(([a],[b])=>Number(b===tag)-Number(a===tag)||a.localeCompare(b)).map(([country,rows])=>({country,guides:rows}));
+  return {nations:ordered,other};
+ }
  function selectable(guide,tag){return guide?.compatibility?.blocked!==true&&(!tag||!guide?.applies_to?.country||guide.applies_to.country===tag);}
  function currentProjection(packet,projection){const id=packet?.active_guide_id,run=packet?.guide_runs?.[id],campaign=packet?.sample?.campaign_identity;
   return !!(packet?.usable===true&&id&&projection?.engine==='rust-guide-core'&&projection.guide_id===id&&projection.state?.usable===true&&projection.state.session_id===packet.sample.session_id&&run?.run_id&&projection.progress?.run_id===run.run_id&&run.country===packet.sample.country&&campaign?.status==='observed'&&projection.progress.campaign_id===campaign.id&&run.campaign_id===campaign.id);
@@ -35,5 +53,5 @@
   }
   return groups;
  }
- const api={routes,title,metrics,library,selectable,currentProjection,projectionKey,preview};if(typeof module==='object'&&module.exports)module.exports=api;else root.HoiSuiteModel=api;
+ const api={routes,title,metrics,library,libraryGroups,selectable,currentProjection,projectionKey,preview};if(typeof module==='object'&&module.exports)module.exports=api;else root.HoiSuiteModel=api;
 })(typeof window==='object'?window:globalThis);

@@ -16,6 +16,11 @@
     "research_choice_waiting": "an earlier research choice is not completed yet"
   },
   "messages": {
+    "Not a national guide": "Non è una guida nazionale",
+    "Duplicate: same content as “{0}”. Nothing is removed.": "Doppione: stesso contenuto di “{0}”. Non viene eliminato nulla.",
+    "Same title as another guide, different content: check the version before choosing.": "Stesso titolo di un'altra guida, contenuto diverso: controlla la versione prima di sceglierla.",
+    "Other documents": "Altri documenti",
+    "Not national guides: videos, notes, instructions.": "Non sono guide nazionali: video, note, istruzioni.",
     "Not this?": "Non è questo?",
     "Choose the right focus, technology or project for this step. Nothing changes until you save a correction.": "Scegli il focus, la tecnologia o il progetto giusto per questo passo. Non cambia nulla finché non salvi una correzione.",
     "This step has no focus, technology or project binding to correct here. Its text stays as the source wrote it.": "Questo passo non ha un focus, una tecnologia o un progetto da correggere qui. Il testo resta come l'ha scritto la fonte.",

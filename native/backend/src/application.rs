@@ -52,6 +52,19 @@ fn sorted(v: &Value) -> Value {
         v => v.clone(),
     }
 }
+/// Library duplicate detection (UX R15): SHA-256 of the canonical stored
+/// definition without its `id` and volatile runtime stamps, so the same
+/// content installed under two IDs hashes alike. Presentation only: it never
+/// merges, hides or deletes a guide.
+fn definition_hash(guide: &Value) -> Result<String> {
+    let mut guide = guide.clone();
+    if let Some(map) = guide.as_object_mut() {
+        for key in ["id", "runtime_definition_revision", "runtime_engine"] {
+            map.remove(key);
+        }
+    }
+    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(&sorted(&guide)).map_err(|e| e.to_string())?)))
+}
 fn check_keys(node: &Value, keys: &mut HashSet<String>) {
     if node["op"] == "check" {
         keys.insert(text(&node["key"]).into());
@@ -1522,7 +1535,8 @@ impl Application {
         "app_source"=>{let id=self.identity(args["guide_id"].as_str())?;Ok(self.sources[&id].clone())},
         "app_definition"=>{let id=self.identity(args["guide_id"].as_str())?;Ok(self.guides[&id].clone())},
         "app_put_guide"=>self.put_guide(&args["guide"]),
-        "app_guides"=>Ok(json!(self.guides.values().map(|g|json!({"id":g["id"],"title":g["title"],"schema_version":1,"applies_to":g["applies_to"]})).collect::<Vec<_>>())),
+        "app_guides"=>self.guides.values().map(|g|Ok(json!({"id":g["id"],"title":g["title"],"schema_version":1,"applies_to":g["applies_to"],
+            "definition_hash":definition_hash(g["id"].as_str().and_then(|id|self.sources.get(id)).unwrap_or(g))?}))).collect::<Result<Vec<_>>>().map(Value::from),
         _=>Err("Unknown application operation".into())
     }
     }
@@ -1573,6 +1587,20 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+    #[test]
+    fn library_rows_carry_a_definition_hash_that_ignores_only_the_id() {
+        let make = |id: &str, note: &str| json!({"id":id,"title":"Same title","tracks":{"operations":[{"key":"note","title":note,"action":{"kind":"manual"}}]}});
+        let mut app = Application::open(&json!({"guides":[make("one","A"),make("two","A"),make("three","B")]})).unwrap();
+        let rows = app.request("app_guides", &json!({})).unwrap();
+        let hash = |id: &str| rows.as_array().unwrap().iter().find(|r| r["id"] == id).unwrap()["definition_hash"].as_str().unwrap().to_owned();
+        assert_eq!(hash("one").len(), 64);
+        assert_eq!(hash("one"), hash("two"), "same content under another id is a duplicate");
+        assert_ne!(hash("one"), hash("three"), "same title with other content is not a duplicate");
+        let mut renamed = app.sources["one"].clone();
+        renamed["id"] = json!("x");
+        renamed["runtime_engine"] = json!("rust-guide-core");
+        assert_eq!(definition_hash(&renamed).unwrap(), hash("one"), "only the id and runtime stamps are ignored");
+    }
     #[test]
     fn confirmation_time_is_a_local_iso_timestamp() {
         for (y, m, d) in [(1970, 1, 1), (2000, 2, 29), (2026, 11, 19), (2100, 3, 1)] {

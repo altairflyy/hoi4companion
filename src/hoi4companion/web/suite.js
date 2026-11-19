@@ -31,14 +31,19 @@
   }catch{$('frameStatus').textContent=t('Workspace unavailable. Open the classic workspace to continue.');}
  });
  function drawLibrary(){const tag=packet?.usable?packet.sample?.country:null,all=$('allCountries').checked;
-  const guides=model.library(catalog,tag,all,$('guideSearch').value);$('libraryCount').textContent=format.format(catalog.length);$('guideCards').replaceChildren();
-  $('libraryNotice').textContent=!catalog.length?t('Import a collection to populate your library.'):!guides.length?t('No guides match this view.'):tag&&!all?t('Recommended for your observed country. Missing DLCs remain visible and unavailable.'):'—';
-  for(const guide of guides){const card=document.createElement('article');card.className='guide-card';card.dataset.blocked=String(guide.compatibility?.blocked===true);card.dataset.active=String(guide.id===active?.guide_id);
-   const country=document.createElement('span');country.className='guide-country';country.textContent=guide.applies_to?.country||'—';const title=document.createElement('h2');title.textContent=model.title(guide.title);
+  const groups=model.libraryGroups(catalog,tag,all,$('guideSearch').value),count=groups.nations.reduce((n,g)=>n+g.guides.length,groups.other.length);$('libraryCount').textContent=format.format(catalog.length);$('guideCards').replaceChildren();
+  $('libraryNotice').textContent=!catalog.length?t('Import a collection to populate your library.'):!count?t('No guides match this view.'):tag&&!all?t('Recommended for your observed country. Missing DLCs remain visible and unavailable.'):'—';
+  const card=({guide,duplicateOf,sameTitle})=>{const card=document.createElement('article');card.className='guide-card';card.dataset.blocked=String(guide.compatibility?.blocked===true);card.dataset.active=String(guide.id===active?.guide_id);card.dataset.duplicate=String(!!duplicateOf);
+   const country=document.createElement('span');country.className='guide-country';country.textContent=guide.applies_to?.country||t('Not a national guide');const title=document.createElement('h3');title.textContent=model.title(guide.title);
    const info=document.createElement('p');info.textContent=guide.compatibility?.blocked?t('Missing DLC'):!model.selectable(guide,tag)?t('Different country'):guide.id===active?.guide_id?t('Active guide'):t('Guide ready');
+   const parts=[country,title,info];
+   if(duplicateOf||sameTitle){const flag=document.createElement('p');flag.className='guide-flag';flag.textContent=duplicateOf?t('Duplicate: same content as “{0}”. Nothing is removed.',model.title(duplicateOf.title)):t('Same title as another guide, different content: check the version before choosing.');parts.push(flag);}
    const button=document.createElement('button');button.type='button';button.textContent=t(guide.id===active?.guide_id?'Continue campaign plan':'Use this guide');button.disabled=!model.selectable(guide,tag);button.addEventListener('click',async()=>{button.disabled=true;try{error();await json('/api/guide/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({guide_id:guide.id})});active=await json('/api/guide/active');projectionKey='';await refreshProjection();navigate('walkthrough');}catch(e){error(e.message);button.disabled=false;}});
-   card.append(country,title,info,button);$('guideCards').append(card);
-  }
+   card.append(...parts,button);return card;};
+  const section=(heading,note,rows)=>{const group=document.createElement('section');group.className='library-group';const h=document.createElement('h2');h.textContent=heading;const small=document.createElement('small');small.textContent=note;h.append(small);
+   const cards=document.createElement('div');cards.className='guide-cards';cards.append(...rows.map(card));group.append(h,cards);$('guideCards').append(group);};
+  for(const nation of groups.nations)section(nation.country,format.format(nation.guides.length),nation.guides);
+  if(groups.other.length)section(t('Other documents'),t('Not national guides: videos, notes, instructions.'),groups.other);
  }
  function loadLibrary(){if(libraryLoading)return libraryLoading;libraryLoading=(async()=>{try{const data=await json('/api/guides');catalog=data.guides||[];catalogLoaded=true;drawLibrary();if(active)drawRoute();}catch(e){error(e.message);}})().finally(()=>libraryLoading=null);return libraryLoading;}
  function drawRoute(){const name=active?.title||catalog.find(g=>g.id===active?.guide_id)?.title;

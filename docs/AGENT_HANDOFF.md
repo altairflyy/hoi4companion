@@ -3,9 +3,8 @@ Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> UX roadmap R15 (handoff 7): pulizia libreria guide: raggruppa per nazione, segnala doppioni per hash della definizione, separa le voci
-> non nazionali; leggi R15/D.8 in `docs/ux-analysis-2026-11-19.md` e la libreria della suite. Solo presentazione, nessuna guida cancellata.
-> Chiusura: test, invariant-reviewer, commit locale, spunta R15 lì e qui, handoff. Niente rebuild.
+> UX roadmap passo 8 (handoff): R13 (IA locale facoltativa per righe non interpretate) richiede prima una decisione dell'utente; chiedila
+> (sì/no, quale runtime locale). Se no o rinviato, passa al passo 9 finale con l'utente presente: /deliver-build e verifiche in gioco.
 Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
 with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
 `docs/ux-analysis-2026-11-19.md` `## Execution order` and here, rewrite the Resume prompt. Details of each item: sections D and E there.
@@ -14,7 +13,7 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
 4. DONE R10 · readable waiting reasons and truncated focuses (see Recently verified).
 5. DONE R11 · suite home preview without the game (see Recently verified).
 6. DONE R12 · "Not this?" from the card (see Recently verified).
-7. R15 · library cleanup: group by nation, flag duplicates by definition hash, separate non-national entries.
+7. DONE R15 · library cleanup (see Recently verified).
 8. R13 (optional local AI for uninterpreted lines, user-approved proposals only) needs a user decision first; R14 blocked (no qualified war-goal field, IL-04).
 9. FINAL, user present, HOI4 open: user runs `/deliver-build` (R6 `4acda08` and later are NOT rebuilt yet), then verify live:
    importer card on a real draft (R6), ROM "INFRAs, then MILs in Mun" shown as construction (R7) with composed title (R8) in suite and HUD card (R9),
@@ -29,14 +28,14 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
   preview as `report.interpretation`; importer card `interpretationOverview`. Focus/research count as automatic (guide-core native membership).
 
 ## Recently verified
+- 2026-11-20 R15: `app_guides` rows carry `definition_hash` (canonical stored definition without id/runtime stamps); suite library groups
+  by nation, "Other documents" for entries without a nation, duplicate/same-title-version notes (`libraryGroups()` in `web/suite-model.js`).
+  npm test 486 / 0 / 3 skipped; backend 49+117 pass. Corpus: no exact duplicates; HUN pair = different versions. NOT rebuilt, NOT live.
 - 2026-11-20 R12: "Not this?" on cards/guided items only for correctable bindings (`correctable()` in `web/action-plan.js`), opens the associations
   page on that step; unknown requested step is named, not swapped. npm test 484 / 0 / 3 skipped. NOT rebuilt, NOT live. Details in the UX doc.
 - 2026-11-20 R11: home "Active route" previews up to 3 steps per track from the Rust `live=0` evaluation (`suite-model.js preview()`);
   `tests/test_suite.cjs` DOM test in preview mode; npm test 481 / 0 / 3 skipped; real ROM guide gives 9 steps. NOT rebuilt, NOT seen with HOI4 closed.
-- 2026-11-20 R10: `runtime_reasons` table in `translations.json` (suite `HoiI18n.reason`, overlay `i18n::reason`), guided "Waiting" reason,
-  `step_card.waiting.reason`; `ground_trigger` resolves split `params.timing` ("On Revise…"), ambiguous stays unknown. guides 102, backend 48+117,
-  overlay 61 pass; npm test 478 / 0 / 3 skipped; invariant review clean. NOT rebuilt, NOT live. Details in the UX doc.
-- 2026-11-19 R9: suite `guided()`, HUD `step_card` guided line (`docs/native-overlay.md`). Tests pass; NOT rebuilt, NOT live.
+- 2026-11-20 R10: readable waiting reasons (`runtime_reasons`), truncated "On Revise…" resolved by unique prefix. NOT rebuilt, NOT live.
 - User-confirmed ambiguous event answers (`197f141..320d441`): SQLite `confirmed_event_answers`, re-applied by Rust `confirmed_answers.rs`, suite "Remove confirmation".
   Tests: JS 465 pass / 0 fail / 3 skipped (dev backend), Rust backend all pass, invariant review clean. Live behavior NOT VERIFIED. Details `docs/events-live.md` last section.
 - HUD event answers native (`bea90e8`): user saw Bosphorus answer A lit on screen. OCR path (`f6f620a`) stays as fallback, not verified on screen.

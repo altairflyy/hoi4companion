@@ -404,6 +404,15 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   salva solo la scelta esplicita dell'utente con l'API esistente; la valutazione resta in Rust. Limite: le 3.071 righe manuali del corpus
   (54 progetti speciali sono le sole operazioni legate) non hanno nulla da correggere qui; serve un nuovo tipo di correzione (R13 o successivo).
   Test: `tests/test_action_plan.cjs`, `tests/test_associations_view.cjs`, `tests/test_guide_view.cjs`. Non ricompilato né visto dal vivo.
+- [x] **R15 · Pulizia della libreria** (2026-11-20). `app_guides` aggiunge `definition_hash`: SHA-256 della definizione salvata in forma
+  canonica, senza `id` né timbri runtime (`definition_hash` in `application.rs`). La libreria della suite (`libraryGroups()` in
+  `web/suite-model.js`) raggruppa per nazione dichiarata (quella osservata prima, poi per tag), mette le voci senza nazione in "Altri
+  documenti" e segna come doppione la guida con lo stesso hash di una precedente nell'intera libreria (ordine titolo, poi id); due guide con
+  lo stesso titolo e hash diversi sono segnate come versioni diverse. Solo presentazione: nessuna guida nascosta, unita o cancellata; un hash
+  mancante non crea mai un doppione. Corpus di 50 guide: nessun doppione esatto (gli id Word derivano dai byte del DOCX e l'import rifiuta id
+  ripetuti); i due "HUNGARY BROKEN EU Path!" hanno sorgenti diverse e risultano versioni diverse; "VIDEO LINK" e "How to Import My Equipment
+  Designs" vanno in "Altri documenti". I doppioni FRANCE/ROMANIA di P9 non esistono più nella libreria attuale (FRANCE ha NEW e OLD).
+  Test: Rust `library_rows_carry_a_definition_hash_that_ignores_only_the_id`, JS `tests/test_suite.cjs`. Non ricompilato né visto dal vivo.
 - Poi il lungo periodo, nell'ordine delle tabelle sopra.
 
 ### Metrica guida proposta
