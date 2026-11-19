@@ -8,6 +8,7 @@ use std::path::Path;
 use std::time::Duration;
 pub mod progress;
 pub mod decision_history;
+pub mod confirmed_answers;
 mod progress_ffi;
 const MAX_TEXT: usize = 16 * 1024 * 1024;
 /// Progress row versions. v1 = original format; v2 = same payload root plus
@@ -72,6 +73,9 @@ struct Request {
     /// New archive rows published atomically with this progress save.
     #[serde(default)]
     definitions: Option<serde_json::Map<String, Value>>,
+    /// Confirmed event answer rows (`put`/`delete`) published atomically with this save.
+    #[serde(default)]
+    answers: Option<Vec<Value>>,
 }
 fn execute(request: Request) -> Result<Value, String> {
     if request.schema_version != 1 || request.path.is_empty() || request.path.contains('\0') {
@@ -99,6 +103,9 @@ fn execute(request: Request) -> Result<Value, String> {
         }
         if !supported(request.version.unwrap_or(1)) {
             return Err("Unsupported progress storage version".into());
+        }
+        for row in request.answers.iter().flatten() {
+            confirmed_answers::validate(row)?;
         }
         for (id, payload) in request.definitions.iter().flatten() {
             if !definition_id(id)
@@ -157,7 +164,8 @@ fn execute(request: Request) -> Result<Value, String> {
                         }
                     }
                 }
-                Ok(json!({"revision":revision,"version":version,"payload":payload,"definitions":definitions}))
+                let answers = confirmed_answers::load(&db)?;
+                Ok(json!({"revision":revision,"version":version,"payload":payload,"definitions":definitions,"answers":answers}))
             } else {
                 Ok(Value::Null)
             }
@@ -259,6 +267,7 @@ fn execute(request: Request) -> Result<Value, String> {
                     return Err("Progress references an unarchived guide definition".into());
                 }
             }
+            confirmed_answers::apply(&tx, request.answers.as_deref().unwrap_or_default())?;
             tx.execute("INSERT INTO progress VALUES(1,?1,?2,?3) ON CONFLICT(id) DO UPDATE SET version=excluded.version,revision=excluded.revision,payload=excluded.payload",params![target,revision,request.payload]).map_err(|e|e.to_string())?;
             tx.commit().map_err(|e| e.to_string())?;
             Ok(json!({"revision":revision}))
@@ -326,6 +335,7 @@ mod tests {
             payload: Some(payload.into()),
             version: None,
             definitions: None,
+            answers: None,
         };
         assert!(execute(make(2, "{}")).is_err());
         assert!(execute(make(1, "NaN")).is_err());
