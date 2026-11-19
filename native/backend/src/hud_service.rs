@@ -157,7 +157,11 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
         .filter(|r| r["tracking"] != "reminder" && !matches!(status_of(r).as_str(), Some("completed" | "not_applicable")))
         .collect();
     let then = later.iter().find(|r| matches!(status_of(r).as_str(), Some("ready" | "unverifiable"))).map(|r| brief(r)).unwrap_or(Value::Null);
-    let waiting = later.iter().find(|r| status_of(r) == "waiting").map(|r| brief(r)).unwrap_or(Value::Null);
+    let waiting = later.iter().find(|r| status_of(r) == "waiting").map(|r| {
+        let mut out = brief(r);
+        out["reason"] = waiting_reason(guide, runtime, r, &brief);
+        out
+    }).unwrap_or(Value::Null);
     json!({"key":key,"track":track,"index":index,"total":total,"heading":heading,"abbreviation":abbreviation,
         "body":body,"status":status,"event_answer":resolved.is_some(),"checkable":checkable,"images":card_images(params),
         "construction":card_construction(runtime, key),
@@ -166,6 +170,31 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
         "started_when":step.get("started_when").is_some_and(|v| !v.is_null()),
         "reading_title":reading_title(step),"original":step["reading"]["original"],
         "then":then,"waiting":waiting})
+}
+/// Why a waiting step waits, as the suite's guided line says it (UX R10): the
+/// first prerequisite step, else the author's trigger as Rust recognized it,
+/// else the evaluation's reason code (read through `runtime_reasons` in
+/// translations.json by the HUD). Null when the evaluation gives none.
+fn waiting_reason(guide: &Value, runtime: &Value, step: &Value, brief: &dyn Fn(&Value) -> Value) -> Value {
+    let key = step["key"].as_str().unwrap_or("");
+    let evaluated = crate::hud_geometry::rows(&runtime["steps"]).iter().find(|r| r["key"] == key).cloned().unwrap_or(Value::Null);
+    let all: Vec<&Value> = guide["tracks"].as_object().into_iter().flat_map(|m| m.values()).flat_map(|t| crate::hud_geometry::rows(t)).collect();
+    if let Some(dep) = crate::hud_geometry::rows(&evaluated["blocked_by"]).iter().find_map(|k| all.iter().find(|r| r["key"] == *k)) {
+        return json!({"kind":"step","step":brief(dep)});
+    }
+    let trig = &step["action"]["params"]["trigger_resolution"];
+    if trig["status"] == "compiled" && trig["entity"].is_object() {
+        let entity = &trig["entity"];
+        let name = entity["name"].as_str().filter(|s| !s.is_empty()).or(entity["id"].as_str());
+        return json!({"kind":"entity","entity":entity["kind"],"name":name,"relation":trig["relation"]});
+    }
+    if let Some(text) = trig["text"].as_str().filter(|s| !s.is_empty()) {
+        return json!({"kind":"text","text":text});
+    }
+    match evaluated["reason"].as_str().filter(|s| !s.is_empty()) {
+        Some(code) => json!({"kind":"reason","code":code}),
+        None => Value::Null,
+    }
 }
 /// The title Rust composed for a line understood in full (`reading`, UX R8):
 /// sentence templates and localized names, translated by the HUD. Null otherwise.
@@ -380,6 +409,20 @@ mod tests {
         assert_eq!(card["original"], "Justify HUN");
         assert_eq!(card["then"], json!({"key":"c","heading":"Build 2 civs in Mun","reading_title":null}), "a reminder and a waiting step are not 'then'");
         assert_eq!(card["waiting"]["key"], "b", "the nearest waiting step");
+        assert!(card["waiting"]["reason"].is_null(), "no reason from the evaluation: none invented");
+        // UX R10: the reason, in the suite's order of preference.
+        let mut why = runtime.clone();
+        why["steps"][1]["reason"] = json!("insufficient_political_power");
+        assert_eq!(step_card(&guide, &why)["waiting"]["reason"], json!({"kind":"reason","code":"insufficient_political_power"}));
+        let mut trig = guide.clone();
+        trig["tracks"]["operations"][2]["action"]["params"]["trigger_resolution"] = json!({"status":"compiled","relation":"reached",
+            "entity":{"kind":"focus","id":"ROM_revise_the_constitution","name":"Revise the Constitution"}});
+        assert_eq!(step_card(&trig, &why)["waiting"]["reason"],
+            json!({"kind":"entity","entity":"focus","name":"Revise the Constitution","relation":"reached"}));
+        trig["tracks"]["operations"][2]["action"]["params"]["trigger_resolution"] = json!({"status":"unknown","text":"On Revise…"});
+        assert_eq!(step_card(&trig, &why)["waiting"]["reason"], json!({"kind":"text","text":"On Revise…"}));
+        why["steps"][1]["blocked_by"] = json!(["d"]);
+        assert_eq!(step_card(&trig, &why)["waiting"]["reason"], json!({"kind":"step","step":{"key":"d","heading":"Later","reading_title":null}}));
         let mut unknown = runtime.clone();
         unknown["steps"][2] = json!({"key":"x","status":"ready"});
         assert!(step_card(&guide, &unknown)["then"].is_null(), "a step without a Rust status is never 'then'");

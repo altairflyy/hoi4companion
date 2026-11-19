@@ -29,5 +29,7 @@
  }
  if(typeof document==='object')document.addEventListener('DOMContentLoaded',mount,{once:true});
  function register(messages){for(const [key,value] of Object.entries(messages)){if(typeof value==='string'&&!Object.hasOwn(catalog.messages,key))catalog.messages[key]=value;}}
- return {t,setLanguage,register,get language(){return locale;}};
+ // One readable sentence per runtime reason (UX R10), shared with the HUD; null when the table has none.
+ function reason(code){const english=catalog.runtime_reasons?.[code];return typeof english==='string'?t(english):null;}
+ return {t,reason,setLanguage,register,get language(){return locale;}};
 });

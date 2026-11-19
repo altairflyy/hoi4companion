@@ -279,6 +279,17 @@
   const how=el('span','badge-pair');how.append(el('span','badge badge-when',HoiI18n.t("Now")),el('span','badge badge-verification verification-automatic',HoiI18n.t("Automatic")));
   top.append(el('span','eyebrow',label),how);item.append(top,a);return item;
  }
+ // The nearest wait in words (UX R10): prerequisite step, recognized trigger,
+ // the author's unrecognized condition, or the Rust reason code through the
+ // runtime_reasons table; an unlisted code shows nothing rather than a code.
+ function guidedReason(r){
+  if(!r)return null;
+  if(r.kind==='step')return HoiI18n.t("after “{0}”",displayTitle(r.row));
+  if(r.kind==='entity'){const kind=HoiI18n.t(({decision:'decision',focus:'focus',technology:'technology'})[r.entity]||r.entity||'focus');
+   return HoiI18n.t(r.relation==='completed'?"after {0} “{1}” is completed":r.relation==='before'?"only before {0} “{1}” is started":"once {0} “{1}” is started",kind,r.name);}
+  if(r.kind==='text')return HoiI18n.t("condition: “{0}”",r.text);
+  return r.kind==='reason'?HoiI18n.reason(r.code):null;
+ }
  function renderGuided(rows,political){
   const box=$('guidedPlan');box.hidden=!guidedView;if(!guidedView)return;
   const g=HoiActionPlan.guided(rows,political),lanes=[['focus',HoiI18n.t("National focuses")],['research',HoiI18n.t("Technology research")]];
@@ -291,7 +302,7 @@
   if(g.active.length){const p=el('p','guided-line');p.append(el('strong','',HoiI18n.t("In progress")+': '));g.active.slice(0,3).forEach((row,i)=>{if(i)p.append(' · ');p.append(stepLink(row));});parts.push(p);}
   if(g.then){const p=el('p','guided-line');p.append(el('strong','',HoiI18n.t("Then")+': '),stepLink(g.then));parts.push(p);}
   if(g.waiting){const p=el('p','guided-line guided-waiting');p.append(el('strong','',HoiI18n.t("Waiting")+': '),stepLink(g.waiting));
-   const r=g.reason;if(r)p.append(el('span','guided-reason',' · '+(r.kind==='step'?HoiI18n.t("after “{0}”",displayTitle(r.row)):HoiI18n.t("condition: “{0}”",r.kind==='entity'?r.name:r.text))));parts.push(p);}
+   const text=guidedReason(g.reason);if(text)p.append(el('span','guided-reason',' · '+text));parts.push(p);}
   box.replaceChildren(...parts);
  }
  function links(){const {guide,view}=value;const focus=view.lanes.focus.next,tech=view.lanes.research.next;

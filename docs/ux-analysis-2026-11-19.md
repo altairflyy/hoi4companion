@@ -379,7 +379,16 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   `tests/fixtures/display-category-contract.json`), `verification` (la stessa di `import_reports`), `reading_title`, `then`, `waiting`;
   l'overlay disegna la riga "Categoria · Quando · Verifica", il titolo composto e le righe Poi/In attesa. Screenshot a 375 px senza overflow
   sul backend in esecuzione (binario vecchio: stringhe nuove in inglese e titoli R8 assenti fino al rebuild). Non ricompilato né visto dal vivo.
-- Poi R10–R11, quindi il lungo periodo, nell'ordine delle tabelle sopra.
+- [x] **R10 · Motivi di attesa leggibili e focus troncati** (2026-11-20). Tabella unica `runtime_reasons` in `translations.json`
+  (codice di attesa di guide-core → frase, italiano in `messages`), letta da `HoiI18n.reason` nella suite e da `i18n::reason` nell'overlay.
+  La riga "In attesa" della modalità guidata dice perché: passo prerequisito, trigger riconosciuto da Rust ("all'avvio del focus «…»"),
+  condizione non riconosciuta come testo, altrimenti il motivo della valutazione Rust; un codice fuori tabella non mostra nulla.
+  `step_card.waiting.reason` porta lo stesso dato all'HUD. Focus troncati: `ground_trigger` (`reference_candidates.rs`) risolve anche il
+  `params.timing` già separato dalla riga ("Quando: On Revise…") con la risoluzione esistente per miglior corrispondenza unica nell'albero
+  della guida; sostituisce solo il segnaposto `guide.conditions.*`; due focus con lo stesso prefisso restano ambigui con i candidati.
+  Test: Rust `a_split_timing_with_a_truncated_focus_resolves_only_by_unique_prefix`, `hud_service`, overlay; JS `tests/test_action_plan.cjs`.
+  Non ricompilato né visto dal vivo.
+- Poi R11, quindi il lungo periodo, nell'ordine delle tabelle sopra.
 
 ### Metrica guida proposta
 

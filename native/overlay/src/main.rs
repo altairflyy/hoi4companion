@@ -276,6 +276,23 @@ fn reading_title(title:&Value)->Option<String> {
     }).collect::<Option<Vec<_>>>()?;
     Some(texts.join(if title["joiner"]=="then" {", "} else {" · "}))
 }
+/// Why the waiting step waits (UX R10), worded as the suite's guided line
+/// (`guidedReason` in web/guide.js); None when the backend gives no reason or
+/// the code is not in the `runtime_reasons` table.
+fn waiting_reason(reason:&Value)->Option<String> {
+    let text=|v:&Value|v.as_str().map(str::trim).filter(|s|!s.is_empty()).map(str::to_owned);
+    match reason["kind"].as_str()? {
+        "step"=>{let step=&reason["step"];let title=reading_title(&step["reading_title"]).or_else(||text(&step["heading"]))?;Some(i18n::format("after “{0}”",&[&title]))}
+        "entity"=>{
+            let kind=match reason["entity"].as_str().unwrap_or("focus") {"decision"=>"decision","technology"=>"technology",_=>"focus"};
+            let template=match reason["relation"].as_str().unwrap_or("") {"completed"=>"after {0} “{1}” is completed","before"=>"only before {0} “{1}” is started",_=>"once {0} “{1}” is started"};
+            Some(i18n::format(template,&[&i18n::text(kind),&text(&reason["name"])?]))
+        }
+        "text"=>Some(i18n::format("condition: “{0}”",&[&text(&reason["text"])?])),
+        "reason"=>i18n::reason(reason["code"].as_str()?),
+        _=>None,
+    }
+}
 /// "Category · When · Verification" (UX R9), the same three labels as the
 /// suite's cards (`categories`, `whenLabel`, `verificationLabels` in web/guide.js).
 fn guided_line(card:&Value)->String {
@@ -336,7 +353,10 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
     let upcoming=[("then","Then: {0}"),("waiting","Waiting: {0}")].iter().filter_map(|(field,label)|{
         let next=&card[*field];
         let title=reading_title(&next["reading_title"]).or_else(||next["heading"].as_str().map(str::trim).filter(|s|!s.is_empty()).map(str::to_owned))?;
-        Some(i18n::format(label,&[&title]))
+        match waiting_reason(&next["reason"]) {
+            Some(reason) if *field=="waiting"=>Some(i18n::format("Waiting: {0} · {1}",&[&title,&reason])),
+            _=>Some(i18n::format(label,&[&title])),
+        }
     }).collect::<Vec<_>>().join("\n");
     let body=lines.join("
 ");
@@ -834,6 +854,19 @@ mod tests {
         assert_eq!(card.heading,"Build Infrastructure in Muntenia, then build Military factory in Muntenia");
         assert_eq!(card.note,"In the guide: “INFRAs, then MILs in Mun”");
         assert_eq!(card.upcoming,"Then: Justify a war goal on Hungary (HUN)\nWaiting: On Revise…: appoint X");
+        // UX R10: the reason of the wait, worded as in the suite.
+        let mut why=snapshot.clone();
+        for (reason,expected) in [
+            (json!({"kind":"entity","entity":"focus","name":"Revise the Constitution","relation":"reached"}),"once focus “Revise the Constitution” is started"),
+            (json!({"kind":"entity","entity":"decision","name":"Liturgical Reform","relation":"completed"}),"after decision “Liturgical Reform” is completed"),
+            (json!({"kind":"step","step":{"key":"d","heading":"Build 2 civs","reading_title":null}}),"after “Build 2 civs”"),
+            (json!({"kind":"text","text":"On Revise…"}),"condition: “On Revise…”"),
+            (json!({"kind":"reason","code":"insufficient_political_power"}),"not enough political power yet")] {
+            why["step_card"]["waiting"]["reason"]=reason;
+            assert_eq!(step_card(&why).unwrap().upcoming.lines().nth(1),Some(format!("Waiting: On Revise…: appoint X · {expected}").as_str()));
+        }
+        why["step_card"]["waiting"]["reason"]=json!({"kind":"reason","code":"not_a_reason"});
+        assert_eq!(step_card(&why).unwrap().upcoming.lines().nth(1),Some("Waiting: On Revise…: appoint X"),"an unlisted code is never shown");
         let mut plain=snapshot.clone();
         plain["step_card"]=json!({"heading":"Hire X","status":"waiting","category":"politics","verification":"automatic","started_when":true});
         let card=step_card(&plain).unwrap();

@@ -15,6 +15,15 @@ fn text_in(message:&str,italian:bool)->String{
     let english=catalog["legacy"][message].as_str().unwrap_or(message);
     if italian{catalog["messages"][english].as_str().unwrap_or(english).to_owned()}else{english.to_owned()}
 }
+/// The readable sentence of a guide-core reason code (UX R10, `runtime_reasons`
+/// in translations.json, shared with the suite); None for an unlisted code.
+pub fn reason(code:&str)->Option<String>{
+    reason_in(code,ITALIAN.load(Ordering::Acquire))
+}
+fn reason_in(code:&str,italian:bool)->Option<String>{
+    let catalog=CATALOG.get_or_init(||serde_json::from_str(include_str!("../../../src/hoi4companion/translations.json")).expect("packaged UI catalog"));
+    catalog["runtime_reasons"][code].as_str().map(|english|text_in(english,italian))
+}
 pub fn format(message:&str,values:&[&str])->String{
     substitute(text(message),values)
 }
@@ -38,5 +47,8 @@ fn substitute(source:String,values:&[&str])->String{
         assert_eq!(substitute(text_in("GUI reading suspended: {0}",true),&["{1} GER_focus"]),"Lettura GUI sospesa: {1} GER_focus");
         assert_eq!(text("GER_oppose_hitler_ww"),"GER_oppose_hitler_ww");
         assert!(set_language("unsupported").is_err());
+        assert_eq!(reason_in("insufficient_political_power",false).as_deref(),Some("not enough political power yet"));
+        assert_eq!(reason_in("insufficient_political_power",true).as_deref(),Some("potere politico ancora insufficiente"));
+        assert_eq!(reason_in("not_a_reason",true),None);
     }
 }

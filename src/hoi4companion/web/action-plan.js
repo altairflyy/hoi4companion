@@ -185,10 +185,12 @@
   const then=actions.find(r=>!taken.has(r.key)&&eligible(r))||null;
   const waiting=actions.find(r=>!taken.has(r.key)&&r.runtime_status==='waiting')||null;
   // The nearest condition in words: the first prerequisite step, else the
-  // author's trigger as recognized by Rust, else nothing (never guessed).
+  // author's trigger as recognized by Rust, else the reason code of the Rust
+  // evaluation (read through the runtime_reasons table), else nothing (never guessed).
   let reason=null;
   if(waiting){const dep=(waiting.blocked_by||[]).map(k=>byKey.get(k)).find(Boolean),trig=waiting.action?.params?.trigger_resolution;
-   reason=dep?{kind:'step',key:dep.key,row:dep}:trig?.status==='compiled'&&trig.entity?{kind:'entity',name:trig.entity.name||trig.entity.id,relation:trig.relation}:trig?.text?{kind:'text',text:trig.text}:null;}
+   reason=dep?{kind:'step',key:dep.key,row:dep}:trig?.status==='compiled'&&trig.entity?{kind:'entity',entity:trig.entity.kind,name:trig.entity.name||trig.entity.id,relation:trig.relation}:trig?.text?{kind:'text',text:trig.text}:
+    typeof waiting.runtime_reason==='string'&&waiting.runtime_reason?{kind:'reason',code:waiting.runtime_reason}:null;}
   return {now,then,waiting,reason,active:actions.filter(r=>r.runtime_status==='active')};
  }
  const api={describe,composedTitle,blocks,category,compact,guided,createReader:language=>reading.create(language)};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiActionPlan=api;

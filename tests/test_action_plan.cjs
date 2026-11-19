@@ -139,7 +139,7 @@ test('guided mode (R9): now is the current step plus its open Actions-block sibl
  assert.deepEqual([g.reason.kind,g.reason.key],['step','a1'],'the nearest condition names the prerequisite step');
  assert.deepEqual(g.active.map(r=>r.key),['build']);
  const later=plan.guided(rows.map(r=>r.key==='a3'?{...r,runtime_status:'completed'}:r),null);
- assert.deepEqual(later.reason,{kind:'entity',name:'Revise the Constitution',relation:'completed'},'a recognized trigger is named, never guessed');
+ assert.deepEqual(later.reason,{kind:'entity',entity:'focus',name:'Revise the Constitution',relation:'completed'},'a recognized trigger is named, never guessed');
  assert.equal(plan.guided(rows,null,1).now.length,1,'never more than the limit');
  assert.equal(plan.guided(rows,null).now.length<=5,true);
  // A political action out of the runtime's political sequence is never "now".
@@ -148,4 +148,26 @@ test('guided mode (R9): now is the current step plus its open Actions-block sibl
  assert.equal(plan.guided(political,'law2').then,null);
  const none=plan.guided([block('w',1,{runtime_status:'waiting'})],null);
  assert.deepEqual([none.now,none.then,none.waiting.key,none.reason],[[],null,'w',null],'nothing doable: no invented step');
+});
+
+test('readable waiting reasons (R10): one runtime_reasons sentence per waiting code of the Rust evaluation, in both languages',()=>{
+ const i18n=require('../src/hoi4companion/web/i18n.js'),catalog=require('../src/hoi4companion/translations.json');
+ // Every reason guide-core gives a "waiting" step (native/guide-core/src/lib.rs, research.rs).
+ const waiting=['condition_false','phase_condition_false','dependency_not_completed','milestone_not_completed','insufficient_political_power',
+  'insufficient_resource','action_requirements_false','compatible_facility_unavailable','focus_excluded','focus_prerequisites_false',
+  'focus_requirements_false','research_previous_level_incomplete','research_choice_waiting'];
+ for(const code of waiting){
+  const english=catalog.runtime_reasons[code];
+  assert.equal(typeof english,'string',code);
+  assert.equal(typeof catalog.messages[english],'string',code+' has an Italian sentence');
+  assert.equal(i18n.reason(code),english);
+ }
+ assert.equal(i18n.reason('not_a_reason'),null,'an unlisted code is never shown as text');
+ i18n.setLanguage('italian');
+ try{assert.equal(i18n.reason('insufficient_political_power'),'potere politico ancora insufficiente');}finally{i18n.setLanguage('english');}
+ // The guided "Waiting" line falls back to the Rust reason code only when no step or trigger names the wait.
+ const g=plan.guided([row('w',{}, {runtime_status:'waiting',runtime_reason:'insufficient_political_power'})],null);
+ assert.deepEqual(g.reason,{kind:'reason',code:'insufficient_political_power'});
+ const dep=plan.guided([row('a',{}, {runtime_status:'waiting',runtime_reason:'condition_false'}),row('w',{}, {runtime_status:'waiting',runtime_reason:'dependency_not_completed',blocked_by:['a']})].reverse(),null);
+ assert.equal(dep.reason.kind,'step');
 });

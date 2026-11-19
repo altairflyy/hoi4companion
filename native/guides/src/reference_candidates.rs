@@ -697,10 +697,17 @@ fn real_when(row: &Value) -> bool {
 /// becomes the step's `when` (only where it has none or promote's unknown
 /// placeholder); otherwise the step records why it stays unknown.
 fn ground_trigger(row: &mut Value, candidates: &[crate::entity_resolution::Candidate], index: &Index) {
-    let Some((line, block)) = first_line(row) else { return };
-    // A block may open with a bare header ("On Organize…:") over its lines.
-    let header = line.strip_suffix(':').map(str::trim).filter(|h| block && timing(h) && !h.contains(':'));
-    let Some(left) = trigger(&line).map(|t| t.0).or(header.map(str::to_owned)) else { return };
+    let lead = first_line(row).and_then(|(line, block)| {
+        // A block may open with a bare header ("On Organize…:") over its lines.
+        let header = line.strip_suffix(':').map(str::trim).filter(|h| block && timing(h) && !h.contains(':'));
+        trigger(&line).map(|t| t.0).or(header.map(str::to_owned))
+    });
+    // The timing the decomposition already split off the line ("On Revise…"),
+    // shown as "When: …": the same trigger, resolved by the same unique match.
+    let split = || {
+        row["action"]["params"]["timing"].as_str().map(str::trim).filter(|t| timing(t) && !t.contains(':')).map(str::to_owned)
+    };
+    let Some(left) = lead.or_else(split) else { return };
     if !(left.contains('…') || left.contains("...")) || !row["action"]["params"]["trigger_resolution"].is_null() || real_when(row) {
         return;
     }
@@ -1325,6 +1332,52 @@ mod tests {
         let once = guide.clone();
         ground_references(&mut guide, &index, &Value::Null).unwrap();
         assert_eq!(guide, once);
+    }
+    #[test]
+    fn a_split_timing_with_a_truncated_focus_resolves_only_by_unique_prefix() {
+        // UX R10 (P7): "When: On Revise…" names a focus of the guide's tree by
+        // the start of its name; it becomes the step's condition only if
+        // exactly one focus of the tree starts that way.
+        let placeholder = json!({"op":"fact","key":"guide.conditions.abc","test":"eq","value":true});
+        let row = |key: &str, timing: &str| json!({"key":key,"title":"Appoint Gheorghe Argeseanu","when":placeholder,
+            "action":{"kind":"manual","params":{"instructions":["Appoint Gheorghe Argeseanu"],"timing":timing}}});
+        let guide = |rows: Vec<Value>| json!({"applies_to":{"country":"ROM","tree_id":"rom_tree"},"tracks":{"operations":rows}});
+        let focus = |id: &str, name: &str| json!({"kind":"focus","id":id,"name":name,"scope":"rom_tree"});
+        let unique = Index::new(&json!({"entries":[{"kind":"country","id":"ROM","name":"Romania"},
+            focus("ROM_revise_the_constitution", "Revise the Constitution"), focus("ROM_reform_the_army", "Reform the Army")]})).unwrap();
+        let mut g = guide(vec![row("a", "On Revise…"), row("b", "On Revise… & GER down"), row("c", "ASAP")]);
+        ground_references(&mut g, &unique, &Value::Null).unwrap();
+        let rows = g["tracks"]["operations"].as_array().unwrap().clone();
+        let t = &rows[0]["action"]["params"]["trigger_resolution"];
+        assert_eq!(t["status"], "compiled");
+        assert_eq!(t["resolution_status"], "resolved");
+        assert_eq!(t["relation"], "reached");
+        assert_eq!(t["entity"], json!({"kind":"focus","id":"ROM_revise_the_constitution","name":"Revise the Constitution"}));
+        assert_eq!(rows[0]["when"]["args"][0], json!({"op":"fact","key":"focus.active","test":"contains","value":"ROM_revise_the_constitution"}));
+        // A second condition in the timing is not understood: the placeholder stays.
+        assert_eq!(rows[1]["action"]["params"]["trigger_resolution"]["verification"], "residual_condition_not_understood");
+        assert_eq!(rows[1]["when"], placeholder);
+        // No truncated name: nothing to resolve.
+        assert!(rows[2]["action"]["params"]["trigger_resolution"].is_null());
+        assert_eq!(rows[2]["when"], placeholder);
+
+        // Two focuses of the tree start with "Revise": ambiguous, never guessed.
+        let ambiguous = Index::new(&json!({"entries":[{"kind":"country","id":"ROM","name":"Romania"},
+            focus("ROM_revise_the_constitution", "Revise the Constitution"), focus("ROM_revise_treaties", "Revise Treaties")]})).unwrap();
+        let mut g = guide(vec![row("a", "On Revise…")]);
+        ground_references(&mut g, &ambiguous, &Value::Null).unwrap();
+        let row0 = &g["tracks"]["operations"][0];
+        let t = &row0["action"]["params"]["trigger_resolution"];
+        assert_eq!(t["status"], "unknown");
+        assert_eq!(t["resolution_status"], "ambiguous");
+        assert!(t["entity"].is_null());
+        let ids: Vec<&str> = t["candidates"].as_array().unwrap().iter().filter_map(|c| c["id"].as_str()).collect();
+        assert_eq!(ids, ["ROM_revise_the_constitution", "ROM_revise_treaties"]);
+        assert_eq!(row0["when"], placeholder, "an ambiguous trigger keeps the unknown condition");
+        // Idempotent.
+        let once = g.clone();
+        ground_references(&mut g, &ambiguous, &Value::Null).unwrap();
+        assert_eq!(g, once);
     }
     #[test]
     fn several_event_answers_are_narrowed_to_events_of_guide_or_historical_focuses() {
