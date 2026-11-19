@@ -115,10 +115,12 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  const pairOf=key=>descendants(descendants(get('operationCards')).find(node=>node.dataset?.step===key)).find(node=>node.className==='badge-pair').children.map(node=>node.textContent);
  assert.deepEqual(pairOf('method'),['In attesa','Promemoria']);
  guide.tracks.operations.push({key:'auto',depends_on:[],title:'Raise stability',completion:{op:'fact',key:'country.stability',test:'gte',value:50},action:{kind:'manual',params:{category:'politics'}}},
-  {key:'loose',depends_on:[],title:'INFRAs, then MILs in Mun',action:{kind:'manual',params:{category:'checkpoints',source_action:{key:'w1',ordinal:1}}}},
-  {key:'bound',depends_on:[],title:'Justify HUN',action:{kind:'manual',params:{category:'checkpoints',source_action:{key:'w2',ordinal:2},action_resolution:{status:'not_observable',action:'justify_war_goal',targets:['HUN']}}}});
+  {key:'loose',depends_on:[],title:'INFRAs, then MILs in Mun',action:{kind:'manual',params:{category:'checkpoints',source_action:{source_id:'doc',key:'w1',ordinal:1}}}},
+  {key:'bound',depends_on:[],title:'Justify HUN',action:{kind:'manual',params:{category:'checkpoints',source_action:{source_id:'doc',key:'w2',ordinal:2},action_resolution:{status:'not_observable',action:'justify_war_goal',targets:['HUN']}}}});
  await redefine();await push(live([]));
  assert.equal(pairOf('auto')[1],'Automatica');assert.equal(pairOf('loose')[1],'Non interpretata');assert.equal(pairOf('bound')[1],'Conferma tu');
+ // Two Actions blocks, one explanatory note: it is shown above the first block only.
+ assert.equal(get('operationCards').textContent.split('Colonna Actions').length-1,1);
  guide.tracks.operations.splice(-3,3);await redefine();await push(live([]));
  guide.tracks.operations.push({key:'event',depends_on:[],title:'Choose event answer',started_when:{op:'fact',key:'events.visible_options',test:'contains',value:'example.1:example.1.a'},action:{kind:'manual',params:{event_id:'example.1',event_option_id:'example.1.a',event_option_name:'Recommended answer'}}});
  const eventLive=live([]);eventLive.sample.country_overview.events={status:'observed',visible:[{instance_id:'1',event_id:'example.1',option_ids:['example.1.a']}]};
@@ -311,3 +313,18 @@ function walkthroughEvaluation(guide,state,progress){
  return require('./presentation-fixtures.cjs').forInputs(definition,state,record);
 }
 function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}
+
+test('readiness notes keep actionable reasons visible and put unknowns under Why?',()=>{
+ const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');
+ const {readinessNotes}=require('../src/hoi4companion/web/guide-presentation.js');
+ assert.deepEqual(readinessNotes(null),{visible:[],why:[]});
+ const unknown=readinessNotes({political_power:{available:null,effective_cost:null,guide_threshold:112},blocked:[],unknown:['political_cost_unknown','action_requirements_unknown']});
+ assert.deepEqual(unknown.visible,[]);
+ assert.equal(unknown.why.length,3);
+ assert.ok(unknown.why.includes('Costo in PP non leggibile: controlla di avere 112 PP.'));
+ assert.ok(unknown.why.includes('Il gioco potrebbe richiedere altre condizioni: controlla che il pulsante sia attivo.'));
+ const blocked=readinessNotes({political_power:{available:40,effective_cost:112,guide_threshold:112,affordable:false},blocked:['action_requirements_false'],unknown:[]});
+ assert.equal(blocked.why.length,0);
+ assert.match(blocked.visible[0],/Potere politico: 40 · costo effettivo: 112 .*insufficiente/);
+ assert.equal(blocked.visible[1],'Requisiti dichiarati non soddisfatti.');
+});

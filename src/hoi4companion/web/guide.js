@@ -90,7 +90,7 @@
  // Two separate labels: when the step applies (status) and how its completion is
  // known (verification). Both only present the Rust evaluation and the prepared
  // step; neither decides status or progress.
- function whenLabel(row){if(row.runtime_reason==='production_superseded')return HoiI18n.t('Superseded');if(row.tracking==='reminder')return row.runtime_status==='waiting'?HoiI18n.t("Waiting"):row.runtime_status==='unverifiable'?HoiI18n.t("Timing needs verification"):null;return row.runtime_status==='completed'?(row.construction?.targets?.some(x=>Number.isInteger(x.target)&&Number.isInteger(x.current)&&x.current<x.target)?HoiI18n.t("Ordered · in the construction queue"):HoiI18n.t("Completed")):row.runtime_status==='not_applicable'?HoiI18n.t("Not applicable"):row.runtime_status==='waiting'?HoiI18n.t("Waiting"):row.runtime_status==='active'?HoiI18n.t("In progress"):row.started_when?(row.selection?.value===false?HoiI18n.t("No order detected"):HoiI18n.t("Start cannot be verified")):row.runtime_status==='ready'?HoiI18n.t("Now"):HoiI18n.t("Timing needs verification");}
+ function whenLabel(row){if(row.runtime_reason==='production_superseded')return HoiI18n.t('Superseded');if(row.tracking==='reminder')return row.runtime_status==='waiting'?HoiI18n.t("Waiting"):row.runtime_status==='unverifiable'?HoiI18n.t("Source order"):null;return row.runtime_status==='completed'?(row.construction?.targets?.some(x=>Number.isInteger(x.target)&&Number.isInteger(x.current)&&x.current<x.target)?HoiI18n.t("Ordered · in the construction queue"):HoiI18n.t("Completed")):row.runtime_status==='not_applicable'?HoiI18n.t("Not applicable"):row.runtime_status==='waiting'?HoiI18n.t("Waiting"):row.runtime_status==='active'?HoiI18n.t("In progress"):row.started_when?(row.selection?.value===false?HoiI18n.t("No order detected"):HoiI18n.t("Start cannot be verified")):row.runtime_status==='ready'?HoiI18n.t("Now"):HoiI18n.t("Source order");}
  // The method comes from the prepared step's `verification` (set in Rust by guide_enrich).
  // Only a step prepared without it falls back to its completion reading game state,
  // not just the player's ticks. The label names the method; the status label says
@@ -105,7 +105,7 @@
   return 'manual';
  }
  const verificationLabels={automatic:HoiI18n.t("Automatic"),manual:HoiI18n.t("Confirm yourself"),reminder:HoiI18n.t("Reminder"),uninterpreted:HoiI18n.t("Not interpreted")};
- function badges(row){const box=el('span','badge-pair'),when=whenLabel(row),how=verification(row);if(when)box.append(el('span','badge badge-when',when));const v=el('span','badge badge-verification verification-'+how,verificationLabels[how]);v.title=HoiI18n.t("How completion is known");box.append(v);return box;}
+ function badges(row){const box=el('span','badge-pair'),when=whenLabel(row),how=verification(row);if(when){const w=el('span','badge badge-when',when);if(when===HoiI18n.t("Source order"))w.title=HoiI18n.t("The guide does not say when: follow the source order.");box.append(w);}const v=el('span','badge badge-verification verification-'+how,verificationLabels[how]);v.title=HoiI18n.t("How completion is known");box.append(v);return box;}
  function badge(row){return [whenLabel(row),verificationLabels[verification(row)]].filter(Boolean).join(' · ');}
  function confirm(key,text){const label=el('label','checkpoint-check'),input=el('input');input.type='checkbox';input.checked=value.progress.checks[key]===true;input.disabled=value.pending>0;input.setAttribute('data-check',key);input.addEventListener('change',()=>window.hoiGuide.confirm(key,input.checked).catch(()=>{}));label.title=HoiI18n.t("Tick it when you have done this in the game. The ✓ on the in-game card does the same.");label.append(input,el('span','',text));return label;}
  function controls(row,box){
@@ -173,12 +173,11 @@
   for(const ref of refs){const details=el('details','design-reference');details.append(el('summary','',HoiI18n.t('Design reference')+' · '+ref.name));if(ref.image_id){const image=el('img');image.src='/api/reference-library/image?id='+encodeURIComponent(ref.image_id);image.alt=ref.name;image.loading='lazy';image.style.maxWidth='100%';details.append(image);}details.append(el('pre','',JSON.stringify({modules:ref.modules,upgrades:ref.upgrades},null,2)));node.append(details);}
   if(row.event_observation){const e=row.event_observation,p=row.action.params;node.append(el('p','operation-observations',e.visible===true?HoiI18n.t("EVENT OPEN · ")+p.event_id:e.visible===false?HoiI18n.t("Event is not currently open."):HoiI18n.t("Event visibility cannot be verified.")));if(p.event_option_id)node.append(el('p','event-choice',HoiI18n.t("Recommended choice: ")+(p.event_option_name||p.event_option||p.event_option_id)+(e.option_available===true?HoiI18n.t(" · available in the event window"):e.option_available===false?HoiI18n.t(" · not among the current choices"):HoiI18n.t(" · availability cannot be verified"))));}
   if(row.action_readiness&&row.runtime_status!=='completed'){
-   const r=row.action_readiness,p=r.political_power;
-   if(p)node.append(el('p','operation-observations',HoiI18n.t("Political power: {0} · effective cost: {1} · guide threshold: {2}{3}",p.available??HoiI18n.t("unverifiable"),p.effective_cost??HoiI18n.t("unverifiable"),p.guide_threshold??HoiI18n.t("not specified"),p.affordable===false?' · insufficiente: mantieni questo ordine nella sequenza':'')));
+   const r=row.action_readiness,notes=HoiGuidePresentation.readinessNotes(r);
+   for(const text of notes.visible)node.append(el('p','operation-copy',text));
    const resourceNames={'projects.points.specialization_land':HoiI18n.t("Land breakthrough points"),'projects.points.specialization_air':HoiI18n.t("Air breakthrough points"),'projects.points.specialization_naval':HoiI18n.t("Naval breakthrough points"),'projects.points.specialization_nuclear':HoiI18n.t("Physics breakthrough points")};
    for(const resource of r.resources||[])node.append(el('p','operation-observations',`${resourceNames[resource.key]||resource.key}: ${resource.available??HoiI18n.t("unverifiable")} / ${resource.cost}${resource.affordable===false?HoiI18n.t(" · insufficient: HUD waiting"):''}`));
-   const reasons={project_cost_unknown:HoiI18n.t("Project point cost is not qualified."),resource_balance_unknown:HoiI18n.t("Resource balance is not qualified: HUD waiting."),insufficient_resource:HoiI18n.t("Insufficient points: the HUD border remains off."),political_power_unknown:HoiI18n.t("Current political power is not qualified."),political_cost_unknown:HoiI18n.t("The effective political cost is not qualified; a guide threshold alone cannot confirm affordability."),action_requirements_unknown:HoiI18n.t("Dynamic requirements cannot be verified."),commander_assignment_unobserved:HoiI18n.t("The live reader does not expose commander assignment to units."),facility_compatibility_unknown:HoiI18n.t("Facility compatibility cannot be verified yet."),compatible_facility_unavailable:HoiI18n.t("No compatible idle facility with an assigned scientist is available."),action_requirements_false:HoiI18n.t("Declared requirements are not met.")};
-   for(const reason of [...r.blocked,...r.unknown])if(reasons[reason])node.append(el('p','operation-copy',reasons[reason]));
+   if(notes.why.length){const why=el('details','readiness-why');why.append(el('summary','',HoiI18n.t("Why?")),...notes.why.map(text=>el('p','operation-copy',text)));node.append(why);}
   }
   if(row.note&&!row.evidence?.some(e=>e.quote===row.note)&&!/^Abbreviations \(/.test(row.note))node.append(el('p','operation-copy',row.note));
   const productionDetails=row.production?.layout||[row.production];
@@ -308,7 +307,7 @@
   $('modeNote').textContent=view.mode==='live'?HoiI18n.t("Focus and research update in their respective trees. Operations with live criteria advance automatically; reminders remain available without confirmation. Confirm only criteria that cannot be observed."):HoiI18n.t("Instructions remain available. No progress is inferred without a compatible game.");
   const p=value.progress,storage=p.storage||{},campaign=p.campaign_id;
   $('campaignStatus').textContent=storage.error?HoiI18n.t("Progress not saved: ")+storage.error:
-   ['wrong_campaign','campaign_unverified'].includes(view.progress_status)?HoiI18n.t("Progress suspended: the saved campaign does not match a verified live identity."):
+   ['wrong_campaign','campaign_unverified'].includes(view.progress_status)?HoiI18n.t("This game does not match the saved checklist. Open the right save or start a new checklist."):
    (campaign?HoiI18n.t("Campaign ")+p.country+' · '+campaign.split(':')[1].slice(0,8)+' · ':HoiI18n.t("Campaign identity not verified · "))+
    (storage.status==='persistent'?HoiI18n.t("Progress saved on this PC."):HoiI18n.t("Temporary progress."));
   const history=(p.history||[]).filter(row=>row.campaign_id===campaign&&row.country===p.country);
@@ -334,7 +333,7 @@
   // A closed full plan has no rendering work. Existing nodes remain attached
   // while collapsed, preserving details and reference previews.
   if($('operationsPlan').open!==false){
-   const cards=$('operationCards'),sections=[],occurrences=new Map();
+   const cards=$('operationCards'),sections=[],occurrences=new Map();let noteShown=false;
    const visible=allRows.filter(row=>(filter==='all'||row.category===filter)&&(!$('hideDone').checked||row.runtime_status!=='completed'&&row.runtime_reason!=='production_superseded'));
    const visibleKeys=new Set(visible.map(row=>row.key));
    for(const block of HoiActionPlan.blocks(allRows)){
@@ -345,7 +344,7 @@
     const statuses={completed:'Tracked actions completed',active:'In progress',ready:'Ready',waiting:'Waiting',not_applicable:'Not applicable',reminder:'Method reminder'};
     const title=HoiI18n.t('Step {0}',block.number),badge=HoiI18n.t(statuses[block.status]);
     if(cached.title.textContent!==title)cached.title.textContent=title;if(cached.badge.textContent!==badge)cached.badge.textContent=badge;
-    sync(cached.section,[cached.header,...(block.source?[cached.note]:[]),...rows.map(row=>cachedCard(row))]);sections.push(cached.section);
+    sync(cached.section,[cached.header,...(block.source&&!noteShown?(noteShown=true,[cached.note]):[]),...rows.map(row=>cachedCard(row))]);sections.push(cached.section);
    }
    if(!visible.length)sections.push(el('p','empty-operations',HoiI18n.t("No instructions to check in this category.")));
    sync(cards,sections);

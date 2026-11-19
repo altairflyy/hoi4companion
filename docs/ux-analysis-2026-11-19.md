@@ -341,9 +341,13 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   presentazione (riga della colonna Actions senza binding né riferimenti risolti): R6 deve spostarla in
   Rust per i conteggi dell'import (avviso della revisione invarianti). Corpus di 50 guide: automatica 885,
   conferma tu 242, promemoria 160, non interpretata 3.128 su 4.415. Test: `tests/test_guide_view.cjs`.
-- [ ] **R3+R5 · Meno rumore, messaggi chiari.** Chiudere in un `<details>` "Perché?" le righe ripetute
-  su PP e requisiti dinamici; mostrare una sola volta la nota "Colonna Actions"; riscrivere i messaggi della
-  tabella "Linguaggio dei messaggi di limite" (sezione C) con la skill `add-translation`.
+- [x] **R3+R5 · Meno rumore, messaggi chiari** (2026-11-19). `readinessNotes()` in `web/guide-presentation.js`
+  separa i motivi: quelli bloccanti (requisiti non soddisfatti, punti insufficienti) restano visibili, quelli
+  "non leggibile" (PP, costo, requisiti dinamici, riga PP con valori ignoti) vanno in un `<details>` "Perché?".
+  La nota "Colonna Actions" compare una volta sopra il primo blocco. Riscritti campagna non corrispondente, costo PP
+  (con la soglia della guida), PP attuali, requisiti dinamici; "Momento da verificare" diventa il badge "Ordine della
+  fonte" con la frase completa come tooltip. Corretto il testo italiano fisso "insufficiente" nella riga PP.
+  Test: `tests/test_guide_view.cjs` (helper e nota unica).
 - [ ] **R4 · Niente sostituzioni a metà frase.** In `web/action-reading.js`, se la riga non è compresa per
   intero, mostrare il testo originale e le espansioni come glossario a fianco. Casi: le tre frasi di P3.
 - [ ] **R6 · Rapporto di interpretazione all'import** (Rust, `import_reports.rs`) e card panoramica.

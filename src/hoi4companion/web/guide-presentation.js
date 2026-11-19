@@ -200,5 +200,18 @@
   return {mode:result.mode,country:result.country,progress_status:result.runtime.progress_status,lanes,
    operations:ordering.rows,operation_order:ordering.details,model:result};
  }
- const api={evaluate,folder,frameReference,heading};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiGuidePresentation=api;
+ // Readiness notes for a step card. Blocked reasons tell the player what to do and stay
+ // visible; unknown reasons only explain why the app cannot confirm, so they go under
+ // "Why?". Presentation only: the readiness itself comes from the Rust evaluation.
+ function readinessNotes(readiness){
+  const out={visible:[],why:[]};if(!readiness)return out;
+  const p=readiness.political_power,unknown=new Set(readiness.unknown||[]);
+  if(p){const line=uiText("Political power: {0} · effective cost: {1} · guide threshold: {2}{3}",p.available??uiText("unverifiable"),p.effective_cost??uiText("unverifiable"),p.guide_threshold??uiText("not specified"),p.affordable===false?uiText(" · insufficient: keep this order in the sequence"):'');(p.available==null||p.effective_cost==null?out.why:out.visible).push(line);}
+  const threshold=p?.guide_threshold;
+  const reasons={project_cost_unknown:uiText("Project point cost is not qualified."),resource_balance_unknown:uiText("Resource balance is not qualified: HUD waiting."),insufficient_resource:uiText("Insufficient points: the HUD border remains off."),political_power_unknown:uiText("Current PP cannot be read: check your political power in the game."),political_cost_unknown:threshold!=null?uiText("Current PP cost cannot be read: check that you have {0} PP.",threshold):uiText("Current PP cost cannot be read: check that you have enough political power."),action_requirements_unknown:uiText("The game may require other conditions: check that the button is active."),commander_assignment_unobserved:uiText("The live reader does not expose commander assignment to units."),facility_compatibility_unknown:uiText("Facility compatibility cannot be verified yet."),compatible_facility_unavailable:uiText("No compatible idle facility with an assigned scientist is available."),action_requirements_false:uiText("Declared requirements are not met.")};
+  for(const reason of readiness.blocked||[])if(reasons[reason])out.visible.push(reasons[reason]);
+  for(const reason of unknown)if(reasons[reason]&&!(readiness.blocked||[]).includes(reason))out.why.push(reasons[reason]);
+  return out;
+ }
+ const api={evaluate,folder,frameReference,heading,readinessNotes};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiGuidePresentation=api;
 })(typeof window!=='undefined'?window:globalThis);

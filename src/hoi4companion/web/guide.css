@@ -58,7 +58,7 @@ main{max-width:1240px;margin:auto;padding:28px 32px 60px}.hero{display:flex;just
 .guide-metadata{color:var(--muted);font-size:12px;margin:4px 0 0}
 .guide-page .live-panel{padding:12px 16px!important;margin-bottom:12px!important}
 .guide-page .live-heading{align-items:center;gap:12px;font-variant-numeric:tabular-nums}
-.live-details{margin-top:8px}.live-details summary{cursor:pointer;color:var(--muted);font-size:12px}
+.readiness-why{margin-top:6px}.readiness-why summary{cursor:pointer;color:var(--muted);font-size:12px}.readiness-why[open] summary{color:var(--text)}.live-details{margin-top:8px}.live-details summary{cursor:pointer;color:var(--muted);font-size:12px}
 .live-details[open] summary{color:var(--text)}
 .guide-page .run-bar{padding:12px 16px;gap:16px}
 .guide-page .run-bar p{max-width:880px;line-height:1.5}
