@@ -36,7 +36,7 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
 - 2026-11-20 LIVE: event answer not highlighted (SOV, `bftb_turkey.4` open). Cause: `country_events.rs` read grid/buttons at fixed reference offsets
   (0x1280, 0x10d8); this build's `gui_layout` has `event_grid` 5120, `container_drags` 4696, so `events` was `unavailable` and the step stayed
   unverifiable. Fixed to read the profile; after rebuild `events` observed, step `active`, observe returns rect on `bftb_turkey.4.a`. Overlay drawing
-  itself only confirmed by the user's eye.
+  confirmed on screen by the user (2026-11-20).
 - 2026-11-20 R13 A, R15, step 9 part 1: details in the archive and the UX doc; seen live in the suite.
 - Event answers: native HUD answers seen on screen (`bea90e8`); user confirmations `197f141..320d441`, NOT live-verified. See archive.
 
