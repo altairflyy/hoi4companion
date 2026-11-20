@@ -188,6 +188,8 @@ pub struct StepCard {
     /// What follows: the next step and the nearest waiting one.
     pub upcoming: String,
     pub heading: String,
+    /// The author's condition ("When: At 24% paranoia"), under the heading.
+    pub timing: String,
     pub note: String,
     pub body: String,
     pub badge: String,
@@ -634,6 +636,7 @@ impl Graphics {
             if !collapsed {
                 blocks.push((card.status_line.clone(),2,3));
                 blocks.push((card.heading.clone(),1,1));
+                blocks.push((card.timing.clone(),3,0));
                 // An open reference section replaces the step details below.
                 if open.is_none() {
                     // An ambiguous answer's badge takes the ambiguous color (tone 5).
@@ -656,8 +659,8 @@ impl Graphics {
                 Ok(Some(rect))
             };
             let mut blocks=blocks.into_iter();
-            // The guided line and the heading come before the quick-reference tags.
-            for (text,format,tone) in blocks.by_ref().take(2) {block(self,&text,format,tone,&mut y,&mut lines)?;}
+            // The guided line, the heading and its condition come before the quick-reference tags.
+            for (text,format,tone) in blocks.by_ref().take(3) {block(self,&text,format,tone,&mut y,&mut lines)?;}
             // Quick-reference tags: a click opens the section (never a hover).
             if !collapsed && !card.references.is_empty() && y+row<=limit {
                 let mut x=pad;

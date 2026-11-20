@@ -170,6 +170,8 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
         "verification":hoi4companion_guides::import_reports::verification(step),
         "started_when":step.get("started_when").is_some_and(|v| !v.is_null()),
         "reading_title":reading_title(step),"original":step["reading"]["original"],
+        // The author's condition for this line ("At 24% paranoia"), as written.
+        "timing":clean(&params["timing"]).or_else(|| clean(&params["decomposition"]["timing"])),
         "then":then,"waiting":waiting})
 }
 /// Whether the step's own manual check can complete it, as guide-core reads it:
@@ -424,6 +426,10 @@ mod tests {
         assert_eq!(card["verification"], "uninterpreted", "same method as the import report");
         assert_eq!(card["reading_title"], title);
         assert_eq!(card["original"], "Justify HUN");
+        assert!(card["timing"].is_null(), "no condition in the guide: none shown");
+        let mut timed = guide.clone();
+        timed["tracks"]["operations"][0]["action"]["params"]["decomposition"] = json!({"timing":"At 24% paranoia"});
+        assert_eq!(step_card(&timed, &runtime)["timing"], "At 24% paranoia", "the author's condition, verbatim");
         assert_eq!(card["then"], json!({"key":"c","heading":"Build 2 civs in Mun","reading_title":null}), "a reminder and a waiting step are not 'then'");
         assert_eq!(card["waiting"]["key"], "b", "the nearest waiting step");
         assert!(card["waiting"]["reason"].is_null(), "no reason from the evaluation: none invented");

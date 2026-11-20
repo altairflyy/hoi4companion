@@ -161,6 +161,11 @@
    node.append(el('p','operation-original-text',HoiI18n.t('Original text: {0}',row.reading.original)));
   }
   if(row.action.params?.timing||!row.action.params?.source_action)node.append(referenceText('p','operation-timing',HoiI18n.t("When: ")+row.timing,row));
+  // The author's condition for a line split from a group ("At 24% paranoia")
+  // sits under the title, highlighted: players missed it as a grey note.
+  // Same rule as the HUD card (`hud_service::step_card`): params.timing, else this.
+  const condition=!row.action.params?.timing&&row.action.params?.decomposition?.timing?.trim()||'';
+  if(condition)node.append(referenceText('p','operation-timing operation-condition',HoiI18n.t("When: ")+condition,row));
   if(unplacedOperations.has(row.key)&&!row.action.params?.source_action)node.append(el('p','operation-copy',HoiI18n.t("Chronological position is unverified: consult this instruction's timing and conditions.")));
   if(row.game_date)node.append(el('p','operation-timing',HoiI18n.t("Date shown in the guide: ")+row.game_date+HoiI18n.t(" · chronological reference, not an automatic deadline")));
   if(operational.access)node.append(el('p','operation-access',operational.access));
@@ -199,7 +204,9 @@
    for(const resource of r.resources||[])node.append(el('p','operation-observations',`${resourceNames[resource.key]||resource.key}: ${resource.available??HoiI18n.t("unverifiable")} / ${resource.cost}${resource.affordable===false?HoiI18n.t(" · insufficient: HUD waiting"):''}`));
    if(notes.why.length){const why=el('details','readiness-why');why.append(el('summary','',HoiI18n.t("Why?")),...notes.why.map(text=>el('p','operation-copy',text)));node.append(why);}
   }
-  if(row.note&&!row.evidence?.some(e=>e.quote===row.note)&&!/^Abbreviations \(/.test(row.note))node.append(el('p','operation-copy',row.note));
+  // The condition is already shown under the title; the rest of the note stays here.
+  const note=condition?(row.note||'').split('\n').filter(line=>line.trim()!==condition).join('\n').trim():row.note;
+  if(note&&!row.evidence?.some(e=>e.quote===row.note)&&!/^Abbreviations \(/.test(note))node.append(el('p','operation-copy',note));
   const productionDetails=row.production?.layout||[row.production];
   for(const detail of productionDetails){
    const check=detail?.design_check;if(!check)continue;

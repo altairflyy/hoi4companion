@@ -267,7 +267,14 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  alternateGuide.action_language=require('../src/hoi4companion/guide_language.json');
  alternateGuide.advanced_references=[{id:'d'.repeat(64),name:'MIO priority system',category:'mios'}];
  alternateGuide.tracks.operations=[{key:'readable-law',tracking:'reminder',name:'LAW: LPF + CAV (150PP)',action:{kind:'manual',params:{category:'checkpoints',instructions:['LAW: LPF + CAV (150PP)','Assign MIO']}}}];
+ alternateGuide.tracks.operations.push({key:'split-line',kind:'gate',name:'Inspection air (50PP)',note:'At 24% paranoia\nInvade NED',
+  action:{kind:'manual',params:{category:'politics',source_action:{source_id:'doc',key:'w',ordinal:1},decomposition:{timing:'At 24% paranoia'},instructions:['Inspection air (50PP)']}}});
  await window.hoiGuide.select('other');get('operationsPlan').open=true;get('operationsPlan').ontoggle();
+ // The author's condition of a split line is shown under the title, highlighted, and only once.
+ const split=descendants(get('operationCards')).find(n=>n.id==='operation-split-line');assert.ok(split);
+ const condition=descendants(split).filter(n=>n.className==='operation-timing operation-condition');
+ assert.equal(condition.length,1);assert.equal(condition[0].textContent,'Quando: At 24% paranoia');
+ assert.equal(descendants(split).filter(n=>n.className==='operation-copy').map(n=>n.textContent).join('|'),'Invade NED');
  const readable=descendants(get('operationCards')).find(n=>n.id==='operation-readable-law');
  assert.ok(readable);const instructions=descendants(readable).find(n=>n.className==='operation-instructions');
  assert.match(instructions.textContent,/Forza di polizia locale.*modello della guarnigione.*150 potere politico/);

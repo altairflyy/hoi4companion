@@ -350,6 +350,10 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
         heading=composed;
     }
     let status_line=guided_line(card);
+    // The author's condition for this line, under the title in the highlight
+    // color: players miss it as a grey note.
+    let timing=card["timing"].as_str().map(str::trim).filter(|s|!s.is_empty())
+        .map(|t|format!("{}{t}",i18n::text("When: "))).unwrap_or_default();
     let upcoming=[("then","Then: {0}"),("waiting","Waiting: {0}")].iter().filter_map(|(field,label)|{
         let next=&card[*field];
         let title=reading_title(&next["reading_title"]).or_else(||next["heading"].as_str().map(str::trim).filter(|s|!s.is_empty()).map(str::to_owned))?;
@@ -386,7 +390,7 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
         (!rows.is_empty()).then_some(render::RefSection {label,rows})
     }).take(8).collect();
     let references_scope=card["references_scope"].as_str().unwrap_or("").to_owned();
-    Some(StepCard {header,status_line,upcoming,heading,note,body,badge,key,guide_id,checkable,images,production,references,references_scope,answer,confirmed_by_user})
+    Some(StepCard {header,status_line,upcoming,heading,timing,note,body,badge,key,guide_id,checkable,images,production,references,references_scope,answer,confirmed_by_user})
 }
 /// The card for this sample: the backend's current card, or the last one kept
 /// briefly while the delivery is unknown (see the stability module), with
@@ -913,6 +917,9 @@ mod tests {
         assert_eq!(card.heading,"«Mobilize the Armed Forces immediately!»");
         assert_eq!(card.note,"In the guide: “Mobilize The…”");
         assert_eq!(card.body,"Queue civilian factories");
+        assert!(card.timing.is_empty(),"no condition from the backend: none shown");
+        let mut timed=snapshot.clone();timed["step_card"]["timing"]=json!(" At 24% paranoia ");
+        assert_eq!(step_card(&timed).unwrap().timing,"When: At 24% paranoia");
         assert!(!card.badge.is_empty());
         assert!(step_card(&json!({"step_card":null})).is_none());
         assert!(!card.checkable,"no Done button unless the backend says the step takes a manual confirmation");
