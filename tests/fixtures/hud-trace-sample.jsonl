@@ -1,0 +1,18 @@
+{"ev":"start","pid":10,"version":"0.1.0","paused":false,"t":1000}
+{"ev":"iter","branch":"native","fg":true,"loop_ms":null,"fresh":true,"usable":true,"card":true,"marks":2,"rt_ms":20,"bytes":4000,"handling_ms":15,"geometry_ms":4,"state_age_ms":300,"delivery":{"acquisition":900,"progress":40,"packet":10,"publish":5},"t":1016}
+{"ev":"show","fg":true,"card":true,"marks":2,"t":1016}
+{"ev":"iter","branch":"native","fg":true,"loop_ms":16,"fresh":true,"usable":true,"card":true,"marks":2,"rt_ms":30,"bytes":4000,"handling_ms":20,"geometry_ms":6,"state_age_ms":320,"t":1032}
+{"ev":"iter","branch":"idle","fg":true,"loop_ms":400,"fresh":false,"usable":false,"card":false,"marks":0,"rt_ms":390,"bytes":300,"handling_ms":2,"t":1432}
+{"ev":"hide","fg":true,"card":false,"marks":0,"cause":"delivery_unknown","t":1432}
+{"ev":"iter","branch":"native","fg":true,"loop_ms":16,"fresh":true,"usable":true,"card":true,"marks":0,"rt_ms":10,"bytes":3900,"handling_ms":8,"geometry_ms":3,"state_age_ms":100,"delivery":{"acquisition":1400,"progress":60,"packet":12,"publish":6},"t":2432}
+{"ev":"show","fg":true,"card":true,"marks":0,"t":2432}
+{"ev":"action","kind":"check","rt_ms":120,"t":2500}
+{"ev":"iter","branch":"background","fg":false,"loop_ms":100,"fresh":true,"usable":false,"card":false,"marks":0,"rt_ms":5,"bytes":200,"handling_ms":1,"t":2532}
+{"ev":"hide","fg":false,"card":false,"marks":0,"cause":"game_background","t":2532}
+{"ev":"iter","branch":"native","fg":true,"loop_ms":16,"fresh":true,"usable":true,"card":true,"marks":1,"rt_ms":12,"bytes":3900,"handling_ms":9,"geometry_ms":3,"state_age_ms":150,"t":2600}
+{"ev":"show","fg":true,"card":true,"marks":1,"t":2600}
+{"ev":"fatal","error":"Native backend is not running","t":2700}
+not json
+{"ev":"start","pid":11,"version":"0.1.0","paused":false,"t":3700}
+{"ev":"iter","branch":"native","fg":true,"loop_ms":null,"fresh":true,"usable":true,"card":true,"marks":1,"rt_ms":14,"bytes":3900,"handling_ms":10,"geometry_ms":3,"state_age_ms":200,"t":3716}
+{"ev":"show","fg":true,"card":true,"marks":1,"t":3716}

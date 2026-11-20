@@ -35,6 +35,8 @@ test('native service import contracts, evidence, collection persistence and camp
   const waitingSnapshot=(await api('/api/overlay',{schema_version:1,kind:'observe',token:3,view:[1,1,0,0,1280,720]})).value;
   assert.equal(waitingSnapshot.usable,false);assert.deepEqual(waitingSnapshot.guides,[]);assert.equal(waitingSnapshot.guide_filter.status,'unavailable');
   assert.equal(waitingSnapshot.guide_id,'original');assert.equal(overlay.guide_id,'original');
+  // Every HUD answer says how long the backend spent on it (HUD trace: transport = round trip - handling).
+  for(const reply of [overlay,waitingSnapshot]) assert.ok(Number.isFinite(reply.handling_ms)&&reply.handling_ms>=0);
   assert.equal((await api('/api/overlay',{schema_version:1,kind:'select',token:2,guide_id:'original'})).status,400);
   assert.deepEqual((await api('/api/guide/active')).value,original);
   assert.ok((await api('/api/guides')).value.guides.some(g=>g.id==='original'));

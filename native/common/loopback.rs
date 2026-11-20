@@ -9,6 +9,15 @@ type Result<T> = std::result::Result<T, String>;
 pub struct Api {
     pub port: u16,
 }
+thread_local! {
+    static LAST_REPLY_BYTES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+/// Body size of this thread's last loopback reply (0 after a failed request);
+/// the HUD trace records it next to the round trip.
+#[allow(dead_code)]
+pub fn last_reply_bytes() -> usize {
+    LAST_REPLY_BYTES.with(std::cell::Cell::get)
+}
 fn header(reader: &mut impl BufRead) -> Result<String> {
     let mut bytes = vec![];
     let n = reader
@@ -34,6 +43,7 @@ impl Api {
         {
             return Err("Invalid local API path".into());
         }
+        LAST_REPLY_BYTES.with(|bytes| bytes.set(0));
         let payload = body
             .map(serde_json::to_vec)
             .transpose()
@@ -100,6 +110,7 @@ impl Api {
         }
         let mut bytes = vec![0; length];
         reader.read_exact(&mut bytes).map_err(|e| e.to_string())?;
+        LAST_REPLY_BYTES.with(|reply| reply.set(length));
         Ok((status, bytes))
     }
     pub fn json(&self, path: &str, body: Option<&Value>) -> Result<Value> {

@@ -476,7 +476,7 @@ impl Service {
                     let packet = owner.poll().unwrap_or_else(
                         |e| json!({"usable":false,"status":"disconnected","sample":null,"error":e}),
                     );
-                    let _ = owner.publish_hud();
+                    let _ = owner.publish_hud(&packet["pipeline_ms"]);
                     let _ = owner.hub.publish(packet, owner.now());
                     let clients = match owner.clients.lock() {
                         Ok(v) => v,
@@ -1036,7 +1036,11 @@ impl Service {
                 }
             });
     }
-    fn publish_hud(&self) -> Result<()> {
+    /// `pipeline` is the read's own timing (`pipeline_ms` of the packet);
+    /// the delivery carries it with its publication time so the HUD trace can
+    /// tell a slow read from a slow projection.
+    fn publish_hud(&self, pipeline:&Value) -> Result<()> {
+        let publish_started=Instant::now();
         let epoch=self.hud_epoch.load(Ordering::Acquire);
         let observed=*self.last_delivery.lock().map_err(|_|"Live delivery unavailable")?;
         let Some(observed)=observed else{return Ok(());};
@@ -1047,6 +1051,9 @@ impl Service {
         value["guides"]=eligible["guides"].clone();
         value["guide_filter"]=eligible["guide_filter"].clone();
         value["observer_session_id"]=identity["sample"]["session_id"].clone();
+        let mut timing=if pipeline.is_object(){pipeline.clone()}else{json!({})};
+        timing["publish"]=json!(publish_started.elapsed().as_secs_f64()*1000.);
+        value["delivery_pipeline_ms"]=timing;
         if self.app("app_overlay_stamp",&json!({}))?!=stamp{return Ok(());}
         let mut delivery=self.hud_delivery.lock().map_err(|_|"HUD delivery unavailable")?;
         if self.hud_epoch.load(Ordering::Acquire)==epoch{*delivery=Some((epoch,observed,value));}
@@ -1104,8 +1111,15 @@ impl Service {
             Err("Native GUI observation requires Windows".into())
         }
     }
+    /// HUD request; every answer carries `handling_ms`, the time spent in
+    /// this handler, so the HUD trace can separate transport from handling.
     fn overlay(&self, request: &Request) -> Result<Value> {
         let request_started = Instant::now();
+        let mut value = self.overlay_handled(request, request_started)?;
+        value["handling_ms"] = json!(request_started.elapsed().as_secs_f64() * 1000.);
+        Ok(value)
+    }
+    fn overlay_handled(&self, request: &Request, request_started: Instant) -> Result<Value> {
         let input = request.json_fields(&[
             "schema_version",
             "kind",

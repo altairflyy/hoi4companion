@@ -18,7 +18,7 @@ use windows::{
 type Result<T> = std::result::Result<T, String>;
 #[path = "../../common/loopback.rs"]
 mod loopback;
-pub use loopback::Api;
+pub use loopback::{Api, last_reply_bytes};
 type Request = unsafe extern "C" fn(u64, *const u8, usize) -> *mut c_char;
 type Frame = unsafe extern "C" fn(u64, *const u8, usize, *const u8, usize) -> *mut c_char;
 type Free = unsafe extern "C" fn(*mut c_char);

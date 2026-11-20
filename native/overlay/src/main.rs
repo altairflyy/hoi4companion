@@ -14,6 +14,7 @@ mod stability;
 mod card;
 mod card_images;
 mod palette;
+mod trace;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
@@ -564,10 +565,18 @@ fn run(options:Options)->Result<(),String> {
     let mut capture_retry_at=Instant::now();
     let mut mark_hold=MarkHold::default();let mut card_hold=CardHold::default();
     let mut card_images=card_images::Cache::new(options.port);
+    let mut trace=trace::Trace::open(trace::path_for(&options.status));
+    trace.event(json!({"ev":"start","pid":std::process::id(),"version":env!("CARGO_PKG_VERSION"),"paused":!options.start}));
     while !renderer.should_exit() {
         let wake_revision=renderer.wake_revision();
         let mut refresh=false;
         while let Some(action)=renderer.take_action(){
+            let action_kind=match &action {
+                ControlAction::SelectGuide(_)=>"select",ControlAction::Check{..}=>"check",ControlAction::ConfirmAnswer{..}=>"confirm_answer",
+                ControlAction::SetAside{..}=>"set_aside",ControlAction::RestoreAnswer{..}=>"restore_answer",
+                ControlAction::RefreshGuides|ControlAction::OpenSuite=>"",
+            };
+            let action_started=Instant::now();
             match action {
                 ControlAction::SelectGuide(id)=>{
                     renderer.hide();last_matches.clear();last_version=None;mark_hold.clear();card_hold.clear();
@@ -598,12 +607,15 @@ fn run(options:Options)->Result<(),String> {
                     }
                 },
             }
+            if !action_kind.is_empty() {trace.action(action_kind,action_started.elapsed());}
         }
         let current=game_view();
         let geometry_observed=Instant::now();
         let snapshot=if !renderer.is_paused() && let Some(view)=current.as_ref() {
             bridge.request(json!({"kind":"observe","view":view_json(view),"refresh_guides":refresh}),&[])?
         }else{bridge.snapshot(refresh)?};
+        let observe_rt=geometry_observed.elapsed();let reply_bytes=local_api::last_reply_bytes();let foreground=current.is_some();
+        let traced=|branch:&'static str,card:bool,marks:usize,capture_error:bool|trace::Iteration {observe:Some(observe_rt),reply_bytes,card,marks,capture_error,..trace::Iteration::new(branch,foreground,&snapshot)};
         // An unknown delivery has no guide list: keep the shown one meanwhile.
         if stability::delivery_known(&snapshot)||snapshot["connection_lost"]==true {renderer.set_guides(guides(&snapshot),snapshot["guide_id"].as_str().unwrap_or(""));}
         if renderer.is_paused()||current.is_none()||snapshot["usable"]!=true {
@@ -617,11 +629,15 @@ fn run(options:Options)->Result<(),String> {
                     let (rows,witnessed)=mark_hold.observe(mark_context(&snapshot,snapshot["version"].as_u64().unwrap_or(0),view),observation,now);
                     last_matches=rows;
                     let card=current_card(&mut card_hold,&mut card_images,&snapshot,now);
-                    present(&renderer,view,marks(&last_matches,view.width,view.height),witnessed,card)?;
+                    let highlights=marks(&last_matches,view.width,view.height);
+                    trace.iteration(traced("idle",card.is_some(),highlights.len(),false),false);
+                    present(&renderer,view,highlights,witnessed,card)?;
                 }
                 None=>{
                     renderer.hide();mark_hold.clear();last_matches.clear();target=None;
                     if renderer.is_paused(){card_hold.clear();}
+                    let paused=renderer.is_paused();
+                    trace.iteration(traced(if paused {"paused"} else {"background"},false,0,false),paused);
                 }
             }
             capture=None;last_scene=None;cached_ocr=None;
@@ -664,7 +680,9 @@ fn run(options:Options)->Result<(),String> {
             if rows!=last_matches {native_unchanged_since=now;}
             last_matches=rows;
             let card=current_card(&mut card_hold,&mut card_images,&snapshot,now);
-            present(&renderer,&view,marks(&last_matches,view.width,view.height),witnessed,card)?;
+            let highlights=marks(&last_matches,view.width,view.height);
+            trace.iteration(traced("native",card.is_some(),highlights.len(),false),false);
+            present(&renderer,&view,highlights,witnessed,card)?;
             native_frames+=1;
             if last_status.elapsed()>Duration::from_millis(500){
                 let ms=geometry["geometry_ms"].as_f64().unwrap_or(0.);
@@ -712,7 +730,9 @@ fn run(options:Options)->Result<(),String> {
             Err(error)=>{
                 capture=None;last_scene=None;cached_ocr=None;last_matches.clear();last_version=None;mark_hold.clear();
                 // Capture evidence is gone; the guide card does not depend on it.
-                present(&renderer,&view,Vec::new(),None,current_card(&mut card_hold,&mut card_images,&snapshot,Instant::now()))?;
+                let card=current_card(&mut card_hold,&mut card_images,&snapshot,Instant::now());
+                trace.iteration(traced("capture",card.is_some(),0,true),false);
+                present(&renderer,&view,Vec::new(),None,card)?;
                 if let Some(worker)=visual.as_mut(){worker.invalidate();}
                 capture_retry_at=Instant::now()+Duration::from_millis(500);
                 let message=format!("Capture unavailable; retrying: {error}");
@@ -765,7 +785,9 @@ fn run(options:Options)->Result<(),String> {
         if game_view().as_ref()!=Some(&view){continue;}
         let highlights=marks(&last_matches,view.width,view.height);
         if changed||last_draw.elapsed()>Duration::from_millis(250)||highlights.is_empty(){
-            present(&renderer,&view,highlights,Some(verified_at),current_card(&mut card_hold,&mut card_images,&snapshot,Instant::now()))?;
+            let card=current_card(&mut card_hold,&mut card_images,&snapshot,Instant::now());
+            trace.iteration(traced("capture",card.is_some(),highlights.len(),false),false);
+            present(&renderer,&view,highlights,Some(verified_at),card)?;
             last_draw=Instant::now();
         }
         if last_status.elapsed()>Duration::from_millis(500){
@@ -792,7 +814,10 @@ fn run(options:Options)->Result<(),String> {
     renderer.shutdown();Ok(())
 }
 fn main() {
+    let traced=options().map(|o|trace::path_for(&o.status)).ok();
     if let Err(error)=options().and_then(run) {
+        // A fatal error ends the process: the trace says so before the restart.
+        if let Some(path)=traced.as_ref() {trace::append(path,json!({"ev":"fatal","error":error}));}
         eprintln!("Overlay Rust: {error}");
         let path=PathBuf::from(".local/overlay-native-error.json");
         save_status(&path,&json!({"error":error,"visible":false,"engine":"rust","memory_access":false}));

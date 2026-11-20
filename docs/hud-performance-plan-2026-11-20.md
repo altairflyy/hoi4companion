@@ -18,11 +18,15 @@ like a real-time overlay (immediate response, never blank while HOI4 is in the f
   branch (`current.is_none()`), foreground detection flapping, slow `native_geometry` (> 750 ms deadline).
 
 ## Steps (one per session; `/clear` between them; the Resume prompt in `docs/AGENT_HANDOFF.md` says which is next)
-1. [ ] Measure. Overlay: bounded trace `.local/hud-trace.jsonl` (rotate at ~5 MB): per iteration timestamp, branch (idle/native/capture),
+1. [x] Measure. Overlay: bounded trace `.local/hud-trace.jsonl` (rotate at ~5 MB): per iteration timestamp, branch (idle/native/capture),
    observe round trip, backend handling time (so transport = round trip - handling), reply size, `geometry_ms`, `state_age_ms`, `live_delivery_fresh`, card shown, marks count, and every hide/blank with its cause;
    process start and fatal error lines. Backend: add delivery age and acquisition/evaluation durations to the `observe` reply if missing.
    `scripts/hud-trace-report.cjs`: p50/p95/max of each timing and the list of blank intervals while HOI4 was foreground, with causes;
    a unit test on a small fixture trace. Tests, invariant-reviewer, commit, rebuild, restart. Then the USER plays ~10 min with the HUD.
+   Done 2026-11-20: overlay `trace.rs` writes `hud-trace.jsonl` next to `overlay-status.json` (5 MB x 3 files): `iter` (branch, fg, loop_ms,
+   rt_ms, bytes, handling_ms, geometry_ms, state_age_ms, fresh, card, marks, `delivery` timings on each new delivery), `show`/`hide` with cause,
+   `action`, `start`, `fatal`. Backend adds `handling_ms` to every `/api/overlay` answer and `delivery_pipeline_ms` (acquisition, progress,
+   packet, publish) to the HUD delivery. Report: `node scripts/hud-trace-report.cjs [--data-dir DIR] [--json]`.
 2. [ ] Diagnose. Run the report on the user's trace; write the measured causes and numbers here; reorder/adjust steps 3-6. No code.
 3. [ ] Non-blocking HUD loop. Backend requests move to a worker thread (latest result wins, one request in flight); control actions on a
    queue with their own replies; drawing, card drag and buttons never wait on HTTP. Same gates and deadlines. Tests for the mailbox.

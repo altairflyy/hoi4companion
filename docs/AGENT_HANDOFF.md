@@ -3,8 +3,8 @@ Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD (`docs/hud-performance-plan-2026-11-20.md`): esegui lo step 1 "Measure" (traccia `.local/hud-trace.jsonl` +
-> `scripts/hud-trace-report.cjs` + test), poi test, invariant-reviewer, commit locale, rebuild e riavvio; spunta lo step e riscrivi questo prompt.
+> Piano reattività HUD (`docs/hud-performance-plan-2026-11-20.md`): prima l'UTENTE gioca ~10 min con l'HUD (traccia `.local/hud-trace.jsonl`).
+> Poi step 2 "Diagnose": `node scripts/hud-trace-report.cjs`, scrivi cause e numeri misurati nel piano, riordina gli step 3-6; nessun codice. Spunta e riscrivi questo prompt.
 Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per session. UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
@@ -16,6 +16,8 @@ Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per sessio
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-20 HUD step 1 Measure: overlay trace `hud-trace.jsonl` + backend `handling_ms`/`delivery_pipeline_ms` + `scripts/hud-trace-report.cjs`
+  (test `tests/test_hud_trace_report.cjs`). Overlay/backend Rust and npm test green; rebuilt and restarted. Trace NOT yet seen from a real game.
 - 2026-11-20 `3ac001a` HUD card: a production step is skipped as current step once a later step of its track is completed (cause:
   layouts stop matching when lines change or read briefly unknown). Production list behind a toggle (`production_open` in overlay-card.json).
   Rust unit tests green, rebuilt, app restarted. NOT seen in game.
