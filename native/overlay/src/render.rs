@@ -606,7 +606,7 @@ impl Graphics {
     /// size and its header buttons in card coordinates. Text that does not fit
     /// in `max_height` is clipped.
     unsafe fn draw_card(&mut self,card:&StepCard,collapsed:bool,notice:Option<&Notice>,width:f32,max_height:f32,scale:f32,
-        open:Option<usize>,marks:&crate::card::Marks)
+        open:Option<usize>,marks:&crate::card::Marks,production_open:bool)
         ->windows::core::Result<((f32,f32),Vec<(Button,[f32;4])>)> {
         unsafe {
             self.ensure_card_formats(scale)?;
@@ -724,9 +724,14 @@ impl Graphics {
                     y+=8.0*scale-gap;
                 }
             }
-            if !collapsed && open.is_none() && !card.production.trim().is_empty()
-                && block(self,&crate::i18n::text("Production"),0,0,&mut y,&mut lines)?.is_some() {
-                block(self,&card.production,3,4,&mut y,&mut lines)?;
+            // The production plan stays behind its button until the player opens it.
+            if !collapsed && open.is_none() && !card.production.trim().is_empty() && y+row<=limit {
+                let count=card.production.lines().filter(|l|!l.trim().is_empty()).count();
+                let label=format!("{} {} · {}",if production_open {"▾"} else {"▸"},crate::i18n::text("Production"),count);
+                let wide:Vec<u16>=label.encode_utf16().collect();
+                let w=(self.measure(&wide,4,400.0*scale,row)?.0+18.0*scale).min(inner);
+                buttons.push((Button::Production,label,[pad,y,pad+w,y+row]));y+=row+8.0*scale;
+                if production_open {block(self,&card.production,3,4,&mut y,&mut lines)?;}
             }
             // Reference pictures (as on the walkthrough page) under the text,
             // each with its name. Until a picture is decoded, or if it fails,
@@ -800,7 +805,7 @@ impl Graphics {
                 let accent=if matches!(button,Button::ConfirmAnswer) {Some(self.paint.stroke(Role::Ambiguous))}
                     else if matches!(button,Button::Done|Button::Undo|Button::Resume(_)) {Some(self.paint.stroke(Role::Active))} else {None};
                 let border=if let Some(accent)=accent {accent}
-                    else if matches!(button,Button::Tag(i) if open==Some(*i as usize)) {self.paint.stroke(Role::Active)}
+                    else if matches!(button,Button::Tag(i) if open==Some(*i as usize)) || matches!(button,Button::Production if production_open) {self.paint.stroke(Role::Active)}
                     else if matches!(button,Button::Item(_)) {&self.paint.text}else{&self.paint.muted};
                 self.context.DrawRoundedRectangle(&shape,border,1.0*scale,None);
                 let text:Vec<u16>=label.encode_utf16().collect();
@@ -997,7 +1002,7 @@ impl Ui {
                 let max_height=(client.1*0.8).max(80.0*scale).min(client.1);
                 let (open,marks)=(self.open_ref,self.marks.clone());
                 let graphics=self.card_graphics.as_mut().unwrap();
-                match graphics.draw_card(card,self.prefs.collapsed,self.notice.as_ref(),width,max_height,scale,open,&marks) {
+                match graphics.draw_card(card,self.prefs.collapsed,self.notice.as_ref(),width,max_height,scale,open,&marks,self.prefs.production_open) {
                     Ok((size,buttons))=>{self.card_size=size;self.card_buttons=buttons;self.card_state=Some(state);}
                     Err(error)=>{
                         self.hide_card();let message=wide(&crate::i18n::format("Rendering suspended: {0}",&[&error.to_string()]));
@@ -1114,6 +1119,7 @@ impl Ui {
             match pressed {
                 Button::Hide=>{self.prefs.hidden=true;self.save_prefs();self.hide_card();self.update(true);}
                 Button::Collapse=>{self.prefs.collapsed=!self.prefs.collapsed;self.save_prefs();self.card_state=None;self.update(true);}
+                Button::Production=>{self.prefs.production_open=!self.prefs.production_open;self.save_prefs();self.card_state=None;self.update(true);}
                 Button::Tag(i)=>{
                     let i=i as usize;self.open_ref=if self.open_ref==Some(i) {None} else {Some(i)};
                     self.card_state=None;self.update(true);

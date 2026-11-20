@@ -17,6 +17,10 @@ pub struct Prefs {
     /// place on the right under the theater selector.
     pub position: Option<[f32; 2]>,
     pub collapsed: bool,
+    /// The production plan is listed on the card; closed by default, opened
+    /// with the card's "Production" button.
+    #[serde(default)]
+    pub production_open: bool,
     /// Hidden for this run only: never saved, so a card hidden once (Hide or
     /// Ctrl+Alt+H) is back on the next launch. The desktop app's HUD has no
     /// tray icon, so a remembered hide left the card gone with no visible way
@@ -76,7 +80,9 @@ pub enum Button {Done, Collapse, Hide, Undo,
     /// A quick-reference tag (army setup, war plans, events): opens its section.
     Tag(u8),
     /// A row's checkbox in the open section.
-    Item(u16)}
+    Item(u16),
+    /// Shows or hides the production plan on the card.
+    Production}
 
 /// The card's header buttons, right to left. An ambiguous answer for the
 /// card's own step replaces its Done (one confirmation of the same line). An
@@ -322,12 +328,13 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("hoi4-card-{}", std::process::id()));
         let path = Prefs::path(&dir.join("overlay-status.json"));
         assert_eq!(path.file_name().unwrap(), "overlay-card.json");
-        let prefs = Prefs {position: Some([0.25, 0.5]), collapsed: true, hidden: false};
+        let prefs = Prefs {position: Some([0.25, 0.5]), collapsed: true, production_open: true, hidden: false};
         prefs.save(&path);
         assert_eq!(Prefs::load(&path), prefs);
         // A hide saved by an older HUD is not restored.
         std::fs::write(&path, br#"{"position":[2.0,0.5],"collapsed":false,"hidden":true}"#).unwrap();
-        assert_eq!(Prefs::load(&path), Prefs {position: None, collapsed: false, hidden: false});
+        // Saved before the production button existed: the plan starts closed.
+        assert_eq!(Prefs::load(&path), Prefs {position: None, collapsed: false, production_open: false, hidden: false});
         let hidden = Prefs {hidden: true, ..prefs};
         hidden.save(&path);
         assert_eq!(Prefs::load(&path), prefs);

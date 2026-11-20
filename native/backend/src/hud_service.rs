@@ -115,11 +115,22 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
     let names: Vec<&str> = std::iter::once("operations")
         .chain(tracks.as_object().into_iter().flat_map(|m| m.keys().map(String::as_str)).filter(|k| *k != "operations"))
         .collect();
-    let open = |r: &&Value| r["tracking"] != "reminder" && !statuses.get(r["key"].as_str().unwrap_or(""))
+    let open = |r: &Value| r["tracking"] != "reminder" && !statuses.get(r["key"].as_str().unwrap_or(""))
         .is_some_and(|s| **s == "completed" || **s == "not_applicable");
-    let first = |pick: &dyn Fn(&str) -> bool| names.iter().find_map(|t| crate::hud_geometry::rows(&guide["tracks"][*t]).iter()
-        .filter(open).find(|r| pick(r["key"].as_str().unwrap_or("")))
-        .and_then(|r| r["key"].as_str()).map(|k| (*t, k)));
+    let completed = |r: &Value| statuses.get(r["key"].as_str().unwrap_or("")).is_some_and(|s| **s == "completed");
+    // A production layout is a standing allocation: it stops matching when a
+    // later revision or the player changes the lines, or while the lines are
+    // briefly unreadable. Once a later step of its track is completed, the
+    // player has moved past it, so the card does not jump back to it; it stays
+    // in the card's production list. Its status is left as evaluated.
+    let passed = |rows: &[Value], i: usize| rows[i]["action"]["params"]["category"] == "production"
+        && rows[i + 1..].iter().any(completed);
+    let first = |pick: &dyn Fn(&str) -> bool| names.iter().find_map(|t| {
+        let rows = crate::hud_geometry::rows(&guide["tracks"][*t]);
+        rows.iter().enumerate().filter(|(i, r)| open(r) && !passed(rows, *i)).map(|(_, r)| r)
+            .find(|r| pick(r["key"].as_str().unwrap_or("")))
+            .and_then(|r| r["key"].as_str()).map(|k| (*t, k))
+    });
     // When only set-aside steps are left, the card shows the first of them,
     // so the player still sees it and can resume or complete it from the HUD.
     let Some((track, key)) = first(&|k| !aside.contains(k)).or_else(|| first(&|k| aside.contains(k))) else {
@@ -413,6 +424,28 @@ mod tests {
         let card = step_card(&guide, &left);
         assert_eq!((card["key"].clone(), card["can_set_aside"].clone()), (json!("a"), json!(false)));
         assert_eq!(card["set_aside"][0]["key"], "a");
+    }
+    #[test]
+    fn step_card_does_not_jump_back_to_a_production_layout_already_passed() {
+        let guide = json!({"tracks":{"operations":[
+            {"key":"prod","title":"Production: Inf:5","action":{"kind":"manual","params":{"category":"production"}}},
+            {"key":"focus","title":"Focus A","action":{"kind":"manual"}},
+            {"key":"now","title":"Focus B","action":{"kind":"manual"}}]}});
+        // The layout no longer matches (lines changed or briefly unreadable)
+        // after the player completed a later step: the card stays on "now".
+        let runtime = json!({"tracks":{"operations":{"next":"now"}},"steps":[
+            {"key":"prod","status":"unverifiable"},{"key":"focus","status":"completed"},{"key":"now","status":"ready"}]});
+        let card = step_card(&guide, &runtime);
+        assert_eq!(card["key"], "now");
+        assert_eq!(card["index"], 3);
+        // Nothing done after it yet: the layout is still the step to do.
+        let fresh = json!({"tracks":{"operations":{"next":"prod"}},"steps":[
+            {"key":"prod","status":"ready"},{"key":"focus","status":"ready"},{"key":"now","status":"waiting"}]});
+        assert_eq!(step_card(&guide, &fresh)["key"], "prod");
+        // A non-production step left open behind the player is still shown.
+        let mut manual = guide.clone();
+        manual["tracks"]["operations"][0]["action"]["params"]["category"] = json!("politics");
+        assert_eq!(step_card(&manual, &runtime)["key"], "prod");
     }
     #[test]
     fn step_card_is_the_next_operation_with_its_recognized_answer() {
