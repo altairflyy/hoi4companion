@@ -33,8 +33,8 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
   preview as `report.interpretation`; importer card `interpretationOverview`. Focus/research count as automatic (guide-core native membership).
 
 ## Recently verified
-- fix(mio) commit: MIO: game had emptied "Tank Refurbishment" queue in mio_queues.txt; export now refills it (dry run: repaired 1).
-  NOT installed yet (HOI4 running); why the game emptied it is unknown.
+- `11c7c46`+`95ce3f4` MIO: game had emptied "Tank Refurbishment" queue in mio_queues.txt; installer now refills and writes it.
+  Installed 2026-11-20 16:40 (repaired 1, .bak kept); NOT checked in game. Why the game emptied it is unknown; watch if it recurs.
 - 2026-11-20 `16a6318` set aside a step: run field `set_aside` (storage, API filters to the definition's non-reminder keys); guide-core flags it,
   lifts only implicit source-order barriers (declared deps still wait), drops it from next/lanes/ready/sequences; HUD card+highlights skip it;
   suite list "Passaggi messi da parte" with Done/Riprendi. All Rust+JS tests green; rebuilt, buttons seen on the live guide page. NOT clicked/seen in game.
