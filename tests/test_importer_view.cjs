@@ -76,7 +76,26 @@ test('advanced references retain original rankings, ordered MIO traits and safe 
  assert.equal(await h.downloads[0].text(),'version=0\n');
  assert.ok(h.requests.some(r=>r.path==='/api/reference-library/mio-export'));
  assert.equal(h.requests.some(r=>r.path==='/api/import/install'),false);
- h.get('advancedSearch').value='absent';h.get('advancedSearch').oninput();assert.equal(h.get('mioQueues').children.length,0);
+ h.get('mioSearch').value='absent';h.get('mioSearch').oninput();assert.equal(h.get('mioQueues').children.filter(n=>n.tag==='details').length,0);
+});
+
+test('references are split into tabs and advanced documents open one at a time',async()=>{
+ const h=harness(true);await tick();const one='d'.repeat(64),two='e'.repeat(64);
+ h.setReferences({designs:[{id:'x',name:'Tank',category:'land'}],images:[{id:'a'.repeat(64),name:'OFF',section:'Templates'}],
+  documents:[{id:one,name:'Alpha doc',category:'general',text:'alpha text',tiers:[],images:[]},{id:two,name:'Beta doc',category:'general',text:'beta text',tiers:[],images:[two]}],mio_queues:[]});
+ await h.get('showReferences').onclick();
+ const tabs=h.get('referenceTabs').children;
+ assert.deepEqual(tabs.map(n=>n.textContent),['Immagini1','Progetti dei mezzi1','Guide avanzate2','Preset MIO0']);
+ assert.equal(h.get('referencePanelImages').hidden,false);assert.equal(h.get('advancedReferences').hidden,true);
+ tabs[2].onclick();
+ assert.equal(h.get('referencePanelImages').hidden,true);assert.equal(h.get('advancedReferences').hidden,false);
+ assert.equal(h.get('referenceTabs').children[2]['aria-selected'],'true');
+ assert.match(h.get('advancedDocuments').textContent,/Alpha doc/);assert.doesNotMatch(h.get('advancedDocuments').textContent,/beta text/);
+ h.get('advancedDocumentList').children[1].onclick();
+ assert.match(h.get('advancedDocuments').textContent,/beta text/);assert.doesNotMatch(h.get('advancedDocuments').textContent,/alpha text/);
+ const img=descendants(h.get('advancedDocuments')).find(n=>n.tag==='img');assert.equal(img.src,'/api/reference-library/image?id='+two);
+ h.get('advancedSearch').value='alpha';h.get('advancedSearch').oninput();
+ assert.equal(h.get('advancedDocumentList').children.length,1);assert.match(h.get('advancedDocuments').textContent,/alpha text/);
 });
 
 test('MIO installation distinguishes deferred restart, installed files and errors without automatic writes on read',async()=>{
@@ -99,7 +118,7 @@ test('saved equipment recipes show their real folder separately from campaign av
  assert.match(h.get('referenceDesigns').textContent,/howitzer/);
  h.get('referenceDesignCategory').value='land';h.get('referenceDesignCategory').onchange();
  assert.equal(h.get('referenceDesigns').children.filter(n=>n.tag==='article').length,1);
- h.get('referenceSearch').value='not present';h.get('referenceSearch').oninput();
+ h.get('referenceDesignSearch').value='not present';h.get('referenceDesignSearch').oninput();
  assert.equal(h.get('referenceDesigns').children.filter(n=>n.tag==='article').length,0);
 });
 

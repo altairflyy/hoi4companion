@@ -4,7 +4,7 @@
  const $=id=>document.getElementById(id),t=(...args)=>HoiI18n.t(...args),model=HoiCollections;
  const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
  const url=new URL(globalThis.location?.href||'http://local/importer');
- const page=url.searchParams.get('view')||(url.hash==='#collectionTemplatesHeading'?'references':'import');
+ const page=url.searchParams.get('view')||(url.hash==='#collectionTemplatesHeading'||/^#advanced-[a-f0-9]{64}$/.test(url.hash)?'references':'import');
  let collections=[],guides=[],busy=false,timer=null,live=null;
  const recent=new Set(),attempted=new Set();
  function failure(error){$('collectionError').hidden=false;$('collectionError').textContent=error.message||String(error);}

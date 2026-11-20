@@ -82,41 +82,84 @@
   }
   const result=await response.json();if(!response.ok)throw Error(result.error||HoiI18n.t('Request failed'));return result;
  }
+ // Templates & references: four tabs (images, designs, advanced documents,
+ // MIO presets) instead of one long column; images open in a zoomable viewer.
+ const referenceTabs=[['images','Images','referencePanelImages'],['designs','Equipment designs','referencePanelDesigns'],['documents','Advanced guides','advancedReferences'],['mio','MIO presets','referencePanelMio']];
+ let referenceTab='images',advancedSelected=null;
+ const imageUrl=id=>'/api/reference-library/image?id='+encodeURIComponent(id);
+ function openViewer(list,index,event){const viewer=globalThis.HoiReferenceViewer;if(!viewer||event?.ctrlKey||event?.metaKey||event?.shiftKey)return;if(viewer.open(list,index))event?.preventDefault?.();}
+ function thumbnail(ref,list,index){
+  const figure=node('figure'),image=node('img'),link=node('a'),caption=node('figcaption',ref.name);
+  figure.className='reference-card';image.src=imageUrl(ref.id);image.alt=ref.name;image.loading='lazy';image.decoding='async';
+  link.href=image.src;link.target='_blank';link.rel='noopener';link.title=HoiI18n.t('Enlarge');link.setAttribute('aria-label',HoiI18n.t('Enlarge reference image: {0}',ref.name));link.append(image);
+  link.onclick=event=>openViewer(list,index,event);
+  for(const tag of ['situational','outdated'])if(ref.tags?.includes(tag)||new RegExp('\\b'+tag+'\\b','i').test(ref.section||'')){
+   const badge=node('span',HoiI18n.t(tag==='situational'?'Situational':'Outdated'));badge.className='reference-badge '+tag;caption.append(badge);
+  }
+  figure.append(link,caption);return figure;
+ }
+ function renderReferenceTabs(){
+  const counts={images:(referenceData.images||[]).length,designs:(referenceData.designs||[]).length,documents:(referenceData.documents||[]).length,mio:(referenceData.mio_queues||[]).length};
+  $('referenceTabs').replaceChildren();
+  for(const [id,label,panel] of referenceTabs){
+   const button=node('button');button.type='button';button.append(node('span',HoiI18n.t(label)),node('small',String(counts[id])));
+   button.setAttribute('role','tab');button.setAttribute('aria-selected',String(id===referenceTab));button.setAttribute('aria-controls',panel);
+   button.onclick=()=>{referenceTab=id;renderReferenceTabs();};$('referenceTabs').append(button);$(panel).hidden=id!==referenceTab;
+  }
+ }
  function referenceView(data){
   referenceData=data;
   $('referenceStatus').textContent=HoiI18n.t('Reference library: {0} designs, {1} images',data.designs.length,data.images.length);
   const groups=m.referenceGroups(data);
   if(referenceCategory!=='all'&&!groups.some(group=>group.id===referenceCategory))referenceCategory=groups[0]?.id||'all';
+  renderReferenceTabs();
   renderReferences();
   renderAdvancedReferences();
  }
  let mioRefresh=null;
+ function renderAdvancedDocument(doc){
+  const item=$('advancedDocuments');item.replaceChildren();
+  if(!doc){item.append(node('p',HoiI18n.t('No advanced documents match this selection.')));return;}
+  const head=node('header');head.className='advanced-document-head';head.append(node('h4',doc.name));
+  if(/^[a-f0-9]{64}$/.test(doc.id)){const original=node('a',HoiI18n.t('Download original document'));original.href='/api/reference-library/document?id='+encodeURIComponent(doc.id);original.download=doc.filename||doc.name;head.append(original);}
+  item.append(head);
+  if(doc.cached_values_only)item.append(node('p',HoiI18n.t('Spreadsheet cached values only; formulas are not recalculated.')));
+  for(const tier of doc.tiers||[]){const block=node('section');block.className='advanced-tier';block.append(node('h5',tier.title));const entries=node('ul');for(const text of tier.entries||[])entries.append(node('li',text));block.append(entries);item.append(block);}
+  const images=(doc.images||[]).map(id=>({id,name:doc.name}));
+  if(images.length){const grid=node('div');grid.className='reference-grid compact';const list=images.map(ref=>({src:imageUrl(ref.id),title:ref.name}));images.forEach((ref,i)=>grid.append(thumbnail(ref,list,i)));item.append(grid);}
+  const source=node('details');source.className='reference-note';source.open=!(doc.tiers||[]).length;source.append(node('summary',HoiI18n.t('Original text and tables')));const text=node('pre',doc.text||'');text.className='advanced-reference-text';source.append(text);item.append(source);
+ }
  function renderAdvancedReferences(){
   const view=m.advancedReferences(referenceData,$('advancedSearch').value,$('advancedCategory').value||'all');
-  $('advancedStatus').textContent=HoiI18n.t('{0} advanced documents · {1} MIO presets',view.documents.length,view.mios.length);
+  $('advancedStatus').textContent=HoiI18n.t('{0} advanced documents',view.documents.length);
   $('downloadMioQueues').disabled=!(referenceData.mio_queues||[]).length;
   const install=referenceData.mio_install||{},pending=['pending','waiting_for_game_exit'].includes(install.status);
   $('installMioQueues').disabled=!(referenceData.mio_queues||[]).length||pending;
   $('installMioQueues').hidden=pending||install.status==='installed'||!(referenceData.mio_queues||[]).length;
   $('mioInstallStatus').textContent=install.status==='installed'?HoiI18n.t('MIO presets installed: {0}. Available on the next HOI4 launch. Existing presets were preserved.',install.count):pending?HoiI18n.t('Restart required: close HOI4. Companion will install the MIO presets automatically before the next launch.'):install.status==='error'?HoiI18n.t('MIO installation failed: {0}. Correct the problem and retry.',install.error):HoiI18n.t('MIO presets have not been installed in HOI4 yet.');
   clearTimeout(mioRefresh);if(pending)mioRefresh=setTimeout(()=>request('/api/reference-library').then(referenceView).catch(e=>{$('mioInstallStatus').textContent=e.message;}),5000);
-  $('advancedDocuments').replaceChildren();$('mioQueues').replaceChildren();
+  $('advancedDocumentList').replaceChildren();
+  if(!view.documents.some(doc=>doc.id===advancedSelected))advancedSelected=view.documents[0]?.id??null;
   for(const doc of view.documents){
-   const item=node('details');item.className='advanced-reference';item.id='advanced-'+doc.id;item.append(node('summary',doc.name));
-   if(/^[a-f0-9]{64}$/.test(doc.id)){const original=node('a',HoiI18n.t('Download original document'));original.href='/api/reference-library/document?id='+encodeURIComponent(doc.id);original.download=doc.filename||doc.name;item.append(original);}
-   if(doc.cached_values_only)item.append(node('p',HoiI18n.t('Spreadsheet cached values only; formulas are not recalculated.')));
-   for(const tier of doc.tiers||[]){item.append(node('h4',tier.title));const entries=node('ul');for(const text of tier.entries||[])entries.append(node('li',text));item.append(entries);}
-   const source=node('details');source.append(node('summary',HoiI18n.t('Original text and tables')));const text=node('pre',doc.text||'');text.className='advanced-reference-text';source.append(text);item.append(source);
-   for(const id of doc.images||[]){const a=node('a'),image=node('img');a.href='/api/reference-library/image?id='+encodeURIComponent(id);a.target='_blank';a.rel='noopener';image.src=a.href;image.alt=doc.name;image.loading='lazy';image.decoding='async';image.style.maxWidth='100%';a.append(image);item.append(a);}
-   $('advancedDocuments').append(item);
+   const button=node('button');button.type='button';button.setAttribute('aria-pressed',String(doc.id===advancedSelected));button.setAttribute('aria-controls','advancedDocuments');
+   button.append(node('span',doc.name));const category=$('advancedCategory').querySelector?.(`option[value="${doc.category}"]`)?.textContent;if(category)button.append(node('small',category));
+   button.onclick=()=>{advancedSelected=doc.id;renderAdvancedReferences();};$('advancedDocumentList').append(button);
   }
-  for(const preset of view.mios){const item=node('details');item.className='advanced-reference';
-   item.append(node('summary',preset.name+' · '+(preset.organization_name||preset.organization_id)+' · '+preset.traits.length));
+  renderAdvancedDocument(view.documents.find(doc=>doc.id===advancedSelected));
+  renderMioPresets();
+ }
+ function renderMioPresets(){
+  const mios=m.advancedReferences(referenceData,$('mioSearch').value,'all').mios;
+  $('mioStatus').textContent=HoiI18n.t('{0} MIO presets',mios.length);$('mioQueues').replaceChildren();
+  for(const preset of mios){const item=node('details');item.className='mio-card';
+   const summary=node('summary');summary.append(node('strong',preset.name),node('span',(preset.organization_name||preset.organization_id)+' · '+HoiI18n.t('{0} traits',preset.traits.length)));item.append(summary);
    item.append(node('p',HoiI18n.t('Saved priority order; trait availability and execution in this campaign are not verified.')));
    const order=node('ol');preset.traits.forEach((id,i)=>{const li=node('li',preset.trait_labels?.[i]||id);li.title=id;order.append(li);});item.append(order);$('mioQueues').append(item);
   }
+  if(!mios.length)$('mioQueues').append(node('p',HoiI18n.t('No MIO presets match this search.')));
  }
- $('advancedSearch').oninput=renderAdvancedReferences;$('advancedCategory').onchange=renderAdvancedReferences;
+ function showAdvancedDocument(id){if(!(referenceData.documents||[]).some(doc=>doc.id===id))return false;$('advancedSearch').value='';$('advancedCategory').value='all';advancedSelected=id;referenceTab='documents';renderReferenceTabs();renderAdvancedReferences();return true;}
+ $('advancedSearch').oninput=renderAdvancedReferences;$('advancedCategory').onchange=renderAdvancedReferences;$('mioSearch').oninput=renderMioPresets;
  $('installMioQueues').onclick=()=>run(async()=>{await request('/api/reference-library/mio-install',{});referenceView(await request('/api/reference-library'));});
  $('downloadMioQueues').onclick=()=>run(async()=>{
   const result=await request('/api/reference-library/mio-export');
@@ -127,34 +170,27 @@
   const available=m.referenceGroups(referenceData),filtered=m.referenceGroups(referenceData,$('referenceSearch').value);
   $('referenceCategories').replaceChildren();
   for(const group of [{id:'all',title:'All references',images:referenceData.images},...available]){
-   const button=node('button',HoiI18n.t(group.title)+' · '+group.images.length);button.type='button';
+   const button=node('button');button.type='button';button.append(node('span',HoiI18n.t(group.title)),node('small',String(group.images.length)));
    button.setAttribute('aria-pressed',String(group.id===referenceCategory));button.setAttribute('aria-controls','referenceImages');
    button.onclick=()=>{referenceCategory=group.id;renderReferences();};$('referenceCategories').append(button);
   }
   const images=filtered.filter(group=>referenceCategory==='all'||group.id===referenceCategory).flatMap(group=>group.images);
-  $('referenceResults').textContent=HoiI18n.t('{0} reference images · select a thumbnail to open the original',images.length);
+  $('referenceResults').textContent=HoiI18n.t('{0} reference images · select a thumbnail to enlarge it',images.length);
   $('referenceImages').replaceChildren();
   if(!images.length)$('referenceImages').append(node('p',HoiI18n.t('No reference images match this selection.')));
-  for(const ref of images){
-   const figure=node('figure'),image=node('img'),link=node('a'),caption=node('figcaption',ref.name);
-   figure.className='reference-card';image.src='/api/reference-library/image?id='+encodeURIComponent(ref.id);image.alt=ref.name;image.loading='lazy';image.decoding='async';
-   link.href=image.src;link.target='_blank';link.rel='noopener';link.setAttribute('aria-label',HoiI18n.t('Open reference image: {0}',ref.name));link.append(image);
-   for(const tag of ['situational','outdated'])if(ref.tags?.includes(tag)||new RegExp('\\b'+tag+'\\b','i').test(ref.section||'')){
-    const badge=node('span',HoiI18n.t(tag==='situational'?'Situational':'Outdated'));badge.className='reference-badge '+tag;caption.append(badge);
-   }
-   figure.append(link,caption);$('referenceImages').append(figure);
-  }
+  const list=images.map(ref=>({src:imageUrl(ref.id),title:ref.name}));
+  images.forEach((ref,i)=>$('referenceImages').append(thumbnail(ref,list,i)));
   const presets=referenceData.game_presets;
   $('presetStatus').textContent=presets?.status==='file_observed'?HoiI18n.t('HOI4 saved design file: {0} entries, {1} distinct recipes. This does not verify their availability in the current campaign.',presets.count,presets.distinct_recipes):
    HoiI18n.t(presets?.status==='file_missing'?'No saved equipment design file found in the configured HOI4 documents folder.':'Saved equipment design file not verified.');
   $('referenceDesigns').replaceChildren();
-  const designs=m.referenceDesigns(referenceData,$('referenceDesignCategory').value||'all',$('referenceSearch').value);
+  const designs=m.referenceDesigns(referenceData,$('referenceDesignCategory').value||'all',$('referenceDesignSearch').value);
   for(const ref of designs){
    const card=node('article');card.className='reference-card design-card';card.append(node('h4',ref.name));
    card.append(node('p',ref.equipment_id||''));
    const location=ref.preset;
    const label=location.status==='present'?'Saved in HOI4':location.status==='missing'?'Not found in the saved design file':location.status==='different_recipe'?'Same name, different saved recipe':'Saved design presence not verified';
-   card.append(node('p',HoiI18n.t(label)));
+   const state=node('p',HoiI18n.t(label));state.className='design-state '+(location.status||'unknown');card.append(state);
    for(const folder of location.folders||[])card.append(node('p',HoiI18n.t('Saved design group: {0}',folder||HoiI18n.t('Ungrouped'))));
    const detail=node('details');detail.append(node('summary',HoiI18n.t('Recipe: modules and upgrades')));
    for(const [key,value] of Object.entries({...ref.modules,...ref.upgrades}))detail.append(node('p',key+' → '+value));
@@ -163,6 +199,7 @@
   if(!designs.length)$('referenceDesigns').append(node('p',HoiI18n.t('No equipment designs match this selection.')));
  }
  $('referenceSearch').oninput=()=>renderReferences();
+ $('referenceDesignSearch').oninput=()=>renderReferences();
  $('referenceDesignCategory').onchange=()=>renderReferences();
  $('showReferences').onclick=()=>run(async()=>{const response=await fetch('/api/reference-library');if(!response.ok)throw Error(HoiI18n.t('Request failed'));referenceView(await response.json());$('referenceGallery').open=true;});
  $('referenceFile').onchange=()=>run(async()=>{
@@ -421,6 +458,6 @@
  }catch(e){initialization=null;error(e);throw e;}finally{controls();}})();return initialization;}
  async function refreshReferences(){referenceView(await request('/api/reference-library'));$('referenceGallery').open=true;}
  globalThis.hoiImportEditor={initialize,refreshReferences,async review(value){await initialize();sources=value.sources||[];writeGuide(value.guide||value.draft);sourceList();showReport(value);controls();$('previewHeading').scrollIntoView({block:'start'});}};
- if(/^#advanced-[a-f0-9]{64}$/.test(globalThis.location?.hash||''))refreshReferences().then(()=>{const target=document.getElementById(location.hash.slice(1));if(target){target.open=true;target.scrollIntoView({block:'start'});}}).catch(error);
+ if(/^#advanced-[a-f0-9]{64}$/.test(globalThis.location?.hash||''))refreshReferences().then(()=>{if(showAdvancedDocument(location.hash.slice(10)))$('referenceGallery').scrollIntoView?.({block:'start'});}).catch(error);
  if(!document.body.dataset?.collectionFlow)initialize().catch(()=>{});
 })();
