@@ -37,3 +37,5 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/ux-ana
 
 ## Moved from handoff 2026-11-20 (set-aside step)
 - Event answers: native HUD answers seen on screen (`bea90e8`); user confirmations `197f141..320d441`, NOT live-verified. See archive.
+- 2026-11-20 `facbdc5`+`f916886` LIVE (prepared guide API): inline event "On X: Y" scopes its line+bullets, threshold "At N%: Y" its line only (`decomposition.rs`); "at border" no longer read as AT; parent line labelled "Under the guide line". Cards NOT seen on screen.
+- 2026-11-20 `7eaf611`: "NED Peace Conference*" links open the PEACE CONFERENCE PRIORITY row/table. `88a613f`: a line's condition (`decomposition.timing`, e.g. "At 24% paranoia") shown as "When:" under the title in suite and HUD card; rebuilt+restarted, NOT seen on screen.

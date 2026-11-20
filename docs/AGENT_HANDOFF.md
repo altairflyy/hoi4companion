@@ -3,7 +3,7 @@ Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> "Metti da parte" (`16a6318`) fatto, buildato e avviato; da provare in gioco col click (Recently verified). Poi attendi l'utente:
+> "Metti da parte" in suite (`16a6318`) e card HUD (`5fb7c1c`) fatto, buildato e avviato; da provare in gioco (Recently verified). Poi attendi:
 > asset release, GitHub Support; solo se chiesto, riquadri HUD di Produzione stretti e verifiche del passo 9.
 Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
 with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
@@ -36,8 +36,8 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
 - 2026-11-20 `16a6318` set aside a step: run field `set_aside` (storage, API filters to the definition's non-reminder keys); guide-core flags it,
   lifts only implicit source-order barriers (declared deps still wait), drops it from next/lanes/ready/sequences; HUD card+highlights skip it;
   suite list "Passaggi messi da parte" with Done/Riprendi. All Rust+JS tests green; rebuilt, buttons seen on the live guide page. NOT clicked/seen in game.
-- 2026-11-20 `7eaf611`: "NED Peace Conference*" links open the PEACE CONFERENCE PRIORITY row/table. `88a613f`: a line's condition (`decomposition.timing`, e.g. "At 24% paranoia") shown as "When:" under the title in suite and HUD card; rebuilt+restarted, NOT seen on screen.
-- 2026-11-20 `facbdc5`+`f916886` LIVE (prepared guide API): inline event "On X: Y" scopes its line+bullets, threshold "At N%: Y" its line only (`decomposition.rs`); "at border" no longer read as AT; parent line labelled "Under the guide line". Cards NOT seen on screen.
+  `5fb7c1c` HUD card: "Metti da parte" + one "↩ Riprendi" per set-aside step (overlay kind `set_aside`, `hud_aside_allowed`), Undo; only set-aside left =
+  card shows the first. Unit+integration tests green, rebuilt+restarted. Card NOT seen on screen.
 
 ## Open questions / hypotheses
 - HUD production highlights look narrow (user, 2026-11-20). Box = row container size from memory (`gui_production.rs`, row+0x17AC/0x17B0
