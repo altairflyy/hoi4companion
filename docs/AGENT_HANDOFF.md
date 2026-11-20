@@ -4,7 +4,7 @@ Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
 > Roadmap UX chiusa; cronologia ripulita dai file delle guide di terzi (handoff, In progress). Attendi l'utente: asset delle release
-> v0.1.x e richiesta a GitHub Support; poi, solo se chiesto, riquadri HUD di Produzione stretti e verifiche del passo 9.
+> (ZIP v0.1.x eliminati) e richiesta a GitHub Support; poi, solo se chiesto, riquadri HUD di Produzione stretti e verifiche del passo 9.
 Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
 with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
 `docs/ux-analysis-2026-11-19.md` `## Execution order` and here, rewrite the Resume prompt. Details of each item: sections D and E there.
@@ -26,7 +26,7 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
   LOCAL ONLY in `.local/guide-corpus` (`scripts/guide-corpus.cjs`; tests skip without it). History rewritten with filter-branch on all
   branches and tags, force-pushed (main `f43c37a`, 4 remote branches, tags v0.1.0-v0.2.0): ALL commit hashes before it changed.
   Backup of the old history: `.local/repo-backup-before-purge-2026-11-20.bundle` (contains the files; never push it).
-  Still exposed, user decision: release ZIPs v0.1.0-v0.1.3 likely bundle the Wojtek JSON (not checked); merged PR refs #1 #2 and cached
+  Release ZIPs (+ .sha256) of v0.1.0-v0.1.3 deleted on user request (v0.2.0 kept). Still exposed: merged PR refs #1 #2 and cached
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 - Improve-loop report: `docs/improvement-backlog.md` `## Run report`. IL-01, 02 (`b4d50c2`), 03, 05-08 done; IL-04 dropped.
 - R6 `4acda08`: `import_reports::interpretation` (counts automatic/manual/reminder/uninterpreted, lists uninterpreted lines) in the import
