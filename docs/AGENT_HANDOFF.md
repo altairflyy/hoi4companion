@@ -3,19 +3,9 @@ Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> `3ac001a` card HUD: step produzione già superato non torna più come step 1; lista Produzione dietro il pulsante "Produzione · N".
-> `f6b1e39` Dottrine e spiriti come schede (voto, bonus, spiriti, commento, riepilogo rapido). Da vedere in gioco: card e pulsante.
-> Poi attendi: asset release, GitHub Support; solo se chiesto, riquadri HUD Produzione e verifiche passo 9.
-Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
-with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
-`docs/ux-analysis-2026-11-19.md` `## Execution order` and here, rewrite the Resume prompt. Details of each item: sections D and E there.
-1-7. DONE R7, R8, R9, R10, R11, R12, R15 (details: archive and `docs/ux-analysis-2026-11-19.md`).
-8. DONE R13 Stage A (player reading of hand-confirmed lines, no AI; Stage B deferred). R14 blocked (IL-04).
-9. PARTLY DONE 2026-11-20: rebuilt and running at `927e3d8`; suite checks in Recently verified. User skipped the rest; still NOT verified:
-   importer card on a real draft (R6), ROM "INFRAs, then MILs in Mun" shown as construction (R7) with composed title (R8) in suite and HUD card (R9),
-   waiting reasons and "On Revise…" resolved (R10), home preview with HOI4 closed (R11), library groups (R15), a saved line reading (R13); confirmed event answers (`docs/events-live.md`); research "UP" steps;
-   HUD highlight alignment; map marker pan/zoom; metrics key "defensive" (reads WAR_SUPPORT_OFFNSIVE_WAR) against the UI; YUG ideology.
-   Merge and push: done 2026-11-20.
+> Piano reattività HUD (`docs/hud-performance-plan-2026-11-20.md`): esegui lo step 1 "Measure" (traccia `.local/hud-trace.jsonl` +
+> `scripts/hud-trace-report.cjs` + test), poi test, invariant-reviewer, commit locale, rebuild e riavvio; spunta lo step e riscrivi questo prompt.
+Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per session. UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
 - 2026-11-20 PURGE (user order): third-party guide data (benchmark/review/probe fixtures, Wojtek guide, `docs/it/walkthrough.md`) is
@@ -55,5 +45,5 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
 - System WebView2 Runtime is a prerequisite of the desktop host.
 
 ## Where things are
-- Subsystem docs: `docs/README.md`. Fast Rust loop: `docs/fast-local-rust.md`. Guide identity: `docs/guide-definition-identity.md`.
+- Subsystem docs: `docs/README.md`. HUD plan: `docs/hud-performance-plan-2026-11-20.md`. Fast Rust loop: `docs/fast-local-rust.md`. Guide identity: `docs/guide-definition-identity.md`.
 - Automation: skills `deliver-build`, `add-translation`, `improve-loop`; hooks `guard-game.cjs`, `web-test.cjs`; agent `invariant-reviewer`.

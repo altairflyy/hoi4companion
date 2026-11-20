@@ -61,3 +61,20 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/ux-ana
   suite list "Passaggi messi da parte" with Done/Riprendi. All Rust+JS tests green; rebuilt, buttons seen on the live guide page. NOT clicked/seen in game.
   `5fb7c1c` HUD card: "Metti da parte" + one "↩ Riprendi" per set-aside step (overlay kind `set_aside`, `hud_aside_allowed`), Undo; only set-aside left =
   card shows the first. Unit+integration tests green, rebuilt+restarted. Card NOT seen on screen.
+
+## Next actions superseded 2026-11-20 by the HUD responsiveness plan
+Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
+> `3ac001a` card HUD: step produzione già superato non torna più come step 1; lista Produzione dietro il pulsante "Produzione · N".
+> `f6b1e39` Dottrine e spiriti come schede (voto, bonus, spiriti, commento, riepilogo rapido). Da vedere in gioco: card e pulsante.
+> Poi attendi: asset release, GitHub Support; solo se chiesto, riquadri HUD Produzione e verifiche passo 9.
+Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
+with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
+`docs/ux-analysis-2026-11-19.md` `## Execution order` and here, rewrite the Resume prompt. Details of each item: sections D and E there.
+1-7. DONE R7, R8, R9, R10, R11, R12, R15 (details: archive and `docs/ux-analysis-2026-11-19.md`).
+8. DONE R13 Stage A (player reading of hand-confirmed lines, no AI; Stage B deferred). R14 blocked (IL-04).
+9. PARTLY DONE 2026-11-20: rebuilt and running at `927e3d8`; suite checks in Recently verified. User skipped the rest; still NOT verified:
+   importer card on a real draft (R6), ROM "INFRAs, then MILs in Mun" shown as construction (R7) with composed title (R8) in suite and HUD card (R9),
+   waiting reasons and "On Revise…" resolved (R10), home preview with HOI4 closed (R11), library groups (R15), a saved line reading (R13); confirmed event answers (`docs/events-live.md`); research "UP" steps;
+   HUD highlight alignment; map marker pan/zoom; metrics key "defensive" (reads WAR_SUPPORT_OFFNSIVE_WAR) against the UI; YUG ideology.
+   Merge and push: done 2026-11-20.
+
