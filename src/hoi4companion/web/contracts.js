@@ -58,7 +58,7 @@
   if(key==='production.lines')return validProductionLines(value);
   if(['country.intelligence.is_created','country.intelligence.in_creation'].includes(key))return typeof value==='boolean';
   if(['country','focus.tree'].includes(key))return typeof value==='string'&&value.length>0;
-  if(['focus.completed','focus.active','focus.continuous','focus.ids','research.completed','research.active','research.ids','construction.queued','projects.active','projects.completed'].includes(key))return Array.isArray(value)&&value.every(x=>typeof x==='string'&&x.length>0);
+  if(['focus.completed','focus.active','focus.continuous','focus.ids','research.completed','research.active','research.ids','construction.queued','construction.queued_known','projects.active','projects.completed'].includes(key))return Array.isArray(value)&&value.every(x=>typeof x==='string'&&x.length>0);
   if(key==='research.slots'){
    if(!Array.isArray(value)||value.length>64||!value.every(x=>x&&typeof x==='object'&&!Array.isArray(x)&&Object.hasOwn(x,'technology_id')&&(x.technology_id===null||typeof x.technology_id==='string'&&x.technology_id.length>0)))return false;
    const indices=value.filter(x=>Object.hasOwn(x,'slot')).map(x=>x.slot);
@@ -80,12 +80,15 @@
   if(f?.status==='unknown'&&f.value===null&&f.source===''&&(f.reason===undefined||typeof f.reason==='string'))return [k,{status:'unknown',value:null,source:'',...(f.reason?{reason:f.reason}:{})}];
   const item=fact(value,k);return [k,item.status==='unknown'&&value.usable?unknown(invalidReason):item];
  }))};}
- function queuedConstruction(section){
-  if(!section||typeof section!=='object'||Array.isArray(section)||section.status!=='observed'||!Array.isArray(section.lines))return null;
+ // knownOnly: a partial queue lists what is certainly queued, skipping lines the
+ // reader could not locate; the absence of a key then proves nothing.
+ function queuedConstruction(section,knownOnly=false){
+  if(!section||typeof section!=='object'||Array.isArray(section)||!(section.status==='observed'||knownOnly&&section.status==='partial')||!Array.isArray(section.lines))return null;
   const keys=new Set(),identities=new Set(),integer=(value,min=0)=>Number.isSafeInteger(value)&&value>=min;
   for(const row of section.lines){
-   if(!row||typeof row!=='object'||Array.isArray(row)||['id','building_id'].some(key=>typeof row[key]!=='string'||!row[key])||identities.has(row.id)||row.location_status!=='observed'||!integer(row.state_id,1)||!Object.hasOwn(row,'province_id')||row.province_id!==null&&!integer(row.province_id,1)||['amount','active_factories','built_level','repair_levels'].some(key=>!integer(row[key]))||typeof row.conversion!=='boolean')return null;
+   if(!row||typeof row!=='object'||Array.isArray(row)||['id','building_id'].some(key=>typeof row[key]!=='string'||!row[key])||identities.has(row.id)||['amount','active_factories','built_level','repair_levels'].some(key=>!integer(row[key]))||typeof row.conversion!=='boolean')return null;
    identities.add(row.id);
+   if(!(row.location_status==='observed'&&integer(row.state_id,1)&&Object.hasOwn(row,'province_id')&&(row.province_id===null||integer(row.province_id,1)))){if(knownOnly&&row.location_status==='unavailable')continue;return null;}
     if(row.amount>0&&row.repair_levels===0&&!row.conversion){keys.add('building:'+row.building_id);keys.add('state:'+row.state_id+':'+row.building_id);if(row.province_id!==null)keys.add('province:'+row.province_id+':'+row.building_id);}
   }
   return [...keys].sort((a,b)=>{const left=Array.from(a,c=>c.codePointAt(0)),right=Array.from(b,c=>c.codePointAt(0));for(let i=0;i<Math.min(left.length,right.length);i++)if(left[i]!==right[i])return left[i]-right[i];return left.length-right.length;});
@@ -116,6 +119,8 @@
   const overview=s.country_overview||{},derived=new Set(['by_type','by_template','total','effective_factories','output_per_day','assigned_factories','category','balance','used','owned','controlled','name']);
   const queued=typeof s.country==='string'&&s.country&&overview.country===s.country?queuedConstruction(overview.construction):null;
   f['construction.queued']=queued===null?unknown("Coda costruzioni non qualificata"):known(queued,'construction_adapter',true);
+  const queuedKnown=typeof s.country==='string'&&s.country&&overview.country===s.country?queuedConstruction(overview.construction,true):null;
+  f['construction.queued_known']=queuedKnown===null?unknown("Coda costruzioni non qualificata"):known(queuedKnown,'construction_adapter',true);
   const projects=overview.projects,items=projects?.items,projectsKnown=Boolean(s.country)&&overview.country===s.country&&projects?.status==='observed'&&Array.isArray(items)&&items.length<=1024&&items.every(row=>row&&typeof row.id==='string'&&row.id&&typeof row.active==='boolean'&&typeof row.completed==='boolean'&&!(row.active&&row.completed))&&new Set(items.map(row=>row.id)).size===items.length;
   for(const field of ['active','completed'])f['projects.'+field]=projectsKnown?known(items.filter(row=>row[field]).map(row=>row.id),'projects_adapter',true):unknown("Progetti speciali non qualificati");
   const points=projects?.breakthroughs?.items;

@@ -185,17 +185,23 @@ mod tests {
   assert!(row["action"]["params"]["construction_targets"][1]["target_level"].is_null());
   // No built level to observe: queued now, or the player's confirmation.
   assert_eq!(row["completion"]["args"][1]["args"][0],json!({"op":"check","key":row["key"]}));
-  assert_eq!(row["completion"]["args"][1]["args"][1]["key"],"construction.queued");
-  assert_eq!(row["completion"]["args"][1]["args"][1]["value"],"state:219:arms_factory");
+  assert_eq!(row["completion"]["args"][1]["args"][1]["args"][1]["key"],"construction.queued");
+  assert_eq!(row["completion"]["args"][1]["args"][1]["args"][1]["value"],"state:219:arms_factory");
   // Factories finished and no longer queued: the confirmation completes the
   // step, but never in place of an infrastructure level the game contradicts.
   let state=|infra|json!({"schema_version":1,"usable":true,"facts":{"country.states.items.219.infrastructure":{"status":"observed","source":"fixture","value":infra},
-   "construction.queued":{"status":"calculated","source":"fixture","value":[]}}});
+   "construction.queued":{"status":"calculated","source":"fixture","value":[]},"construction.queued_known":{"status":"calculated","source":"fixture","value":[]}}});
   let checked=|on|json!({"schema_version":1,"guide_id":"build-test","run_id":"r","checks":{"build":on}});
   let evaluate=|s:&Value,p:&Value|crate::guide_runtime::evaluate(&g,s,p).unwrap()["steps"][0]["status"].clone();
   assert_ne!(evaluate(&state(5),&checked(false)),"completed");
   assert_eq!(evaluate(&state(5),&checked(true)),"completed");
   assert_ne!(evaluate(&state(4),&checked(true)),"completed");
+  // A queue line the reader cannot locate leaves the full queue unknown; the
+  // lines it located still count as queued, their absence proves nothing.
+  let partial=|known:Value|json!({"schema_version":1,"usable":true,"facts":{"country.states.items.219.infrastructure":{"status":"observed","source":"fixture","value":4},
+   "construction.queued":{"status":"unknown","source":"","value":null},"construction.queued_known":{"status":"calculated","source":"fixture","value":known}}});
+  assert_eq!(evaluate(&partial(json!(["state:219:infrastructure"])),&checked(true)),"completed");
+  assert_ne!(evaluate(&partial(json!([])),&checked(true)),"completed");
   assert_eq!(bind(&guide("Build: INFRA+Land Facility in Unknown Place"),&index()).unwrap(),guide("Build: INFRA+Land Facility in Unknown Place"));
  }
  #[test] fn queue_start_satisfies_every_required_target_by_id() {

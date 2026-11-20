@@ -217,7 +217,9 @@ pub fn construction_context(guide: &Value, state: &Value, baselines: &Value) -> 
                 let key=if provincial {format!("country.fortifications.items.{}.buildings.{building}",p["province_id"])} else {format!("country.states.items.{}.buildings.{building}",p["state_id"])};
                 let current=fact_value(&state,&key,true).filter(|v|integer(v,0,1000)).cloned().unwrap_or(Value::Null);
                 let queue=if provincial {format!("province:{}:{building}",p["province_id"])} else {format!("state:{}:{building}",p["state_id"])};
-                let queued=fact_value(&state,"construction.queued",false).and_then(Value::as_array).map(|a|a.contains(&json!(queue)));
+                // A located line is queued even when another cannot be located.
+                let known=fact_value(&state,"construction.queued_known",false).and_then(Value::as_array).is_some_and(|a|a.contains(&json!(queue)));
+                let queued=if known {Some(true)} else {fact_value(&state,"construction.queued",false).and_then(Value::as_array).map(|a|a.contains(&json!(queue)))};
                 json!({"building_id":building,"building_name":p["building_name"],"state_id":p["state_id"],"state_name":p["state_name"],"province_id":p["province_id"],"current":current,"target":p["target_level"],"queued":queued,"reason":if p["target_level"].is_null(){"effective_maximum_unqualified"}else{"built_level_target"}})
             }).collect::<Vec<_>>();
             details[text(&step["key"])]=json!({"targets":items});

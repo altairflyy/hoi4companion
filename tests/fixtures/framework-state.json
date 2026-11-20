@@ -1386,5 +1386,111 @@
       "country.intelligence.is_created",
       "country.intelligence.in_creation"
     ]
+  },
+  {
+    "name": "partial construction keeps what is certainly queued",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "SOV",
+        "country_overview": {
+          "country": "SOV",
+          "construction": {
+            "status": "partial",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 221,
+                "province_id": null,
+                "amount": 1,
+                "active_factories": 15,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              },
+              {
+                "id": "2",
+                "building_id": "infrastructure",
+                "state_id": null,
+                "province_id": null,
+                "amount": 1,
+                "active_factories": 15,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "unavailable"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      },
+      "construction.queued_known": {
+        "status": "calculated",
+        "value": [
+          "building:arms_factory",
+          "state:221:arms_factory"
+        ],
+        "source": "construction_adapter"
+      }
+    }
+  },
+  {
+    "name": "known construction subset rejects malformed unlocated lines",
+    "input": {
+      "usable": true,
+      "source": "process_memory",
+      "sample": {
+        "country": "SOV",
+        "country_overview": {
+          "country": "SOV",
+          "construction": {
+            "status": "partial",
+            "lines": [
+              {
+                "id": "1",
+                "building_id": "arms_factory",
+                "state_id": 221,
+                "province_id": null,
+                "amount": 1,
+                "active_factories": 15,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "observed"
+              },
+              {
+                "id": "2",
+                "building_id": "arms_factory",
+                "state_id": null,
+                "province_id": null,
+                "amount": -1,
+                "active_factories": 15,
+                "built_level": 3,
+                "repair_levels": 0,
+                "conversion": false,
+                "location_status": "unavailable"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "construction.queued_known": {
+        "status": "unknown",
+        "value": null,
+        "reason": "Coda costruzioni non qualificata"
+      }
+    }
   }
 ]

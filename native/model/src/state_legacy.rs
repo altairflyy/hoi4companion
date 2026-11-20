@@ -96,8 +96,12 @@ impl Adapter {
         }
     }
 }
-fn queued(section: &Value) -> Option<Value> {
-    if section["status"] != "observed" {
+/// Queued construction memberships. With `known_only` a partial section is
+/// accepted and lines whose location the reader could not attribute (another
+/// owner or controller, a national building) are skipped: the result lists
+/// what is certainly queued, and the absence of a key proves nothing.
+fn queued(section: &Value, known_only: bool) -> Option<Value> {
+    if section["status"] != "observed" && !(known_only && section["status"] == "partial") {
         return None;
     }
     let rows = section["lines"].as_array()?;
@@ -109,15 +113,21 @@ fn queued(section: &Value) -> Option<Value> {
         if !row.is_object()
             || !["id", "building_id"].iter().all(|k| nonempty(&row[k]))
             || !identities.insert(text(&row["id"]))
-            || row["location_status"] != "observed"
-            || !integer(&row["state_id"], 1.)
-            || row.get("province_id").is_none()
-            || !row["province_id"].is_null() && !integer(&row["province_id"], 1.)
             || ["amount", "active_factories", "built_level", "repair_levels"]
                 .iter()
                 .any(|k| !integer(&row[k], 0.))
             || !row["conversion"].is_boolean()
         {
+            return None;
+        }
+        let located = row["location_status"] == "observed"
+            && integer(&row["state_id"], 1.)
+            && row.get("province_id").is_some()
+            && (row["province_id"].is_null() || integer(&row["province_id"], 1.));
+        if !located {
+            if known_only && row["location_status"] == "unavailable" {
+                continue;
+            }
             return None;
         }
         if row["amount"].as_f64()? > 0.
@@ -263,13 +273,23 @@ pub(super) fn normalize(value: &Value) -> Value {
     let country_known = nonempty(&sample["country"]);
     let matched = country_known && overview["country"] == sample["country"];
     let construction = if matched {
-        queued(&overview["construction"])
+        queued(&overview["construction"], false)
     } else {
         None
     };
     adapter.facts.insert(
         "construction.queued".into(),
         construction
+            .map(|q| known(q, "calculated", "construction_adapter"))
+            .unwrap_or_else(|| unknown("Coda costruzioni non qualificata")),
+    );
+    // Certainly queued, even when another line cannot be located. Conditions
+    // use it only positively (contains = true); its absences are not evidence.
+    adapter.facts.insert(
+        "construction.queued_known".into(),
+        matched
+            .then(|| queued(&overview["construction"], true))
+            .flatten()
             .map(|q| known(q, "calculated", "construction_adapter"))
             .unwrap_or_else(|| unknown("Coda costruzioni non qualificata")),
     );

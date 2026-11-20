@@ -184,6 +184,7 @@ pub fn valid_fact(key: &str, value: &Value) -> bool {
         | "research.active"
         | "research.ids"
         | "construction.queued"
+        | "construction.queued_known"
         | "projects.active"
         | "projects.completed" => value.as_array().is_some_and(|a| a.iter().all(nonempty)),
         "research.slots" => value.as_array().is_some_and(|a| {

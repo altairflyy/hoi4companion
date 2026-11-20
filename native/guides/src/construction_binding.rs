@@ -154,7 +154,13 @@ pub fn bind(step: &Value, index: &Index, geography: &Geography) -> Result<Value,
             let mut child = json!({"key":format!("{}.target-{}",s(&step["key"]),i+1),"action":{"kind":"manual","params":target}});
             child["action"]["params"]["category"] = json!("construction");
             let result = bind(&child, index, geography)?;
-            let queued = result["step"]["started_when"].clone();
+            let mut queued = result["step"]["started_when"].clone();
+            // One queue line the reader cannot locate (another owner, a
+            // national building) leaves the whole queue unknown; a line it did
+            // locate is still certainly queued.
+            if queued["op"] == "fact" && queued["key"] == "construction.queued" && queued["test"] == "contains" {
+                queued = json!({"op":"any","args":[fact("construction.queued_known","contains",queued["value"].clone()),queued]});
+            }
             let built = result["step"]["completion"].clone();
             if params["completion_mode"] == "queued_or_built" && !queued.is_null() {
                 // A target without an observable built level (a "maximum" whose
@@ -508,9 +514,12 @@ mod tests {
         let args = result["step"]["completion"]["args"].as_array().unwrap();
         // The observable level stays game-verified only.
         assert_eq!(args[0]["args"][0], fact("country.states.items.42.infrastructure", "gte", json!(5)));
-        assert_eq!(args[0]["args"][1], fact("construction.queued", "contains", json!("state:42:infrastructure")));
+        let queued = |v: &str| json!({"op":"any","args":[
+            fact("construction.queued_known", "contains", json!(v)),
+            fact("construction.queued", "contains", json!(v))]});
+        assert_eq!(args[0]["args"][1], queued("state:42:infrastructure"));
         // The unqualified maximum: queued now, or confirmed by the player.
         assert_eq!(args[1]["args"][0], json!({"op":"check","key":"build"}));
-        assert_eq!(args[1]["args"][1], fact("construction.queued", "contains", json!("state:42:arms_factory")));
+        assert_eq!(args[1]["args"][1], queued("state:42:arms_factory"));
     }
 }
