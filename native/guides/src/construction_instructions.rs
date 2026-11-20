@@ -183,8 +183,19 @@ mod tests {
   let g=bind(&guide("Build: INFRA+MILs in: Moscow"),&index()).unwrap();
   let row=&g["tracks"]["operations"][0];
   assert!(row["action"]["params"]["construction_targets"][1]["target_level"].is_null());
-  assert_eq!(row["completion"]["args"][1]["key"],"construction.queued");
-  assert_eq!(row["completion"]["args"][1]["value"],"state:219:arms_factory");
+  // No built level to observe: queued now, or the player's confirmation.
+  assert_eq!(row["completion"]["args"][1]["args"][0],json!({"op":"check","key":row["key"]}));
+  assert_eq!(row["completion"]["args"][1]["args"][1]["key"],"construction.queued");
+  assert_eq!(row["completion"]["args"][1]["args"][1]["value"],"state:219:arms_factory");
+  // Factories finished and no longer queued: the confirmation completes the
+  // step, but never in place of an infrastructure level the game contradicts.
+  let state=|infra|json!({"schema_version":1,"usable":true,"facts":{"country.states.items.219.infrastructure":{"status":"observed","source":"fixture","value":infra},
+   "construction.queued":{"status":"calculated","source":"fixture","value":[]}}});
+  let checked=|on|json!({"schema_version":1,"guide_id":"build-test","run_id":"r","checks":{"build":on}});
+  let evaluate=|s:&Value,p:&Value|crate::guide_runtime::evaluate(&g,s,p).unwrap()["steps"][0]["status"].clone();
+  assert_ne!(evaluate(&state(5),&checked(false)),"completed");
+  assert_eq!(evaluate(&state(5),&checked(true)),"completed");
+  assert_ne!(evaluate(&state(4),&checked(true)),"completed");
   assert_eq!(bind(&guide("Build: INFRA+Land Facility in Unknown Place"),&index()).unwrap(),guide("Build: INFRA+Land Facility in Unknown Place"));
  }
  #[test] fn queue_start_satisfies_every_required_target_by_id() {

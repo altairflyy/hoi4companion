@@ -277,7 +277,7 @@
   const top=el('div','guided-meta');top.append(el('span','eyebrow',categories[row.category]||HoiI18n.t("Other instructions")),badges(row));
   item.append(top,stepLink(row));const fix=notThis(row);if(fix)item.append(' ',fix);
   // One control: "Done" where the player confirms; none where the game shows it.
-  if(['manual','special_project'].includes(row.action.kind)&&!row.completion_condition&&row.runtime_status!=='completed')item.append(confirm(row.key,HoiI18n.t("Done")));
+  if((row.completion_condition?HoiContracts.checkKeys(row.completion_condition).includes(row.key):['manual','special_project'].includes(row.action.kind))&&row.runtime_status!=='completed')item.append(confirm(row.key,HoiI18n.t("Done")));
   return item;
  }
  function laneItem(lane,label){

@@ -147,7 +147,8 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
     let index = rows[..=position].iter().filter(|r| r["tracking"] != "reminder").count();
     // The HUD offers "Done" only where the suite offers a manual confirmation
     // of this very step; observed steps complete from the game alone.
-    let checkable = status != "completed" && crate::application::manual_keys(guide).contains(key);
+    let checkable = status != "completed" && crate::application::manual_keys(guide).contains(key)
+        && confirmation_completes(step);
     // Guided mode (UX R9): the line "Category · When · Verification" and the
     // readable title, as in the suite, then the next step and the nearest
     // waiting one. Presentation only, from the prepared step and the evaluation.
@@ -170,6 +171,22 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
         "started_when":step.get("started_when").is_some_and(|v| !v.is_null()),
         "reading_title":reading_title(step),"original":step["reading"]["original"],
         "then":then,"waiting":waiting})
+}
+/// Whether the step's own manual check can complete it, as guide-core reads it:
+/// a manual or special-project action without a declared completion, or a
+/// declared completion that names this step's check. Otherwise the check is
+/// stored but ignored, and a "Done" button would do nothing.
+fn confirmation_completes(step: &Value) -> bool {
+    fn names(node: &Value, key: &str) -> bool {
+        node["op"] == "check" && node["key"] == key
+            || node["args"].as_array().is_some_and(|a| a.iter().any(|n| names(n, key)))
+            || node.get("arg").is_some_and(|n| names(n, key))
+    }
+    let key = step["key"].as_str().unwrap_or("");
+    match step.get("completion").filter(|c| !c.is_null()) {
+        Some(completion) => names(completion, key),
+        None => matches!(step["action"]["kind"].as_str(), Some("manual" | "special_project")),
+    }
 }
 /// Why a waiting step waits, as the suite's guided line says it (UX R10): the
 /// first prerequisite step, else the author's trigger as Rust recognized it,
@@ -458,6 +475,18 @@ mod tests {
         assert_eq!(step_card(&guide,&runtime)["key"],"three");
         runtime["steps"][1]["status"]=json!("unverifiable");
         assert_eq!(step_card(&guide,&runtime)["key"],"two");
+    }
+    #[test]
+    fn step_card_offers_done_only_where_the_check_completes_the_step() {
+        let fact=json!({"op":"fact","key":"country.states.items.1.infrastructure","test":"gte","value":5});
+        let card=|completion:Value|{
+            let guide=json!({"tracks":{"operations":[{"key":"g","kind":"gate","title":"Build","action":{"kind":"manual"},"completion":completion}]}});
+            step_card(&guide,&json!({"steps":[{"key":"g","status":"active"}]}))["checkable"].clone()
+        };
+        // A declared completion without this step's check ignores the check.
+        assert_eq!(card(fact.clone()),false);
+        assert_eq!(card(json!({"op":"all","args":[fact,{"op":"any","args":[{"op":"check","key":"g"}]}]})),true);
+        assert_eq!(card(Value::Null),true);
     }
     #[test]
     fn step_card_lists_the_walkthrough_reference_images_once() {

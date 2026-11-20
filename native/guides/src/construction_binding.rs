@@ -157,7 +157,17 @@ pub fn bind(step: &Value, index: &Index, geography: &Geography) -> Result<Value,
             let queued = result["step"]["started_when"].clone();
             let built = result["step"]["completion"].clone();
             if params["completion_mode"] == "queued_or_built" && !queued.is_null() {
-                completed.push(if built.is_null() {queued.clone()} else {json!({"op":"any","args":[built,queued.clone()]})});
+                // A target without an observable built level (a "maximum" whose
+                // effective cap the catalog cannot qualify) is satisfied while
+                // queued or by the player's confirmation of this step. Queued
+                // alone would revert once the building finishes, and the step
+                // could never complete again.
+                let done = if built.is_null() {
+                    json!({"op":"check","key":s(&step["key"])})
+                } else {
+                    built
+                };
+                completed.push(json!({"op":"any","args":[done,queued.clone()]}));
                 started.push(queued);
                 continue;
             }
@@ -479,5 +489,28 @@ mod tests {
         let result = bind(&step, &index, &geography).unwrap();
         assert_eq!(result["reason"], "compound_construction_unresolved");
         assert!(result["step"]["completion"]["args"][1]["key"].as_str().unwrap().ends_with("unqualified"));
+    }
+
+    #[test]
+    fn queued_or_built_maximum_target_accepts_the_steps_manual_confirmation() {
+        let entries = json!([
+            {"kind":"building","id":"infrastructure","name":"Infrastructure","location_scope":"state"},
+            {"kind":"building","id":"arms_factory","name":"Military Factory","location_scope":"state"},
+            {"kind":"state","id":"42","name":"Test State","geography":{"province_ids":[10]}}
+        ]);
+        let index = Index::new(&json!({"entries":entries})).unwrap();
+        let geography = Geography::new(index.rows());
+        let step = json!({"key":"build","action":{"kind":"manual","params":{"category":"construction","completion_mode":"queued_or_built","construction_targets":[
+            {"building_id":"infrastructure","state_id":42,"target_level":5,"quantity_mode":"maximum"},
+            {"building_id":"arms_factory","state_id":42,"quantity_mode":"maximum"}
+        ]}}});
+        let result = bind(&step, &index, &geography).unwrap();
+        let args = result["step"]["completion"]["args"].as_array().unwrap();
+        // The observable level stays game-verified only.
+        assert_eq!(args[0]["args"][0], fact("country.states.items.42.infrastructure", "gte", json!(5)));
+        assert_eq!(args[0]["args"][1], fact("construction.queued", "contains", json!("state:42:infrastructure")));
+        // The unqualified maximum: queued now, or confirmed by the player.
+        assert_eq!(args[1]["args"][0], json!({"op":"check","key":"build"}));
+        assert_eq!(args[1]["args"][1], fact("construction.queued", "contains", json!("state:42:arms_factory")));
     }
 }
