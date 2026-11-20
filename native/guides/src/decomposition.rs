@@ -389,16 +389,23 @@ fn split(guide_id: &str, row: &Value, triggers: &mut Triggers<'_>) -> Result<Vec
                 }
             }
             // A header line ("When at war:") scopes every following line. An
-            // inline "At 24% paranoia: X" scopes X and the bullets under it
-            // only: the next top-level line starts over from the header, and a
-            // bullet's own inline timing covers that bullet alone.
+            // inline event ("On claim: X", "When GER down: X") scopes X and the
+            // bullets under it only: the next top-level line starts over from
+            // the header, and a bullet's own inline timing covers that bullet
+            // alone. An inline threshold ("At 24% paranoia: X") is the
+            // requirement of X itself, never of the bullets under it.
+            let threshold = step_timing.as_deref().is_some_and(|t| regex(r"(?i)^at\b.*\d").is_match(t));
             if bullet {
                 bullet_timing = step_timing;
             } else {
-                line_timing = step_timing;
-                bullet_timing = None;
+                line_timing = if threshold { None } else { step_timing.clone() };
+                bullet_timing = if threshold { step_timing } else { None };
             }
             let timing = bullet_timing.clone().or_else(|| line_timing.clone()).or_else(|| timing.clone());
+            if !bullet && threshold {
+                // The threshold applied to this line; its bullets do not inherit it.
+                bullet_timing = None;
+            }
             let context = if bullet { last_line.clone() } else {
                 last_line = Some(line.clone());
                 None
@@ -537,7 +544,9 @@ mod tests {
             "At 24% paranoia: Inspection nav (50PP)\n- Quiet intel in GER\nMW doctrine & last 2 spirits ASAP\n- MILs in 100%\nOn claim: Invade NED\n- At 20% Paranoia: Forge Report (25PP)\n- Adjust trade"
         )]));
         let timing: Vec<_> = rows.iter().map(|r| r["action"]["params"]["decomposition"]["timing"].as_str()).collect();
-        assert_eq!(timing, [Some("At 24% paranoia"), Some("At 24% paranoia"), None, None, Some("On claim"), Some("At 20% Paranoia"), Some("On claim")]);
+        // A threshold is its own line's requirement; an event also scopes its bullets.
+        assert_eq!(timing, [Some("At 24% paranoia"), None, None, None, Some("On claim"), Some("At 20% Paranoia"), Some("On claim")]);
+        assert!(rows[1].get("when").is_none(), "a bullet does not wait for its parent's threshold");
         assert!(rows[2].get("when").is_none() && rows[3].get("when").is_none(), "no condition from an earlier line");
         assert_eq!(rows[3]["note"], "MW doctrine & last 2 spirits ASAP", "only the parent line, never another line's condition");
         // A header line still scopes every following line.
