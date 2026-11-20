@@ -37,7 +37,7 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
   (located lines, positive use only); `word-0001` completed again. `143d834`: a later "Change A to B" line marks earlier production targets
   named A `retired_by` it (`production_retirement.rs`); guide-core supersedes them once that line is completed. Live: `word-0002`
   Superseded by `word-0011--line-2`, card at step 18. Note: a fully met rest makes the whole step "Superseded" (existing rule).
-- 2026-11-20 `7eaf611`: "NED Peace Conference*" / "Peace Conference*" links now open the PEACE CONFERENCE PRIORITY row/table (were empty). Served live; not clicked in the suite.
+- 2026-11-20 `7eaf611`: "NED Peace Conference*" links open the PEACE CONFERENCE PRIORITY row/table. `88a613f`: a line's condition (`decomposition.timing`, e.g. "At 24% paranoia") shown as "When:" under the title in suite and HUD card; rebuilt+restarted, NOT seen on screen.
 - Event answers: native HUD answers seen on screen (`bea90e8`); user confirmations `197f141..320d441`, NOT live-verified. See archive.
 
 ## Open questions / hypotheses
