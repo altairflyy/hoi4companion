@@ -150,6 +150,10 @@ fn validate_record(key: &str, row: &Value) -> Result<()> {
     identifier(&row["session_id"], "Sessione", true, None)?;
     checks(&row["checks"])?;
     checks(&row["started"])?;
+    // Steps the player set aside (absent in runs written before it existed).
+    if let Some(v) = row.get("set_aside") {
+        checks(v)?;
+    }
     baselines(row.get("baselines").unwrap_or(&json!({})))?;
     observations(row.get("campaign_conditions").unwrap_or(&json!({})))?;
     for field in ["research_bindings", "research_history"] {
@@ -442,10 +446,16 @@ impl State {
                 if !args["started"].is_null() {
                     checks(&args["started"])?
                 }
+                if !args["set_aside"].is_null() {
+                    checks(&args["set_aside"])?
+                }
                 let mut row = self.get(guide, None)?;
                 row["checks"] = args["checks"].clone();
                 if !args["started"].is_null() {
                     row["started"] = args["started"].clone()
+                }
+                if !args["set_aside"].is_null() {
+                    row["set_aside"] = args["set_aside"].clone()
                 }
                 self.insert(row.clone());
                 Ok(row)
@@ -634,7 +644,7 @@ fn metadata(row: &Value) -> Value {
         row.as_object()
             .expect("validated run")
             .iter()
-            .filter(|(k, _)| !["checks", "started", "baselines", "previous_definitions"].contains(&k.as_str()))
+            .filter(|(k, _)| !["checks", "started", "set_aside", "baselines", "previous_definitions"].contains(&k.as_str()))
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect(),
     )

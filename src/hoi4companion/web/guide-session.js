@@ -91,7 +91,7 @@
   const id=guide.id,current=sequence,guard={expected_run_id:progress.run_id,expected_revision:progress.run_revision,expected_definition_id:progress.definition_ref?.id??null,server_id:progress.server_id};pending++;projectionMutation++;projection=null;projectionVersion++;publish();
   const task=queue.then(async()=>{
    const saved=await json('/api/guide/progress?id='+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,...guard})});
-   if(current===sequence){if(pending===1)progress=saved;else progress={...saved,checks:progress.checks,started:progress.started};error='';}
+   if(current===sequence){if(pending===1)progress=saved;else progress={...saved,checks:progress.checks,started:progress.started,set_aside:progress.set_aside};error='';}
    return saved;
   });
   queue=task.catch(()=>{});
@@ -109,7 +109,16 @@
    // Split a previously confirmed bulk checkpoint without losing its other
    // explicit confirmations, so one new activity can be unchecked independently.
    if(typeof legacy==='string'&&checks[legacy]===true){for(const row of rows)if(row.action.params?.legacy_key===legacy&&!Object.hasOwn(checks,row.key))checks[row.key]=true;checks[legacy]=false;}
-   progress={...progress,checks:{...checks,[key]:checked}};return write({run_id:progress.run_id,checks:progress.checks});
+   progress={...progress,checks:{...checks,[key]:checked}};
+   // Done is done: a confirmed step leaves the Set aside list in the same save.
+   if(checked&&progress.set_aside?.[key]){const aside={...progress.set_aside};delete aside[key];progress={...progress,set_aside:aside};return write({run_id:progress.run_id,checks:progress.checks,set_aside:aside});}
+   return write({run_id:progress.run_id,checks:progress.checks});
+  },
+  // Sets a step aside (or resumes it); Rust decides what that changes.
+  async setAside(key,aside){
+   if(!guide||pending)throw Error(HoiI18n.t("Wait for the current save to finish"));
+   const next={...(progress.set_aside||{})};if(aside)next[key]=true;else delete next[key];
+   progress={...progress,set_aside:next};return write({run_id:progress.run_id,set_aside:next});
   },
   async start(key,started){
    if(!guide||pending)throw Error(HoiI18n.t("Wait for the current save to finish"));

@@ -109,13 +109,16 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
     let tracks = &runtime["tracks"];
     let statuses: std::collections::HashMap<_, _> = crate::hud_geometry::rows(&runtime["steps"])
         .iter().filter_map(|r| r["key"].as_str().map(|k| (k, &r["status"]))).collect();
+    // Steps the player set aside are left out of the card until resumed.
+    let aside: std::collections::HashSet<&str> = crate::hud_geometry::rows(&runtime["steps"])
+        .iter().filter(|r| r["set_aside"] == true).filter_map(|r| r["key"].as_str()).collect();
     let names: Vec<&str> = std::iter::once("operations")
         .chain(tracks.as_object().into_iter().flat_map(|m| m.keys().map(String::as_str)).filter(|k| *k != "operations"))
         .collect();
     let Some((track, key)) = names
         .iter()
         .find_map(|t| crate::hud_geometry::rows(&guide["tracks"][*t]).iter()
-            .find(|r| r["tracking"] != "reminder" && !statuses.get(r["key"].as_str().unwrap_or(""))
+            .find(|r| r["tracking"] != "reminder" && !aside.contains(r["key"].as_str().unwrap_or("")) && !statuses.get(r["key"].as_str().unwrap_or(""))
                 .is_some_and(|s| **s == "completed" || **s == "not_applicable"))
             .and_then(|r| r["key"].as_str()).map(|k| (*t,k)))
     else {
@@ -155,7 +158,7 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
     let status_of = |r: &Value| statuses.get(r["key"].as_str().unwrap_or("")).map(|s| (*s).clone()).unwrap_or(Value::Null);
     let brief = |r: &Value| json!({"key":r["key"],"heading":clean(&r["title"]).or_else(|| clean(&r["name"])).or_else(|| r["action"]["params"]["instructions"].as_array().into_iter().flatten().find_map(clean)).unwrap_or_default(),"reading_title":reading_title(r)});
     let later: Vec<&Value> = rows[position + 1..].iter()
-        .filter(|r| r["tracking"] != "reminder" && !matches!(status_of(r).as_str(), Some("completed" | "not_applicable")))
+        .filter(|r| r["tracking"] != "reminder" && !aside.contains(r["key"].as_str().unwrap_or("")) && !matches!(status_of(r).as_str(), Some("completed" | "not_applicable")))
         .collect();
     let then = later.iter().find(|r| matches!(status_of(r).as_str(), Some("ready" | "unverifiable"))).map(|r| brief(r)).unwrap_or(Value::Null);
     let waiting = later.iter().find(|r| status_of(r) == "waiting").map(|r| {
@@ -385,6 +388,17 @@ mod tests {
             {"building":"Infrastruttura","current":4,"target":5,"queued":true},
             {"building":"Fabbrica militare","current":7,"target":null,"queued":false}]}));
         assert!(construction["regions"][1]["items"][0]["current"].is_null(), "an unobserved level stays unknown");
+    }
+    #[test]
+    fn step_card_skips_set_aside_steps() {
+        let guide = json!({"tracks":{"operations":[
+            {"key":"a","title":"First","action":{"kind":"manual"}},
+            {"key":"b","title":"Second","action":{"kind":"manual"}}]}});
+        let runtime = json!({"tracks":{"operations":{"next":"b"}},"steps":[
+            {"key":"a","status":"unverifiable","set_aside":true},{"key":"b","status":"unverifiable"}]});
+        let card = step_card(&guide, &runtime);
+        assert_eq!(card["key"], "b");
+        assert!(card["then"].is_null(), "a set-aside step is not offered as next either");
     }
     #[test]
     fn step_card_is_the_next_operation_with_its_recognized_answer() {

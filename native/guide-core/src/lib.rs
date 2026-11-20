@@ -456,6 +456,12 @@ pub struct Input {
     pub checks: BTreeMap<String, bool>,
     #[serde(default)]
     pub started: BTreeMap<String, bool>,
+    /// Steps the player set aside to come back to later. An open set-aside
+    /// step no longer holds back the steps after it through source order
+    /// (implicit barriers), is never the next recommendation and is flagged
+    /// `set_aside` in its result. Declared dependencies still wait for it.
+    #[serde(default)]
+    pub set_aside: BTreeMap<String, bool>,
     #[serde(default)]
     pub explicit_dependencies: HashSet<String>,
     #[serde(default)]
@@ -990,7 +996,9 @@ impl CompiledGuide {
                 && !input.explicit_dependencies.contains(&step.key)
             {
                 for &dep in &self.implicit[i] {
-                    if !yes(&results[dep]["completion"]["value"]) {
+                    if !yes(&results[dep]["completion"]["value"])
+                        && input.set_aside.get(&self.rows[dep].1.key) != Some(&true)
+                    {
                         blocked.push(self.rows[dep].1.key.clone());
                         unknown_dep |= results[dep]["completion"]["value"].is_null();
                     }
@@ -1053,6 +1061,13 @@ impl CompiledGuide {
             }
         }
         self.revise(input, &mut results)?;
+        for (i, (_, step)) in self.rows.iter().enumerate() {
+            if input.set_aside.get(&step.key) == Some(&true)
+                && !matches!(text(&results[i]["status"]), "completed" | "not_applicable")
+            {
+                results[i]["set_aside"] = json!(true);
+            }
+        }
         self.finish(input, mode, country, results)
     }
 
@@ -1147,6 +1162,8 @@ impl CompiledGuide {
         for (rank, i) in order.iter().enumerate() {
             ranks[*i] = rank;
         }
+        // A step the player set aside is never recommended nor holds the lanes.
+        let aside = |i: usize| results[i]["set_aside"] == true;
         let mut tracks = Object::new();
         let mut candidates = [Vec::new(), Vec::new()];
         for track in self.guide.tracks.keys() {
@@ -1162,7 +1179,8 @@ impl CompiledGuide {
                 .filter(|i| self.rows[*i].0 == *track)
                 .collect();
             let next = sorted.iter().find(|i| {
-                !self.rows[**i].1.reminder()
+                !aside(**i)
+                    && !self.rows[**i].1.reminder()
                     && !self.rows[**i].1.optional()
                     && !matches!(
                         text(&results[**i]["status"]),
@@ -1175,6 +1193,7 @@ impl CompiledGuide {
                 let r = &results[i];
                 if s.reminder()
                     || s.optional()
+                    || aside(i)
                     || s.action.kind == Kind::SpecialProject
                     || matches!(
                         text(&r["status"]),
@@ -1248,10 +1267,10 @@ impl CompiledGuide {
             );
         }
         let mut output = json!({"schema_version":1,"guide_id":self.guide.id,"run_id":input.run_id,"progress_status":input.progress_status,"mode":mode,"country":country,
-            "tracks":tracks,"ready":order.iter().filter_map(|i|(results[*i]["status"]=="ready"&&!self.rows[*i].1.reminder()).then_some(&self.rows[*i].1.key)).collect::<Vec<_>>(),"parallel":parallel,
+            "tracks":tracks,"ready":order.iter().filter_map(|i|(results[*i]["status"]=="ready"&&!aside(*i)&&!self.rows[*i].1.reminder()).then_some(&self.rows[*i].1.key)).collect::<Vec<_>>(),"parallel":parallel,
             "action_context":{"session_id":input.original_state.session_id,"campaign_id":input.original_state.value("campaign.id")},
-            "action_sequence":{"political":self.rows.iter().enumerate().find_map(|(i,(_,s))|(s.domain()==Some("political")&&!matches!(text(&results[i]["status"]),"completed"|"not_applicable")).then_some(&s.key)),
-                "projects":self.rows.iter().enumerate().filter_map(|(i,(_,s))|(s.domain()==Some("project")&&!matches!(text(&results[i]["status"]),"completed"|"not_applicable")).then_some(&s.key)).collect::<Vec<_>>()}});
+            "action_sequence":{"political":self.rows.iter().enumerate().find_map(|(i,(_,s))|(s.domain()==Some("political")&&!aside(i)&&!matches!(text(&results[i]["status"]),"completed"|"not_applicable")).then_some(&s.key)),
+                "projects":self.rows.iter().enumerate().filter_map(|(i,(_,s))|(s.domain()==Some("project")&&!aside(i)&&!matches!(text(&results[i]["status"]),"completed"|"not_applicable")).then_some(&s.key)).collect::<Vec<_>>()}});
         if results.iter().any(|r| r.get("focus_readiness").is_some()) {
             let keys: Vec<_> = self
                 .guide
@@ -1263,10 +1282,12 @@ impl CompiledGuide {
                     })
                 })
                 .filter(|i| {
-                    !matches!(
-                        text(&results[*i]["status"]),
-                        "completed" | "not_applicable" | "active"
-                    ) && !self.rows[*i].1.optional()
+                    !aside(*i)
+                        && !matches!(
+                            text(&results[*i]["status"]),
+                            "completed" | "not_applicable" | "active"
+                        )
+                        && !self.rows[*i].1.optional()
                 })
                 .collect();
             if let Some(&primary) = keys.first() {

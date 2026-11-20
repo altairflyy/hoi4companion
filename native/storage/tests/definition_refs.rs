@@ -130,3 +130,21 @@ fn malformed_definition_refs_are_rejected_on_load() {
         assert!(call(&mut Store::default(), "load", json!({"snapshot":snapshot})).is_err());
     }
 }
+
+#[test]
+fn set_aside_steps_are_kept_with_the_run_and_left_out_of_metadata() {
+    let mut store = Store::default();
+    call(&mut store, "ensure", json!({"guide_id":"g","checks":{},"definitions":{"g":pin('a')}})).unwrap();
+    let aside = call(&mut store, "update", json!({"guide_id":"g","checks":{},"set_aside":{"k":true},"definitions":{}})).unwrap();
+    assert_eq!(aside["value"]["set_aside"], json!({"k":true}));
+    // An update without the field keeps the set-aside steps.
+    let kept = call(&mut store, "update", json!({"guide_id":"g","checks":{"x":true},"definitions":{}})).unwrap();
+    assert_eq!(kept["value"]["set_aside"], json!({"k":true}));
+    assert!(call(&mut store, "update", json!({"guide_id":"g","checks":{},"set_aside":{"k":"yes"},"definitions":{}})).is_err());
+    let metadata = call(&mut store, "metadata", json!({})).unwrap();
+    assert!(metadata["value"]["g"].get("set_aside").is_none());
+    // Runs written before the field existed stay valid.
+    let mut legacy = Store::default();
+    call(&mut legacy, "load", json!({"snapshot":legacy_snapshot()})).unwrap();
+    assert!(call(&mut legacy, "get", json!({"guide_id":"g"})).unwrap()["value"].get("set_aside").is_none());
+}

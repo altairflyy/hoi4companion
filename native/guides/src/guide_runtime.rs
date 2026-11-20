@@ -94,3 +94,26 @@ mod tests {
         );
     }
 }
+#[cfg(test)]
+mod set_aside_tests {
+    use super::*;
+    fn step<'a>(result: &'a Value, key: &str) -> &'a Value {
+        result["steps"].as_array().unwrap().iter().find(|s| s["key"] == key).unwrap()
+    }
+    #[test]
+    fn an_accepted_run_hands_its_set_aside_steps_to_guide_core() {
+        let guide = json!({"id":"aside","applies_to":{},"tracks":{"operations":[
+            {"key":"a","action":{"kind":"manual"}},{"key":"b","action":{"kind":"manual"}}]}});
+        let state = json!({"schema_version":1,"usable":false,"facts":{}});
+        let run = |aside: Value| json!({"schema_version":1,"guide_id":"aside","run_id":"r","checks":{},"started":{},"set_aside":aside});
+        let held = evaluate(&guide, &state, &run(json!({}))).unwrap();
+        assert_eq!(held["tracks"]["operations"]["next"], "a");
+        let aside = evaluate(&guide, &state, &run(json!({"a":true}))).unwrap();
+        assert_eq!(step(&aside, "a")["set_aside"], true);
+        assert_eq!(step(&aside, "b")["blocked_by"], json!([]));
+        assert_eq!(aside["tracks"]["operations"]["next"], "b");
+        // A run of another guide hands nothing over.
+        let foreign = json!({"schema_version":1,"guide_id":"other","run_id":"r","checks":{},"set_aside":{"a":true}});
+        assert!(step(&evaluate(&guide, &state, &foreign).unwrap(), "a").get("set_aside").is_none());
+    }
+}

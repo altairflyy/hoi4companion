@@ -100,6 +100,18 @@ fn nonblank(v: &Value) -> bool {
             .is_empty()
     })
 }
+/// The steps the player set aside in an accepted run (true entries only).
+fn set_aside(record: &Value) -> Value {
+    Value::Object(
+        record["set_aside"]
+            .as_object()
+            .into_iter()
+            .flatten()
+            .filter(|(_, v)| **v == Value::Bool(true))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
+    )
+}
 fn progress(guide: &Value, state: &Value, value: &Value) -> Result<Value> {
     let empty = |status: &str| json!([status, null, {}, {}]);
     if value.is_null() {
@@ -544,7 +556,7 @@ pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
             selectors[key]=json!(targets.iter().map(|p|production_context::selector_for(&json!({"action":{"params":p}})).map(|s|json!({"identity":production_context::selector_identity(&s),"category":s["category"]}))).collect::<Vec<_>>());
         }
     }
-    let payload = json!({"schema_version":1,"state":production[0],"original_state":state,"progress_status":status,"run_id":result[1],"checks":checks,"started":started,"explicit_dependencies":explicit,"construction":construction[1],"production":production[1],"research_bindings":if status=="accepted"&&record["research_bindings"].is_object(){record["research_bindings"].clone()}else{json!({})},"research_options":if status=="accepted"{record.get("research_options").cloned().unwrap_or_else(||json!({}))}else{json!({})},"foreign_tokens":foreign,"foreign_part_tokens":foreign_parts,"selectors":selectors});
+    let payload = json!({"schema_version":1,"state":production[0],"original_state":state,"progress_status":status,"run_id":result[1],"checks":checks,"started":started,"set_aside":if status=="accepted"&&!["wrong_country","wrong_tree"].contains(&mode){set_aside(record)}else{json!({})},"explicit_dependencies":explicit,"construction":construction[1],"production":production[1],"research_bindings":if status=="accepted"&&record["research_bindings"].is_object(){record["research_bindings"].clone()}else{json!({})},"research_options":if status=="accepted"{record.get("research_options").cloned().unwrap_or_else(||json!({}))}else{json!({})},"foreign_tokens":foreign,"foreign_part_tokens":foreign_parts,"selectors":selectors});
     let mut definition = json!({});
     for field in ["id", "applies_to", "dependency_policy", "phases", "tracks"] {
         if let Some(v) = guide.get(field) {

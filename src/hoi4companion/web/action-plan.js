@@ -168,8 +168,10 @@
   }
   return result;
  }
+ // A step the player set aside (`set_aside` from the Rust evaluation) is left
+ // out of "next", "now", "then" and the waits; the page lists it on its own.
  function compact(rows,political){
-  const actions=rows.filter(r=>r.tracking!=='reminder');
+  const actions=rows.filter(r=>r.tracking!=='reminder'&&!r.set_aside);
   const eligible=actions.filter(row=>(!row.action_readiness||row.action_readiness.domain!=='political'||row.key===political)&&(!['completed','not_applicable','waiting','active'].includes(row.runtime_status)||row.key===political&&row.runtime_status==='waiting'));
   const next=actions.find(row=>row.event_observation?.visible===true&&!['completed','not_applicable'].includes(row.runtime_status))||eligible.find(row=>!['dependency_unknown','phase_condition_unknown','condition_unknown','live_state_unavailable'].includes(row.runtime_reason))||eligible[0]||null;
   return {next,active:actions.filter(r=>r.runtime_status==='active'),waiting:actions.filter(r=>r.key!==next?.key&&['waiting','unverifiable'].includes(r.runtime_status)).slice(0,3)};
@@ -180,7 +182,7 @@
  // source), at most `limit`; it never reorders or completes anything.
  const blockKey=row=>{const p=row.action?.params?.source_action;return p&&typeof p.source_id==='string'&&typeof p.key==='string'?JSON.stringify([p.source_id,p.key]):null;};
  function guided(rows,political,limit=5){
-  const actions=rows.filter(r=>r.tracking!=='reminder'),byKey=new Map(rows.map(r=>[r.key,r]));
+  const actions=rows.filter(r=>r.tracking!=='reminder'&&!r.set_aside),byKey=new Map(rows.map(r=>[r.key,r]));
   const {next}=compact(rows,political);
   const eligible=row=>['ready','unverifiable'].includes(row.runtime_status)&&(!row.action_readiness||row.action_readiness.domain!=='political'||row.key===political);
   const now=next?[next]:[],block=next&&blockKey(next);

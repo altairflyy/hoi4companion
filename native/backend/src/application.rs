@@ -1273,8 +1273,8 @@ impl Application {
             } else if map.contains_key("run_id")
                 && map
                     .keys()
-                    .all(|k| ["run_id", "checks", "started"].contains(&k.as_str()))
-                && (map.contains_key("checks") || map.contains_key("started"))
+                    .all(|k| ["run_id", "checks", "started", "set_aside"].contains(&k.as_str()))
+                && (map.contains_key("checks") || map.contains_key("started") || map.contains_key("set_aside"))
             {
                 if update["run_id"] != current["run_id"] {
                     return Err("Checklist belongs to an inactive run".into());
@@ -1297,7 +1297,33 @@ impl Application {
                 {
                     return Err("Starts not declared by the guide".into());
                 }
-                let args = json!({"guide_id":id,"checks":checks,"started":started});
+                // Set-aside steps: only true entries naming a step of the
+                // run's definition are kept (keys left by an older definition drop).
+                let set_aside = match update.get("set_aside") {
+                    None => Value::Null,
+                    Some(v) => {
+                        let map = v.as_object().ok_or("Invalid set-aside steps")?;
+                        if map.values().any(|v| !v.is_boolean()) {
+                            return Err("Invalid set-aside steps".into());
+                        }
+                        let keys: HashSet<&str> = definition["tracks"]
+                            .as_object()
+                            .into_iter()
+                            .flat_map(|t| t.values())
+                            .filter_map(Value::as_array)
+                            .flatten()
+                            .filter(|r| r["tracking"] != "reminder")
+                            .filter_map(|r| r["key"].as_str())
+                            .collect();
+                        Value::Object(
+                            map.iter()
+                                .filter(|(k, v)| **v == Value::Bool(true) && keys.contains(k.as_str()))
+                                .map(|(k, v)| (k.clone(), v.clone()))
+                                .collect(),
+                        )
+                    }
+                };
+                let args = json!({"guide_id":id,"checks":checks,"started":started,"set_aside":set_aside});
                 self.runs_call("update", args)?;
             } else {
                 return Err("Unknown run operation".into());

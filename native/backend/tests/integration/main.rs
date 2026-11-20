@@ -16,4 +16,5 @@ mod interpretations;
 mod occurrence_identity;
 mod presentation_fixtures;
 mod real_catalog_contract;
+mod set_aside;
 mod startup_preparation;

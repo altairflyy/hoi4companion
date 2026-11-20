@@ -105,12 +105,18 @@
   return 'manual';
  }
  const verificationLabels={automatic:HoiI18n.t("Automatic"),manual:HoiI18n.t("Confirm yourself"),reminder:HoiI18n.t("Reminder"),uninterpreted:HoiI18n.t("Not interpreted")};
- function badges(row){const box=el('span','badge-pair'),when=whenLabel(row),how=verification(row);if(when){const w=el('span','badge badge-when',when);if(when===HoiI18n.t("Source order"))w.title=HoiI18n.t("The guide does not say when: follow the source order.");box.append(w);}const v=el('span','badge badge-verification verification-'+how,verificationLabels[how]);v.title=HoiI18n.t("How completion is known");box.append(v);
+ function badges(row){const box=el('span','badge-pair'),when=whenLabel(row),how=verification(row);if(row.set_aside){const a=el('span','badge badge-set-aside',HoiI18n.t("Set aside"));a.title=HoiI18n.t("You set this step aside: it is not proposed as the next step until you resume it.");box.append(a);}if(when){const w=el('span','badge badge-when',when);if(when===HoiI18n.t("Source order"))w.title=HoiI18n.t("The guide does not say when: follow the source order.");box.append(w);}const v=el('span','badge badge-verification verification-'+how,verificationLabels[how]);v.title=HoiI18n.t("How completion is known");box.append(v);
   // UX R13: the player's own reading of the line, shown as theirs, never as a check.
   const own=row.interpretation;if(own){const c=el('span','badge badge-interpretation',HoiI18n.t("Your reading: {0}",[categories[own.category]||HoiI18n.t("Other instructions"),own.target?.name].filter(Boolean).join(' · ')));c.title=HoiI18n.t("Saved by you in Correct bindings. It changes how the line is shown, never when it counts as done.");box.append(c);}
   return box;}
  function badge(row){return [whenLabel(row),verificationLabels[verification(row)]].filter(Boolean).join(' · ');}
  function confirm(key,text){const label=el('label','checkpoint-check'),input=el('input');input.type='checkbox';input.checked=value.progress.checks[key]===true;input.disabled=value.pending>0;input.setAttribute('data-check',key);input.addEventListener('change',()=>window.hoiGuide.confirm(key,input.checked).catch(()=>{}));label.title=HoiI18n.t("Tick it when you have done this in the game. The ✓ on the in-game card does the same.");label.append(input,el('span','',text));return label;}
+ // Set aside / resume: stored with the checklist; Rust then stops proposing the
+ // step and lets the following ones go on. Never completes anything by itself.
+ function asideButton(row){if(row.tracking==='reminder'||['completed','not_applicable'].includes(row.runtime_status))return null;
+  const b=el('button','set-aside-toggle',row.set_aside?HoiI18n.t("Resume"):HoiI18n.t("Set aside for later"));b.type='button';b.disabled=value.pending>0;b.setAttribute('data-set-aside',row.key);
+  b.title=row.set_aside?HoiI18n.t("Bring this step back into the plan. Completing it still works as before."):HoiI18n.t("Put this step aside to go on with the next ones. It stays in the Set aside list until you resume or complete it.");
+  b.onclick=()=>window.hoiGuide.setAside(row.key,!row.set_aside).catch(()=>{});return b;}
  function controls(row,box){
   if(row.superseded_by?.length){box.append(el('p','operation-copy',HoiI18n.t('Superseded targets are no longer requested; this does not prove the earlier setup was completed.')),dependencyItems(row.superseded_by,row));if(row.runtime_reason==='production_superseded')return;}
   if(row.tracking==='reminder'){box.append(el('p','operation-copy',HoiI18n.t("Method reminder: no confirmation required; it does not block other steps.")));return;}
@@ -123,6 +129,7 @@
   if(row.completion_condition)for(const key of HoiContracts.checkKeys(row.completion_condition))if(key!==row.action.params?.legacy_key)keys.add(key);
   const finalKeys=new Set(HoiContracts.checkKeys(row.completion_condition));
   for(const key of keys)box.append(confirm(key,finalKeys.has(key)?HoiI18n.t("Final criterion verified in the game"):key===row.key?HoiI18n.t("Done")+(row.confirmation?' · '+row.confirmation:''):HoiI18n.t("Condition verified in the game")));
+  const aside=asideButton(row);if(aside)box.append(aside);
  }
  function cachedCard(row,highlight=false){
   const key=(highlight?'next:':'plan:')+row.key,p=value.progress,phase=value.guide.phases?.find(item=>item.id===row.phase);
@@ -146,7 +153,7 @@
  function notThis(row){const how=verification(row),href=HoiActionPlan.correctionHref(row,how);if(!href)return null;const bound=HoiActionPlan.correctable(row);
   const a=el('a','not-this',bound?HoiI18n.t("Not this?"):row.interpretation?HoiI18n.t("Change your reading"):HoiI18n.t("What does this mean?"));a.href=window.hoiGuide.withGuide(href);
   a.title=bound?HoiI18n.t("Choose the right focus, technology or project for this step. Nothing changes until you save a correction."):HoiI18n.t("Say what this line is about. It changes how the line is shown, never when it counts as done.");return a;}
- function card(row,highlight=false){const node=el('article','operation-card'+(row.tracking==='reminder'?' reminder':'')+(row.event_observation?.visible?' event-visible':'')+(highlight?' highlighted':'')+(row.runtime_status==='completed'?' completed':'')+(row.runtime_status==='active'?' in-progress':''));node.id=(highlight?'next-operation-':'operation-')+row.key;node.dataset.step=row.key;
+ function card(row,highlight=false){const node=el('article','operation-card'+(row.tracking==='reminder'?' reminder':'')+(row.event_observation?.visible?' event-visible':'')+(highlight?' highlighted':'')+(row.runtime_status==='completed'?' completed':'')+(row.runtime_status==='active'?' in-progress':'')+(row.set_aside?' set-aside':''));node.id=(highlight?'next-operation-':'operation-')+row.key;node.dataset.step=row.key;
   const operational=describe(row);
   const hint=row.action.params?.category_hint;
   const label=(categories[row.category]||HoiI18n.t("INSTRUCTION"))+(hint&&hint!==row.category?' · '+hint:'');
@@ -287,6 +294,7 @@
   item.append(top,stepLink(row));const fix=notThis(row);if(fix)item.append(' ',fix);
   // One control: "Done" where the player confirms; none where the game shows it.
   if((row.completion_condition?HoiContracts.checkKeys(row.completion_condition).includes(row.key):['manual','special_project'].includes(row.action.kind))&&row.runtime_status!=='completed')item.append(confirm(row.key,HoiI18n.t("Done")));
+  const aside=asideButton(row);if(aside)item.append(' ',aside);
   return item;
  }
  function laneItem(lane,label){
@@ -321,6 +329,16 @@
   if(g.waiting){const p=el('p','guided-line guided-waiting');p.append(el('strong','',HoiI18n.t("Waiting")+': '),stepLink(g.waiting));
    const text=guidedReason(g.reason);if(text)p.append(el('span','guided-reason',' · '+text));parts.push(p);}
   box.replaceChildren(...parts);
+ }
+ // Steps set aside, in both modes, so the player can come back at any time:
+ // open the card, confirm it where it is confirmed by hand, or resume it.
+ function renderSetAside(rows){
+  const items=rows.filter(r=>r.set_aside),box=$('setAsideOperations'),list=$('setAsideOperationsList');box.hidden=!items.length;
+  const signature=JSON.stringify([value.pending,items.map(r=>[r.key,r.runtime_status,r.runtime_reason,r.title,r.name,r.reading,value.progress.checks?.[r.key]])]);
+  if(list.dataset.signature===signature)return;list.dataset.signature=signature;list.replaceChildren();
+  for(const row of items){const item=el('li','set-aside-item');item.dataset.step=row.key;item.append(stepLink(row),el('span','',' · '+badge(row)+' '));
+   if((row.completion_condition?HoiContracts.checkKeys(row.completion_condition).includes(row.key):['manual','special_project'].includes(row.action.kind))&&row.runtime_status!=='completed')item.append(confirm(row.key,HoiI18n.t("Done")));
+   item.append(' ',asideButton(row));list.append(item);}
  }
  function links(){const {guide,view}=value;const focus=view.lanes.focus.next,tech=view.lanes.research.next;
   const scope=guide.applies_to?.tree_id;const baseFocus=scope?'/?tree='+encodeURIComponent(scope):'/';
@@ -400,6 +418,7 @@
   sync($('nextOperation'),current);
   for(const id of ['guidedModeButton','advancedModeButton'])$(id).setAttribute('aria-pressed',String((id==='guidedModeButton')===guidedView));
   renderGuided(allRows,political);$('nextOperation').hidden=guidedView;
+  renderSetAside(allRows);
   for(const [id,items]of [['ongoingOperations',compact.active],['waitingOperations',compact.waiting]]){
    $(id).hidden=guidedView||!items.length;const list=$(id+'List');
    const signature=JSON.stringify(items.map(r=>[r.key,r.runtime_status,r.runtime_reason,r.title,r.name,r.construction,r.production]));

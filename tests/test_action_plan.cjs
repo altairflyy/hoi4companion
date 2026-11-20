@@ -190,3 +190,12 @@ test('lines followed by hand open the page to record the player reading, which o
  assert.equal(plan.category({...line,interpretation:{category:'army',target:null}}),'army');
  assert.equal(plan.category({...line,interpretation:{category:'weather'}}),'politics','an unknown category is ignored');
 });
+
+test('a step set aside by the player (Rust set_aside) is never next, now, then or a wait',()=>{
+ const rows=[row('a',{},{runtime_status:'unverifiable',runtime_reason:'manual_confirmation_required',set_aside:true}),
+  row('b',{},{runtime_status:'unverifiable',runtime_reason:'manual_confirmation_required'}),
+  row('w',{},{runtime_status:'waiting',set_aside:true})];
+ assert.equal(plan.compact(rows,null).next.key,'b');
+ const g=plan.guided(rows,null);
+ assert.deepEqual([g.now.map(r=>r.key),g.then,g.waiting],[['b'],null,null]);
+});

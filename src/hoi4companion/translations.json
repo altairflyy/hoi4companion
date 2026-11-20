@@ -16,6 +16,13 @@
     "research_choice_waiting": "an earlier research choice is not completed yet"
   },
   "messages": {
+    "Set aside steps": "Passaggi messi da parte",
+    "Set aside for later": "Metti da parte",
+    "Set aside": "Messo da parte",
+    "You set this step aside: it is not proposed as the next step until you resume it.": "Hai messo da parte questo passaggio: non viene proposto come prossimo finché non lo riprendi.",
+    "Bring this step back into the plan. Completing it still works as before.": "Rimette il passaggio nel piano. Puoi completarlo come prima.",
+    "Put this step aside to go on with the next ones. It stays in the Set aside list until you resume or complete it.": "Metti da parte il passaggio per andare avanti con i successivi. Resta nella lista Messi da parte finché non lo riprendi o lo completi.",
+    "Steps you put aside to come back to later. Complete or resume them at any time.": "Passaggi messi da parte per tornarci più tardi. Completali o riprendili quando vuoi.",
     "Under the guide line: “{0}”": "Sotto la riga della guida: “{0}”",
     "Your reading: {0}": "Tua lettura: {0}",
     "Saved by you in Correct bindings. It changes how the line is shown, never when it counts as done.": "Salvata da te in Correggi associazioni. Cambia come viene mostrata la riga, mai quando conta come fatta.",

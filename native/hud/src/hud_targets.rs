@@ -206,6 +206,10 @@ pub fn targets(
     let statuses: HashMap<&str, &str> = a(&runtime["steps"]).iter().map(|r| (s(&r["key"]), s(&r["status"]))).collect();
     for item in items {
         let key = s(&item["key"]);
+        // A step the player set aside is not highlighted until resumed.
+        if item["set_aside"] == true {
+            continue;
+        }
         let Some(row) = rows.get(key).copied() else {
             continue;
         };

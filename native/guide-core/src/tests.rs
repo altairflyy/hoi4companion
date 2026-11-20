@@ -154,3 +154,35 @@ fn prepared_logistics_balances_require_calculated_native_provenance() {
         assert_eq!(condition.evaluate(&state,&BTreeMap::new()),expected);
     }
 }
+#[test]
+fn a_set_aside_manual_step_releases_source_order_but_not_declared_dependencies() {
+    let manual = |key: &str| json!({"key":key,"action":{"kind":"manual"}});
+    let compiled = CompiledGuide::compile(
+        serde_json::from_value(json!({"id":"test","dependency_policy":"legacy","tracks":{"operations":[
+            manual("a"),
+            manual("b"),
+            {"key":"c","depends_on":["a"],"action":{"kind":"manual"}}
+        ]}}))
+        .unwrap(),
+    )
+    .unwrap();
+    let mut held = input(json!({}));
+    let before = compiled.evaluate(&held).unwrap();
+    assert_eq!(before["steps"][1]["blocked_by"], json!(["a"]));
+    assert_eq!(before["tracks"]["operations"]["next"], "a");
+    held.set_aside.insert("a".into(), true);
+    let after = compiled.evaluate(&held).unwrap();
+    assert_eq!(after["steps"][0]["set_aside"], true);
+    // "a" is still open: its own status is unchanged, it is only not recommended.
+    assert_eq!(after["steps"][0]["reason"], "manual_confirmation_required");
+    assert_eq!(after["steps"][1]["reason"], "manual_confirmation_required");
+    assert_eq!(after["steps"][1].get("set_aside"), None);
+    assert_eq!(after["tracks"]["operations"]["next"], "b");
+    // A declared dependency still waits for the set-aside step.
+    assert!(after["steps"][2]["blocked_by"].as_array().unwrap().contains(&json!("a")));
+    // Once done, the step is simply completed and no longer flagged.
+    held.checks.insert("a".into(), true);
+    let done = compiled.evaluate(&held).unwrap();
+    assert_eq!(done["steps"][0]["status"], "completed");
+    assert_eq!(done["steps"][0].get("set_aside"), None);
+}
