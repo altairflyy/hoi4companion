@@ -64,7 +64,7 @@ fn sync_locked(root: &Path, running: impl Fn()->Result<bool>) -> Result<Value> {
         let export=crate::advanced_references::export_mios(job["rows"].as_array().ok_or("Missing MIO presets")?,old.as_deref())?;
         if running()?{job["status"]=json!("waiting_for_game_exit");job["restart_required"]=json!(true);return Ok(job.clone())}
         let mut backup=Value::Null;
-        if export["added"].as_u64().unwrap_or(0)>0 {
+        if export["added"].as_u64().unwrap_or(0)+export["repaired"].as_u64().unwrap_or(0)>0 {
             if let Some(raw)=old.as_ref(){
                 let b=directory.join(format!("mio_queues.companion-{}.bak",crate::advanced_references::id(raw)));
                 if b.exists(){if fs::read(&b).map_err(|e|e.to_string())?!=*raw{return Err("MIO backup conflict".into())}}
@@ -76,7 +76,7 @@ fn sync_locked(root: &Path, running: impl Fn()->Result<bool>) -> Result<Value> {
             if running()?{job["status"]=json!("waiting_for_game_exit");job["restart_required"]=json!(true);return Ok(job.clone())}
             crate::reference_library::atomic_write(&path,export["text"].as_str().ok_or("Invalid MIO export")?.as_bytes())?;
         }
-        Ok(json!({"status":"installed","restart_required":false,"load_on_next_launch":true,"count":export["count"],"added":export["added"],"existing":export["existing"],"renamed":export["renamed"],"path":path,"backup":backup,"campaign_verified":false}))
+        Ok(json!({"status":"installed","restart_required":false,"load_on_next_launch":true,"count":export["count"],"added":export["added"],"existing":export["existing"],"renamed":export["renamed"],"repaired":export["repaired"],"path":path,"backup":backup,"campaign_verified":false}))
     })();
     let value=result.unwrap_or_else(|error|json!({"status":"error","restart_required":false,"error":error}));
     save(root,&value)?;
@@ -101,5 +101,11 @@ mod tests {
         save(&library,&json!({"status":"pending","docs":docs,"rows":rows})).unwrap();assert_eq!(sync_locked(&library,||Ok(false)).unwrap()["added"],0);
         fs::write(&path,b"version=99").unwrap();save(&library,&json!({"status":"pending","docs":docs,"rows":rows})).unwrap();assert_eq!(sync_locked(&library,||Ok(false)).unwrap()["status"],"error");assert_eq!(fs::read(&path).unwrap(),b"version=99");
         save(&library,&json!({"status":"pending","docs":docs,"rows":rows})).unwrap();assert_eq!(sync_locked(&library,||Err("process scan unavailable".into())).unwrap()["status"],"error");
+        // A preset the game emptied is refilled on disk, not only counted.
+        let emptied=br#"version=0 X={ {name="Guide"} }"#;fs::write(&path,emptied).unwrap();
+        save(&library,&json!({"status":"pending","docs":docs,"rows":rows})).unwrap();
+        let repaired=sync_locked(&library,||Ok(false)).unwrap();assert_eq!((&repaired["added"],&repaired["repaired"]),(&json!(0),&json!(1)));
+        assert_eq!(fs::read(repaired["backup"].as_str().unwrap()).unwrap(),emptied);
+        assert_eq!(crate::advanced_references::mio_queues(&fs::read(&path).unwrap()).unwrap()[0]["traits"],json!(["second"]));
     }
 }
