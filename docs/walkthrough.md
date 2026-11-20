@@ -41,9 +41,7 @@ summaries and a currently visible event can intentionally take priority over the
 chronological list. The next actionable suggestion still requires the runtime's
 conditions; it is not simply the first displayed card.
 
-Detailed historical implementation notes and recorded evidence are preserved in the
-[Italian reference](it/walkthrough.md). Those records retain their original dates and
-verification limits; they are not a claim that every check was rerun for this translation.
+Historical notes based on a third-party guide were removed from the repository.
 
 ## Actions blocks
 

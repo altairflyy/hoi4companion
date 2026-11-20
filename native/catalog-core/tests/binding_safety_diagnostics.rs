@@ -3,6 +3,20 @@
 use hoi4companion_catalog_core::Catalog;
 use serde_json::{Value,json};
 
+/// Data derived from third-party guides is local only (`.local/guide-corpus`, or
+/// the folder in HOI4_GUIDE_CORPUS) and never committed: without it the test is skipped.
+fn corpus(name: &str) -> Option<Value> {
+    let dir = std::env::var_os("HOI4_GUIDE_CORPUS")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.local/guide-corpus"));
+    match std::fs::read(dir.join(name)) {
+        Ok(bytes) => Some(serde_json::from_slice(&bytes).unwrap()),
+        Err(_) => {
+            eprintln!("local guide corpus absent ({name}): skipped");
+            None
+        }
+    }
+}
 fn catalog(entries: &Value) -> Catalog {
     Catalog::compile(serde_json::from_value(json!({"schema_version":1,"entries":entries})).unwrap()).unwrap()
 }
@@ -12,7 +26,7 @@ fn matches(catalog: &Catalog,query: &str,country: &str,kind: &str,explicit: bool
 }
 #[test]
 fn current_catalog_uniqueness_does_not_disambiguate_decisions_from_event_answers() {
-    let fixture:Value=serde_json::from_str(include_str!("../../../tests/fixtures/guide-binding-probe-cases-v1.json")).unwrap();
+    let Some(fixture)=corpus("guide-binding-probe-cases-v1.json") else { return };
     for case in fixture["cases"].as_array().unwrap(){
         let c=catalog(&case["entries"]);let query=case["query"].as_str().unwrap();let country=case["country"].as_str().unwrap();
         let ids=matches(&c,query,country,"decision",false);

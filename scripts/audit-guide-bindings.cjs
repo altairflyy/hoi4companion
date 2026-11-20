@@ -3,17 +3,18 @@
 // never imported by the application or its evaluator.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{spawnSync}=require('node:child_process');
 const {ROOT,json,temporary}=require('./native-tooling.cjs');
-const benchmark=require('./benchmark-guides.cjs');
+const benchmark=require('./benchmark-guides.cjs'),corpus=require('./guide-corpus.cjs');
 const digest=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+// Real-guide corpus files, local only (guide-corpus.cjs), never committed.
 const PROTECTED={
- 'tests/fixtures/guide-benchmark-baseline.json':'62d158fd1fcb9c9277bf1a895615b29922670984be375ec9af4a3e04947a6ae9',
- 'tests/fixtures/guide-benchmark-development.json':'86872b340546e9e7ed533a835b6436438c488c10f68f372a76edc84a0d1afc6e',
- 'tests/fixtures/guide-benchmark-holdout.json':'2b34515cbec0881943a7d67907129ba21397f9f961a2b70bf25eacc51ca42ea6'
+ 'guide-benchmark-baseline.json':'62d158fd1fcb9c9277bf1a895615b29922670984be375ec9af4a3e04947a6ae9',
+ 'guide-benchmark-development.json':'86872b340546e9e7ed533a835b6436438c488c10f68f372a76edc84a0d1afc6e',
+ 'guide-benchmark-holdout.json':'2b34515cbec0881943a7d67907129ba21397f9f961a2b70bf25eacc51ca42ea6'
 };
 const IDENTITIES={decision_id:'decision',advisor_id:'advisor',law_id:'law',idea_id:'idea',project_id:'project',doctrine_id:'doctrine',event_id:'event',event_option_id:'event_option'};
 const NAMES=new Set(['decision','advisor','law','idea','project','doctrine','event_option']);
 function tally(rows,field){const counts={};for(const row of rows){const key=typeof field==='function'?field(row):row[field];counts[key]=(counts[key]||0)+1;}return counts;}
-function protectedHashes(){const hashes={};for(const [name,expected] of Object.entries(PROTECTED)){const actual=digest(path.join(ROOT,name));if(actual!==expected)throw Error('Protected benchmark input changed: '+name);hashes[name]=actual;}return hashes;}
+function protectedHashes(){const hashes={};for(const [name,expected] of Object.entries(PROTECTED)){const actual=digest(path.join(corpus.dir,name));if(actual!==expected)throw Error('Protected benchmark input changed: '+name);hashes[name]=actual;}return hashes;}
 function sourceQuery(step){
  const instructions=step.action?.params?.instructions;
  const raw=Array.isArray(instructions)&&instructions.length===1?instructions[0]:step.title;

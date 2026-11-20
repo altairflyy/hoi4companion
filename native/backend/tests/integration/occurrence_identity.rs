@@ -7,15 +7,28 @@ use hoi4companion_backend::occurrence_manifest::{build, correspondence, line_mat
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
-fn fixture(name: &str) -> Value {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../tests/fixtures/{name}.json"));
-    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+/// Data derived from third-party guides is local only (`.local/guide-corpus`, or
+/// the folder in HOI4_GUIDE_CORPUS) and never committed: without it the test is skipped.
+fn corpus(name: &str) -> Option<Value> {
+    let dir = std::env::var_os("HOI4_GUIDE_CORPUS")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.local/guide-corpus"));
+    match std::fs::read(dir.join(name)) {
+        Ok(bytes) => Some(serde_json::from_slice(&bytes).unwrap()),
+        Err(_) => {
+            eprintln!("local guide corpus absent ({name}): skipped");
+            None
+        }
+    }
+}
+fn fixture(name: &str) -> Option<Value> {
+    corpus(&format!("{name}.json"))
 }
 
 #[test]
 fn frozen_corpus_steps_get_unique_identities_and_preserve_order_and_lineage() {
     // 50 guides / 6,996 prepared steps from the frozen baseline identity snapshot.
-    let baseline = fixture("guide-benchmark-baseline");
+    let Some(baseline) = fixture("guide-benchmark-baseline") else { return };
     let (mut all, mut steps, mut children, mut shared) = (HashSet::new(), 0, 0, 0);
     for guide in baseline["per_guide"].as_array().unwrap() {
         let mut tracks = serde_json::Map::new();
@@ -67,7 +80,8 @@ fn development_and_holdout_lines_get_exact_spans_or_stay_unlocated() {
     // located. Proposed annotations are never read.
     for split in ["guide-benchmark-development", "guide-benchmark-holdout"] {
         let (mut located, mut other, mut total) = (0, 0, 0);
-        for case in fixture(split)["cases"].as_array().unwrap() {
+        let Some(split) = fixture(split) else { return };
+        for case in split["cases"].as_array().unwrap() {
             let ctx = &case["context"];
             let block = ctx["block"].as_str().unwrap_or("");
             let line = case["text"].as_str().unwrap();

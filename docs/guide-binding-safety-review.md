@@ -1,5 +1,7 @@
 # Binding safety and benchmark validation — 2026-11-15
 
+> The real-guide corpus files named here are **local only** (`.local/guide-corpus`, or `HOI4_GUIDE_CORPUS`): they derive from third-party guides and are never committed. Tests that need them are skipped without them (`scripts/guide-corpus.cjs`).
+
 ## Recommendation: first production change, after approval
 
 Add **one import-admission guard for ambiguous implicit decision names** at the
@@ -133,7 +135,7 @@ name-fragment diagnostic does not purport to fully reimplement them.
 
 ## Independent review of proposed gold
 
-`tests/fixtures/guide-gold-review-v1.json` records a source-only stratified second
+`.local/guide-corpus/guide-gold-review-v1.json` records a source-only stratified second
 agent review of **60 development cases across 20 countries**. It did not use the
 holdout. Deterministic selection metadata, seed, input development SHA-256,
 case/source IDs and individual reasoning are included.
@@ -242,13 +244,13 @@ risks; this small first change is deliberately not a universal resolver redesign
   native name-fragment replay and both strict/narrow shadow policies.
 - `native/catalog-core/examples/binding_probe.rs`: existing native resolver and
   native normalization evidence; no production-policy implementation.
-- `tests/fixtures/guide-binding-safety-audit-v1.json`: all 182 decision cases,
+- `.local/guide-corpus/guide-binding-safety-audit-v1.json`: all 182 decision cases,
   native candidate evidence and measured impact; no forced semantic verdicts.
-- `tests/fixtures/guide-binding-safety-findings-v1.json`: independent script/hash
+- `.local/guide-corpus/guide-binding-safety-findings-v1.json`: independent script/hash
   verification of original findings plus the suspicious French case.
-- `tests/fixtures/guide-binding-probe-cases-v1.json`: seven minimized actual
+- `.local/guide-corpus/guide-binding-probe-cases-v1.json`: seven minimized actual
   catalog cases including negative controls, explicitly not human gold.
-- `tests/fixtures/guide-gold-review-v1.json`: independent 60-case proposed review.
+- `.local/guide-corpus/guide-gold-review-v1.json`: independent 60-case proposed review.
 - `native/catalog-core/tests/binding_safety_diagnostics.rs`: three tests against
   the real current resolver's ambiguity, country and event-parent behavior.
 - `native/backend/tests/integration/guide_identity_diagnostics.rs` and

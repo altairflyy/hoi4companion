@@ -9,9 +9,22 @@ use hoi4companion_storage::request as storage;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
-fn fixture(name: &str) -> Value {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../tests/fixtures/{name}.json"));
-    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+/// Data derived from third-party guides is local only (`.local/guide-corpus`, or
+/// the folder in HOI4_GUIDE_CORPUS) and never committed: without it the test is skipped.
+fn corpus(name: &str) -> Option<Value> {
+    let dir = std::env::var_os("HOI4_GUIDE_CORPUS")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.local/guide-corpus"));
+    match std::fs::read(dir.join(name)) {
+        Ok(bytes) => Some(serde_json::from_slice(&bytes).unwrap()),
+        Err(_) => {
+            eprintln!("local guide corpus absent ({name}): skipped");
+            None
+        }
+    }
+}
+fn fixture(name: &str) -> Option<Value> {
+    corpus(&format!("{name}.json"))
 }
 fn category(line: &str) -> &'static str {
     // Contract 3 splits `scope: action:` headers into a scope and a trackable step.
@@ -34,9 +47,9 @@ fn container(block: &str) -> Value {
         "action":{"kind":"manual","params":{"instructions":[block]}}})
 }
 /// Confusion of proposed disposition -> contract-2 line category.
-fn agreement(split: &str) -> (BTreeMap<String, usize>, usize) {
+fn agreement(split: &str) -> Option<(BTreeMap<String, usize>, usize)> {
     let (mut table, mut unconditional) = (BTreeMap::new(), 0);
-    for case in fixture(split)["cases"].as_array().unwrap() {
+    for case in fixture(split)?["cases"].as_array().unwrap() {
         let proposed = case["proposed_expected"]["disposition"].as_str().unwrap();
         *table.entry(format!("{proposed} -> {}", category(case["text"].as_str().unwrap()))).or_default() += 1;
         // Structural safety on the whole block: after a timing header no child
@@ -53,13 +66,13 @@ fn agreement(split: &str) -> (BTreeMap<String, usize>, usize) {
             }
         }
     }
-    (table, unconditional)
+    Some((table, unconditional))
 }
 
 #[test]
 fn development_semantics_agree_with_proposals_on_headers_and_never_drop_conditions() {
     // Development split only; proposals are agent annotations (not human gold).
-    let (table, unconditional) = agreement("guide-benchmark-development");
+    let Some((table, unconditional)) = agreement("guide-benchmark-development") else { return };
     eprintln!("development agreement: {table:#?}");
     let get = |k: &str| table.get(k).copied().unwrap_or(0);
     assert_eq!(unconditional, 0, "a timing-scoped line never becomes unconditional");
@@ -80,7 +93,7 @@ fn holdout_final_evaluation_is_opt_in_and_unasserted() {
     if std::env::var("HOI4_HOLDOUT_FINAL").as_deref() != Ok("1") {
         return eprintln!("holdout final evaluation skipped (set HOI4_HOLDOUT_FINAL=1)");
     }
-    let (table, unconditional) = agreement("guide-benchmark-holdout");
+    let Some((table, unconditional)) = agreement("guide-benchmark-holdout") else { return };
     eprintln!("HOLDOUT final agreement: {table:#?}\nunconditional_after_timing={unconditional}");
 }
 

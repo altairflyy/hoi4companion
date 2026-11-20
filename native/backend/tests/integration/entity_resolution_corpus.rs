@@ -84,8 +84,13 @@ fn development_triggers_never_resolve_through_country_labels_or_unsupported_matc
     if guides.is_empty() {
         return eprintln!("installed corpus absent: skipped");
     }
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/guide-benchmark-development.json");
-    let dev: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    // Local only, never committed (see scripts/guide-corpus.cjs).
+    let dir = std::env::var_os("HOI4_GUIDE_CORPUS").map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.local/guide-corpus"));
+    let Ok(bytes) = std::fs::read(dir.join("guide-benchmark-development.json")) else {
+        return eprintln!("local guide corpus absent: skipped");
+    };
+    let dev: Value = serde_json::from_slice(&bytes).unwrap();
     let mut table: BTreeMap<String, usize> = BTreeMap::new();
     for case in dev["cases"].as_array().unwrap() {
         let text = case["proposed_expected"]["trigger"]["text"].as_str().unwrap_or("");

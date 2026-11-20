@@ -2,11 +2,12 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),{spawn}=require('node:child_process'),{once}=require('node:events');
 const {ROOT,json,write,temporary,sha}=require('../scripts/native-tooling.cjs');
-const {zip,word}=require('./native-fixtures.cjs');
+const {zip,word}=require('./native-fixtures.cjs'),corpus=require('../scripts/guide-corpus.cjs');
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function fixture(){
- const cases=json(path.join(__dirname,'fixtures/guide-binding-probe-cases-v1.json')).cases;
- const second=json(path.join(__dirname,'fixtures/guide-binding-safety-audit-v1.json')).decision_shadow_policy.cases.find(c=>c.guide_id==='word-67736ac669bdcbf1');
+ // Real-guide probe cases are local only (scripts/guide-corpus.cjs).
+ const cases=json(corpus.file('guide-binding-probe-cases-v1.json')).cases;
+ const second=json(corpus.file('guide-binding-safety-audit-v1.json')).decision_shadow_policy.cases.find(c=>c.guide_id==='word-67736ac669bdcbf1');
  const sov=structuredClone(cases.find(c=>c.country==='SOV'));
  sov.source_guide=second.guide_id;sov.source_step_key=second.step_key;cases.push(sov);return cases;
 }
@@ -49,7 +50,7 @@ function gameFixture(root){
 }
 
 test('decision safety across ZIP, HTTP, collection publication, persisted provenance and reload',
- {skip:process.platform!=='win32',timeout:300000},async t=>{
+ {skip:process.platform!=='win32'||corpus.skip('guide-binding-probe-cases-v1.json','guide-binding-safety-audit-v1.json'),timeout:300000},async t=>{
  const stage=temporary('hoi4-decision-http-'),root=stage.root,resources=path.join(ROOT,'src/hoi4companion');
  const exe=process.env.HOI4_BACKEND_EXE||path.join(resources,'_native/hoi4-backend.exe');
  const original={id:'original',title:'Existing guide',tracks:{operations:[{key:'note',action:{kind:'manual'},completion:{op:'check',key:'note'}}]}};

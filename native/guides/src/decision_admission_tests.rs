@@ -3,11 +3,22 @@ use crate::{import_catalog::Index, import_preview, recipient};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-fn cases() -> Value {
-    serde_json::from_str(include_str!(
-        "../../../tests/fixtures/guide-binding-probe-cases-v1.json"
-    ))
-    .unwrap()
+/// Data derived from third-party guides is local only (`.local/guide-corpus`, or
+/// the folder in HOI4_GUIDE_CORPUS) and never committed: without it the test is skipped.
+fn corpus(name: &str) -> Option<Value> {
+    let dir = std::env::var_os("HOI4_GUIDE_CORPUS")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.local/guide-corpus"));
+    match std::fs::read(dir.join(name)) {
+        Ok(bytes) => Some(serde_json::from_slice(&bytes).unwrap()),
+        Err(_) => {
+            eprintln!("local guide corpus absent ({name}): skipped");
+            None
+        }
+    }
+}
+fn cases() -> Option<Value> {
+    corpus("guide-binding-probe-cases-v1.json")
 }
 fn index(entries: &Value) -> Index {
     Index::new(&json!({"entries":entries})).unwrap()
@@ -27,7 +38,8 @@ fn step(report: &Value) -> &Value {
 
 #[test]
 fn decision_admission_weak_english_soviet_and_french_names_need_revision_without_replacement() {
-    for c in cases()["cases"]
+    let Some(cases) = cases() else { return };
+    for c in cases["cases"]
         .as_array()
         .unwrap()
         .iter()
@@ -53,7 +65,8 @@ fn decision_admission_weak_english_soviet_and_french_names_need_revision_without
 
 #[test]
 fn decision_admission_inference_survives_serialization_and_repreview() {
-    let c = &cases()["cases"][0];
+    let Some(cases) = cases() else { return };
+    let c = &cases["cases"][0];
     let (guide, sources) = input(
         c["query"].as_str().unwrap(),
         "ENG",
@@ -75,7 +88,8 @@ fn decision_admission_inference_survives_serialization_and_repreview() {
 
 #[test]
 fn decision_admission_legacy_ids_are_unknown_not_historical_explicit_choices() {
-    let c = &cases()["cases"][0];
+    let Some(cases) = cases() else { return };
+    let c = &cases["cases"][0];
     let (mut guide, sources) = input("We shall…", "ENG", json!({"decision_id":c["saved_id"]}));
     guide["tracks"]["operations"][0]
         .as_object_mut()
@@ -93,7 +107,8 @@ fn decision_admission_legacy_ids_are_unknown_not_historical_explicit_choices() {
 
 #[test]
 fn decision_admission_explicit_and_reviewed_ids_are_preserved_but_not_proof_of_ownership() {
-    let c = &cases()["cases"][0];
+    let Some(cases) = cases() else { return };
+    let c = &cases["cases"][0];
     for origin in ["explicit_id", "user_reviewed"] {
         let (mut guide, sources) = input(
             "We shall…",
@@ -117,7 +132,8 @@ fn decision_admission_explicit_and_reviewed_ids_are_preserved_but_not_proof_of_o
 
 #[test]
 fn decision_admission_foreign_mines_carlist_abbreviations_and_exact_names_remain_usable() {
-    for c in cases()["cases"]
+    let Some(cases) = cases() else { return };
+    for c in cases["cases"]
         .as_array()
         .unwrap()
         .iter()
@@ -132,7 +148,7 @@ fn decision_admission_foreign_mines_carlist_abbreviations_and_exact_names_remain
         assert_eq!(r["valid"], true, "{}: {}", c["query"], r);
         assert_eq!(step(&r)["action"]["params"]["decision_id"], c["saved_id"]);
     }
-    let c = &cases()["cases"][0];
+    let c = &cases["cases"][0];
     let name = c["entries"]
         .as_array()
         .unwrap()
@@ -163,7 +179,8 @@ fn decision_admission_known_tag_conflict_is_rejected_without_rewriting_id() {
 
 #[test]
 fn decision_admission_changed_id_cannot_reuse_old_inference_provenance() {
-    let c = &cases()["cases"][0];
+    let Some(cases) = cases() else { return };
+    let c = &cases["cases"][0];
     let (mut guide, sources) = input(
         "We shall…",
         "ENG",
@@ -224,7 +241,8 @@ fn decision_admission_nested_ownership_keeps_unknown_and_original_country_separa
 
 #[test]
 fn decision_admission_cost_and_timing_suffixes_cannot_hide_a_weak_match() {
-    let c = &cases()["cases"][0];
+    let Some(cases) = cases() else { return };
+    let c = &cases["cases"][0];
     for text in [
         "We shall… (50PP)",
         "ASAP: We shall… (50PP)",
@@ -310,10 +328,7 @@ fn decision_admission_frozen_corpus_preserves_bindings_and_reports_new_import_im
         assert_eq!(&guide, original, "{}", item["id"]);
     }
     assert_eq!(decisions, 182);
-    let frozen: Value = serde_json::from_str(include_str!(
-        "../../../tests/fixtures/guide-binding-safety-audit-v1.json"
-    ))
-    .unwrap();
+    let Some(frozen) = corpus("guide-binding-safety-audit-v1.json") else { return };
     let mut changed = vec![];
     let mut unchanged = 0;
     for c in frozen["decision_shadow_policy"]["cases"]

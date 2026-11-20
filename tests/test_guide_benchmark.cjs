@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const b=require('../scripts/benchmark-guides.cjs');
+const b=require('../scripts/benchmark-guides.cjs'),corpus=require('../scripts/guide-corpus.cjs');
 function guide(text='Build 2 military factories'){
  return {id:'fixture',title:'Fixture',applies_to:{country:'GER'},sources:[{id:'src',type:'file',title:'Fixture',content_sha256:'abc',text:'[Table row]\n[Column 1]\nACTIONS\n[Column 2]\nRESEARCH PRIORITY*\n[Column 3]\nFOCUS PRIORITY\n[Table row]\n[Column 1]\n'+text+'\n[Column 2]\nBasic Machine Tools\n[Column 3]\nA focus'}],tracks:{operations:[{key:'word-0001',evidence:[{source_id:'src',quote:text}],tracking:'reminder',action:{kind:'manual',params:{instructions:[text]}}}]}};
 }
@@ -85,12 +85,13 @@ test('normalized group members are not discarded when asserting absence or numbe
 test('partial runtime capture exposes partial subtotals instead of presenting missing guides as zero',()=>{
  const g=guide(),a=b.analyze([g],{runtime:{guides:[{id:g.id,error:'failed'}]}}).report;assert.equal(a.metrics.runtime_steps,null);assert.equal(a.metrics.runtime_steps_measured,0);assert.equal(a.metrics.opaque_multiline_reminder_steps,null);assert.equal(a.metrics.verification,null);assert.equal(a.measurement_coverage.source_lines_not_measured,1);
 });
-test('checked-in real binding examples remain proposed and retain exact source/script proof',()=>{
- const f=JSON.parse(fs.readFileSync('tests/fixtures/guide-benchmark-bindings.json','utf8'));assert.equal(f.cases.length,6);assert.equal(f.annotation_status,'agent_proposed');assert.equal(f.human_review,'pending');for(const c of f.cases){assert.ok(c.source.content_sha256);assert.ok(c.source.quote);assert.ok(c.saved_binding.decision_id);}
+// The real-guide corpus is local only (scripts/guide-corpus.cjs): these tests skip without it.
+test('local real binding examples remain proposed and retain exact source/script proof',{skip:corpus.skip('guide-benchmark-bindings.json')},()=>{
+ const f=JSON.parse(fs.readFileSync(corpus.file('guide-benchmark-bindings.json'),'utf8'));assert.equal(f.cases.length,6);assert.equal(f.annotation_status,'agent_proposed');assert.equal(f.human_review,'pending');for(const c of f.cases){assert.ok(c.source.content_sha256);assert.ok(c.source.quote);assert.ok(c.saved_binding.decision_id);}
 });
 
-test('frozen development and holdout cover 400 source lines without claiming human validation',()=>{
- const development=JSON.parse(fs.readFileSync('tests/fixtures/guide-benchmark-development.json')),holdout=JSON.parse(fs.readFileSync('tests/fixtures/guide-benchmark-holdout.json')),cases=[...development.cases,...holdout.cases];
+test('frozen development and holdout cover 400 source lines without claiming human validation',{skip:corpus.skip('guide-benchmark-development.json','guide-benchmark-holdout.json')},()=>{
+ const development=JSON.parse(fs.readFileSync(corpus.file('guide-benchmark-development.json'))),holdout=JSON.parse(fs.readFileSync(corpus.file('guide-benchmark-holdout.json'))),cases=[...development.cases,...holdout.cases];
  assert.equal(development.cases.length,320);assert.equal(holdout.cases.length,80);assert.equal(development.dataset_sha256,holdout.dataset_sha256);assert.equal(new Set(cases.map(c=>c.id)).size,400);assert.equal(new Set(cases.map(c=>c.guide_id)).size,48);
  const guides=new Set(development.cases.map(c=>c.guide_id)),texts=new Set(development.cases.map(c=>b.norm(c.text).toLowerCase()));
  for(const c of holdout.cases){assert.equal(c.split,'holdout');assert.equal(guides.has(c.guide_id),false);assert.equal(texts.has(b.norm(c.text).toLowerCase()),false);}

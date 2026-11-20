@@ -1,5 +1,7 @@
 # Same-author guide interpretation baseline
 
+> The real-guide corpus files named here are **local only** (`.local/guide-corpus`, or `HOI4_GUIDE_CORPUS`): they derive from third-party guides and are never committed. Tests that need them are skipped without them (`scripts/guide-corpus.cjs`).
+
 Baseline captured on 2026-11-15. This investigation adds **diagnostics only**:
 no production parsing/evaluation, application UI, guide files, campaign records,
 game files or game memory were changed. Existing unrelated working-tree changes
@@ -162,7 +164,7 @@ exhaustive manual audit of all entities and do not prove that a fresh import of
 the original names currently reproduces them. The offline runtime still preserves
 these saved associations.
 
-`tests/fixtures/guide-benchmark-bindings.json` contains script-relative paths,
+`.local/guide-corpus/guide-benchmark-bindings.json` contains script-relative paths,
 line ranges, SHA-256 hashes, original quotes and reasoning for these three cases
 and three controls. Norway's `SWE_repair_the_mines` is **not** declared wrong:
 the source says to repair after Sweden falls, and the scripts use control/damage
@@ -176,8 +178,8 @@ Future work must improve the contextual evidence, not weaken this distinction.
 
 ## Proposed gold and holdout
 
-- `tests/fixtures/guide-benchmark-development.json`: 320 cases.
-- `tests/fixtures/guide-benchmark-holdout.json`: 80 cases in a **separate file**.
+- `.local/guide-corpus/guide-benchmark-development.json`: 320 cases.
+- `.local/guide-corpus/guide-benchmark-holdout.json`: 80 cases in a **separate file**.
 - Source-only stratification covers all 48 country guides, multiple operation
   families, costs, abbreviations, conjunctions, negations, nested/elliptical
   triggers, multiline blocks and incomplete names.
@@ -252,10 +254,10 @@ Files added by this investigation:
 | `native/backend/tests/integration/guide_benchmark_contracts.rs` | Four current-behavior diagnostic contracts |
 | `tests/test_guide_benchmark.cjs` | Diagnostic correctness and frozen-sample safeguards |
 | `tests/test_guide_benchmark_sources.cjs` | Original extraction, coordinates, duplicate entries and unsafe-XML rejection |
-| `tests/fixtures/guide-benchmark-baseline.json` | Frozen corpus/per-guide counters, all prepared step identities and input fingerprints |
-| `tests/fixtures/guide-benchmark-development.json` | 320 proposed expected interpretations |
-| `tests/fixtures/guide-benchmark-holdout.json` | 80 separately held-out proposed interpretations |
-| `tests/fixtures/guide-benchmark-bindings.json` | Six real script-evidenced country-binding cases, still awaiting human approval |
+| `.local/guide-corpus/guide-benchmark-baseline.json` | Frozen corpus/per-guide counters, all prepared step identities and input fingerprints |
+| `.local/guide-corpus/guide-benchmark-development.json` | 320 proposed expected interpretations |
+| `.local/guide-corpus/guide-benchmark-holdout.json` | 80 separately held-out proposed interpretations |
+| `.local/guide-corpus/guide-benchmark-bindings.json` | Six real script-evidenced country-binding cases, still awaiting human approval |
 | `tests/fixtures/guide-benchmark-contract-cases.json` | Small synthetic native diagnostic inputs, not human gold |
 | `docs/guide-interpretation-benchmark.md` | Findings, limits, acceptance gates and the proposed implementation plan |
 
@@ -273,8 +275,8 @@ $env:CARGO_TARGET_DIR="$PWD\.local\rust-backend-target"
   --manifest-path native\backend\Cargo.toml --example guide_benchmark
 
 node scripts/benchmark-guides.cjs --capture-runtime --verify-sources `
-  --gold tests/fixtures/guide-benchmark-development.json `
-  --baseline tests/fixtures/guide-benchmark-baseline.json `
+  --gold .local/guide-corpus/guide-benchmark-development.json `
+  --baseline .local/guide-corpus/guide-benchmark-baseline.json `
   --output "$env:TEMP\hoi4-benchmark-result.json"
 ```
 

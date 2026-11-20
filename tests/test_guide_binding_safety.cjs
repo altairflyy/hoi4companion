@@ -1,11 +1,12 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto');
-const audit=require('../scripts/audit-guide-bindings.cjs'),benchmark=require('../scripts/benchmark-guides.cjs');
-const fixture=()=>JSON.parse(fs.readFileSync('tests/fixtures/guide-binding-safety-audit-v1.json','utf8'));
-test('baseline, development expectations and holdout remain byte-identical',()=>{
+const audit=require('../scripts/audit-guide-bindings.cjs'),benchmark=require('../scripts/benchmark-guides.cjs'),corpus=require('../scripts/guide-corpus.cjs');
+// The real-guide corpus is local only (scripts/guide-corpus.cjs): tests that read it skip without it.
+const fixture=()=>JSON.parse(fs.readFileSync(corpus.file('guide-binding-safety-audit-v1.json'),'utf8'));
+test('baseline, development expectations and holdout remain byte-identical',{skip:corpus.skip('guide-benchmark-baseline.json','guide-benchmark-development.json','guide-benchmark-holdout.json')},()=>{
  const hashes=audit.protectedHashes();assert.equal(Object.keys(hashes).length,3);assert.deepEqual(hashes,audit.PROTECTED);
 });
-test('narrow shadow guard diagnoses actual weak decision/event collisions without blocking all abbreviations',()=>{
+test('narrow shadow guard diagnoses actual weak decision/event collisions without blocking all abbreviations',{skip:corpus.skip('guide-binding-safety-audit-v1.json')},()=>{
  const r=fixture(),cases=r.decision_shadow_policy.cases;assert.equal(r.scope.documents,50);assert.equal(r.scope.prepared_steps,6996);assert.equal(r.scope.entity_references,4451);assert.equal(cases.length,182);
  assert.deepEqual(r.decision_shadow_policy.narrow_policy_counts,{unchanged_strong_source:148,unchanged_weak_no_event_rival:30,requires_review:4});
  const dangerous=cases.filter(c=>c.narrow_shadow_admission.status==='requires_review');assert.deepEqual(new Set(dangerous.map(c=>c.guide_id)),new Set(['word-19549c55066166c1','word-3894e1e0f74f0a0d','word-67736ac669bdcbf1','word-3a9266c2c389189e']));
@@ -27,8 +28,8 @@ test('identity snapshot detects semantic reassignment even with unchanged key an
  assert.equal(benchmark.identitySnapshot(g)[0].key,benchmark.identitySnapshot(changed)[0].key);assert.notEqual(benchmark.identitySnapshot(g)[0].semantics_sha256,benchmark.identitySnapshot(changed)[0].semantics_sha256);
  const a=benchmark.analyze([g]).report,b=structuredClone(a);b.per_guide[0].step_identity=benchmark.identitySnapshot(changed);assert.ok(benchmark.compare(a,b).changes.some(c=>c.metric==='step_identity'&&c.status==='changed'));
 });
-test('sixty independent source reviews remain proposals and do not overwrite gold expectations',()=>{
- const raw=fs.readFileSync('tests/fixtures/guide-benchmark-development.json'),development=JSON.parse(raw),review=JSON.parse(fs.readFileSync('tests/fixtures/guide-gold-review-v1.json')),byId=new Map(development.cases.map(c=>[c.id,c]));
+test('sixty independent source reviews remain proposals and do not overwrite gold expectations',{skip:corpus.skip('guide-benchmark-development.json','guide-gold-review-v1.json')},()=>{
+ const raw=fs.readFileSync(corpus.file('guide-benchmark-development.json')),development=JSON.parse(raw),review=JSON.parse(fs.readFileSync(corpus.file('guide-gold-review-v1.json'))),byId=new Map(development.cases.map(c=>[c.id,c]));
  assert.equal(crypto.createHash('sha256').update(raw).digest('hex'),review.input_development_sha256);assert.equal(review.human_verified,false);assert.equal(review.cases.length,60);assert.equal(new Set(review.cases.map(c=>c.id)).size,60);assert.equal(Object.keys(review.selection.countries).length,20);
  assert.deepEqual(review.verdict_counts,{proposed_correction:15,uncertain:14,agree:31});
  for(const c of review.cases){const original=byId.get(c.id);assert.ok(original);assert.equal(original.text,c.source_text);assert.equal(original.guide_id,c.guide_id);assert.deepEqual(original.source,c.source);assert.equal(original.review.human_verified,false);assert.equal(original.review.status,'pending');assert.ok(c.justification.length>10);assert.ok(c.issue_or_proposed_amendment);}
