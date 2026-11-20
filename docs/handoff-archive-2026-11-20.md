@@ -54,3 +54,10 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/ux-ana
 ## Moved from handoff (MIO repair)
 - `11c7c46`+`95ce3f4` MIO: game had emptied "Tank Refurbishment" queue in mio_queues.txt; installer now refills and writes it.
   Installed 2026-11-20 16:40 (repaired 1, .bak kept); NOT checked in game. Why the game emptied it is unknown; watch if it recurs.
+
+## Moved from the handoff 2026-11-20 (late)
+- 2026-11-20 `16a6318` set aside a step: run field `set_aside` (storage, API filters to the definition's non-reminder keys); guide-core flags it,
+  lifts only implicit source-order barriers (declared deps still wait), drops it from next/lanes/ready/sequences; HUD card+highlights skip it;
+  suite list "Passaggi messi da parte" with Done/Riprendi. All Rust+JS tests green; rebuilt, buttons seen on the live guide page. NOT clicked/seen in game.
+  `5fb7c1c` HUD card: "Metti da parte" + one "↩ Riprendi" per set-aside step (overlay kind `set_aside`, `hud_aside_allowed`), Undo; only set-aside left =
+  card shows the first. Unit+integration tests green, rebuilt+restarted. Card NOT seen on screen.
