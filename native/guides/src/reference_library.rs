@@ -187,7 +187,7 @@ pub fn import(root: &Path, path: &Path) -> Result<Value> {
             .ok_or("Reference archive exceeds its decoded size limit")?;
         let raw = word_sources::read_entry(&mut archive, &name, 16_000_000)?;
         if entry_path.file_name().and_then(|s|s.to_str())==Some("mio_queues.txt"){
-            for mut row in crate::advanced_references::mio_queues(&raw)?{row["source_file"]=json!(name);mio_queues.insert(row["id"].as_str().unwrap().to_owned(),row);}
+            for mut row in crate::advanced_references::mio_queues(&raw)?.into_iter().filter(|r|r["traits"].as_array().is_some_and(|t|!t.is_empty())){row["source_file"]=json!(name);mio_queues.insert(row["id"].as_str().unwrap().to_owned(),row);}
         } else if ["docx","xlsx"].contains(&suffix.as_str()){
             let mut row=if suffix=="docx"{crate::advanced_references::document(&name,&raw)?}else{crate::advanced_references::workbook(&name,&raw)?};
             let id=row["id"].as_str().unwrap().to_owned();

@@ -80,7 +80,8 @@ pub fn mio_queues(raw: &[u8]) -> Result<Vec<Value>> {
                     traits.push(trait_id.to_owned());
                 }
             }
-            if traits.is_empty() || traits.len() > 512 {
+            // HOI4 itself rewrites some presets as a name without a queue; keep them readable.
+            if traits.len() > 512 {
                 return Err("Invalid MIO trait queue size".into());
             }
             let identity = id(serde_json::to_string(&(org, name, &traits))
@@ -106,7 +107,21 @@ pub fn export_mios(rows: &[Value], existing: Option<&[u8]>) -> Result<Value> {
     let previous = combined.len();
     let mut added = 0;
     let mut renamed = 0;
+    let mut repaired = 0;
     for row in rows {
+        if row["traits"].as_array().is_none_or(|t| t.is_empty()) {
+            continue;
+        }
+        // Refill a same-named preset whose queue the game emptied, instead of adding a renamed copy.
+        if let Some(empty) = combined.iter_mut().find(|r| {
+            r["organization_id"] == row["organization_id"]
+                && r["name"] == row["name"]
+                && r["traits"].as_array().is_some_and(|t| t.is_empty())
+        }) {
+            empty["traits"] = row["traits"].clone();
+            repaired += 1;
+            continue;
+        }
         if combined
             .iter()
             .any(|r| r["organization_id"] == row["organization_id"] && r["traits"] == row["traits"])
@@ -144,8 +159,14 @@ pub fn export_mios(rows: &[Value], existing: Option<&[u8]>) -> Result<Value> {
         for row in rows {
             let name = serde_json::to_string(row["name"].as_str().ok_or("Invalid MIO name")?)
                 .map_err(|e| e.to_string())?;
-            text.push_str(&format!("  {{\n    name={name}\n    queued_trait={{\n"));
-            for item in row["traits"].as_array().ok_or("Invalid MIO queue")? {
+            let traits = row["traits"].as_array().ok_or("Invalid MIO queue")?;
+            text.push_str(&format!("  {{\n    name={name}\n"));
+            if traits.is_empty() {
+                text.push_str("  }\n");
+                continue;
+            }
+            text.push_str("    queued_trait={\n");
+            for item in traits {
                 text.push_str(&format!(
                     "      {{ trait={} }}\n",
                     serde_json::to_string(item.as_str().ok_or("Invalid MIO trait")?).unwrap()
@@ -161,7 +182,7 @@ pub fn export_mios(rows: &[Value], existing: Option<&[u8]>) -> Result<Value> {
         return Err("MIO export roundtrip mismatch".into());
     }
     Ok(
-        json!({"filename":"mio_queues.txt","text":text,"existing":previous,"added":added,"renamed":renamed,"count":verified.len(),"relative_path":"session_persistence/mio_queues.txt"}),
+        json!({"filename":"mio_queues.txt","text":text,"existing":previous,"added":added,"renamed":renamed,"repaired":repaired,"count":verified.len(),"relative_path":"session_persistence/mio_queues.txt"}),
     )
 }
 pub fn export_from_documents(docs: Option<&str>, rows: &[Value]) -> Result<Value> {
@@ -346,6 +367,31 @@ mod tests {
             mio_queues(exported["text"].as_str().unwrap().as_bytes()).unwrap()[0]["traits"],
             rows[0]["traits"]
         );
+    }
+    #[test]
+    fn mio_refills_a_preset_whose_queue_the_game_emptied() {
+        let game = br#"version=0 SOV_plant={ { name="Tank Refurbishment" } } FIN_test={ { name="Infantry" queued_trait={ {trait="first"} } } }"#;
+        let existing = mio_queues(game).unwrap();
+        assert_eq!(existing.len(), 2);
+        assert_eq!(existing[0]["traits"], json!([]));
+        let mut row = existing[0].clone();
+        row["traits"] = json!(["a", "b"]);
+        let result = export_mios(&[row], Some(game)).unwrap();
+        assert_eq!(
+            (&result["added"], &result["repaired"], &result["renamed"]),
+            (&json!(0), &json!(1), &json!(0))
+        );
+        let back = mio_queues(result["text"].as_str().unwrap().as_bytes()).unwrap();
+        assert_eq!(back.len(), 2);
+        let sov = back.iter().find(|r| r["organization_id"] == "SOV_plant").unwrap();
+        assert_eq!((&sov["name"], &sov["traits"]), (&json!("Tank Refurbishment"), &json!(["a", "b"])));
+        // An untouched empty preset is written back as the game wrote it.
+        let kept = export_mios(&[], Some(game)).unwrap();
+        let mut kept = mio_queues(kept["text"].as_str().unwrap().as_bytes()).unwrap();
+        kept.sort_by_key(|r| r["organization_id"].to_string());
+        let mut expected = existing.clone();
+        expected.sort_by_key(|r| r["organization_id"].to_string());
+        assert_eq!(kept, expected);
     }
     #[test]
     fn mio_rejects_unknown_versions_duplicate_traits_and_unexpected_fields() {
