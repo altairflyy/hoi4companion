@@ -124,10 +124,92 @@
   if(/^[a-f0-9]{64}$/.test(doc.id)){const original=node('a',HoiI18n.t('Download original document'));original.href='/api/reference-library/document?id='+encodeURIComponent(doc.id);original.download=doc.filename||doc.name;head.append(original);}
   item.append(head);
   if(doc.cached_values_only)item.append(node('p',HoiI18n.t('Spreadsheet cached values only; formulas are not recalculated.')));
+  const reading=globalThis.HoiDoctrineGuide?.read(doc);
+  if(reading)renderDoctrineReading(item,reading);
   for(const tier of doc.tiers||[]){const block=node('section');block.className='advanced-tier';block.append(node('h5',tier.title));const entries=node('ul');for(const text of tier.entries||[])entries.append(node('li',text));block.append(entries);item.append(block);}
   const images=(doc.images||[]).map(id=>({id,name:doc.name}));
-  if(images.length){const grid=node('div');grid.className='reference-grid compact';const list=images.map(ref=>({src:imageUrl(ref.id),title:ref.name}));images.forEach((ref,i)=>grid.append(thumbnail(ref,list,i)));item.append(grid);}
-  const source=node('details');source.className='reference-note';source.open=!(doc.tiers||[]).length;source.append(node('summary',HoiI18n.t('Original text and tables')));const text=node('pre',doc.text||'');text.className='advanced-reference-text';source.append(text);item.append(source);
+  if(images.length){if(reading)item.append(node('h5',HoiI18n.t('Screenshots')));const grid=node('div');grid.className='reference-grid compact';const list=images.map(ref=>({src:imageUrl(ref.id),title:ref.name}));images.forEach((ref,i)=>grid.append(thumbnail(ref,list,i)));item.append(grid);}
+  const source=node('details');source.className='reference-note';source.open=!(doc.tiers||[]).length&&!reading;source.append(node('summary',HoiI18n.t('Original text and tables')));const text=node('pre',doc.text||'');text.className='advanced-reference-text';source.append(text);item.append(source);
+ }
+ // Doctrines and spirits (doctrine-guide.js): the author's ratings, buffs,
+ // spirits and comments laid out as cards. Order and ratings stay the author's;
+ // "Sort by rating" only reorders the view.
+ let doctrineSort=false;
+ function scoreBadge(score){
+  const badge=node('span',score===null?'–':score+'/10');badge.className='doctrine-score';
+  if(score!==null){badge.dataset.level=score>=8?'high':score>=5?'mid':'low';badge.style.setProperty('--score',score/10);}
+  return badge;
+ }
+ function recommendedSpirits(){
+  const names=new Set();
+  for(const doc of referenceData.documents||[]){const r=globalThis.HoiDoctrineGuide?.read(doc);if(r?.kind!=='spirits')continue;
+   for(const b of r.branches)for(const s of b.slots)for(const e of s.entries)for(const n of e.name.split(/\s*(?:\/|->)\s*/))names.add(n.toLocaleLowerCase());}
+  return names;
+ }
+ function linkList(links){
+  const list=node('ul');list.className='doctrine-links';
+  for(const url of links){if(!/^https:\/\//i.test(url))continue;const li=node('li'),a=node('a',url.replace(/^https:\/\/(?:www\.)?/i,'').slice(0,70));a.href=url;a.target='_blank';a.rel='noopener noreferrer';li.append(a);list.append(li);}
+  return list.children.length?list:null;
+ }
+ function renderDoctrineReading(item,reading){
+  const wrap=node('div');wrap.className='doctrine-reading';item.append(wrap);
+  if(reading.kind==='spirits'){
+   if(reading.takeaways.length){const box=node('section');box.className='doctrine-takeaways';box.append(node('h5',HoiI18n.t('Key takeaways')));const dl=node('dl');for(const t of reading.takeaways)dl.append(node('dt',t.label),node('dd',t.text));box.append(dl);wrap.append(box);}
+   for(const branch of reading.branches){
+    const section=node('section');section.className='doctrine-group';section.append(node('h5',[branch.icon,branch.title].filter(Boolean).join(' ')));
+    const grid=node('div');grid.className='spirit-slots';
+    for(const slot of branch.slots){
+     const card=node('article');card.className='spirit-slot';card.append(node('h6',slot.title));
+     const list=node('ol');
+     for(const e of slot.entries){
+      const li=node('li'),head=node('div');head.className='spirit-entry-head';head.append(node('strong',e.name));
+      for(const tag of e.tags){const chip=node('span',tag);chip.className='doctrine-chip';head.append(chip);}
+      li.append(head,node('p',e.text));
+      for(const note of e.notes){const p=node('p',note);p.className='doctrine-note';li.append(p);}
+      list.append(li);
+     }
+     card.append(list);grid.append(card);
+    }
+    section.append(grid);wrap.append(section);
+   }
+  }else{
+   for(const line of reading.intro){const p=node('p',line);p.className='doctrine-note';wrap.append(p);}
+   if(reading.quick){
+    const box=node('section');box.className='doctrine-quick';box.append(node('h5',HoiI18n.t('Quick reference')));
+    const table=node('table'),head=node('tr');for(const h of reading.quick.header)head.append(node('th',h));table.append(head);
+    for(const row of reading.quick.rows){const tr=node('tr');tr.append(node('th',row.category));
+     for(const cell of row.columns){const td=node('td');for(const p of cell){const pick=node('div');pick.className='doctrine-pick';pick.append(node('span',p.name),scoreBadge(p.score));td.append(pick);}tr.append(td);}
+     table.append(tr);}
+    box.append(table);wrap.append(box);
+   }
+   const tools=node('div');tools.className='doctrine-tools';
+   const nav=node('nav');nav.className='doctrine-nav';nav.setAttribute('aria-label',HoiI18n.t('Sections'));
+   const sortLabel=node('label'),sort=node('input');sort.type='checkbox';sort.checked=doctrineSort;sort.onchange=()=>{doctrineSort=sort.checked;renderAdvancedReferences();};sortLabel.append(sort,' '+HoiI18n.t('Sort by rating'));
+   tools.append(nav,sortLabel);wrap.append(tools);
+   const recommended=recommendedSpirits();
+   reading.groups.forEach((group,g)=>{
+    const section=node('section');section.className='doctrine-group';section.id='doctrine-group-'+g;
+    const title=group.part&&group.part!==group.title?group.part+' · '+group.title:group.title;section.append(node('h5',title));
+    const jump=node('button',group.title);jump.type='button';jump.onclick=()=>section.scrollIntoView?.({block:'start',behavior:'smooth'});nav.append(jump);
+    const items=doctrineSort?group.items.slice().sort((a,b)=>b.score-a.score):group.items;
+    const grid=node('div');grid.className='doctrine-cards';
+    for(const d of items){
+     const card=node('article');card.className='doctrine-card';if(d.best)card.dataset.best='true';
+     const head=node('header');head.append(node('h6',d.name),scoreBadge(d.score));card.append(head);
+     const meter=node('div');meter.className='doctrine-meter';meter.style.setProperty('--score',d.score/10);meter.dataset.level=d.score>=8?'high':d.score>=5?'mid':'low';card.append(meter);
+     if(d.best){const tag=node('span',HoiI18n.t('Highest rated in this section'));tag.className='doctrine-chip best';card.append(tag);}
+     if(d.buffs.length){card.append(node('h6',HoiI18n.t('Notable buffs')));const ul=node('ul');for(const b of d.buffs)ul.append(node('li',b));card.append(ul);}
+     if(d.spirits.length){card.append(node('h6',HoiI18n.t('Spirits')));
+      for(const row of d.spirits){const line=node('div');line.className='doctrine-spirits';for(const s of row){const chip=node('span',s);chip.className='doctrine-chip';if(recommended.has(s.toLocaleLowerCase())){chip.dataset.recommended='true';chip.title=HoiI18n.t('Also listed in the spirits guide');}line.append(chip);}card.append(line);}}
+     for(const note of d.notes){const p=node('p',note);p.className='doctrine-note';card.append(p);}
+     if(d.comment){const p=node('p',d.comment);p.className='doctrine-comment';card.append(p);}
+     grid.append(card);
+    }
+    section.append(grid);wrap.append(section);
+   });
+  }
+  const links=linkList(reading.links||[]);
+  if(links){wrap.append(node('h5',HoiI18n.t('Links in the document')),links);}
  }
  function renderAdvancedReferences(){
   const view=m.advancedReferences(referenceData,$('advancedSearch').value,$('advancedCategory').value||'all');
