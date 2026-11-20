@@ -257,6 +257,30 @@ fn event_owner_is_recovered_from_the_actual_secondary_rtti_offset(){
     assert_eq!(m.request("events",a.clone()).unwrap()["visible"],json!([]));
     m.i(BASE+col+4,600);assert!(m.request("events",a).unwrap_err().contains("non individuata"));
 }
+#[test]
+fn visible_event_choices_follow_the_build_gui_layout(){
+    // A build whose event grid and choice buttons sit at other offsets than
+    // the reference build (live-profiles-v1.json `gui_layout`).
+    let mut m=Fixture::new();
+    let root=m.alloc();m.object(root,"CGameGui");m.u(BASE+0x8000,root);
+    let owner=m.alloc();m.object(owner,"CEventWindow");m.u(owner+56,BASE+0x29a4878);
+    let gui=m.alloc();m.u(gui+80,owner+56);m.array(root+264,&[gui]);
+    let container=m.alloc();m.object(container,"CContainerWindow");m.u(owner+0x50,container);
+    m.u(container+48+104,root);m.u(container+48+80,owner+56);m.put(container+48+117,&[8]);
+    let event=m.alloc();m.object(event,"CEvent");m.u(owner+0x68,event);m.string(event+0x20,"tst.1");
+    let option=m.alloc();m.object(option,"CEventOption");m.array(event+0x368,&[option]);m.i(option+0x1f0,0);m.string(option+0x178,"tst.1.a");
+    let grid=m.alloc();m.object(grid,"CStandardGridBox");m.u(owner+5120,grid);
+    let row=m.alloc();m.object(row,"CStandardGridBoxItem");m.array(grid+0x1a0,&[row]);
+    let item=m.alloc();m.object(item,"CContainerWindow");m.u(row+16,item);
+    let button=m.alloc();m.object(button,"CButtonDrag");m.u(button+8,option);m.array(item+4696,&[button]);
+    let a=json!({"image_base":BASE,"gui_layout":{"root_rva":0x8000,"registry":[264,288],"event_grid":5120,"container_drags":4696}});
+    let v=m.request("events",a.clone()).unwrap();
+    assert_eq!(v["visible"],json!([{"instance_id":format!("{owner:x}"),"event_id":"tst.1","option_ids":["tst.1.a"]}]));
+    // Without the layout the reference offsets hold no grid: the failure names the step.
+    let reference=json!({"image_base":BASE,"gui_layout":{"root_rva":0x8000,"registry":[264,288]}});
+    let error=m.request("events",reference).unwrap_err();
+    assert!(error.contains("event window") && error.contains("grid"),"{error}");
+}
 
 #[path = "country_logistics_tests.rs"]
 mod logistics_tests;

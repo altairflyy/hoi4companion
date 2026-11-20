@@ -5,6 +5,9 @@ use crate::live::Memory;
 use serde_json::{Value, json};
 use std::collections::{BTreeSet, HashSet};
 impl<M: Memory> Reader<'_, M> {
+    fn layout(&self, key: &str, default: u64) -> u64 {
+        self.attributes["gui_layout"][key].as_u64().unwrap_or(default)
+    }
     fn discover_windows(&mut self, root: u64) -> Result<Vec<u64>> {
         let mut headers = vec![];
         let registry = self.attributes["gui_layout"]["registry"]
@@ -139,7 +142,28 @@ impl<M: Memory> Reader<'_, M> {
         let owners = self.discover_windows(root)?;
         let mut visible = vec![];
         for owner in owners {
+            let mut stage = "owner";
+            let row = self
+                .event_window(root, owner, &mut stage)
+                .map_err(|e| format!("{e} (event window {owner:x}, {stage})"))?;
+            visible.extend(row);
+        }
+        Ok(
+            json!({"status":"observed","visible":visible,"reason":"Finestra eventi marcata visibile dal motore; scelte dalla griglia corrente. Nessuna risposta scelta inferita."}),
+        )
+    }
+    /// One discovered event window: its visible event and choices, or None
+    /// when the engine marks it hidden or it holds no event. `stage` names the
+    /// step reached, so a failure says which read was refused.
+    fn event_window(
+        &mut self,
+        root: u64,
+        owner: u64,
+        stage: &mut &'static str,
+    ) -> Result<Option<Value>> {
+        {
             self.typed(owner, "CEventWindow")?;
+            *stage = "container";
             let container = self.object_pointer(owner + 0x50, "CContainerWindow")?;
             let gui = container + 48;
             if self.pointer(gui + 104)? != root {
@@ -148,24 +172,34 @@ impl<M: Memory> Reader<'_, M> {
             if self.pointer(gui + 80)? != owner + 56 {
                 return Err("Finestra eventi non associata al proprietario".into());
             }
+            *stage = "shown";
             let shown = self.track(gui + 117, 1)?[0] & 8 != 0;
             let event = self.pointer(owner + 0x68)?;
             if !shown || event == 0 {
-                continue;
+                return Ok(None);
             }
+            *stage = "event";
             self.typed(event, "CEvent")?;
             let id = self.d.string(event + 0x20)?;
+            *stage = "definitions";
             let definitions = self
                 .array(event + 0x368, 256)?
                 .into_iter()
                 .collect::<HashSet<_>>();
-            let grid = self.object_pointer(owner + 0x1280, "CStandardGridBox")?;
+            *stage = "grid";
+            // Window offsets follow the build's GUI layout, like the HUD
+            // geometry reader (`gui_actions::events`); defaults are the
+            // reference build's.
+            let grid = self.object_pointer(owner + self.layout("event_grid", 0x1280), "CStandardGridBox")?;
+            let drags = self.layout("container_drags", 0x10d8);
             let mut choices = BTreeSet::new();
             let mut indices = HashSet::new();
+            *stage = "rows";
             for row in self.array(grid + 0x1a0, 256)? {
+                *stage = "row";
                 self.typed(row, "CStandardGridBoxItem")?;
                 let item = self.object_pointer(row + 16, "CContainerWindow")?;
-                let buttons = self.array(item + 0x10d8, 64)?;
+                let buttons = self.array(item + drags, 64)?;
                 if buttons.is_empty() {
                     return Err("Scelta evento priva di pulsante qualificato".into());
                 }
@@ -182,6 +216,7 @@ impl<M: Memory> Reader<'_, M> {
                     return Err("Riga evento associata a opzioni diverse".into());
                 }
                 let option = *options.iter().next().unwrap();
+                *stage = "option";
                 let index = self.integer(option + 0x1f0, 0, 255)?;
                 let key = self.d.string(option + 0x178)?;
                 if !indices.insert(index) {
@@ -189,12 +224,9 @@ impl<M: Memory> Reader<'_, M> {
                 }
                 choices.insert(key);
             }
-            visible.push(
+            Ok(Some(
                 json!({"instance_id":format!("{owner:x}"),"event_id":id,"option_ids":choices}),
-            );
+            ))
         }
-        Ok(
-            json!({"status":"observed","visible":visible,"reason":"Finestra eventi marcata visibile dal motore; scelte dalla griglia corrente. Nessuna risposta scelta inferita."}),
-        )
     }
 }

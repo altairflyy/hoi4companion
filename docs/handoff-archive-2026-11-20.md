@@ -17,3 +17,7 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/ux-ana
 - 2026-11-20 R15: `app_guides` rows carry `definition_hash` (canonical stored definition without id/runtime stamps); suite library groups
   by nation, "Other documents" for entries without a nation, duplicate/same-title-version notes (`libraryGroups()` in `web/suite-model.js`).
   npm test 486 / 0 / 3 skipped; backend 49+117 pass. Corpus: no exact duplicates; HUN pair = different versions. NOT rebuilt, NOT live.
+- 2026-11-20 LIVE (step 9, part 1): `deliver.cjs --overlay` rebuilt backend+overlay at `e7fa139`, app up; HOI4 open, ROM readable. Seen in the
+  built-in browser: library groups (ROM first, HUN two versions, "Altri documenti" 2); R7/R8 composed title "Costruisci Infrastruttura in Muntenia,
+  poi … Fabbrica militare in Muntenia"; 47 "Cosa significa?" links; a saved reading showed "Conferma tu" + "Tua lettura" after fix `847bf95`
+  (plan page now copies readings from the projection), then removed. User closed step 9 without checking the other step-9 items (still NOT verified).
