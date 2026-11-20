@@ -29,6 +29,16 @@ fn hud_check_allowed(current:&Value,guide:&str,key:&str)->bool{
     current["live_delivery_fresh"]!=false&&current["guide_id"]==guide
         &&current["step_card"]["key"]==key&&current["step_card"]["checkable"]==true
 }
+/// Whether the HUD may set `key` aside (the card's own step, when the card
+/// offers it) or resume it (a step the card lists as set aside).
+fn hud_aside_allowed(current:&Value,guide:&str,key:&str,aside:bool)->bool{
+    let card=&current["step_card"];
+    current["live_delivery_fresh"]!=false&&current["guide_id"]==guide&&if aside{
+        card["key"]==key&&card["can_set_aside"]==true
+    }else{
+        card["set_aside"].as_array().is_some_and(|steps|steps.iter().any(|s|s["key"]==key))
+    }
+}
 /// Whether the HUD may confirm `option` as the guide's answer to `key`: the
 /// current delivery for the same guide must propose exactly that event answer
 /// as a visible candidate (an ambiguous line whose popup shows it now).
@@ -1111,6 +1121,7 @@ impl Service {
             "option_id",
             "previous",
             "previous_checked",
+            "aside",
         ])?;
         if input["schema_version"] != 1 || input["token"].as_u64().is_none() {
             return Err("Versione o token overlay non supportati".into());
@@ -1150,6 +1161,21 @@ impl Service {
             self.invalidate()?;
             result["key"] = json!(key);
             result["checked"] = json!(checked);
+            return Ok(result);
+        } else if kind == "set_aside" {
+            // The HUD card's "Set aside" (its own step) and "Resume" (a step
+            // it lists as set aside): the same progress update as the suite.
+            let guide = input["guide_id"].as_str().ok_or("Guida non installata")?;
+            let key = input["key"].as_str().ok_or("Missing step")?;
+            let aside = input["aside"].as_bool().ok_or("Missing set-aside value")?;
+            let current = self.overlay_latest()?;
+            if !hud_aside_allowed(&current, guide, key, aside) {
+                return Err("The current step changed: nothing was set aside".into());
+            }
+            self.app("app_set_aside", &json!({"guide_id":guide,"key":key,"aside":aside}))?;
+            self.invalidate()?;
+            result["key"] = json!(key);
+            result["aside"] = json!(aside);
             return Ok(result);
         } else if kind == "confirm_answer" {
             // The HUD card's "I chose this" on an ambiguous event answer: only
@@ -2358,6 +2384,19 @@ mod accept_tests {
         let mut unknown=current.clone();unknown["live_delivery_fresh"]=json!(false);
         assert!(!hud_check_allowed(&unknown,"sov","word-0008"));
         assert!(!hud_check_allowed(&json!({"guide_id":"sov","step_card":null}),"sov","word-0008"));
+    }
+    #[test]
+    fn hud_sets_aside_only_the_card_step_and_resumes_only_listed_steps(){
+        let current=json!({"guide_id":"sov","step_card":{"key":"b","can_set_aside":true,"set_aside":[{"key":"a"}]}});
+        assert!(hud_aside_allowed(&current,"sov","b",true));
+        assert!(!hud_aside_allowed(&current,"sov","c",true),"a stale card never sets aside another step");
+        assert!(hud_aside_allowed(&current,"sov","a",false));
+        assert!(!hud_aside_allowed(&current,"sov","b",false),"only listed steps are resumed");
+        assert!(!hud_aside_allowed(&current,"ger","a",false));
+        let mut offered=current.clone();offered["step_card"]["can_set_aside"]=json!(false);
+        assert!(!hud_aside_allowed(&offered,"sov","b",true));
+        let mut unknown=current.clone();unknown["live_delivery_fresh"]=json!(false);
+        assert!(!hud_aside_allowed(&unknown,"sov","a",false));
     }
     #[test]
     fn published_hud_rejects_mutations_and_stale_identity_without_waiting_for_application(){

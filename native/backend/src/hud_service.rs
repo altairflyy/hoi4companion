@@ -115,13 +115,14 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
     let names: Vec<&str> = std::iter::once("operations")
         .chain(tracks.as_object().into_iter().flat_map(|m| m.keys().map(String::as_str)).filter(|k| *k != "operations"))
         .collect();
-    let Some((track, key)) = names
-        .iter()
-        .find_map(|t| crate::hud_geometry::rows(&guide["tracks"][*t]).iter()
-            .find(|r| r["tracking"] != "reminder" && !aside.contains(r["key"].as_str().unwrap_or("")) && !statuses.get(r["key"].as_str().unwrap_or(""))
-                .is_some_and(|s| **s == "completed" || **s == "not_applicable"))
-            .and_then(|r| r["key"].as_str()).map(|k| (*t,k)))
-    else {
+    let open = |r: &&Value| r["tracking"] != "reminder" && !statuses.get(r["key"].as_str().unwrap_or(""))
+        .is_some_and(|s| **s == "completed" || **s == "not_applicable");
+    let first = |pick: &dyn Fn(&str) -> bool| names.iter().find_map(|t| crate::hud_geometry::rows(&guide["tracks"][*t]).iter()
+        .filter(open).find(|r| pick(r["key"].as_str().unwrap_or("")))
+        .and_then(|r| r["key"].as_str()).map(|k| (*t, k)));
+    // When only set-aside steps are left, the card shows the first of them,
+    // so the player still sees it and can resume or complete it from the HUD.
+    let Some((track, key)) = first(&|k| !aside.contains(k)).or_else(|| first(&|k| aside.contains(k))) else {
         return Value::Null;
     };
     let rows = guide["tracks"][track].as_array().cloned().unwrap_or_default();
@@ -157,6 +158,8 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
     // waiting one. Presentation only, from the prepared step and the evaluation.
     let status_of = |r: &Value| statuses.get(r["key"].as_str().unwrap_or("")).map(|s| (*s).clone()).unwrap_or(Value::Null);
     let brief = |r: &Value| json!({"key":r["key"],"heading":clean(&r["title"]).or_else(|| clean(&r["name"])).or_else(|| r["action"]["params"]["instructions"].as_array().into_iter().flatten().find_map(clean)).unwrap_or_default(),"reading_title":reading_title(r)});
+    let set_aside_list: Vec<Value> = names.iter().flat_map(|t| crate::hud_geometry::rows(&guide["tracks"][*t]))
+        .filter(|r| aside.contains(r["key"].as_str().unwrap_or(""))).map(|r| brief(r)).collect();
     let later: Vec<&Value> = rows[position + 1..].iter()
         .filter(|r| r["tracking"] != "reminder" && !aside.contains(r["key"].as_str().unwrap_or("")) && !matches!(status_of(r).as_str(), Some("completed" | "not_applicable")))
         .collect();
@@ -175,7 +178,10 @@ fn step_card(guide: &Value, runtime: &Value) -> Value {
         "reading_title":reading_title(step),"original":step["reading"]["original"],
         // The author's condition for this line ("At 24% paranoia"), as written.
         "timing":clean(&params["timing"]).or_else(|| clean(&params["decomposition"]["timing"])),
-        "then":then,"waiting":waiting})
+        "then":then,"waiting":waiting,
+        // "Set aside" for this step; "Resume" for each step listed here.
+        "can_set_aside":!aside.contains(key) && !matches!(status.as_str(), Some("completed" | "not_applicable")),
+        "set_aside":set_aside_list})
 }
 /// Whether the step's own manual check can complete it, as guide-core reads it:
 /// a manual or special-project action without a declared completion, or a
@@ -399,6 +405,14 @@ mod tests {
         let card = step_card(&guide, &runtime);
         assert_eq!(card["key"], "b");
         assert!(card["then"].is_null(), "a set-aside step is not offered as next either");
+        assert_eq!(card["can_set_aside"], true);
+        assert_eq!(card["set_aside"], json!([{"key":"a","heading":"First","reading_title":null}]));
+        // Only set-aside steps left: the card shows the first, offering Resume, not Set aside.
+        let left = json!({"tracks":{"operations":{"next":null}},"steps":[
+            {"key":"a","status":"unverifiable","set_aside":true},{"key":"b","status":"completed"}]});
+        let card = step_card(&guide, &left);
+        assert_eq!((card["key"].clone(), card["can_set_aside"].clone()), (json!("a"), json!(false)));
+        assert_eq!(card["set_aside"][0]["key"], "a");
     }
     #[test]
     fn step_card_is_the_next_operation_with_its_recognized_answer() {

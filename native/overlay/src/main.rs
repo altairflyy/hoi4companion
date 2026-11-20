@@ -390,7 +390,13 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
         (!rows.is_empty()).then_some(render::RefSection {label,rows})
     }).take(8).collect();
     let references_scope=card["references_scope"].as_str().unwrap_or("").to_owned();
-    Some(StepCard {header,status_line,upcoming,heading,timing,note,body,badge,key,guide_id,checkable,images,production,references,references_scope,answer,confirmed_by_user})
+    let can_set_aside=card["can_set_aside"]==true&&!key.is_empty()&&!guide_id.is_empty();
+    let set_aside=card["set_aside"].as_array().into_iter().flatten().filter_map(|step|{
+        let key=step["key"].as_str().filter(|k|!k.is_empty())?.to_owned();
+        let title=reading_title(&step["reading_title"]).or_else(||step["heading"].as_str().map(str::trim).filter(|s|!s.is_empty()).map(str::to_owned)).unwrap_or_else(||key.clone());
+        Some((key,title))
+    }).collect();
+    Some(StepCard {header,status_line,upcoming,heading,timing,note,body,badge,key,guide_id,checkable,images,production,references,references_scope,answer,confirmed_by_user,can_set_aside,set_aside})
 }
 /// The card for this sample: the backend's current card, or the last one kept
 /// briefly while the delivery is unknown (see the stability module), with
@@ -424,6 +430,16 @@ fn check_notice(response:&Value,guide_id:&str,key:&str,checked:bool)->card::Noti
     };
     card::Notice {text,undo:(done&&checked).then(||card::Undo::Check {guide_id:guide_id.to_owned(),key:key.to_owned()}),at:Instant::now()}
 }
+/// Card feedback for "Set aside" / "Resume", with Undo doing the opposite.
+fn aside_notice(response:&Value,guide_id:&str,key:&str,aside:bool)->card::Notice {
+    let done=response["key"]==key&&response["aside"]==aside;
+    let text=match (done,aside) {
+        (true,true)=>i18n::text("Step set aside: go on with the next one."),
+        (true,false)=>i18n::text("Step back in the plan."),
+        _=>i18n::format("Not changed: {0}",&[response["error"].as_str().filter(|s|!s.is_empty()).unwrap_or("?")]),
+    };
+    card::Notice {text,undo:done.then(||card::Undo::Aside {guide_id:guide_id.to_owned(),key:key.to_owned(),aside}),at:Instant::now()}
+}
 /// Card feedback for "I chose this". Undo is offered only when the backend
 /// returned what the confirmation replaced, so it can be put back exactly.
 fn answer_notice(response:&Value,guide_id:&str,key:&str,quote:&str)->card::Notice {
@@ -452,6 +468,7 @@ fn action_request(action:&ControlAction)->Option<Value> {
             Some(json!({"kind":"confirm_answer","guide_id":guide_id,"key":key,"quote":quote,"event_id":event_id,"option_id":option_id})),
         ControlAction::RestoreAnswer {guide_id,key,quote,previous,previous_checked}=>
             Some(json!({"kind":"restore_answer","guide_id":guide_id,"key":key,"quote":quote,"previous":previous,"previous_checked":previous_checked})),
+        ControlAction::SetAside {guide_id,key,aside}=>Some(json!({"kind":"set_aside","guide_id":guide_id,"key":key,"aside":aside})),
         _=>None,
     }
 }
@@ -564,6 +581,10 @@ fn run(options:Options)->Result<(),String> {
                 ControlAction::ConfirmAnswer{ref guide_id,ref key,ref quote,..}=>{
                     let response=bridge.request(action_request(&action).unwrap_or_default(),&[])?;
                     renderer.set_notice(Some(answer_notice(&response,guide_id,key,quote)));
+                },
+                ControlAction::SetAside{ref guide_id,ref key,aside}=>{
+                    let response=bridge.request(action_request(&action).unwrap_or_default(),&[])?;
+                    renderer.set_notice(Some(aside_notice(&response,guide_id,key,aside)));
                 },
                 ControlAction::RestoreAnswer{..}=>{
                     let response=bridge.request(action_request(&action).unwrap_or_default(),&[])?;
@@ -1083,5 +1104,21 @@ mod tests {
         assert!(!native_route(&mixed,&geometry));
         geometry["suspend_visual"]=json!(true);
         assert!(native_route(&mixed,&geometry));
+    }
+    #[test]
+    fn set_aside_and_resume_reach_the_backend_and_undo_does_the_opposite(){
+        let snapshot=json!({"guide_id":"g","step_card":{"heading":"Build","key":"b","can_set_aside":true,
+            "set_aside":[{"key":"a","heading":"First"},{"key":"","heading":"no key"}]}});
+        let card=step_card(&snapshot).unwrap();
+        assert!(card.can_set_aside);
+        assert_eq!(card.set_aside,vec![("a".to_owned(),"First".to_owned())],"a listed step without a key is dropped");
+        let mut unnamed=snapshot.clone();unnamed["guide_id"]=json!("");
+        assert!(!step_card(&unnamed).unwrap().can_set_aside,"never without the guide identity");
+        let action=ControlAction::SetAside {guide_id:"g".into(),key:"b".into(),aside:true};
+        assert_eq!(action_request(&action),Some(json!({"kind":"set_aside","guide_id":"g","key":"b","aside":true})));
+        let notice=aside_notice(&json!({"key":"b","aside":true}),"g","b",true);
+        assert_eq!(render::undo_action(notice.undo.as_ref().unwrap()),ControlAction::SetAside {guide_id:"g".into(),key:"b".into(),aside:false});
+        let refused=aside_notice(&json!({"error":"The current step changed: nothing was set aside"}),"g","b",true);
+        assert!(refused.undo.is_none()&&refused.text.contains("nothing was set aside"));
     }
 }

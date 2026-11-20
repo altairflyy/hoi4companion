@@ -213,6 +213,10 @@ pub struct StepCard {
     pub answer: Option<Answer>,
     /// The step's event answer was confirmed by the player earlier.
     pub confirmed_by_user: bool,
+    /// The backend offers "Set aside" for this step.
+    pub can_set_aside: bool,
+    /// Steps the player set aside (key, title), each with a "Resume" button.
+    pub set_aside: Vec<(String,String)>,
 }
 /// An ambiguous event answer as the backend proposes it: the guide line
 /// (`key` and its `quote`) and the visible option it may mean.
@@ -236,6 +240,8 @@ pub enum ControlAction {
     ConfirmAnswer {guide_id:String,key:String,quote:String,event_id:String,option_id:String},
     /// "Undo" after "I chose this": restore what the confirmation replaced.
     RestoreAnswer {guide_id:String,key:String,quote:String,previous:serde_json::Value,previous_checked:bool},
+    /// "Set aside" (aside) or "Resume" on the card: a step of the active run.
+    SetAside {guide_id:String,key:String,aside:bool},
 }
 /// The request the card's Undo button sends.
 pub fn undo_action(undo:&card::Undo)->ControlAction {
@@ -243,6 +249,7 @@ pub fn undo_action(undo:&card::Undo)->ControlAction {
         card::Undo::Check {guide_id,key}=>ControlAction::Check {guide_id:guide_id.clone(),key:key.clone(),checked:false},
         card::Undo::Answer {guide_id,key,quote,previous,previous_checked}=>ControlAction::RestoreAnswer {
             guide_id:guide_id.clone(),key:key.clone(),quote:quote.clone(),previous:previous.clone(),previous_checked:*previous_checked},
+        card::Undo::Aside {guide_id,key,aside}=>ControlAction::SetAside {guide_id:guide_id.clone(),key:key.clone(),aside:!*aside},
     }
 }
 
@@ -694,6 +701,29 @@ impl Graphics {
                 y+=4.0*scale;
             }
             for (text,format,tone) in blocks {block(self,&text,format,tone,&mut y,&mut lines)?;}
+            // "Set aside" for this step, then the steps set aside, each one
+            // click from coming back ("Resume"). Never a completion by itself.
+            if !collapsed && open.is_none() && !card.guide_id.is_empty() {
+                let fit=|this:&Self,label:&str|->windows::core::Result<f32> {
+                    let wide:Vec<u16>=label.encode_utf16().collect();
+                    Ok((this.measure(&wide,4,400.0*scale,row)?.0+18.0*scale).min(inner))
+                };
+                if card.can_set_aside && !card.key.is_empty() && y+row<=limit {
+                    let label=format!("⏸ {}",crate::i18n::text("Set aside for later"));
+                    let w=fit(self,&label)?;
+                    buttons.push((Button::SetAside,label,[pad,y,pad+w,y+row]));y+=row+8.0*scale;
+                }
+                if !card.set_aside.is_empty() && block(self,&crate::i18n::text("Set aside steps"),2,2,&mut y,&mut lines)?.is_some() {
+                    for (i,(_,title)) in card.set_aside.iter().enumerate().take(6) {
+                        if y+row>limit {break;}
+                        let short:String=title.chars().take(48).collect();
+                        let label=format!("↩ {} · {}",crate::i18n::text("Resume"),if short.len()<title.len() {format!("{short}…")} else {short});
+                        let w=fit(self,&label)?;
+                        buttons.push((Button::Resume(i as u8),label,[pad,y,pad+w,y+row]));y+=row+gap;
+                    }
+                    y+=8.0*scale-gap;
+                }
+            }
             if !collapsed && open.is_none() && !card.production.trim().is_empty()
                 && block(self,&crate::i18n::text("Production"),0,0,&mut y,&mut lines)?.is_some() {
                 block(self,&card.production,3,4,&mut y,&mut lines)?;
@@ -768,7 +798,7 @@ impl Graphics {
                 let shape=D2D1_ROUNDED_RECT {rect,radiusX:4.0*scale,radiusY:4.0*scale};
                 self.context.FillRoundedRectangle(&shape,&self.paint.label_bg);
                 let accent=if matches!(button,Button::ConfirmAnswer) {Some(self.paint.stroke(Role::Ambiguous))}
-                    else if matches!(button,Button::Done|Button::Undo) {Some(self.paint.stroke(Role::Active))} else {None};
+                    else if matches!(button,Button::Done|Button::Undo|Button::Resume(_)) {Some(self.paint.stroke(Role::Active))} else {None};
                 let border=if let Some(accent)=accent {accent}
                     else if matches!(button,Button::Tag(i) if open==Some(*i as usize)) {self.paint.stroke(Role::Active)}
                     else if matches!(button,Button::Item(_)) {&self.paint.text}else{&self.paint.muted};
@@ -1099,6 +1129,16 @@ impl Ui {
                     if let Some(card)=self.card_content.as_ref().filter(|c|c.checkable&&!c.key.is_empty())
                         && let Ok(mut s)=self.shared.lock() && s.actions.len()<32 {
                         s.actions.push_back(ControlAction::Check {guide_id:card.guide_id.clone(),key:card.key.clone(),checked:true});
+                    }
+                    self.wake.notify();
+                }
+                Button::SetAside|Button::Resume(_)=>{
+                    let target=self.card_content.as_ref().filter(|c|!c.guide_id.is_empty()).and_then(|c|match pressed {
+                        Button::Resume(i)=>c.set_aside.get(i as usize).map(|(key,_)|(c.guide_id.clone(),key.clone(),false)),
+                        _=>(c.can_set_aside&&!c.key.is_empty()).then(||(c.guide_id.clone(),c.key.clone(),true)),
+                    });
+                    if let Some((guide_id,key,aside))=target && let Ok(mut s)=self.shared.lock() && s.actions.len()<32 {
+                        s.actions.push_back(ControlAction::SetAside {guide_id,key,aside});
                     }
                     self.wake.notify();
                 }

@@ -36,6 +36,12 @@ fn set_aside_steps_are_saved_filtered_and_kept_across_restarts() {
     }
     let mut app = Application::open(&json!({"path":db,"guides":[guide()]})).unwrap();
     assert_eq!(app.progress(Some("aside"), None, None).unwrap()["set_aside"], json!({"a":true}));
+    // The HUD sets aside and resumes one step at a time; a reminder is refused.
+    let hud = app.request("app_set_aside", &json!({"guide_id":"aside","key":"b","aside":true})).unwrap();
+    assert_eq!(hud["set_aside"], json!({"a":true,"b":true}));
+    assert!(app.request("app_set_aside", &json!({"guide_id":"aside","key":"r","aside":true})).is_err());
+    let hud = app.request("app_set_aside", &json!({"guide_id":"aside","key":"b","aside":false})).unwrap();
+    assert_eq!(hud["set_aside"], json!({"a":true}));
     // Resuming clears it.
     assert_eq!(update(&mut app, json!({"set_aside":{}})).unwrap()["set_aside"], json!({}));
     drop(app);

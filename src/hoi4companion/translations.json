@@ -16,6 +16,12 @@
     "research_choice_waiting": "an earlier research choice is not completed yet"
   },
   "messages": {
+    "Missing step": "Passaggio mancante",
+    "Missing set-aside value": "Valore di messa da parte mancante",
+    "Step set aside: go on with the next one.": "Passaggio messo da parte: prosegui con il successivo.",
+    "Step back in the plan.": "Passaggio di nuovo nel piano.",
+    "The current step changed: nothing was set aside": "Il passaggio corrente è cambiato: nulla è stato messo da parte",
+    "This step cannot be set aside": "Questo passaggio non può essere messo da parte",
     "Set aside steps": "Passaggi messi da parte",
     "Set aside for later": "Metti da parte",
     "Set aside": "Messo da parte",

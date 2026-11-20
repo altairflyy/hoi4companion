@@ -1466,6 +1466,24 @@ impl Application {
             json!({"checks":self.runs.call("get",json!({"guide_id":id}))?["checks"],"revision":self.revision}),
         )
     }
+    /// Sets one step of the active run aside (or resumes it), through the
+    /// same validated progress update as the suite. Returns the stored map.
+    pub fn set_aside_step(&mut self, id: Option<&str>, key: &str, aside: bool) -> Result<Value> {
+        let id = self.identity(id)?;
+        self.ensure(&id)?;
+        let current = self.runs.call("get", json!({"guide_id":id}))?;
+        let mut map = current["set_aside"].as_object().cloned().unwrap_or_default();
+        if aside {
+            map.insert(key.to_owned(), json!(true));
+        } else {
+            map.remove(key);
+        }
+        let saved = self.progress(Some(&id), None, Some(&json!({"run_id":current["run_id"],"set_aside":map})))?;
+        if aside && saved["set_aside"][key] != true {
+            return Err("This step cannot be set aside".into());
+        }
+        Ok(json!({"key":key,"aside":aside,"set_aside":saved["set_aside"]}))
+    }
     /// `runs_call` whose save also writes confirmed answer rows.
     fn runs_call_answers(&mut self, op: &str, args: Value, answers: &[Value]) -> Result<Value> {
         let (guides, sources, memo, context, associations) = (&self.guides, &self.sources, &mut self.current_archives, self.context.as_ref(), self.association_directory.as_ref());
@@ -1588,6 +1606,7 @@ impl Application {
         "app_active"=>self.active(args.get("update")),
         "app_progress"=>self.progress(args["guide_id"].as_str(),args["run_id"].as_str(),args.get("update")),
         "app_checks"=>self.checks(args["guide_id"].as_str(),args.get("update")),
+        "app_set_aside"=>self.set_aside_step(args["guide_id"].as_str(),args["key"].as_str().ok_or("Missing step")?,args["aside"].as_bool().ok_or("Missing set-aside value")?),
         "app_answers"=>self.answers(args["guide_id"].as_str(),args.get("update")),
         "app_projection"=>self.projection(args["guide_id"].as_str(),args["live"].as_bool().unwrap_or(true)),
         "app_guide"=>self.guide(args["guide_id"].as_str()),

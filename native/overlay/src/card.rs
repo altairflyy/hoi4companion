@@ -66,6 +66,10 @@ pub fn position_of(left: f32, top: f32, client: (f32, f32)) -> Option<[f32; 2]> 
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Button {Done, Collapse, Hide, Undo,
+    /// "Set aside" for the card's step: go on with the next steps.
+    SetAside,
+    /// "Resume" for the n-th step the card lists as set aside.
+    Resume(u8),
     /// "I chose this" on an ambiguous event answer: confirms the guide's
     /// answer the event popup shows now.
     ConfirmAnswer,
@@ -151,6 +155,8 @@ pub enum Undo {
     /// An event answer confirmed with "I chose this": put back the row it
     /// replaced (or none) and the step's check as they were.
     Answer {guide_id: String, key: String, quote: String, previous: serde_json::Value, previous_checked: bool},
+    /// A step set aside (or resumed) from the card: do the opposite.
+    Aside {guide_id: String, key: String, aside: bool},
 }
 
 /// Result of the last "Done" or "I chose this" click, shown on the card for
