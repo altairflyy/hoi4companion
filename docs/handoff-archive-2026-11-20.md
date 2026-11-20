@@ -21,3 +21,7 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/ux-ana
   built-in browser: library groups (ROM first, HUN two versions, "Altri documenti" 2); R7/R8 composed title "Costruisci Infrastruttura in Muntenia,
   poi … Fabbrica militare in Muntenia"; 47 "Cosa significa?" links; a saved reading showed "Conferma tu" + "Tua lettura" after fix `847bf95`
   (plan page now copies readings from the projection), then removed. User closed step 9 without checking the other step-9 items (still NOT verified).
+- 2026-11-20 LIVE: event answer not highlighted (SOV, `bftb_turkey.4` open). Cause: `country_events.rs` read grid/buttons at fixed reference offsets
+  (0x1280, 0x10d8); this build's `gui_layout` has `event_grid` 5120, `container_drags` 4696, so `events` was `unavailable` and the step stayed
+  unverifiable. Fixed to read the profile; after rebuild `events` observed, step `active`, observe returns rect on `bftb_turkey.4.a`. Overlay drawing
+  confirmed on screen by the user (2026-11-20).
