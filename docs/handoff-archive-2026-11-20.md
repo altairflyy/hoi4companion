@@ -28,3 +28,9 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/ux-ana
 - 2026-11-20 LIVE `31ce96b`: HUD card stuck on SOV step 1 (`word-0001`, INFRA+MILs "maximum") while the suite moved on. Cause: unqualified MIL maximum
   completed only while queued; HUD "Done" wrote a check the declared completion ignored. Fix: such targets = any(step check, queued); HUD/suite
   "Done" only where the step's own check completes it. After rebuild the run moved to the new archive, `word-0001` completed, card at step 14.
+
+## Moved from handoff 2026-11-20 (construction queue, I-16 retirement)
+- 2026-11-20 LIVE `31ce96b` (archive) + `be4736f`: step 1 reopened: one unlocatable queue line made `construction.queued` unknown. New fact `construction.queued_known`
+  (located lines, positive use only); `word-0001` completed again. `143d834`: a later "Change A to B" line marks earlier production targets
+  named A `retired_by` it (`production_retirement.rs`); guide-core supersedes them once that line is completed. Live: `word-0002`
+  Superseded by `word-0011--line-2`, card at step 18. Note: a fully met rest makes the whole step "Superseded" (existing rule).
