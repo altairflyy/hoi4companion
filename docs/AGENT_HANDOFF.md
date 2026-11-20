@@ -33,6 +33,9 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
   preview as `report.interpretation`; importer card `interpretationOverview`. Focus/research count as automatic (guide-core native membership).
 
 ## Recently verified
+- 2026-11-20 LIVE `31ce96b`: HUD card stuck on SOV step 1 (`word-0001`, INFRA+MILs "maximum") while the suite moved on. Cause: unqualified MIL maximum
+  completed only while queued; HUD "Done" wrote a check the declared completion ignored. Fix: such targets = any(step check, queued); HUD/suite
+  "Done" only where the step's own check completes it. After rebuild the run moved to the new archive, `word-0001` completed, card at step 14.
 - 2026-11-20 LIVE: event answer not highlighted (SOV, `bftb_turkey.4` open). Cause: `country_events.rs` read grid/buttons at fixed reference offsets
   (0x1280, 0x10d8); this build's `gui_layout` has `event_grid` 5120, `container_drags` 4696, so `events` was `unavailable` and the step stayed
   unverifiable. Fixed to read the profile; after rebuild `events` observed, step `active`, observe returns rect on `bftb_turkey.4.a`. Overlay drawing
