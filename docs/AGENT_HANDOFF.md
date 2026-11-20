@@ -33,9 +33,9 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
   preview as `report.interpretation`; importer card `interpretationOverview`. Focus/research count as automatic (guide-core native membership).
 
 ## Recently verified
-- 2026-11-20 LIVE `31ce96b`: HUD card stuck on SOV step 1 (`word-0001`, INFRA+MILs "maximum") while the suite moved on. Cause: unqualified MIL maximum
-  completed only while queued; HUD "Done" wrote a check the declared completion ignored. Fix: such targets = any(step check, queued); HUD/suite
-  "Done" only where the step's own check completes it. After rebuild the run moved to the new archive, `word-0001` completed, card at step 14.
+- 2026-11-20 LIVE `31ce96b` (archive) + `be4736f`: step 1 reopened: one unlocatable queue line made `construction.queued` unknown. New fact `construction.queued_known`
+  (located lines, positive use only); `word-0001` completed again. OPEN: card now on `word-0002` (I-16:5 → 0 after the guide's own line
+  "Change I-16 to F1ca (12AE), production to 15", read as a manual checkpoint, so it supersedes nothing). Fix pending user choice.
 - 2026-11-20 event-answer offsets fix (`80ea4b5`, seen on screen), R13 A, R15, step 9 part 1: details in the archive and the UX doc; seen live in the suite.
 - Event answers: native HUD answers seen on screen (`bea90e8`); user confirmations `197f141..320d441`, NOT live-verified. See archive.
 
