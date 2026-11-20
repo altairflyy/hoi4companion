@@ -61,6 +61,11 @@
    alias(item.title,item);
    const base=clean(item.title.replace(/\s*\([^)]*\)\s*$/,''));alias(base,item);
    alias(base.replace(/\b(build|setup|plan)s$/i,'$1'),item);
+   // "Peace Conference*" names the "PEACE CONFERENCE PRIORITY" table, and
+   // "NED Peace Conference*" the NED row inside it.
+   if(/\bpeace conference priority$/i.test(base))alias(base.replace(/\s+priority$/i,''),item);
+   const parent=clean(item.context.split(' › ').at(-1)||'').replace(/\s+priority$/i,'');
+   if(/^peace conference$/i.test(parent))alias(base+' '+parent,item);
    const invasion=/^(.+?) invasion$/i.exec(base);if(invasion)alias('Invade '+invasion[1],item);
    if(/\b(?:setup|plans?)\b/i.test(item.context)&&!section.test(base))alias(base+' Setup',item);
    if(/\bsetup$/i.test(base)||/\bsetup\b/i.test(item.context)&&/^(?:ARMY|NAVY|AIR FORCE)$/i.test(base))alias('Setup',item);

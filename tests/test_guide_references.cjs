@@ -35,6 +35,17 @@ test('Word references point to their own subsection and preserve the original wo
  assert.match(links('If GER does not attack RNG*',index)[0].candidates[0].text,/Justify instead/);
  assert.equal(refs.segments('ROM setup* and Initial Setup*',index).map(p=>p.text).join(''),'ROM setup* and Initial Setup*');
 });
+test('peace conference footnotes open the priority table, country-qualified ones its own row',()=>{
+ const index=refs.build(tables);
+ const ned=links('NED Peace Conference*\n- Adjust trade',index)[0];
+ assert.equal(ned.text,'NED Peace Conference*');assert.equal(ned.candidates.length,1);
+ assert.equal(ned.candidates[0].title,'NED');assert.match(ned.candidates[0].text,/Take navy/);
+ for(const text of ['End with HUN & peace conference*','- Peace Conference* & adjust trade']){
+  const part=links(text,index)[0];assert.equal(part.candidates.length,1,text);
+  assert.equal(part.candidates[0].title,'PEACE CONFERENCE PRIORITY');assert.match(part.candidates[0].text,/Puppet all but CZE/);
+ }
+ assert.equal(links('Peace conference with NED',index).length,0);
+});
 test('unqualified country mentions are not turned into references; ambiguous references offer all candidates',()=>{
  assert.equal(links('REL ROM, NA ROM, attack ROM').length,0);
  const matches=links('See ROM')[0];assert.equal(matches.candidates.length,2);
