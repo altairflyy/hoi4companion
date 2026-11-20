@@ -144,6 +144,8 @@ impl Context {
         let result = crate::decomposition::decompose_with(guide, &compile, &extra)?;
         let mut bound = crate::construction_instructions::bind(&result["guide"], &self.index)?;
         crate::informal_targets::bind_production_children(&mut bound, &self.index, &self.library)?;
+        // "Change I-16 to F1ca": the earlier I-16 target retires once that line is done.
+        hoi4companion_guides::production_retirement::annotate(&mut bound);
         if result["report"].as_array().is_some_and(|r| r.iter().any(|e| e["status"] == "decomposed")) {
             self.present(&bound)
         } else {

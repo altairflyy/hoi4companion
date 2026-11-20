@@ -316,6 +316,28 @@ fn production_phase_dependencies_stay_closed_without_phase_proof() {
 }
 
 #[test]
+fn author_change_line_retires_the_named_target_only_once_confirmed() {
+    // "Production: Sup:7, I-16:5" then "Change I-16 to F1ca": the I-16 lines are
+    // gone (converted), so the old layout cannot be met by production alone.
+    let target = |id: &str, n: u64| json!({"category":"production","equipment_id":id,"requested_factories":n,"production_selector":{"equipment_ids":[id],"variant_names":[],"category":"military"}});
+    let mut i16 = target("i16", 5);
+    i16["retired_by"] = json!("change");
+    let guide = json!({"schema_version":1,"id":"retire","title":"Retire","dependency_policy":"explicit","applies_to":{"country":"TST"},"tracks":{"operations":[
+        {"key":"setup","title":"setup","action":{"kind":"manual","params":{"category":"production","production_targets":[target("sup",7),i16]}},
+         "completion":{"op":"all","args":[{"op":"fact","key":"guide.production.setup.target-1.requested","test":"gte","value":7},{"op":"fact","key":"guide.production.setup.target-2.requested","test":"gte","value":5}]}},
+        {"key":"change","title":"Change I-16 to F1ca","action":{"kind":"manual","params":{"category":"checkpoints"}}}]}});
+    let progress = |on: bool| json!({"schema_version":1,"guide_id":"retire","run_id":"r","checks":{"change":on}});
+    let open = eval(&guide, &production_live(), &progress(false));
+    assert_ne!(step(&open, "setup")["status"], "not_applicable");
+    assert!(step(&open, "setup").get("superseded_by").is_none());
+    let done = eval(&guide, &production_live(), &progress(true));
+    assert_eq!(step(&done, "setup")["superseded_by"], json!(["change"]));
+    assert_ne!(step(&done, "setup")["status"], "completed");
+    assert_eq!(step(&done, "setup")["production"]["layout"][1]["superseded_by"], json!(["change"]));
+    assert!(step(&done, "setup")["production"]["layout"][0].get("superseded_by").is_none());
+}
+
+#[test]
 fn explicit_dependencies_bind_production_revisions() {
     let mut guide = production_phases();
     guide["tracks"]["operations"][1]["depends_on"] = json!(["initial"]);

@@ -139,6 +139,41 @@ impl CompiledGuide {
                 }
             }
         }
+        // The author's explicit replacement ("Change I-16 to F1ca"): a target
+        // marked `retired_by` a later step is replaced once that step's own
+        // completion is calculated true. Never a completion of the old target.
+        let done: HashSet<&str> = self.rows.iter().zip(results.iter())
+            .filter(|(_, r)| r["completion"]["status"] == "calculated" && r["completion"]["value"] == true)
+            .map(|((_, s), _)| s.key.as_str())
+            .collect();
+        for (i, (_, step)) in self.rows.iter().enumerate() {
+            let p = &step.action.params;
+            if p["category"] != "production" || results[i]["reason"] == "guide_scope_mismatch" {
+                continue;
+            }
+            match p.get("production_targets").and_then(Value::as_array) {
+                Some(targets) => {
+                    for (n, target) in targets.iter().enumerate() {
+                        if let Some(by) = target["retired_by"].as_str().filter(|by| done.contains(by))
+                            && results[i]["production"]["layout"][n].is_object()
+                        {
+                            let mut list = results[i]["production"]["layout"][n]["superseded_by"].as_array().cloned().unwrap_or_default();
+                            push_unique(&mut list, json!(by));
+                            results[i]["production"]["layout"][n]["superseded_by"] = json!(list);
+                        }
+                    }
+                }
+                None => {
+                    if let Some(by) = p["retired_by"].as_str().filter(|by| done.contains(by))
+                        && results[i]["production"].is_object()
+                    {
+                        let mut list = results[i]["production"]["superseded_by"].as_array().cloned().unwrap_or_default();
+                        push_unique(&mut list, json!(by));
+                        results[i]["production"]["superseded_by"] = json!(list);
+                    }
+                }
+            }
+        }
         for (i, (_, step)) in self.rows.iter().enumerate() {
             let layout = step.action.params.get("production_targets").is_some();
             let details = if layout {

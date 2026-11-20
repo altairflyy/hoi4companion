@@ -55,6 +55,7 @@ pub mod map_anchors;
 pub mod map_topology;
 pub mod import_reports;
 pub mod production_revisions;
+pub mod production_retirement;
 // Model modules at this crate root, so moved code keeps its crate::<module> paths.
 #[allow(unused_imports)]
 use hoi4companion_model::{state,domain_context,production_context,script_document,import_catalog,recipient,reference_identity,word_sources,guide_schema,geography,installation,compiled_cache,source_eligibility,action_blocks,focus_text,focus_import,events};
