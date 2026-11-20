@@ -81,8 +81,12 @@ scenario is not live evidence and must not override a campaign binding.
 
 Reloading an earlier save of the same qualified campaign must not rebase an
 existing `UP` onto today's first unfinished level. On a timeline rewind the new
-run retains the previous target identities in `research_history`; it does not
-copy checklist confirmations, construction baselines or completed actions.
+run retains the previous target identities in `research_history` and the
+set-aside steps (a player choice, not a game fact). It copies only checklist
+confirmations whose recorded campaign date (`checked_at`, written when the step
+was confirmed while the run was bound to the campaign) is no later than the
+loaded date; undated or later confirmations, construction baselines and
+completed actions are not copied.
 Only relative steps whose stored target is still in their declared catalog
 chain can recover that target. Current qualified research membership still
 determines whether it is active or complete. Pre-fix rewind runs recover the

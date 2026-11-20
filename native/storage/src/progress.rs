@@ -154,6 +154,12 @@ fn validate_record(key: &str, row: &Value) -> Result<()> {
     if let Some(v) = row.get("set_aside") {
         checks(v)?;
     }
+    // Campaign date of each confirmation (absent when it is unknown).
+    if let Some(v) = row.get("checked_at")
+        && !v.as_object().is_some_and(|m| m.len() <= 20000 && m.values().all(|t| t.as_u64().is_some()))
+    {
+        return Err("Date delle conferme non valide".into());
+    }
     baselines(row.get("baselines").unwrap_or(&json!({})))?;
     observations(row.get("campaign_conditions").unwrap_or(&json!({})))?;
     for field in ["research_bindings", "research_history"] {
@@ -305,6 +311,28 @@ impl State {
             .cloned()
             .ok_or_else(|| "Partita della guida non trovata".into())
     }
+    /// Dates each newly confirmed step with the current campaign date when
+    /// the row belongs to the bound campaign; keeps earlier dates and drops
+    /// the dates of steps no longer confirmed.
+    fn date_confirmations(&self, row: &mut Value, previous: &Value) {
+        let bound = self.binding.as_ref().is_some_and(|b| row["campaign_id"] == b[0] && row["country"] == b[1]);
+        let mut dates = row.get("checked_at").and_then(Value::as_object).cloned().unwrap_or_default();
+        dates.retain(|k, _| row["checks"][k.as_str()] == true);
+        if let (true, Some(tick), Some(checks)) = (bound, self.tick, row["checks"].as_object()) {
+            for (k, v) in checks {
+                if *v == true && previous[k.as_str()] != true && !dates.contains_key(k) {
+                    dates.insert(k.clone(), json!(tick));
+                }
+            }
+        }
+        if let Some(m) = row.as_object_mut() {
+            if dates.is_empty() {
+                m.remove("checked_at");
+            } else {
+                m.insert("checked_at".into(), Value::Object(dates));
+            }
+        }
+    }
     fn insert(&mut self, row: Value) {
         let guide = string(&row["guide_id"]).to_owned();
         let key = string(&row["run_id"]).to_owned();
@@ -450,13 +478,14 @@ impl State {
                     checks(&args["set_aside"])?
                 }
                 let mut row = self.get(guide, None)?;
-                row["checks"] = args["checks"].clone();
                 if !args["started"].is_null() {
                     row["started"] = args["started"].clone()
                 }
                 if !args["set_aside"].is_null() {
                     row["set_aside"] = args["set_aside"].clone()
                 }
+                let previous = std::mem::replace(&mut row["checks"], args["checks"].clone());
+                self.date_confirmations(&mut row, &previous);
                 self.insert(row.clone());
                 Ok(row)
             }
@@ -490,6 +519,9 @@ impl State {
                 row["definition_ref"] = args["definition"].clone();
                 row["checks"] = args["checks"].clone();
                 row["started"] = args["started"].clone();
+                // Translated keys have no known date; only kept keys keep theirs.
+                let unchanged = row["checks"].clone();
+                self.date_confirmations(&mut row, &unchanged);
                 self.insert(row.clone());
                 Ok(row)
             }
@@ -593,7 +625,26 @@ impl State {
                             .get("definition_ref")
                             .cloned()
                             .unwrap_or_else(|| legacy_marker(LEGACY_REASON));
-                        row = self.new_run(&json!(g), session, json!({}), ids)?;
+                        // Confirmations dated no later than the loaded date
+                        // still hold in it; later or undated ones stay unknown.
+                        // Set-aside steps are the player's choice, not game facts.
+                        let dated: Object = row
+                            .get("checked_at")
+                            .and_then(Value::as_object)
+                            .into_iter()
+                            .flatten()
+                            .filter(|(k, t)| row["checks"][k.as_str()] == true && t.as_u64().is_some_and(|t| t <= tick))
+                            .map(|(k, t)| (k.clone(), t.clone()))
+                            .collect();
+                        let checks: Object = dated.keys().map(|k| (k.clone(), json!(true))).collect();
+                        let aside = row.get("set_aside").cloned();
+                        row = self.new_run(&json!(g), session, Value::Object(checks), ids)?;
+                        if !dated.is_empty() {
+                            row["checked_at"] = Value::Object(dated)
+                        }
+                        if let Some(aside) = aside.filter(|v| v.as_object().is_some_and(|m| !m.is_empty())) {
+                            row["set_aside"] = aside
+                        }
                         row["definition_ref"] = inherited;
                         row["branch_reason"] = json!("timeline_rewind");
                         if !history.is_empty() {
@@ -644,7 +695,7 @@ fn metadata(row: &Value) -> Value {
         row.as_object()
             .expect("validated run")
             .iter()
-            .filter(|(k, _)| !["checks", "started", "set_aside", "baselines", "previous_definitions"].contains(&k.as_str()))
+            .filter(|(k, _)| !["checks", "checked_at", "started", "set_aside", "baselines", "previous_definitions"].contains(&k.as_str()))
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect(),
     )

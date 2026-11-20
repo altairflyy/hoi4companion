@@ -148,3 +148,51 @@ fn set_aside_steps_are_kept_with_the_run_and_left_out_of_metadata() {
     call(&mut legacy, "load", json!({"snapshot":legacy_snapshot()})).unwrap();
     assert!(call(&mut legacy, "get", json!({"guide_id":"g"})).unwrap()["value"].get("set_aside").is_none());
 }
+
+#[test]
+fn a_rewind_keeps_set_aside_steps_and_confirmations_made_before_the_loaded_date() {
+    let mut store = Store::default();
+    call(&mut store, "ensure", json!({"guide_id":"g","checks":{},"definitions":{"g":pin('a')}})).unwrap();
+    // Confirmed before any campaign date was known: when it happened is unknown.
+    call(&mut store, "update", json!({"guide_id":"g","checks":{"early":true},"definitions":{}})).unwrap();
+    let bind = |store: &mut Store, tick: u64| {
+        call(store, "bind_campaign", json!({"campaign_id":CAMPAIGN,"country":"GER","session_id":"s","tick":tick,"definitions":{"g":pin('a')}})).unwrap();
+    };
+    bind(&mut store, 100);
+    let at_100 = call(&mut store, "update", json!({"guide_id":"g","checks":{"early":true,"a":true},"set_aside":{"x":true},"definitions":{}})).unwrap();
+    assert_eq!(at_100["value"]["checked_at"], json!({"a":100}), "only new confirmations get the current date");
+    bind(&mut store, 200);
+    let at_200 = call(&mut store, "update", json!({"guide_id":"g","checks":{"early":true,"a":true,"b":true,"gone":false},"definitions":{}})).unwrap();
+    assert_eq!(at_200["value"]["checked_at"], json!({"a":100,"b":200}), "an earlier date is kept");
+    let original = at_200["value"]["run_id"].clone();
+
+    bind(&mut store, 150);
+    let rewound = call(&mut store, "get", json!({"guide_id":"g"})).unwrap()["value"].clone();
+    assert_eq!(rewound["branch_reason"], "timeline_rewind");
+    assert_ne!(rewound["run_id"], original);
+    assert_eq!(rewound["set_aside"], json!({"x":true}), "set-aside steps are the player's choice, not game facts");
+    assert_eq!(rewound["checks"], json!({"a":true}), "later or undated confirmations stay unknown");
+    assert_eq!(rewound["checked_at"], json!({"a":100}));
+    // The previous branch is left untouched.
+    let kept = call(&mut store, "get", json!({"guide_id":"g","run_id":original})).unwrap()["value"].clone();
+    assert_eq!(kept["checks"], json!({"early":true,"a":true,"b":true,"gone":false}));
+
+    // Unconfirming drops the date; stored dates must be valid.
+    let cleared = call(&mut store, "update", json!({"guide_id":"g","checks":{},"definitions":{}})).unwrap();
+    assert!(cleared["value"].get("checked_at").is_none_or(|v| v == &json!({})));
+    let mut snapshot = legacy_snapshot();
+    snapshot["runs"]["old"]["checked_at"] = json!({"k":"yesterday"});
+    assert!(call(&mut Store::default(), "load", json!({"snapshot":snapshot})).is_err());
+    let metadata = call(&mut store, "metadata", json!({})).unwrap();
+    assert!(metadata["value"]["g"].get("checked_at").is_none());
+}
+
+#[test]
+fn an_upgrade_keeps_dates_of_kept_confirmations_and_never_dates_translated_ones() {
+    let mut store = Store::default();
+    call(&mut store, "ensure", json!({"guide_id":"g","checks":{},"definitions":{"g":pin('a')}})).unwrap();
+    call(&mut store, "bind_campaign", json!({"campaign_id":CAMPAIGN,"country":"GER","session_id":"s","tick":100,"definitions":{"g":pin('a')}})).unwrap();
+    let run = call(&mut store, "update", json!({"guide_id":"g","checks":{"a":true,"b":true},"definitions":{}})).unwrap()["value"].clone();
+    let up = call(&mut store, "upgrade", json!({"guide_id":"g","run_id":run["run_id"],"definition":pin('b'),"checks":{"a":true,"renamed":true},"started":{},"definitions":{}})).unwrap();
+    assert_eq!(up["value"]["checked_at"], json!({"a":100}));
+}
