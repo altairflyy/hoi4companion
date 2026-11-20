@@ -19,7 +19,7 @@ like a real-time overlay (immediate response, never blank while HOI4 is in the f
 
 ## Steps (one per session; `/clear` between them; the Resume prompt in `docs/AGENT_HANDOFF.md` says which is next)
 1. [ ] Measure. Overlay: bounded trace `.local/hud-trace.jsonl` (rotate at ~5 MB): per iteration timestamp, branch (idle/native/capture),
-   observe round trip, `geometry_ms`, `state_age_ms`, `live_delivery_fresh`, card shown, marks count, and every hide/blank with its cause;
+   observe round trip, backend handling time (so transport = round trip - handling), reply size, `geometry_ms`, `state_age_ms`, `live_delivery_fresh`, card shown, marks count, and every hide/blank with its cause;
    process start and fatal error lines. Backend: add delivery age and acquisition/evaluation durations to the `observe` reply if missing.
    `scripts/hud-trace-report.cjs`: p50/p95/max of each timing and the list of blank intervals while HOI4 was foreground, with causes;
    a unit test on a small fixture trace. Tests, invariant-reviewer, commit, rebuild, restart. Then the USER plays ~10 min with the HUD.
@@ -31,7 +31,7 @@ like a real-time overlay (immediate response, never blank while HOI4 is in the f
    delivery without a card, a guide/run change, HOI4 in background or pause. Highlights keep their present gates. Translation strings.
 5. [ ] Backend delivery freshness (content set by step 2): e.g. progress writes and audits never hold the delivery, a fast partial read
    between full reads, geometry sampling off the request path. Rust tests; rebuild.
-6. [ ] Push instead of poll (only if step 2 shows request overhead matters): backend pushes HUD deliveries/geometry over the existing
+6. [ ] Transport (only if step 2 shows its overhead matters; today: new loopback TCP connection per request, `Connection: close`, full JSON snapshot each ~16 ms, `native/common/loopback.rs`): keep-alive or a named pipe, smaller replies, and/or push instead of poll: backend pushes HUD deliveries/geometry over the existing
    subscription when they change; the overlay polls only as fallback.
 7. [ ] Live check with the user: `/deliver-build`, play ~10 min with the trace on, compare the report with step 1 numbers, update
    `docs/native-overlay.md`, archive this plan.
