@@ -50,6 +50,22 @@ test('Rust pages consume a coherent shared packet and discard a late packet afte
  assert.equal(page.api.value.guide.id,'second');assert.equal(page.api.value.state.from_shared,'second');assert.equal(page.api.value.progress.guide_id,'second');
 });
 
+test('the player readings of the Rust projection are shown on the same definition, keeping one guide object (UX R13)',async()=>{
+ const reading={category:'army',target:{kind:'country',id:'YUG',name:'Jugoslavia'}};
+ const definition={...nativeDefinition('first'),tracks:{operations:[{key:'raw',title:'Def against YUG',action:{kind:'manual',params:{}}},{key:'other',title:'x',action:{kind:'manual',params:{}}}]}};
+ let packets=0;
+ const page=await openGuidePage({shared:'first',fetchOverride:async(url)=>{
+  if(url==='/api/guides'||url==='/api/guide/active')return;
+  if(url.startsWith('/api/guide/projection')){packets++;const packet=nativePacket('first');packet.guide=structuredClone(definition);packet.guide.tracks.operations[0].interpretation=reading;return {ok:true,json:async()=>packet};}
+  return {ok:true,json:async()=>url.startsWith('/api/guide/progress')?nativeProgress('first'):structuredClone(definition)};
+ }});
+ await new Promise(setImmediate);await new Promise(setImmediate);
+ const shown=page.api.value.guide;assert.ok(packets>0);
+ assert.deepEqual(shown.tracks.operations[0].interpretation,reading);assert.equal(shown.tracks.operations[1].interpretation,undefined);
+ page.emit({usable:false,session_id:'next'});await new Promise(setImmediate);await new Promise(setImmediate);
+ assert.equal(page.api.value.guide,shown,'unchanged readings keep the same guide object, so the page keeps its filters');
+});
+
 test('a malformed shared packet is rejected instead of falling back to client rules',async()=>{
  const page=await openGuidePage({shared:'first',fetchOverride:async(url)=>{
   if(url==='/api/guides'||url==='/api/guide/active')return;

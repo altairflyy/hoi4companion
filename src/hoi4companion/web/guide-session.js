@@ -7,10 +7,26 @@
  let projection=null,projectionVersion=0,projectionTask=null,projectionError=false,projectionMutation=0;
  const endpoint=path=>path+'?id='+encodeURIComponent(guide.id);
  async function json(url,options){const r=await fetch(url,options),data=await r.json();if(!r.ok)throw Error(data.error||'HTTP '+r.status);return data;}
+ // UX R13: the player's line readings arrive on the projection's steps, attached
+ // by Rust after the evaluation. Copy them onto the same definition revision for
+ // display only; statuses still come from the Rust evaluation alone.
+ // The same object is kept while the readings do not change: the page resets its
+ // filters and caches when the guide object changes.
+ let readingMemo={definition:null,signature:'',shown:null};
+ function interpreted(definition,projected){
+  const readings=new Map(Object.values(projected?.tracks||{}).flat().filter(s=>s&&typeof s.key==='string'&&s.interpretation&&typeof s.interpretation==='object').map(s=>[s.key,s.interpretation]));
+  if(!readings.size||!definition?.tracks){readingMemo={definition:null,signature:'',shown:null};return definition;}
+  const signature=JSON.stringify([...readings]);
+  if(readingMemo.definition===definition&&readingMemo.signature===signature)return readingMemo.shown;
+  readingMemo={definition,signature,shown:null};
+  return readingMemo.shown={...definition,tracks:Object.fromEntries(Object.entries(definition.tracks).map(([id,steps])=>[id,Array.isArray(steps)?steps.map(s=>readings.has(s?.key)?{...s,interpretation:readings.get(s.key)}:s):steps]))};
+ }
  function publish(){
   const shared=!pending&&guide?.runtime_engine==='rust-guide-core'&&projection?.sequence===sequence&&projection.packet.progress.run_id===progress.run_id?projection.packet:null;
-  const state=shared?shared.state:window.hoiLive?.enabled?live:null,view=guide?HoiGuidePresentation.evaluate(guide,state,progress,shared?.evaluation):null;
-  api.value={guide,catalog,progress,view,state,error,pending};for(const fn of listeners)fn(api.value);
+  // Between two projections the last readings of this same definition stay shown.
+  const shown=shared?interpreted(guide,shared.guide):readingMemo.definition===guide&&readingMemo.shown||guide;
+  const state=shared?shared.state:window.hoiLive?.enabled?live:null,view=shown?HoiGuidePresentation.evaluate(shown,state,progress,shared?.evaluation):null;
+  api.value={guide:shown,catalog,progress,view,state,error,pending};for(const fn of listeners)fn(api.value);
  }
  // A projection is evaluated against the live observation its request saw. Rust reads live state only when this
  // predicate holds, so another event with the same basis cannot change the evaluation and keeps the current cards.
