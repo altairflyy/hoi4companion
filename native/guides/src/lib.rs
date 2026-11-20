@@ -30,6 +30,7 @@ pub mod guide_runtime;
 pub mod import_document;
 pub mod import_preview;
 pub mod informal_targets;
+pub mod interpretations;
 pub mod occurrence_manifest;
 pub mod operational_catalog;
 pub mod operation_binding;

@@ -57,6 +57,8 @@ use hoi4companion_model::import_catalog;
 use hoi4companion_guides::import_document;
 use hoi4companion_guides::import_preview;
 use hoi4companion_guides::import_reports;
+use hoi4companion_guides::interpretations;
+use hoi4companion_guides::display_category;
 mod import_service;
 use hoi4companion_guides::informal_targets;
 pub use hoi4companion_model::installation;

@@ -46,6 +46,10 @@ fn rules() -> &'static Rules {
 
 /// The display category of a prepared or evaluated step.
 pub fn category(step: &Value) -> String {
+    // The player's own reading (UX R13) wins: it was chosen for this very line.
+    if let Some(c) = step["interpretation"]["category"].as_str().filter(|c| crate::interpretations::CATEGORIES.contains(c)) {
+        return c.to_owned();
+    }
     let p = &step["action"]["params"];
     let bound = p["category"].as_str().filter(|c| !c.is_empty());
     if let Some(c) = bound.filter(|c| *c != "checkpoints") {

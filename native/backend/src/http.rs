@@ -849,6 +849,8 @@ impl Service {
             }
             ("GET", "/api/guide/associations") => self.associations(id.map(String::as_str), None),
             ("POST", "/api/guide/associations") => self.associations(None, Some(&request.json()?)),
+            ("GET", "/api/guide/interpretations") => self.interpretations(id.map(String::as_str), None),
+            ("POST", "/api/guide/interpretations") => self.interpretations(None, Some(&request.json()?)),
             ("GET", "/api/guide/checks") => self.app("app_checks", &json!({"guide_id":id})),
             ("POST", "/api/guide/checks") => {
                 let value = self.app(
@@ -1473,6 +1475,51 @@ impl Service {
             "changes":crate::guide_repository::associations(id,&self.association_directory)?["changes"],
             "revision":self.association_revision.load(Ordering::Acquire)});
         drop(app);
+        if update.is_some() {
+            self.invalidate()?;
+        }
+        Ok(result)
+    }
+    /// The player's reading of lines followed by hand (UX R13). Presentation
+    /// only: saved apart from the guide, attached to projections after the
+    /// evaluation. A target is accepted only when exactly one catalog entry has
+    /// that kind and ID (and scope, when given); its name comes from the catalog.
+    fn interpretations(&self, guide_id: Option<&str>, update: Option<&Value>) -> Result<Value> {
+        let mut id = guide_id;
+        let mut resolved = None;
+        if let Some(update) = update {
+            let fields = update.as_object().ok_or("Interpretazione non valida")?;
+            if fields.len() != 4 || fields.keys().any(|k| !["guide_id", "key", "expected", "interpretation"].contains(&k.as_str())) {
+                return Err("Interpretazione non valida".into());
+            }
+            id = Some(update["guide_id"].as_str().ok_or("ID guida non valido")?);
+            let mut interpretation = update["interpretation"].clone();
+            let target = &update["interpretation"]["target"];
+            if !target.is_null() {
+                let wanted = target.as_object().ok_or("Interpretazione non valida")?;
+                if wanted.keys().any(|k| !["kind", "id", "scope"].contains(&k.as_str())) {
+                    return Err("Interpretazione non valida".into());
+                }
+                let entry = self.catalog(|c| {
+                    let index = c.import_index()?;
+                    let matches = index.rows().iter()
+                        .filter(|r| r["kind"] == target["kind"] && r["id"] == target["id"] && (target.get("scope").is_none() || r.get("scope") == target.get("scope")))
+                        .collect::<Vec<_>>();
+                    if matches.len() != 1 {
+                        return Err("ID non presente o ambiguo nel catalogo".into());
+                    }
+                    Ok(matches[0].clone())
+                })?;
+                let name = [&entry["localized_name"], &entry["name"], &entry["id"]].into_iter().find_map(|v| v.as_str().filter(|s| !s.is_empty())).unwrap_or("");
+                let mut out = json!({"kind":entry["kind"],"id":entry["id"],"name":name});
+                if let Some(scope) = entry.get("scope").filter(|v| v.as_str().is_some_and(|s| !s.is_empty())) {
+                    out["scope"] = scope.clone();
+                }
+                interpretation["target"] = out;
+            }
+            resolved = Some(json!({"key":update["key"],"expected":update["expected"],"interpretation":interpretation}));
+        }
+        let result = self.app("app_interpretations", &json!({"guide_id":id,"update":resolved}))?;
         if update.is_some() {
             self.invalidate()?;
         }

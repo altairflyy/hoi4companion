@@ -12,6 +12,7 @@ mod entity_resolution_corpus;
 mod guide_benchmark_contracts;
 mod guide_evaluation;
 mod guide_identity_diagnostics;
+mod interpretations;
 mod occurrence_identity;
 mod presentation_fixtures;
 mod real_catalog_contract;

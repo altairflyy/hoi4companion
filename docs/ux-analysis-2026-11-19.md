@@ -413,13 +413,18 @@ L'ordine è stato rivisto dopo R1: R3 e R5 toccano gli stessi testi e vanno insi
   ripetuti); i due "HUNGARY BROKEN EU Path!" hanno sorgenti diverse e risultano versioni diverse; "VIDEO LINK" e "How to Import My Equipment
   Designs" vanno in "Altri documenti". I doppioni FRANCE/ROMANIA di P9 non esistono più nella libreria attuale (FRANCE ha NEW e OLD).
   Test: Rust `library_rows_carry_a_definition_hash_that_ignores_only_the_id`, JS `tests/test_suite.cjs`. Non ricompilato né visto dal vivo.
-- [ ] **R13 · Decisione dell'utente (2026-11-20): solo fase A, nessuna IA.** Fase A = interpretazione manuale delle righe manuali e
-  non interpretate. Nuovo tipo di correzione salvato accanto alle associazioni esistenti (`native/guides/src/guide_repository.rs`
-  `change`): l'utente sceglie una categoria di presentazione e, se vuole, un bersaglio del catalogo (focus, decisione, stato, edificio,
-  tag). Rust la applica allo strato `reading` (titolo e categoria) e al rapporto d'import (`import_reports::interpretation`); non diventa
-  mai un criterio di completamento: il passo resta manuale o promemoria. Due sessioni: A1 tipo di correzione in Rust con test d'integrazione;
-  A2 interfaccia nella pagina associazioni, link "Non è questo?" anche per queste righe, copia dell'importer allineata. Fase B (modello
-  locale con proposte approvate) rinviata: si decide dopo aver visto quante righe l'utente corregge a mano.
+- [x] **R13 · Lettura del giocatore, fase A senza IA** (2026-11-20; fase B col modello locale rinviata per decisione dell'utente).
+  Le righe manuali o non interpretate senza entità associata (`interpretations::editable`: verifica manuale/non interpretata, niente
+  `action.entity`, niente promemoria) ricevono una lettura del giocatore: categoria di presentazione e, facoltativo, un elemento del catalogo
+  (nazione, stato, edificio, focus, tecnologia, equipaggiamento, progetto) il cui nome viene dal catalogo, mai dal client. File separato
+  `<id>.interpretations.json` accanto alle associazioni, mai nella definizione o nell'archivio; `Application::projection` lo attacca ai
+  passi dopo la valutazione Rust (`step.interpretation`); un elemento la cui riga è cambiata non viene mostrato. `display_category` e
+  `verification` (Rust e JS) lo leggono: categoria scelta, "Non interpretata" diventa "Conferma tu", mai automatica; nessun criterio di
+  completamento. API `GET/POST /api/guide/interpretations`; stamp HUD `interpretation`. Suite: sezione "Cosa significa una riga" nella
+  pagina associazioni, badge "Tua lettura", link "Cosa significa?" / "Cambia la tua lettura" sulle card, testo dell'importer allineato.
+  Test: Rust `interpretations::tests`, integrazione `interpretations::`, `hud_service` step_card, contratto categorie; JS
+  `test_associations_view`, `test_action_plan`, `test_guide_view`. Non ricompilato né visto dal vivo. Limite: le chiavi delle righe non
+  interpretate nel rapporto d'import sono quelle dell'anteprima; se la guida installata le scompone diversamente il link nomina il passo.
 - Poi il lungo periodo, nell'ordine delle tabelle sopra.
 
 ### Metrica guida proposta

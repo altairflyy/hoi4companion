@@ -314,6 +314,9 @@ pub struct Application {
     preparing: BTreeMap<String, Option<String>>,
     /// Bumped when background-prepared guides join the registry.
     registry_generation: u64,
+    /// Bumped when the player saves a line interpretation (UX R13): projections
+    /// and the HUD card show it, the definition and evaluation never change.
+    interpretation_generation: u64,
     /// Test hook (`answer_index` entries, `test-support` feature only): catalog
     /// the confirmations bind against while no game catalog context is loaded.
     #[cfg(feature = "test-support")]
@@ -360,6 +363,7 @@ impl Application {
             live_runs: None,
             preparing: BTreeMap::new(),
             registry_generation: 0,
+            interpretation_generation: 0,
             #[cfg(feature = "test-support")]
             answer_index: match args.get("answer_index") {
                 Some(entries) if !entries.is_null() => Some(crate::import_catalog::Index::new(entries)?),
@@ -1316,10 +1320,40 @@ impl Application {
             json!({"schema_version":1,"usable":false,"session_id":null,"facts":{}})
         };
         let (definition, info) = self.definition_for_run(&id, &progress)?;
-        let guide = self.project_definition(&definition, &state, &progress)?;
+        let mut guide = self.project_definition(&definition, &state, &progress)?;
+        let evaluation = guide_runtime::evaluate(&guide, &state, &progress)?;
+        // The player's line interpretations (UX R13) are attached after the
+        // evaluation, so they can never change a status or a completion.
+        let stale = match &self.association_directory {
+            Some(directory) => crate::interpretations::attach(&mut guide, &crate::interpretations::load(&id, directory)?),
+            None => vec![],
+        };
         Ok(
-            json!({"schema_version":1,"engine":"rust-guide-core","server_id":self.server,"guide_id":id,"definition_revision":guide["runtime_definition_revision"],"definition":info,"guide":guide,"state":state,"progress":progress,"evaluation":guide_runtime::evaluate(&guide,&state,&progress)?}),
+            json!({"schema_version":1,"engine":"rust-guide-core","server_id":self.server,"guide_id":id,"definition_revision":guide["runtime_definition_revision"],"definition":info,"guide":guide,"state":state,"progress":progress,"evaluation":evaluation,"stale_interpretations":stale}),
         )
+    }
+    /// Lines of the guide the player may interpret (UX R13) and the saved
+    /// interpretations, read from the definition the player sees now (the
+    /// preview projection). An update saves or removes one interpretation;
+    /// its target was already resolved against the game catalog by the caller.
+    pub fn interpretations(&mut self, id: Option<&str>, update: Option<&Value>) -> Result<Value> {
+        let directory = self.association_directory.clone().ok_or("Interpretations unavailable")?;
+        let id = self.identity(id)?;
+        let guide = self.projection(Some(&id), false)?["guide"].take();
+        if let Some(update) = update {
+            crate::interpretations::change(&guide, &update["key"], &update["expected"], &update["interpretation"], &directory)?;
+            self.interpretation_generation = self.interpretation_generation.wrapping_add(1);
+        }
+        let projected = self.projection(Some(&id), false)?;
+        let steps = projected["guide"]["tracks"].as_object().into_iter().flat_map(|m| m.iter())
+            .flat_map(|(track, rows)| rows.as_array().into_iter().flatten().map(move |r| (track, r)))
+            .filter(|(_, r)| crate::interpretations::editable(r))
+            .map(|(track, r)| json!({"key":r["key"],"track":track,"text":crate::interpretations::text(r),
+                "category":crate::display_category::category(r),"verification":crate::import_reports::verification(r),
+                "interpretation":r.get("interpretation").cloned().unwrap_or(Value::Null)}))
+            .collect::<Vec<_>>();
+        Ok(json!({"schema_version":1,"guide_id":id,"title":projected["guide"]["title"],"applies_to":projected["guide"]["applies_to"],
+            "steps":steps,"stale":projected["stale_interpretations"],"categories":crate::interpretations::CATEGORIES}))
     }
     fn project_definition(&self, guide: &Value, state: &Value, progress: &Value) -> Result<Value> {
         if !rows(guide).any(|s| {
@@ -1523,7 +1557,7 @@ impl Application {
         // checklist/history. Keep all qualification witnesses, without DB reads.
         "app_hud_context"=>Ok(json!({"usable":self.live["usable"],"status":self.live["status"],"source":self.live["source"],"sample":{"country":self.live["sample"]["country"],"focus_tree_id":self.live["sample"]["focus_tree_id"],"session_id":self.live["sample"]["session_id"]}})),
         "app_overlay_packet"=>{let id=self.identity(None)?;let packet=self.projection(Some(&id),true)?;Ok(packet)},
-        "app_overlay_stamp"=>Ok(json!({"server":self.server,"guide":self.active,"selection":self.active_revision,"definition":self.definition_generation,"registry":self.registry_generation,"progress":self.revision,"observation":self.observation_revision})),
+        "app_overlay_stamp"=>Ok(json!({"server":self.server,"guide":self.active,"selection":self.active_revision,"definition":self.definition_generation,"registry":self.registry_generation,"interpretation":self.interpretation_generation,"progress":self.revision,"observation":self.observation_revision})),
         "app_state"=>self.accept(args["value"].clone()),
         "app_active"=>self.active(args.get("update")),
         "app_progress"=>self.progress(args["guide_id"].as_str(),args["run_id"].as_str(),args.get("update")),
@@ -1535,6 +1569,7 @@ impl Application {
         "app_source"=>{let id=self.identity(args["guide_id"].as_str())?;Ok(self.sources[&id].clone())},
         "app_definition"=>{let id=self.identity(args["guide_id"].as_str())?;Ok(self.guides[&id].clone())},
         "app_put_guide"=>self.put_guide(&args["guide"]),
+        "app_interpretations"=>self.interpretations(args["guide_id"].as_str(),args.get("update").filter(|u|!u.is_null())),
         "app_guides"=>self.guides.values().map(|g|Ok(json!({"id":g["id"],"title":g["title"],"schema_version":1,"applies_to":g["applies_to"],
             "definition_hash":definition_hash(g["id"].as_str().and_then(|id|self.sources.get(id)).unwrap_or(g))?}))).collect::<Result<Vec<_>>>().map(Value::from),
         _=>Err("Unknown application operation".into())

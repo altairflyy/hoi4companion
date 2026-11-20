@@ -10,5 +10,13 @@
 <label for="associationSearch">Find another game entity</label><input id="associationSearch" type="search" placeholder="English name, installed translation or ID…" disabled>
 <label for="associationMatches">Compatible results</label><select id="associationMatches" size="8" disabled></select><p id="associationMatchCount" class="hint"></p>
 <div class="actions"><button id="saveAssociation" type="button" disabled>Save correction</button><button id="restoreAssociation" type="button" disabled>Restore original binding</button></div>
-<p class="hint">Corrections are local and persistent. The original file and game progress are preserved. Focuses incompatible with the guide's path are rejected.</p></section></main>
+<p class="hint">Corrections are local and persistent. The original file and game progress are preserved. Focuses incompatible with the guide's path are rejected.</p></section>
+<section id="interpretSection" class="import-section"><h2>What a line means</h2><p class="hint">For lines you confirm yourself. Your reading changes how the line is shown (category and the game entity it is about), never when it counts as done.</p>
+<p id="interpretNotice" role="status"></p>
+<label for="interpretSearch">Find a line</label><input id="interpretSearch" type="search" placeholder="Text or step key…" disabled>
+<label for="interpretStep">Line</label><select id="interpretStep" disabled></select><p id="interpretLine" class="hint"></p>
+<label for="interpretCategory">Category</label><select id="interpretCategory" disabled></select>
+<label for="interpretTargetSearch">Game entity (optional)</label><input id="interpretTargetSearch" type="search" placeholder="Country, state, building, focus, technology…" disabled>
+<select id="interpretTargets" size="6" disabled></select><p id="interpretTargetCount" class="hint"></p>
+<div class="actions"><button id="saveInterpretation" type="button" disabled>Save your reading</button><button id="removeInterpretation" type="button" disabled>Remove your reading</button></div></section></main>
 <footer>Local · no changes to HOI4 files or memory</footer></body></html>

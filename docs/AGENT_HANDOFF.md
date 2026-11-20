@@ -3,9 +3,8 @@ Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> UX roadmap R13 fase A1 (handoff 8): nuovo tipo di correzione per righe manuali/non interpretate (categoria + bersaglio opzionale del
-> catalogo), solo presentazione, mai completamento. Leggi R13 in `docs/ux-analysis-2026-11-19.md` `## Execution order`,
-> `native/guides/src/guide_repository.rs` `change`, `reading.rs`, `import_reports`. Chiusura: test, invariant-reviewer, commit, handoff.
+> UX roadmap passo 9 FINALE (handoff), con l'utente presente e HOI4 aperto: /deliver-build (da R6 `4acda08` nulla è ricompilato), poi
+> le verifiche dal vivo elencate al passo 9; chiedi infine se unire `auto/improve-2026-11-18` in main e se fare push.
 Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
 with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
 `docs/ux-analysis-2026-11-19.md` `## Execution order` and here, rewrite the Resume prompt. Details of each item: sections D and E there.
@@ -15,10 +14,10 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
 5. DONE R11 · suite home preview without the game (see Recently verified).
 6. DONE R12 · "Not this?" from the card (see Recently verified).
 7. DONE R15 · library cleanup (see Recently verified).
-8. R13 Stage A only (user, 2026-11-20; no AI): A1 Rust correction type for manual/uninterpreted lines; A2 associations UI + importer copy. R14 blocked (IL-04).
+8. DONE R13 Stage A (player reading of hand-confirmed lines, no AI; Stage B deferred). R14 blocked (IL-04).
 9. FINAL, user present, HOI4 open: user runs `/deliver-build` (R6 `4acda08` and later are NOT rebuilt yet), then verify live:
    importer card on a real draft (R6), ROM "INFRAs, then MILs in Mun" shown as construction (R7) with composed title (R8) in suite and HUD card (R9),
-   waiting reasons and "On Revise…" resolved (R10), home preview with HOI4 closed (R11), every UI step above; confirmed event answers (`docs/events-live.md`); research "UP" steps;
+   waiting reasons and "On Revise…" resolved (R10), home preview with HOI4 closed (R11), library groups (R15), a saved line reading (R13); confirmed event answers (`docs/events-live.md`); research "UP" steps;
    HUD highlight alignment; map marker pan/zoom; metrics key "defensive" (reads WAR_SUPPORT_OFFNSIVE_WAR) against the UI; YUG ideology.
    Then ask whether to merge `auto/improve-2026-11-18` into main and whether to push.
 
@@ -29,6 +28,8 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
   preview as `report.interpretation`; importer card `interpretationOverview`. Focus/research count as automatic (guide-core native membership).
 
 ## Recently verified
+- 2026-11-20 R13 A: `interpretations.rs` + `/api/guide/interpretations`; attached to projection steps after evaluation; associations page
+  section, card badge/link. npm test 488 / 0 / 3 skipped; guides 105, backend 49+118, overlay 61. NOT rebuilt, NOT live. Details in the UX doc.
 - 2026-11-20 R15: `app_guides` rows carry `definition_hash` (canonical stored definition without id/runtime stamps); suite library groups
   by nation, "Other documents" for entries without a nation, duplicate/same-title-version notes (`libraryGroups()` in `web/suite-model.js`).
   npm test 486 / 0 / 3 skipped; backend 49+117 pass. Corpus: no exact duplicates; HUN pair = different versions. NOT rebuilt, NOT live.
@@ -42,7 +43,6 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
 - HUD event answers native (`bea90e8`): user saw Bosphorus answer A lit on screen. OCR path (`f6f620a`) stays as fallback, not verified on screen.
 
 ## Open questions / hypotheses
-- R12 limit: manual/uninterpreted lines have no correction type; importer copy "you can bind each one in Correct bindings" overpromises (R6).
 - R7 prefixes use game-start ownership only: a guide for a later bookmark could bind a prefix unique at start but not in its campaign.
 - Research "UP" steps (`98bc02a`) and abbreviated/written-out references: unit and catalog checks pass, NOT verified live in game.
 - In-game highlight alignment and fluidity not qualified. Map marker pan/zoom unverified. Unit stacks unqualified.

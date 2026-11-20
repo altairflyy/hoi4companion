@@ -127,6 +127,13 @@ test('walkthrough renders only operational instructions, preserves conditions, r
   {key:'bound',depends_on:[],title:'Justify HUN',action:{kind:'manual',params:{category:'checkpoints',source_action:{source_id:'doc',key:'w2',ordinal:2},action_resolution:{status:'not_observable',action:'justify_war_goal',targets:['HUN']}}}});
  await redefine();await push(live([]));
  assert.equal(pairOf('auto')[1],'Automatica');assert.equal(pairOf('loose')[1],'Non interpretata');assert.equal(pairOf('bound')[1],'Conferma tu');
+ const cardOf=key=>descendants(get('operationCards')).find(node=>node.dataset?.step===key);
+ assert.match(cardOf('loose').textContent,/Cosa significa?/,'an uninterpreted line offers to record its meaning (UX R13)');
+ // UX R13: the player's reading, attached by the projection, is shown as theirs; the line is then confirmed by hand.
+ guide.tracks.operations.find(s=>s.key==='loose').interpretation={category:'construction',target:{kind:'state',id:'55',name:'Monaco'}};
+ await redefine();await push(live([]));
+ assert.deepEqual(pairOf('loose').slice(1),['Conferma tu','Tua lettura: Fabbriche e infrastrutture · Monaco']);
+ assert.match(cardOf('loose').textContent,/Cambia la tua lettura/);
  // Two Actions blocks, one explanatory note: it is shown above the first block only.
  assert.equal(get('operationCards').textContent.split('Colonna Actions').length-1,1);
  guide.tracks.operations.splice(-3,3);await redefine();await push(live([]));

@@ -101,11 +101,14 @@
   if(row.verification?row.verification==='automatic'&&observable(row.completion_condition):observable(row.completion_condition))return 'automatic';
   // Unbound fallback lines of the Actions column: nothing in them was understood.
   const p=row.action?.params||{};
-  if(p.source_action&&(!p.category||p.category==='checkpoints')&&!p.reference_resolution&&!['bound','not_observable'].includes(p.action_resolution?.status))return 'uninterpreted';
+  if(p.source_action&&(!p.category||p.category==='checkpoints')&&!p.reference_resolution&&!['bound','not_observable'].includes(p.action_resolution?.status)&&!row.interpretation)return 'uninterpreted';
   return 'manual';
  }
  const verificationLabels={automatic:HoiI18n.t("Automatic"),manual:HoiI18n.t("Confirm yourself"),reminder:HoiI18n.t("Reminder"),uninterpreted:HoiI18n.t("Not interpreted")};
- function badges(row){const box=el('span','badge-pair'),when=whenLabel(row),how=verification(row);if(when){const w=el('span','badge badge-when',when);if(when===HoiI18n.t("Source order"))w.title=HoiI18n.t("The guide does not say when: follow the source order.");box.append(w);}const v=el('span','badge badge-verification verification-'+how,verificationLabels[how]);v.title=HoiI18n.t("How completion is known");box.append(v);return box;}
+ function badges(row){const box=el('span','badge-pair'),when=whenLabel(row),how=verification(row);if(when){const w=el('span','badge badge-when',when);if(when===HoiI18n.t("Source order"))w.title=HoiI18n.t("The guide does not say when: follow the source order.");box.append(w);}const v=el('span','badge badge-verification verification-'+how,verificationLabels[how]);v.title=HoiI18n.t("How completion is known");box.append(v);
+  // UX R13: the player's own reading of the line, shown as theirs, never as a check.
+  const own=row.interpretation;if(own){const c=el('span','badge badge-interpretation',HoiI18n.t("Your reading: {0}",[categories[own.category]||HoiI18n.t("Other instructions"),own.target?.name].filter(Boolean).join(' · ')));c.title=HoiI18n.t("Saved by you in Correct bindings. It changes how the line is shown, never when it counts as done.");box.append(c);}
+  return box;}
  function badge(row){return [whenLabel(row),verificationLabels[verification(row)]].filter(Boolean).join(' · ');}
  function confirm(key,text){const label=el('label','checkpoint-check'),input=el('input');input.type='checkbox';input.checked=value.progress.checks[key]===true;input.disabled=value.pending>0;input.setAttribute('data-check',key);input.addEventListener('change',()=>window.hoiGuide.confirm(key,input.checked).catch(()=>{}));label.title=HoiI18n.t("Tick it when you have done this in the game. The ✓ on the in-game card does the same.");label.append(input,el('span','',text));return label;}
  function controls(row,box){
@@ -139,7 +142,10 @@
   return answer&&/(?:…|\.{3})/.test(heading)&&!heading.includes(answer)?`«${answer}» (${heading})`:heading;
  }
  // UX R12: "Not this?" opens the associations page on this step; only a saved user choice changes the binding.
- function notThis(row){const href=HoiActionPlan.correctionHref(row);if(!href)return null;const a=el('a','not-this',HoiI18n.t("Not this?"));a.href=window.hoiGuide.withGuide(href);a.title=HoiI18n.t("Choose the right focus, technology or project for this step. Nothing changes until you save a correction.");return a;}
+ // UX R13: lines followed by hand open the same page to record the player's reading.
+ function notThis(row){const how=verification(row),href=HoiActionPlan.correctionHref(row,how);if(!href)return null;const bound=HoiActionPlan.correctable(row);
+  const a=el('a','not-this',bound?HoiI18n.t("Not this?"):row.interpretation?HoiI18n.t("Change your reading"):HoiI18n.t("What does this mean?"));a.href=window.hoiGuide.withGuide(href);
+  a.title=bound?HoiI18n.t("Choose the right focus, technology or project for this step. Nothing changes until you save a correction."):HoiI18n.t("Say what this line is about. It changes how the line is shown, never when it counts as done.");return a;}
  function card(row,highlight=false){const node=el('article','operation-card'+(row.tracking==='reminder'?' reminder':'')+(row.event_observation?.visible?' event-visible':'')+(highlight?' highlighted':'')+(row.runtime_status==='completed'?' completed':'')+(row.runtime_status==='active'?' in-progress':''));node.id=(highlight?'next-operation-':'operation-')+row.key;node.dataset.step=row.key;
   const operational=describe(row);
   const hint=row.action.params?.category_hint;

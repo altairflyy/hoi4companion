@@ -179,3 +179,14 @@ test('"Not this?" is offered only where the associations page can save a correct
  for(const other of [row('m'),{key:'r',action:{kind:'research'}},{key:'d',action:{kind:'decision',entity:{kind:'decision',id:'D'}}},null])
   {assert.equal(plan.correctable(other),false);assert.equal(plan.correctionHref(other||{}),null);}
 });
+test('lines followed by hand open the page to record the player reading, which only changes the category (UX R13)',()=>{
+ const line={key:'raw 1',title:'Def against YUG',tracking:'required',action:{kind:'manual',params:{category:'politics',instructions:['Def against YUG']}}};
+ for(const how of ['manual','uninterpreted'])assert.equal(plan.correctionHref(line,how),'/associations?step=raw%201&from=card');
+ for(const how of ['automatic','reminder',undefined])assert.equal(plan.correctionHref(line,how),null,String(how));
+ assert.equal(plan.correctionHref({...line,tracking:'reminder'},'manual'),null,'a reminder stays a reminder');
+ assert.equal(plan.correctionHref({key:'e',action:{kind:'manual',entity:{kind:'decision',id:'D'},params:{}},title:'x'},'manual'),null,'an entity binding is not a line to interpret');
+ assert.equal(plan.correctionHref({key:'blank',action:{kind:'manual',params:{}}},'manual'),null,'nothing to read');
+ assert.equal(plan.category(line),'politics');
+ assert.equal(plan.category({...line,interpretation:{category:'army',target:null}}),'army');
+ assert.equal(plan.category({...line,interpretation:{category:'weather'}}),'politics','an unknown category is ignored');
+});

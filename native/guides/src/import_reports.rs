@@ -156,6 +156,8 @@ pub fn verification(step: &Value) -> &'static str {
         && ["", "checkpoints"].contains(&s(&p["category"]))
         && p.get("reference_resolution").is_none()
         && !["bound", "not_observable"].contains(&s(&p["action_resolution"]["status"]))
+        // The player's own reading (UX R13) makes the line understood, never automatic.
+        && !step["interpretation"].is_object()
     {
         "uninterpreted"
     } else {

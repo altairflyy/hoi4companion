@@ -275,7 +275,7 @@
   card.append(node('h3',HoiI18n.t('What the companion will follow')),
    node('p',HoiI18n.t('{0} of {1} steps followed by themselves · {2} to confirm with a tick · {3} reminders without verification · {4} not interpreted.',counts.automatic,info.step_count,counts.manual,counts.reminder,counts.uninterpreted)));
   const lines=info.uninterpreted||[];if(!lines.length)return;
-  const details=node('details');details.append(node('summary',HoiI18n.t('Lines not interpreted ({0})',lines.length)),node('p',HoiI18n.t('They stay visible as the source wrote them. After adding the guide you can bind each one in Correct bindings.')));
+  const details=node('details');details.append(node('summary',HoiI18n.t('Lines not interpreted ({0})',lines.length)),node('p',HoiI18n.t('They stay visible as the source wrote them. After adding the guide you can say what each one means in Correct bindings.')));
   const list=node('ul'),id=value.guide?.id||'';
   for(const line of lines){const item=node('li',line.text||line.key+' ');const link=node('a',HoiI18n.t('Correct bindings'));link.href='/associations?guide='+encodeURIComponent(id)+'&step='+encodeURIComponent(line.key);item.append(' · ',link);list.append(item);}
   details.append(list);card.append(details);

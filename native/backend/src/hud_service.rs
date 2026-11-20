@@ -410,6 +410,13 @@ mod tests {
         assert_eq!(card["then"], json!({"key":"c","heading":"Build 2 civs in Mun","reading_title":null}), "a reminder and a waiting step are not 'then'");
         assert_eq!(card["waiting"]["key"], "b", "the nearest waiting step");
         assert!(card["waiting"]["reason"].is_null(), "no reason from the evaluation: none invented");
+        // The player's interpretation (UX R13), attached by the projection, gives
+        // the card the same category and verification as the suite.
+        let mut interpreted = guide.clone();
+        interpreted["tracks"]["operations"][0]["interpretation"] = json!({"category":"army","target":null});
+        let card = step_card(&interpreted, &runtime);
+        assert_eq!((card["category"].as_str(), card["verification"].as_str()), (Some("army"), Some("manual")));
+        assert_eq!(card["status"], "ready", "status stays the evaluation's");
         // UX R10: the reason, in the suite's order of preference.
         let mut why = runtime.clone();
         why["steps"][1]["reason"] = json!("insufficient_political_power");

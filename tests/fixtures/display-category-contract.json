@@ -1,6 +1,8 @@
 {
   "description": "Display category contract (UX R1, R9). The web UI (`category()` in src/hoi4companion/web/action-plan.js) and the HUD card (native/guides/src/display_category.rs, used by hud_service::step_card) must give each step the same category. Presentation only: it never changes params.category, bindings, status or completion.",
   "cases": [
+    {"name": "the player's interpretation wins (UX R13)", "step": {"name": "Def against YUG", "interpretation": {"category": "army", "target": null}, "action": {"kind": "manual", "params": {"category": "politics", "instructions": ["BUILD: forts"]}}}, "category": "army"},
+    {"name": "an unknown interpreted category is ignored", "step": {"name": "Def against YUG", "interpretation": {"category": "weather"}, "action": {"kind": "manual", "params": {"category": "politics"}}}, "category": "politics"},
     {"name": "bound category wins", "step": {"name": "Anything", "action": {"kind": "manual", "params": {"category": "politics", "instructions": ["Build 3 civs"]}}}, "category": "politics"},
     {"name": "BUILD prefix", "step": {"name": "x", "action": {"kind": "manual", "params": {"category": "checkpoints", "instructions": ["BUILD: whatever"]}}}, "category": "construction"},
     {"name": "ARMY prefix", "step": {"name": "x", "action": {"kind": "manual", "params": {"instructions": ["ARMY: 7w inf"]}}}, "category": "army"},

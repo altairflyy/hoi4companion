@@ -15,7 +15,11 @@
   ['trade',/\b(?:trade|import|export|oil|steel|rubber|tungsten|chromium|alumin(?:i)?um|resources?)\b/i],
   ['politics',/\b\d+\s*PP\b|\(\s*\d+\s*PP|\b(?:laws?|advisors?|ministers?|expert|decisions?|elections?|conscription)\b/i],
   ['army',/\b(?:train|training|deploy|recruit|divisions?|templates?|generals?|admirals?|marshals?|armies|army|navy|navies|fleets?|planes?|air ?wings?|doctrines?|garrison|drills?|exercises?|INF|OFFs?|DEF|ALP)\b|\b\d+w\b|\b\d+\s*(?:AE|NE|AXP)\b/i]];
+ // Categories a player can give a line (UX R13), as `interpretations::CATEGORIES` in Rust.
+ const interpretedCategories=new Set(['construction','production','army','diplomacy','trade','politics','projects','checkpoints']);
  function category(row){
+  // The player's own reading of this line wins (UX R13): it was chosen for it.
+  if(interpretedCategories.has(row.interpretation?.category))return row.interpretation.category;
   const p=row.action?.params||{};if(p.category&&p.category!=='checkpoints')return p.category;
   const text=(Array.isArray(p.instructions)?p.instructions:[]).filter(s=>typeof s==='string').join('\n').trim();
   if(/^(?:BUILD|CONSTRUCT)(?:\s*:|\s)/i.test(text))return 'construction';
@@ -197,6 +201,11 @@
  // correction (the same action kinds Rust `guide_repository::change` accepts).
  // The link opens the user's explicit choice; it never changes completion by itself.
  function correctable(row){return ['select_focus','research','special_project'].includes(row?.action?.kind)&&!!row.action.entity?.kind&&!!row.action.entity?.id;}
- function correctionHref(row){return correctable(row)?'/associations?step='+encodeURIComponent(row.key)+'&from=card':null;}
- const api={describe,composedTitle,blocks,category,compact,guided,correctable,correctionHref,createReader:language=>reading.create(language)};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiActionPlan=api;
+ // A line followed by hand, with no game-entity binding, can be given the
+ // player's own reading (UX R13); `how` is the step's verification label.
+ // Rust (`interpretations::editable`) decides again when the reading is saved.
+ function interpretable(row,how){const p=row?.action?.params||{},text=[row?.title,...(Array.isArray(p.instructions)?p.instructions:[])].some(v=>typeof v==='string'&&v.trim());
+  return !!row&&!row.action?.entity&&row.tracking!=='reminder'&&!['select_focus','research','free'].includes(row.action?.kind)&&['manual','uninterpreted'].includes(how)&&text;}
+ function correctionHref(row,how){return correctable(row)||interpretable(row,how)?'/associations?step='+encodeURIComponent(row.key)+'&from=card':null;}
+ const api={describe,composedTitle,blocks,category,compact,guided,correctable,interpretable,correctionHref,createReader:language=>reading.create(language)};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiActionPlan=api;
 })(typeof window!=='undefined'?window:globalThis);
