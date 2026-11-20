@@ -3,9 +3,9 @@ Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> `8bfbdc5` ricaricare un salvataggio ora conserva i "messi da parte" e le spunte datate (Recently verified); da provare in gioco
-> con un ricaricamento. "Metti da parte" in suite (`16a6318`) e card HUD (`5fb7c1c`) ancora da vedere in gioco. Poi attendi:
-> asset release, GitHub Support; solo se chiesto, riquadri HUD di Produzione stretti e verifiche del passo 9.
+> `9ed86bb` Template e riferimenti: 4 schede, categorie laterali, documenti uno alla volta, visualizzatore immagini con zoom;
+> verificato nel browser, da vedere nell'app desktop. `8bfbdc5` reload e "Metti da parte" (`16a6318`, `5fb7c1c`) ancora da
+> provare in gioco. Poi attendi: asset release, GitHub Support; solo se chiesto, riquadri HUD Produzione e verifiche passo 9.
 Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
 with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
 `docs/ux-analysis-2026-11-19.md` `## Execution order` and here, rewrite the Resume prompt. Details of each item: sections D and E there.
@@ -26,12 +26,13 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-20 `9ed86bb` Templates & references page: tabs (images, designs, advanced guides, MIO), side category/document lists,
+  MIO and design searches; `reference-viewer.js` full-screen viewer (fit, 1:1, wheel/+- zoom, drag, prev/next, Esc). npm test green;
+  rebuilt+restarted; seen working in the browser pane (suite, Italian). In the suite it covers only the iframe, not the sidebar.
 - 2026-11-20 `8bfbdc5` reload bug: a save reload (tick < bound tick) made a `timeline_rewind` run with no set_aside and no checks
   (seen: run `fa0f389e` 3 aside/21 checks -> `f58745bb` empty). Checks now get `checked_at` (campaign tick, bound runs only, new
   confirmations only); rewind keeps set_aside + checks dated <= loaded tick. Storage/backend/guides tests green; rebuilt, restarted,
   API loads. NOT checked with a real reload. Old undated checks are not recoverable automatically.
-- `11c7c46`+`95ce3f4` MIO: game had emptied "Tank Refurbishment" queue in mio_queues.txt; installer now refills and writes it.
-  Installed 2026-11-20 16:40 (repaired 1, .bak kept); NOT checked in game. Why the game emptied it is unknown; watch if it recurs.
 - 2026-11-20 `16a6318` set aside a step: run field `set_aside` (storage, API filters to the definition's non-reminder keys); guide-core flags it,
   lifts only implicit source-order barriers (declared deps still wait), drops it from next/lanes/ready/sequences; HUD card+highlights skip it;
   suite list "Passaggi messi da parte" with Done/Riprendi. All Rust+JS tests green; rebuilt, buttons seen on the live guide page. NOT clicked/seen in game.

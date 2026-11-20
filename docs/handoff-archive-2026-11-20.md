@@ -50,3 +50,7 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/ux-ana
 5. DONE R11 · suite home preview without the game (see Recently verified).
 6. DONE R12 · "Not this?" from the card (see Recently verified).
 7. DONE R15 · library cleanup (see Recently verified).
+
+## Moved from handoff (MIO repair)
+- `11c7c46`+`95ce3f4` MIO: game had emptied "Tank Refurbishment" queue in mio_queues.txt; installer now refills and writes it.
+  Installed 2026-11-20 16:40 (repaired 1, .bak kept); NOT checked in game. Why the game emptied it is unknown; watch if it recurs.
