@@ -34,3 +34,6 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/ux-ana
   (located lines, positive use only); `word-0001` completed again. `143d834`: a later "Change A to B" line marks earlier production targets
   named A `retired_by` it (`production_retirement.rs`); guide-core supersedes them once that line is completed. Live: `word-0002`
   Superseded by `word-0011--line-2`, card at step 18. Note: a fully met rest makes the whole step "Superseded" (existing rule).
+
+## Moved from handoff 2026-11-20 (set-aside step)
+- Event answers: native HUD answers seen on screen (`bea90e8`); user confirmations `197f141..320d441`, NOT live-verified. See archive.
