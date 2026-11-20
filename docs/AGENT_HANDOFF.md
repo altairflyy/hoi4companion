@@ -3,8 +3,8 @@ Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Roadmap UX chiusa (handoff). Attendi la decisione dell'utente: unire `auto/improve-2026-11-18` in main? push? Poi, solo se lo chiede:
-> riquadri HUD di Produzione stretti (Open questions; serve uno screenshot con i bordi) e le verifiche dal vivo del passo 9 non fatte.
+> Roadmap UX chiusa, `main` unito e pushato (handoff). Prossimo, solo se l'utente lo chiede: riquadri HUD di Produzione stretti
+> (Open questions; serve uno screenshot con i bordi) e le verifiche dal vivo del passo 9 non fatte.
 Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
 with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
 `docs/ux-analysis-2026-11-19.md` `## Execution order` and here, rewrite the Resume prompt. Details of each item: sections D and E there.
@@ -19,10 +19,10 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
    importer card on a real draft (R6), ROM "INFRAs, then MILs in Mun" shown as construction (R7) with composed title (R8) in suite and HUD card (R9),
    waiting reasons and "On Revise…" resolved (R10), home preview with HOI4 closed (R11), library groups (R15), a saved line reading (R13); confirmed event answers (`docs/events-live.md`); research "UP" steps;
    HUD highlight alignment; map marker pan/zoom; metrics key "defensive" (reads WAR_SUPPORT_OFFNSIVE_WAR) against the UI; YUG ideology.
-   Then ask whether to merge `auto/improve-2026-11-18` into main and whether to push.
+   Merge and push: done 2026-11-20.
 
 ## In progress
-- Branch `auto/improve-2026-11-18`: UX R1-R6, HOI4 1.20 requalification, ideology, confirmed event answers, improve-loop run 1. NOT merged, NOT pushed.
+- 2026-11-20: `auto/improve-2026-11-18` fast-forwarded into `main` and pushed to origin (`34a799e..7bf2d8b`), on user request. Work continues on `main`.
 - Improve-loop report: `docs/improvement-backlog.md` `## Run report`. IL-01, 02 (`b4d50c2`), 03, 05-08 done; IL-04 dropped.
 - R6 `4acda08`: `import_reports::interpretation` (counts automatic/manual/reminder/uninterpreted, lists uninterpreted lines) in the import
   preview as `report.interpretation`; importer card `interpretationOverview`. Focus/research count as automatic (guide-core native membership).
