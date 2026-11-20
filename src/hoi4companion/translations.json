@@ -16,6 +16,7 @@
     "research_choice_waiting": "an earlier research choice is not completed yet"
   },
   "messages": {
+    "Under the guide line: “{0}”": "Sotto la riga della guida: “{0}”",
     "Your reading: {0}": "Tua lettura: {0}",
     "Saved by you in Correct bindings. It changes how the line is shown, never when it counts as done.": "Salvata da te in Correggi associazioni. Cambia come viene mostrata la riga, mai quando conta come fatta.",
     "Change your reading": "Cambia la tua lettura",

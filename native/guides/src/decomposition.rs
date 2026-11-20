@@ -327,6 +327,7 @@ fn split(guide_id: &str, row: &Value, triggers: &mut Triggers<'_>) -> Result<Vec
     let key = text(&row["key"]);
     let body = text(&row["action"]["params"]["instructions"][0]);
     let (mut timing, mut lead, mut last_line): (Option<String>, Option<String>, Option<String>) = (None, None, None);
+    let (mut line_timing, mut bullet_timing): (Option<String>, Option<String>) = (None, None);
     // A lead header whose first item is a bullet covers only that bullet list.
     let mut lead_bullets: Option<bool> = None;
     let mut headers: Vec<Value> = vec![];
@@ -347,6 +348,7 @@ fn split(guide_id: &str, row: &Value, triggers: &mut Triggers<'_>) -> Result<Vec
                 Line::TimingHeader(head) => {
                     headers.push(json!({"line":n + 1,"quote":raw.trim(),"kind":"condition"}));
                     timing = Some(head);
+                    (line_timing, bullet_timing) = (None, None);
                     lead = None;
                     continue;
                 }
@@ -356,6 +358,7 @@ fn split(guide_id: &str, row: &Value, triggers: &mut Triggers<'_>) -> Result<Vec
                     if triggers.names_entity(&head) {
                         headers.push(json!({"line":n + 1,"quote":raw.trim(),"kind":"condition"}));
                         timing = Some(head);
+                        (line_timing, bullet_timing) = (None, None);
                         lead = None;
                     } else {
                         headers.push(json!({"line":n + 1,"quote":raw.trim(),"kind":"lead"}));
@@ -385,10 +388,17 @@ fn split(guide_id: &str, row: &Value, triggers: &mut Triggers<'_>) -> Result<Vec
                     _ => {}
                 }
             }
-            if let Some(inline) = step_timing {
-                // promote keeps an inline timing for the following lines too.
-                timing = Some(inline);
+            // A header line ("When at war:") scopes every following line. An
+            // inline "At 24% paranoia: X" scopes X and the bullets under it
+            // only: the next top-level line starts over from the header, and a
+            // bullet's own inline timing covers that bullet alone.
+            if bullet {
+                bullet_timing = step_timing;
+            } else {
+                line_timing = step_timing;
+                bullet_timing = None;
             }
+            let timing = bullet_timing.clone().or_else(|| line_timing.clone()).or_else(|| timing.clone());
             let context = if bullet { last_line.clone() } else {
                 last_line = Some(line.clone());
                 None
@@ -519,6 +529,21 @@ mod tests {
         let compiled = |_: &str| Ok(Some(json!({"op":"fact","key":"country.at_war","test":"eq","value":true})));
         let out = decompose(&guide(json!([container("When at war:\nA\nB")])), &compiled).unwrap();
         assert_eq!(out["guide"]["tracks"]["operations"][1]["when"]["key"], "country.at_war");
+    }
+
+    #[test]
+    fn an_inline_timing_scopes_its_line_and_bullets_only() {
+        let (rows, _) = run(json!([container(
+            "At 24% paranoia: Inspection nav (50PP)\n- Quiet intel in GER\nMW doctrine & last 2 spirits ASAP\n- MILs in 100%\nOn claim: Invade NED\n- At 20% Paranoia: Forge Report (25PP)\n- Adjust trade"
+        )]));
+        let timing: Vec<_> = rows.iter().map(|r| r["action"]["params"]["decomposition"]["timing"].as_str()).collect();
+        assert_eq!(timing, [Some("At 24% paranoia"), Some("At 24% paranoia"), None, None, Some("On claim"), Some("At 20% Paranoia"), Some("On claim")]);
+        assert!(rows[2].get("when").is_none() && rows[3].get("when").is_none(), "no condition from an earlier line");
+        assert_eq!(rows[3]["note"], "MW doctrine & last 2 spirits ASAP", "only the parent line, never another line's condition");
+        // A header line still scopes every following line.
+        let (rows, _) = run(json!([container("When at war:\nAt 5%: C\nD")]));
+        let timing: Vec<_> = rows.iter().map(|r| r["action"]["params"]["decomposition"]["timing"].as_str()).collect();
+        assert_eq!(timing, [Some("At 5%"), Some("When at war")]);
     }
 
     #[test]

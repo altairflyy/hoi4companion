@@ -24,6 +24,12 @@ test('partly understood lines are never rewritten mid-sentence (UX P3)',()=>{
  assert.deepEqual(described.glossary.map(term=>term.code).sort(),['ASAP','PP']);
 });
 
+test('lowercase English words are not read as the author code they spell',()=>{
+ const line=plan.describe(row('construction',['MILs in 100%, then 80% & INFRA, then MILs at border with POL']),{reader});
+ assert.deepEqual(line.reading_notes,[]);assert.ok(!line.glossary.some(term=>/^at$/i.test(term.code)));
+ assert.equal(plan.describe(row('divisions',['Add AT to INF']),{reader}).glossary.find(term=>term.code==='AT')?.meaning,'anti-tank');
+});
+
 test('occupation law and garrison are distinct, and abbreviated names stay qualified',()=>{
  const law=reader.read('LAW: LPF + CAV');
  assert.match(law.text,/Occupation law: Local Police Force.*garrison template: cavalry/);

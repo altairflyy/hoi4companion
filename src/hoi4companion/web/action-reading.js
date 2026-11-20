@@ -119,6 +119,9 @@
      if(reconMatcher)line=line.replace(reconMatcher,code=>hold(t('{0} ({1})',record(code,reconVariants[code]),code),code));
     }
     if(matcher)line=line.replace(matcher,(code,_,offset,whole)=>{
+     // A lowercase English word ("at border", "in Moscow") is not the
+     // upper-case author code it spells (AT anti-tank, IN …).
+     if(/^(?:at|in|on|as|to|an|or|it|is|by|of|no|us|do)$/.test(code))return code;
      let options=index.get(key(code)),scoped=options.filter(o=>o.domain===domain);
      // Company names are common in division compositions. Other domain-specific
      // meanings are never picked merely because they happen to be unique.

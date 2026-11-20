@@ -205,7 +205,9 @@
    if(notes.why.length){const why=el('details','readiness-why');why.append(el('summary','',HoiI18n.t("Why?")),...notes.why.map(text=>el('p','operation-copy',text)));node.append(why);}
   }
   // The condition is already shown under the title; the rest of the note stays here.
-  const note=condition?(row.note||'').split('\n').filter(line=>line.trim()!==condition).join('\n').trim():row.note;
+  // The parent line a bullet sits under is labelled, so it never reads as this step's own instruction.
+  const parent=row.action.params?.decomposition?.context?.trim();
+  const note=condition||parent?(row.note||'').split('\n').filter(line=>line.trim()!==condition).map(line=>line.trim()===parent?HoiI18n.t('Under the guide line: “{0}”',parent):line).join('\n').trim():row.note;
   if(note&&!row.evidence?.some(e=>e.quote===row.note)&&!/^Abbreviations \(/.test(note))node.append(el('p','operation-copy',note));
   const productionDetails=row.production?.layout||[row.production];
   for(const detail of productionDetails){
