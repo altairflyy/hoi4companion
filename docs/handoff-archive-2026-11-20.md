@@ -39,3 +39,14 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/ux-ana
 - Event answers: native HUD answers seen on screen (`bea90e8`); user confirmations `197f141..320d441`, NOT live-verified. See archive.
 - 2026-11-20 `facbdc5`+`f916886` LIVE (prepared guide API): inline event "On X: Y" scopes its line+bullets, threshold "At N%: Y" its line only (`decomposition.rs`); "at border" no longer read as AT; parent line labelled "Under the guide line". Cards NOT seen on screen.
 - 2026-11-20 `7eaf611`: "NED Peace Conference*" links open the PEACE CONFERENCE PRIORITY row/table. `88a613f`: a line's condition (`decomposition.timing`, e.g. "At 24% paranoia") shown as "When:" under the title in suite and HUD card; rebuilt+restarted, NOT seen on screen.
+
+## Moved from the handoff on 2026-11-20 (evening)
+- Improve-loop report: `docs/improvement-backlog.md` `## Run report`. IL-01, 02 (`b4d50c2`), 03, 05-08 done; IL-04 dropped.
+- R6 `4acda08`: `import_reports::interpretation` (counts automatic/manual/reminder/uninterpreted, lists uninterpreted lines) in the import
+  preview as `report.interpretation`; importer card `interpretationOverview`. Focus/research count as automatic (guide-core native membership).
+1-2. DONE R7 construction binder, R8 `reading` layer (archive, `docs/ux-analysis-2026-11-19.md`).
+3. DONE R9 · guided mode (see Recently verified).
+4. DONE R10 · readable waiting reasons and truncated focuses (see Recently verified).
+5. DONE R11 · suite home preview without the game (see Recently verified).
+6. DONE R12 · "Not this?" from the card (see Recently verified).
+7. DONE R15 · library cleanup (see Recently verified).

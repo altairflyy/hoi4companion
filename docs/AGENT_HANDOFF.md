@@ -3,17 +3,13 @@ Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> "Metti da parte" in suite (`16a6318`) e card HUD (`5fb7c1c`) fatto, buildato e avviato; da provare in gioco (Recently verified). Poi attendi:
+> `8bfbdc5` ricaricare un salvataggio ora conserva i "messi da parte" e le spunte datate (Recently verified); da provare in gioco
+> con un ricaricamento. "Metti da parte" in suite (`16a6318`) e card HUD (`5fb7c1c`) ancora da vedere in gioco. Poi attendi:
 > asset release, GitHub Support; solo se chiesto, riquadri HUD di Produzione stretti e verifiche del passo 9.
 Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
 with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
 `docs/ux-analysis-2026-11-19.md` `## Execution order` and here, rewrite the Resume prompt. Details of each item: sections D and E there.
-1-2. DONE R7 construction binder, R8 `reading` layer (archive, `docs/ux-analysis-2026-11-19.md`).
-3. DONE R9 · guided mode (see Recently verified).
-4. DONE R10 · readable waiting reasons and truncated focuses (see Recently verified).
-5. DONE R11 · suite home preview without the game (see Recently verified).
-6. DONE R12 · "Not this?" from the card (see Recently verified).
-7. DONE R15 · library cleanup (see Recently verified).
+1-7. DONE R7, R8, R9, R10, R11, R12, R15 (details: archive and `docs/ux-analysis-2026-11-19.md`).
 8. DONE R13 Stage A (player reading of hand-confirmed lines, no AI; Stage B deferred). R14 blocked (IL-04).
 9. PARTLY DONE 2026-11-20: rebuilt and running at `927e3d8`; suite checks in Recently verified. User skipped the rest; still NOT verified:
    importer card on a real draft (R6), ROM "INFRAs, then MILs in Mun" shown as construction (R7) with composed title (R8) in suite and HUD card (R9),
@@ -28,11 +24,12 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
   Backup of the old history: `.local/repo-backup-before-purge-2026-11-20.bundle` (contains the files; never push it).
   Release ZIPs (+ .sha256) of v0.1.0-v0.1.3 deleted on user request (v0.2.0 kept). Still exposed: merged PR refs #1 #2 and cached
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
-- Improve-loop report: `docs/improvement-backlog.md` `## Run report`. IL-01, 02 (`b4d50c2`), 03, 05-08 done; IL-04 dropped.
-- R6 `4acda08`: `import_reports::interpretation` (counts automatic/manual/reminder/uninterpreted, lists uninterpreted lines) in the import
-  preview as `report.interpretation`; importer card `interpretationOverview`. Focus/research count as automatic (guide-core native membership).
 
 ## Recently verified
+- 2026-11-20 `8bfbdc5` reload bug: a save reload (tick < bound tick) made a `timeline_rewind` run with no set_aside and no checks
+  (seen: run `fa0f389e` 3 aside/21 checks -> `f58745bb` empty). Checks now get `checked_at` (campaign tick, bound runs only, new
+  confirmations only); rewind keeps set_aside + checks dated <= loaded tick. Storage/backend/guides tests green; rebuilt, restarted,
+  API loads. NOT checked with a real reload. Old undated checks are not recoverable automatically.
 - `11c7c46`+`95ce3f4` MIO: game had emptied "Tank Refurbishment" queue in mio_queues.txt; installer now refills and writes it.
   Installed 2026-11-20 16:40 (repaired 1, .bak kept); NOT checked in game. Why the game emptied it is unknown; watch if it recurs.
 - 2026-11-20 `16a6318` set aside a step: run field `set_aside` (storage, API filters to the definition's non-reminder keys); guide-core flags it,
