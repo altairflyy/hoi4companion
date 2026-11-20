@@ -3,8 +3,8 @@ Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Roadmap UX chiusa, `main` unito e pushato (handoff). Prossimo, solo se l'utente lo chiede: riquadri HUD di Produzione stretti
-> (Open questions; serve uno screenshot con i bordi) e le verifiche dal vivo del passo 9 non fatte.
+> Roadmap UX chiusa; cronologia ripulita dai file delle guide di terzi (handoff, In progress). Attendi l'utente: asset delle release
+> v0.1.x e richiesta a GitHub Support; poi, solo se chiesto, riquadri HUD di Produzione stretti e verifiche del passo 9.
 Plan agreed with the user 2026-11-19: do every code step below in order, one per session, without live checks; then one final session
 with the user present for /deliver-build and all in-game checks (step 9). Each step: tests, invariant-reviewer, local commit, tick it in
 `docs/ux-analysis-2026-11-19.md` `## Execution order` and here, rewrite the Resume prompt. Details of each item: sections D and E there.
@@ -22,7 +22,12 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
    Merge and push: done 2026-11-20.
 
 ## In progress
-- 2026-11-20: `auto/improve-2026-11-18` fast-forwarded into `main` and pushed to origin (`34a799e..7bf2d8b`), on user request. Work continues on `main`.
+- 2026-11-20 PURGE (user order): third-party guide data (benchmark/review/probe fixtures, Wojtek guide, `docs/it/walkthrough.md`) is
+  LOCAL ONLY in `.local/guide-corpus` (`scripts/guide-corpus.cjs`; tests skip without it). History rewritten with filter-branch on all
+  branches and tags, force-pushed (main `f43c37a`, 4 remote branches, tags v0.1.0-v0.2.0): ALL commit hashes before it changed.
+  Backup of the old history: `.local/repo-backup-before-purge-2026-11-20.bundle` (contains the files; never push it).
+  Still exposed, user decision: release ZIPs v0.1.0-v0.1.3 likely bundle the Wojtek JSON (not checked); merged PR refs #1 #2 and cached
+  old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 - Improve-loop report: `docs/improvement-backlog.md` `## Run report`. IL-01, 02 (`b4d50c2`), 03, 05-08 done; IL-04 dropped.
 - R6 `4acda08`: `import_reports::interpretation` (counts automatic/manual/reminder/uninterpreted, lists uninterpreted lines) in the import
   preview as `report.interpretation`; importer card `interpretationOverview`. Focus/research count as automatic (guide-core native membership).
@@ -32,11 +37,7 @@ with the user present for /deliver-build and all in-game checks (step 9). Each s
   built-in browser: library groups (ROM first, HUN two versions, "Altri documenti" 2); R7/R8 composed title "Costruisci Infrastruttura in Muntenia,
   poi … Fabbrica militare in Muntenia"; 47 "Cosa significa?" links; a saved reading showed "Conferma tu" + "Tua lettura" after fix `847bf95`
   (plan page now copies readings from the projection), then removed. User closed step 9 without checking the other step-9 items (still NOT verified).
-- 2026-11-20 R13 A: `interpretations.rs` + `/api/guide/interpretations`; attached to projection steps after evaluation; associations page
-  section, card badge/link. npm test 488 / 0 / 3 skipped; guides 105, backend 49+118, overlay 61. NOT rebuilt, NOT live. Details in the UX doc.
-- 2026-11-20 R15: `app_guides` rows carry `definition_hash` (canonical stored definition without id/runtime stamps); suite library groups
-  by nation, "Other documents" for entries without a nation, duplicate/same-title-version notes (`libraryGroups()` in `web/suite-model.js`).
-  npm test 486 / 0 / 3 skipped; backend 49+117 pass. Corpus: no exact duplicates; HUN pair = different versions. NOT rebuilt, NOT live.
+- 2026-11-20 R13 A, R15: tests and details in the archive and the UX doc; seen live in the suite (entry above).
 - Event answers: native HUD answers seen on screen (`bea90e8`); user confirmations `197f141..320d441`, NOT live-verified. See archive.
 
 ## Open questions / hypotheses
