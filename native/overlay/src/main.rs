@@ -576,6 +576,8 @@ fn run(options:Options)->Result<(),String> {
     }
     if options.ocr_image.is_some(){return benchmark(&options);}
     let Some(_instance)=singleton()? else {return Ok(());};
+    // Frame waits at ~16 ms, not rounded up to the ~15.6 ms system tick.
+    let fine_timer=wake::FineTimer::begin();
     unsafe {let _=SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);}
     let mut renderer=Renderer::new(options.discreet,options.managed,card::Prefs::path(&options.status))?;renderer.set_paused(!options.start);
     // Backend requests run off this loop (HUD plan step 4): reads with one in
@@ -613,7 +615,7 @@ fn run(options:Options)->Result<(),String> {
     let mut mark_hold=MarkHold::default();let mut card_hold=CardHold::default();
     let mut card_images=card_images::Cache::new(options.port);
     let mut trace=trace::Trace::open(trace::path_for(&options.status));
-    trace.event(json!({"ev":"start","pid":std::process::id(),"version":env!("CARGO_PKG_VERSION"),"paused":!options.start}));
+    trace.event(json!({"ev":"start","pid":std::process::id(),"version":env!("CARGO_PKG_VERSION"),"paused":!options.start,"fine_timer":fine_timer.active()}));
     while !renderer.should_exit() {
         let turn=Instant::now();
         gap=gap.max(turn.duration_since(last_turn));last_turn=turn;

@@ -3,10 +3,10 @@ Updated: 2026-11-21. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): step 1 "cadenza overlay" (wait arrotondati al tick ~15.6 ms).
-> Precondizione: misure in `docs/hud-performance-plan-2026-11-20.md` "Measured 2026-11-21, step 7" (gap p50 30.9 ms, solo 22 % < 20 ms).
-> File: `native/overlay/src/wake.rs`, `mailbox.rs`, `main.rs`. Ordine degli step 1-5 confermato dall'utente il 2026-11-21.
-> Chiusura: test overlay, invariant-reviewer, commit locale, rebuild + riavvio, spunta lo step, riscrivi questo prompt (step 2).
+> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): step 2 "perché si chiude la sessione qualificata".
+> Precondizione: step 1 fatto (`wake::FineTimer`). Lo step 2 nel piano dice cosa registrare (`close_stage`, `close_error`); nessun cambio di comportamento.
+> File: `native/backend/src/provider.rs` (`Provider::collect`, metriche), delivery HUD, `native/overlay/src/trace.rs`, `scripts/hud-trace-report.cjs`.
+> Chiusura: test Rust + report, invariant-reviewer, commit locale, rebuild + riavvio, spunta lo step; poi l'UTENTE gioca ~10 min; riscrivi questo prompt (step 3).
 Plan agreed with the user 2026-11-20: HUD plan 2026-11-20 steps 1-7 done and archived 2026-11-21; part 2 order confirmed by the user 2026-11-21.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
@@ -19,6 +19,8 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-21 HUD part 2 step 1: overlay `wake::FineTimer` (1 ms tick for the HUD process). Unit test: a 5 ms wait took median 15.5 ms
+  (condvar and channel) with the default tick, 5.5 ms with it. Overlay tests 77/77 green, invariant-reviewer clean. Live `gap_ms` NOT measured (step 5).
 - 2026-11-21 HUD plan 2026-11-20 step 7 (live check, 1221 s of play on `f40e999`): stalls 0 (was 16), blank card 0, 7/7 GUI rebuilds off
   the request path, transport p95 2.5 ms (step 6 closed). New: 6 qualified-session drops (cause not recorded), 98 delivery expiries after
   a change (pipeline p50 2.6 s), actions 1.8-3.2 s, loop ~31 ms. Numbers: plan section "Measured 2026-11-21, step 7". Steps 3e-5 seen working.

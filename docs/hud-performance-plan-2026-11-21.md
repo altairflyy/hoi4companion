@@ -6,10 +6,14 @@ Never raise the 3 s delivery budget or show an old card or old highlights as cur
 Proposed by the step 7 session; order confirmed by the user 2026-11-21.
 
 ## Steps (one per session; `/clear` between them; the Resume prompt in `docs/AGENT_HANDOFF.md` says which is next)
-1. [ ] Overlay cadence (small). Replace the ~15.6 ms timer rounding of `Wake::wait` / `Reads::wait` (`native/overlay/src/wake.rs`,
+1. [x] Overlay cadence (small). Replace the ~15.6 ms timer rounding of `Wake::wait` / `Reads::wait` (`native/overlay/src/wake.rs`,
    `mailbox.rs`) so the native loop runs at ~16 ms again: for example `timeBeginPeriod(1)` for the HUD process lifetime, or a
    high-resolution waitable timer for the frame wait while a card button still wakes the loop at once. Measure first with a unit or
    manual timing check; trace `gap_ms` p50 should return to ~16 ms. Overlay tests; rebuild.
+   Done 2026-11-21: measured first (unit test `wake::tests::a_fine_timer_keeps_short_waits_near_their_timeout`): a 5 ms wait took a
+   median 15.5 ms on both the condvar and the channel with the default tick, 5.5 ms with a 1 ms tick. Fix: `wake::FineTimer`
+   (`timeBeginPeriod(1)` + power-throttling opt-out) held for the HUD process lifetime; the trace `start` line has `fine_timer`.
+   Live `gap_ms` NOT measured yet: step 5.
 2. [ ] Record why the qualified session closes. `Provider::collect` closes on any error and nothing keeps the error. Add to the provider
    metrics a bounded list of close events (time, stage: probe/full read/audit/tick/identity/open, error text), carry the last one in the
    HUD delivery, write it to `hud-trace.jsonl` (`close_stage`, `close_error`) and list it in `hud-trace-report.cjs`. No behavior change.
