@@ -175,6 +175,36 @@ fn witnessed_snapshot(memory: &mut impl Memory, args: &Value, bindings: &Value) 
     result["sample_age_ms"] = json!(observed.elapsed().as_secs_f64()*1000.);
     Ok(result)
 }
+/// Answer of a deferred registry while its discovery runs elsewhere: every
+/// panel is unknown until the new bindings are installed.
+pub const DISCOVERY_PENDING: &str = "GUI registry discovery in progress";
+/// After a failed deferred discovery, its error is the answer for this long
+/// before another discovery is queued, so a screen without the GUI views
+/// (main menu, loading) does not keep a core busy with back-to-back scans.
+const DISCOVERY_RETRY: std::time::Duration = std::time::Duration::from_millis(500);
+/// What a deferred discovery must scan: the GUI root of one game image.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DiscoveryTarget {
+    pub base: u64,
+    pub profile: Value,
+    pub root: u64,
+}
+/// A finished registry scan, not yet installed. Its candidates are never
+/// published as state: every snapshot still requalifies the widgets.
+pub struct Discovered {
+    root: u64,
+    headers: Vec<Header>,
+    bindings: Value,
+    seen: HashSet<u64>,
+    diagnostics: Value,
+    elapsed: std::time::Duration,
+}
+/// Scans the registry of `target` from scratch, without any registry lock:
+/// the caller installs the result with `Registry::install`.
+pub fn discover_target(memory: &mut impl Memory, target: &DiscoveryTarget) -> Result<Discovered> {
+    let h = headers(memory, target.root, &target.profile)?;
+    scan(memory, target.base, &target.profile, target.root, h)
+}
 #[derive(Default)]
 pub struct Registry {
     root: u64,
@@ -188,6 +218,16 @@ pub struct Registry {
     /// Work of the current `observe` call, reported in its diagnostics so
     /// the HUD trace can tell a registry rebuild from a slow sample.
     request: RequestCost,
+    /// Deferred discoveries installed since the last answered `observe`;
+    /// reported by the next one, as their scan answered no request.
+    installed: RequestCost,
+    /// True for the backend's HUD lane: `observe` never scans the registry
+    /// itself (634-918 ms measured) but answers `DISCOVERY_PENDING` and
+    /// queues a `DiscoveryTarget` for `take_discovery`.
+    deferred: bool,
+    wanted: Option<DiscoveryTarget>,
+    running: bool,
+    failed: Option<(String, std::time::Instant)>,
 }
 #[derive(Default)]
 struct RequestCost {
@@ -196,6 +236,54 @@ struct RequestCost {
     refresh: std::time::Duration,
 }
 impl Registry {
+    /// A registry whose discoveries run off the request path (see `deferred`).
+    pub fn deferred() -> Self {
+        Self { deferred: true, ..Default::default() }
+    }
+    /// The discovery a deferred `observe` asked for, handed out once; none
+    /// while a previous one is still running. The caller must `install` an
+    /// outcome for every target it takes.
+    pub fn take_discovery(&mut self) -> Option<DiscoveryTarget> {
+        if self.running {
+            return None;
+        }
+        let target = self.wanted.take()?;
+        self.running = true;
+        Some(target)
+    }
+    /// Installs the outcome of a taken discovery. A stale scan (root or
+    /// allocation changed meanwhile) is caught by the next `observe`, which
+    /// compares the live headers before using the bindings.
+    pub fn install(&mut self, outcome: Result<Discovered>) {
+        self.running = false;
+        match outcome {
+            Ok(found) => {
+                self.failed = None;
+                self.installed.discoveries += 1;
+                self.installed.discovery += found.elapsed;
+                self.adopt(found);
+            }
+            Err(error) => self.failed = Some((error, std::time::Instant::now())),
+        }
+    }
+    /// Queues `target` as a deferred `observe` would, for tests of the
+    /// caller's discovery thread.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn queue_discovery_for_test(&mut self, target: DiscoveryTarget) {
+        self.wanted = Some(target);
+    }
+    /// (running, last failure) of the deferred discovery, for tests.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn discovery_state_for_test(&self) -> (bool, Option<String>) {
+        (self.running, self.failed.as_ref().map(|(error, _)| error.clone()))
+    }
+    fn adopt(&mut self, found: Discovered) {
+        self.diagnostics = found.diagnostics;
+        self.root = found.root;
+        self.headers = found.headers;
+        self.bindings = Some(found.bindings);
+        self.seen = found.seen;
+    }
     pub fn discover(
         &mut self,
         memory: &mut impl Memory,
@@ -210,6 +298,60 @@ impl Registry {
         {
             return Ok(());
         }
+        let found = scan(memory, base, profile, root, h)?;
+        self.request.discoveries += 1;
+        self.request.discovery += found.elapsed;
+        self.adopt(found);
+        Ok(())
+    }
+    /// Current bindings for `root`, discovered here (synchronous registry)
+    /// or queued for the caller (deferred registry, `DISCOVERY_PENDING`).
+    fn ensure_bindings(
+        &mut self,
+        memory: &mut impl Memory,
+        base: u64,
+        profile: &Value,
+        root: u64,
+    ) -> Result<()> {
+        if !self.deferred {
+            return self.discover(memory, base, profile, root);
+        }
+        self.ensure_bindings_at(memory, base, profile, root, std::time::Instant::now())
+    }
+    fn ensure_bindings_at(
+        &mut self,
+        memory: &mut impl Memory,
+        base: u64,
+        profile: &Value,
+        root: u64,
+        now: std::time::Instant,
+    ) -> Result<()> {
+        let h = headers(memory, root, profile)?;
+        if self.bindings.is_some()
+            && self.root == root
+            && allocation(&self.headers) == allocation(&h)
+        {
+            return Ok(());
+        }
+        if !self.running {
+            if let Some((error, at)) = &self.failed
+                && now.duration_since(*at) < DISCOVERY_RETRY
+            {
+                return Err(error.clone());
+            }
+            self.wanted = Some(DiscoveryTarget { base, profile: profile.clone(), root });
+        }
+        Err(DISCOVERY_PENDING.into())
+    }
+}
+fn scan(
+    memory: &mut impl Memory,
+    base: u64,
+    profile: &Value,
+    root: u64,
+    h: Vec<Header>,
+) -> Result<Discovered> {
+    {
         let began = std::time::Instant::now();
         let mut s = Candidates {
             memory,
@@ -450,15 +592,11 @@ impl Registry {
         bindings["root"] = json!(root);
         let mut sample = Sample::new(s.memory, base, profile);
         bindings["action_roots"] = crate::gui_actions::action_roots(&mut sample, root, &seen);
-        self.diagnostics = json!({"blocks":s.pages.len(),"block_bytes":128,"pages":s.pages.len(),"failed_pages":s.failed.len(),"types":s.types.len(),"cache_bytes":s.pages.values().map(Vec::len).sum::<usize>(),"registry_objects":seen.len(),"non_null_widgets":candidates.len()});
-        self.root = root;
-        self.headers = h;
-        self.bindings = Some(bindings);
-        self.seen = seen;
-        self.request.discoveries += 1;
-        self.request.discovery += began.elapsed();
-        Ok(())
+        let diagnostics = json!({"blocks":s.pages.len(),"block_bytes":128,"pages":s.pages.len(),"failed_pages":s.failed.len(),"types":s.types.len(),"cache_bytes":s.pages.values().map(Vec::len).sum::<usize>(),"registry_objects":seen.len(),"non_null_widgets":candidates.len()});
+        Ok(Discovered { root, headers: h, bindings, seen, diagnostics, elapsed: began.elapsed() })
     }
+}
+impl Registry {
     pub fn observe(&mut self, memory: &mut impl Memory, args: &Value) -> Result<Value> {
         let started = std::time::Instant::now();
         self.request = RequestCost::default();
@@ -466,12 +604,16 @@ impl Registry {
             match self.inner(memory, args) {
                 Ok(mut v) => {
                     self.unsettled_folder = None;
+                    // A deferred rebuild is reported once, by the first answer
+                    // that uses it; its time was not spent in this request.
+                    let installed = std::mem::take(&mut self.installed);
                     v["diagnostics"]["snapshot_ms"] =
                         json!(started.elapsed().as_secs_f64() * 1000.);
                     v["diagnostics"]["retry_count"] = json!(attempt);
                     v["diagnostics"]["discovery"] = self.diagnostics.clone();
-                    v["diagnostics"]["discovered"] = json!(self.request.discoveries);
-                    v["diagnostics"]["discovery_ms"] = json!(self.request.discovery.as_secs_f64() * 1000.);
+                    v["diagnostics"]["discovered"] = json!(self.request.discoveries + installed.discoveries);
+                    v["diagnostics"]["discovery_ms"] = json!((self.request.discovery + installed.discovery).as_secs_f64() * 1000.);
+                    v["diagnostics"]["discovery_background"] = json!(installed.discoveries > 0);
                     v["diagnostics"]["refresh_ms"] = json!(self.request.refresh.as_secs_f64() * 1000.);
                     return Ok(v);
                 }
@@ -488,6 +630,10 @@ impl Registry {
         self.reject_sample_at(error, std::time::Instant::now());
     }
     fn reject_sample_at(&mut self, error: &str, now:std::time::Instant) {
+        // No sample was taken: the queued discovery replaces the bindings.
+        if error == DISCOVERY_PENDING {
+            return;
+        }
         let persistent_folder = if error == "Cartella ricerca visibile mancante o ambigua" {
             let since = self.unsettled_folder.get_or_insert(now);
             now.duration_since(*since) >= std::time::Duration::from_millis(750)
@@ -622,7 +768,7 @@ impl Registry {
             let mut s = Sample::new(memory, base, profile);
             s.ptr(base + root_rva, "CGameGui")?
         };
-        self.discover(memory, base, profile, root)?;
+        self.ensure_bindings(memory, base, profile, root)?;
         let refresh = std::time::Instant::now();
         if !profile["gui_layout"].is_object() {
             let refreshed = self.refresh_extensions(memory, base, profile, root, &args["event_instances"], false);
@@ -661,7 +807,7 @@ impl Registry {
                         self.missing.pop_front();
                     }
                     self.bindings = None;
-                    self.discover(memory, base, profile, root)?;
+                    self.ensure_bindings(memory, base, profile, root)?;
                     result = witnessed_snapshot(memory, args, self.bindings.as_ref().unwrap())?;
                 }
             }
@@ -680,7 +826,7 @@ impl Registry {
                     self.missing.pop_front();
                 }
                 self.bindings = None;
-                self.discover(memory, base, profile, root)?;
+                self.ensure_bindings(memory, base, profile, root)?;
                 result = witnessed_snapshot(memory, args, self.bindings.as_ref().unwrap())?;
             }
         }
@@ -715,5 +861,100 @@ mod transition_tests {
         assert!(registry.bindings.is_some());
         registry.reject_sample_at(error,now+std::time::Duration::from_millis(750));
         assert!(registry.bindings.is_none());
+    }
+}
+
+#[cfg(test)]
+mod deferred_discovery_tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+    /// Only the two registry headers are readable; any other read is a scan
+    /// and fails the test through `scanned`.
+    struct Headers {
+        data: u64,
+        reads: usize,
+        scanned: bool,
+    }
+    impl Memory for Headers {
+        fn read(&mut self, address: u64, size: usize) -> Result<Vec<u8>> {
+            self.reads += 1;
+            if size != 16 || ![ROOT + 0x108, ROOT + 0x120].contains(&address) {
+                self.scanned = true;
+                return Err("not a header".into());
+            }
+            let mut bytes = self.data.to_le_bytes().to_vec();
+            bytes.extend(64i32.to_le_bytes());
+            bytes.extend(8i32.to_le_bytes());
+            Ok(bytes)
+        }
+        fn class_name(&mut self, _rva: u64) -> Result<String> {
+            Err("not a type fixture".into())
+        }
+    }
+    const ROOT: u64 = 0x20000;
+    const BASE: u64 = 0x140000000;
+    fn found(memory: &mut Headers) -> Discovered {
+        Discovered {
+            root: ROOT,
+            headers: headers(memory, ROOT, &json!({})).unwrap(),
+            bindings: json!({"root": ROOT}),
+            seen: HashSet::new(),
+            diagnostics: json!({}),
+            elapsed: Duration::from_millis(700),
+        }
+    }
+    #[test]
+    fn a_needed_discovery_answers_pending_and_is_handed_out_once() {
+        let mut memory = Headers { data: 0x30000, reads: 0, scanned: false };
+        let mut registry = Registry::deferred();
+        let profile = json!({});
+        let now = Instant::now();
+        let answer = registry.ensure_bindings_at(&mut memory, BASE, &profile, ROOT, now);
+        assert_eq!(answer, Err(DISCOVERY_PENDING.to_string()));
+        assert!(!memory.scanned && memory.reads == 2, "only the headers are read in the request");
+        let target = registry.take_discovery().expect("queued discovery");
+        assert_eq!(target, DiscoveryTarget { base: BASE, profile: profile.clone(), root: ROOT });
+        // While it runs, requests stay pending and queue nothing else.
+        assert_eq!(registry.ensure_bindings_at(&mut memory, BASE, &profile, ROOT, now), Err(DISCOVERY_PENDING.to_string()));
+        assert!(registry.take_discovery().is_none());
+        assert!(registry.bindings.is_none());
+    }
+    #[test]
+    fn installed_bindings_answer_until_the_allocation_changes() {
+        let mut memory = Headers { data: 0x30000, reads: 0, scanned: false };
+        let mut registry = Registry::deferred();
+        let now = Instant::now();
+        let _ = registry.ensure_bindings_at(&mut memory, BASE, &json!({}), ROOT, now);
+        registry.take_discovery().unwrap();
+        registry.install(Ok(found(&mut memory)));
+        assert_eq!(registry.ensure_bindings_at(&mut memory, BASE, &json!({}), ROOT, now), Ok(()));
+        assert_eq!(registry.installed.discoveries, 1);
+        memory.data = 0x40000;
+        assert_eq!(registry.ensure_bindings_at(&mut memory, BASE, &json!({}), ROOT, now), Err(DISCOVERY_PENDING.to_string()));
+        assert!(registry.take_discovery().is_some());
+        assert!(!memory.scanned);
+    }
+    #[test]
+    fn a_failed_discovery_is_the_answer_for_a_bounded_time() {
+        let mut memory = Headers { data: 0x30000, reads: 0, scanned: false };
+        let mut registry = Registry::deferred();
+        let now = Instant::now();
+        let _ = registry.ensure_bindings_at(&mut memory, BASE, &json!({}), ROOT, now);
+        registry.take_discovery().unwrap();
+        registry.install(Err("Vista GUI CNationalFocusView mancante o ambigua (0 candidati)".into()));
+        let failed_at = registry.failed.as_ref().unwrap().1;
+        let early = registry.ensure_bindings_at(&mut memory, BASE, &json!({}), ROOT, failed_at + Duration::from_millis(499));
+        assert_eq!(early, Err("Vista GUI CNationalFocusView mancante o ambigua (0 candidati)".to_string()));
+        assert!(registry.take_discovery().is_none());
+        let later = registry.ensure_bindings_at(&mut memory, BASE, &json!({}), ROOT, failed_at + DISCOVERY_RETRY);
+        assert_eq!(later, Err(DISCOVERY_PENDING.to_string()));
+        assert!(registry.take_discovery().is_some());
+        assert!(registry.bindings.is_none() && !memory.scanned);
+    }
+    #[test]
+    fn a_pending_answer_keeps_the_registry_state() {
+        let mut registry = Registry { bindings: Some(json!({"root": ROOT})), ..Registry::deferred() };
+        registry.reject_sample(DISCOVERY_PENDING);
+        assert!(registry.bindings.is_some());
     }
 }

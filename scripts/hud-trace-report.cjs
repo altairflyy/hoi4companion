@@ -48,7 +48,7 @@ function report(events) {
   };
   const branches = {};
   let foreground = 0, unknownForeground = 0;
-  const stalls = [], slowGeometry = [], unusable = {}, nativeErrors = {};
+  const stalls = [], slowGeometry = [], unusable = {}, nativeErrors = {}, rebuilds = [];
   for (const e of iterations) {
     branches[e.branch] = (branches[e.branch] || 0) + 1;
     if (e.fg) { foreground++; if (e.fresh === false) unknownForeground++; }
@@ -63,6 +63,8 @@ function report(events) {
           discovery_ms: e.disc_ms ?? null, refresh_ms: e.refresh_ms ?? null, retry: e.retry || 0, marks: e.marks });
       }
     }
+    // GUI registry rebuilds; `disc_bg` = run off the request path (HUD plan step 3e).
+    if (e.disc > 0) rebuilds.push({ count: e.disc, ms: e.disc_ms, background: e.disc_bg === true });
     if (e.fg && e.usable === false) { const key = e.error || '(no error)'; unusable[key] = (unusable[key] || 0) + 1; }
     if (e.fg && e.native_error) nativeErrors[e.native_error] = (nativeErrors[e.native_error] || 0) + 1;
     if (Number.isFinite(e.state_age_ms)) series.state_age_ms.push(e.state_age_ms);
@@ -134,6 +136,8 @@ function report(events) {
     // Geometry spikes with what they did: a registry rebuild or not.
     slow_geometry: { threshold_ms: STALL_MS, count: slowGeometry.length, with_discovery: slowGeometry.filter(g => g.discovered > 0).length,
       worst: slowGeometry.sort((a, b) => b.geometry_ms - a.geometry_ms).slice(0, 10) },
+    registry_rebuilds: { count: rebuilds.reduce((n, r) => n + r.count, 0), background: rebuilds.filter(r => r.background).reduce((n, r) => n + r.count, 0),
+      duration_ms: stats(rebuilds.map(r => r.ms)) },
     unusable_in_foreground: { by_error: unusable, native_errors: nativeErrors },
   };
 }
@@ -165,6 +169,8 @@ function format(r) {
   for (const s of g.worst) {
     out.push(`  ${time(s.t)} ${n(s.geometry_ms)} ms (snapshot ${n(s.snap_ms)}, rebuilds ${s.discovered} ${n(s.discovery_ms)} ms, event scan ${n(s.refresh_ms)} ms, retries ${s.retry}, marks ${s.marks})`);
   }
+  const rb = r.registry_rebuilds;
+  out.push(`GUI registry rebuilds: ${rb.count}, ${rb.background} off the request path (scan p50 ${n(rb.duration_ms.p50)} ms, max ${n(rb.duration_ms.max)} ms)`);
   const u = r.unusable_in_foreground;
   if (Object.keys(u.by_error).length) out.push('', 'Unusable deliveries while HOI4 foreground (iterations):');
   for (const [error, count] of Object.entries(u.by_error).sort((a, b) => b[1] - a[1])) out.push(`  ${count} ${error}`);

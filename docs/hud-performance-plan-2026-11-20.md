@@ -28,12 +28,17 @@ like a real-time overlay (immediate response, never blank while HOI4 is in the f
    `action`, `start`, `fatal`. Backend adds `handling_ms` to every `/api/overlay` answer and `delivery_pipeline_ms` (acquisition, progress,
    packet, publish) to the HUD delivery. Report: `node scripts/hud-trace-report.cjs [--data-dir DIR] [--json]`.
 2. [x] Diagnose. Done 2026-11-21 on the user's trace (see "Measured 2026-11-21" below). Steps 3-6 reordered from the numbers.
-3. [x] Backend delivery path (was step 5). Done 2026-11-21 (a-d; NOT seen in game yet): `invalidate()` uses an atomic
+3. [x] Backend delivery path (was step 5). Done 2026-11-21 (a-e; NOT seen in game yet): `invalidate()` uses an atomic
    `reading_generation`, no `reading` lock; progress writes call `republish(false)` (one delivery from the last observation + new progress,
    same observed time and budget); guide changes still `invalidate()` (the read targets follow the guide); the delivery loop reads fresh; the audit runs on the
    `hoi4-integrity-audit` thread (`provider.rs`), a probe-seen change still reads in full at once (that path can still take ~3.5 s:
    full read + `app.accept` + publish); trace has `error`, `native_error`, `snap_ms`, `disc`/`disc_ms`, `refresh_ms`, `retry`.
-   e) NOT done: it needs a trace with the new fields. Decide it from the next live trace (step 7, or earlier if the user plays).
+   e) Done 2026-11-21 (NOT seen in game yet). Trace 10:15-10:40 UTC: every geometry > 250 ms (8 of 8) was a GUI registry rebuild of
+   635-892 ms (most after a lost qualified session, i.e. a new provider and an empty registry); event scan `refresh_ms` max 10.7 ms, left
+   in the request. The HUD lane's registry is now `Registry::deferred()`: a needed discovery answers "GUI registry discovery in progress"
+   (geometry error, `suspend_visual`, every panel unknown) and `GuiLane::start_discovery` scans on the `hoi4-gui-discovery` thread with its
+   own `Memory` over the same qualified session, then installs; one scan at a time; a failed scan is the answer for 500 ms. Trace `disc_bg`,
+   report line "GUI registry rebuilds: N, M off the request path". Probes and the CLI `observe` stay synchronous.
    Original text: Never by raising the 3 s budget or holding an old card as confirmed. In order of measured cost:
    a) HUD actions: `invalidate()` must not lock `reading` (held by the poll for a whole audit) and the action must not empty the delivery
    until the next poll: republish one delivery evaluated from the last state plus the new progress right after the progress write.

@@ -157,7 +157,8 @@ impl Trace {
             line["lost"] = json!(true);
         }
         // Why a delivery is unusable, and what the GUI geometry cost: a
-        // registry rebuild (`disc`), the event scan (`refresh_ms`), retries.
+        // registry rebuild (`disc`; `disc_bg` when it ran off the request
+        // path), the event scan (`refresh_ms`), retries.
         if reply["usable"] != true && let Some(error) = short_text(&reply["error"]) {
             line["error"] = json!(error);
         }
@@ -172,6 +173,9 @@ impl Trace {
         if let Some(count) = diagnostics["discovered"].as_u64().filter(|n| *n > 0) {
             line["disc"] = json!(count);
             line["disc_ms"] = json!(tenth(diagnostics["discovery_ms"].as_f64().unwrap_or(0.)));
+            if diagnostics["discovery_background"] == true {
+                line["disc_bg"] = json!(true);
+            }
         }
         if let Some(value) = diagnostics["refresh_ms"].as_f64().filter(|v| *v >= 1.) {
             line["refresh_ms"] = json!(tenth(value));
@@ -268,6 +272,18 @@ mod tests {
     }
 
     #[test]
+    fn a_registry_rebuild_off_the_request_path_is_marked() {
+        let path = temp("background-discovery");
+        {
+            let mut trace = Trace::open(path.clone());
+            let reply = json!({"usable":true,"geometry_ms":3.0,
+                "diagnostics":{"snapshot_ms":2.0,"discovered":1,"discovery_ms":734.56,"discovery_background":true}});
+            trace.iteration(Iteration { card: true, marks: 2, ..Iteration::new("native", true, &reply) }, false);
+        }
+        let lines = lines(&path);
+        assert_eq!((lines[0]["disc"].clone(), lines[0]["disc_ms"].clone(), lines[0]["disc_bg"].clone()), (json!(1), json!(734.6), json!(true)));
+    }
+    #[test]
     fn unusable_replies_and_geometry_costs_are_recorded() {
         let path = temp("reasons");
         {
@@ -281,6 +297,7 @@ mod tests {
         let lines = lines(&path);
         assert_eq!((lines[0]["snap_ms"].clone(), lines[0]["disc"].clone(), lines[0]["disc_ms"].clone()), (json!(612.3), json!(1), json!(590.0)));
         assert!(lines[0].get("error").is_none() && lines[0].get("refresh_ms").is_none() && lines[0].get("retry").is_none());
+        assert!(lines[0].get("disc_bg").is_none(), "a rebuild inside the request");
         assert_eq!(lines[2]["error"].as_str().unwrap().chars().count(), 120, "bounded");
         assert_eq!(lines[2]["native_error"], "Vista focus di un’altra nazione");
         assert!(lines[2].get("disc").is_none());

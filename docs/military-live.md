@@ -102,8 +102,10 @@ The research background/icon observation decoded `[515,595,72,72]` with
 independent byte witnesses. The final live comparison also observed the research panel, current folder,
 visible radio research, all tab identities and an active research HUD rectangle
 using the native engine. This does not certify every widget, scale, mod, event
-or political panel. Initial registry discovery
-remains about 350 ms and is cached; mutable geometry is read every snapshot.
+or political panel. Registry discovery is cached; mutable geometry is read every snapshot.
+In the backend's HUD lane a discovery (measured 634-918 ms on 2026-11-21) runs on its own
+`hoi4-gui-discovery` thread: meanwhile the geometry answers "GUI registry discovery in progress"
+and every panel is unknown; a failed scan is the answer for 500 ms before the next one.
 
 Active focuses and research regain blue tracking rectangles. Active research
 does not request a category-tab navigation marker. New choices continue to use

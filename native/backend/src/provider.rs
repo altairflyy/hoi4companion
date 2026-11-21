@@ -98,12 +98,12 @@ impl Provider {
             audit_job: None,
             open: Arc::new(AtomicBool::new(false)),
             metrics: json!({"probes":0,"full_reads":0,"audits":0,"changes":0,"last_read_ms":null,"watch_ranges":0,"watch_bytes":0,"probe_read_calls":0,"probe_read_bytes":0}),
-            gui: Arc::new(Mutex::new(crate::gui_registry::Registry::default())),
+            gui: Arc::new(Mutex::new(crate::gui_registry::Registry::deferred())),
         })
     }
     fn close(&mut self) {
         self.open.store(false, Ordering::Release);
-        self.gui = Arc::new(Mutex::new(crate::gui_registry::Registry::default()));
+        self.gui = Arc::new(Mutex::new(crate::gui_registry::Registry::deferred()));
         self.game = None;
         self.cached = None;
         self.audit_job = None;
@@ -267,6 +267,40 @@ impl GuiLane {
     pub(crate) fn matches_pid(&self, pid: Option<u64>) -> bool {
         self.session().is_some_and(|g| Some(g.pid as u64) == pid)
     }
+    /// Runs the registry discovery the last request queued, if any, on its
+    /// own thread: a scan takes 634-918 ms (HUD trace 2026-11-21) and the
+    /// requests answer `DISCOVERY_PENDING` (every panel unknown) meanwhile.
+    /// The scan is bound to `game`, the session of the request that queued
+    /// it: another process is never read at that session's base and root.
+    fn start_discovery(&self, gui: &mut crate::gui_registry::Registry, game: &Game) {
+        let Some(target) = gui.take_discovery() else { return };
+        let lane = self.clone();
+        let owner = (game.pid, game.created);
+        let spawned = std::thread::Builder::new()
+            .name("hoi4-gui-discovery".into())
+            .spawn(move || {
+                let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| lane.discover(&target, owner)))
+                    .unwrap_or_else(|_| Err("GUI registry discovery failed".into()));
+                if let Ok(mut gui) = lane.gui.lock() {
+                    gui.install(outcome);
+                }
+            });
+        if let Err(error) = spawned {
+            gui.install(Err(format!("GUI registry discovery not started: {error}")));
+        }
+    }
+    fn discover(&self, target: &crate::gui_registry::DiscoveryTarget, owner: (u32, u64)) -> Result<crate::gui_registry::Discovered> {
+        let game = self.session().ok_or("No qualified live game session")?;
+        if (game.pid, game.created) != owner || game.identity()? != game.created {
+            return Err("Sessione di processo cambiata".into());
+        }
+        let mut memory = crate::live_process::Memory::new(&game, 4 * 1024 * 1024)?;
+        let found = crate::gui_registry::discover_target(&mut memory, target)?;
+        if game.identity()? != game.created {
+            return Err("Sessione di processo cambiata".into());
+        }
+        Ok(found)
+    }
     pub(crate) fn geometry(&self, args: &Value) -> Result<Value> {
         let game = self.session().ok_or("No qualified live game session")?;
         if game.identity()? != game.created {
@@ -309,7 +343,12 @@ impl GuiLane {
                 .collect::<Vec<_>>()
         );
         let mut memory = crate::live_process::Memory::new(&game, 4 * 1024 * 1024)?;
-        let raw = self.gui.lock().map_err(|_|"GUI observation lane unavailable")?.observe(&mut memory, &request)?;
+        let raw = {
+            let mut gui = self.gui.lock().map_err(|_|"GUI observation lane unavailable")?;
+            let observed = gui.observe(&mut memory, &request);
+            self.start_discovery(&mut gui, &game);
+            observed?
+        };
         let returned = Instant::now();
         if !same_session(args.get("session_id"),&raw["session_id"]) {
             return Err("Sessione GUI diversa dallo stato della guida".into());
@@ -448,6 +487,34 @@ mod tests {
         assert!(!lane.matches_pid(Some(pid as u64)));
         assert!(lane.geometry(&json!({"view":[1,pid,0,0,1280,720]})).is_err());
         assert!(provider.audit_job.is_none());
+    }
+    #[test]
+    fn a_gui_registry_discovery_runs_on_its_own_thread_and_always_installs_an_outcome() {
+        let mut provider=Provider::new(&json!({"path":"unused","manifest_sha256":"unused"})).unwrap();
+        let game=Game::owned_fixture();
+        provider.game=Some(game.clone());provider.open=Arc::new(AtomicBool::new(true));
+        let lane=provider.gui_lane().unwrap();
+        let state=|| lane.gui.lock().unwrap().discovery_state_for_test();
+        let run=|| {
+            let mut gui=lane.gui.lock().unwrap();
+            // An unreadable root: the scan fails at the registry headers.
+            gui.queue_discovery_for_test(crate::gui_registry::DiscoveryTarget{base:game.base,profile:json!({}),root:0x10});
+            lane.start_discovery(&mut gui, &game);
+            assert!(gui.discovery_state_for_test().0,"taken while the request holds the registry");
+            drop(gui);
+            let began=Instant::now();
+            while state().0 {
+                assert!(began.elapsed().as_secs()<10,"the discovery thread never installed its outcome");
+                std::thread::yield_now();
+            }
+            state().1.expect("failed discovery is kept as the answer")
+        };
+        assert!(!run().is_empty());
+        let target=crate::gui_registry::DiscoveryTarget{base:game.base,profile:json!({}),root:0x10};
+        assert_eq!(lane.discover(&target,(game.pid+1,game.created)).err().as_deref(),Some("Sessione di processo cambiata"),
+            "a target queued by another session is never scanned");
+        provider.close();
+        assert_eq!(run(),"No qualified live game session","a closed session is never scanned");
     }
     #[test]
     fn guide_purchase_target_updates_invalidate_only_changed_acquisition_proofs() {
