@@ -1,0 +1,6 @@
+numpy>=1.24
+# Full pretrained-language-model experiments only:
+torch>=2.6
+transformers>=5.0
+accelerate
+safetensors
