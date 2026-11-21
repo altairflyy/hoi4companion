@@ -58,6 +58,12 @@ pub fn blank_cause(paused: bool, foreground: bool, connection_lost: bool, delive
     }
 }
 
+/// A backend message, at most 120 characters (never guide text: the error
+/// and native error fields carry the backend's own status messages).
+fn short_text(value: &Value) -> Option<String> {
+    value.as_str().filter(|s| !s.is_empty()).map(|s| s.chars().take(120).collect())
+}
+
 /// One loop iteration as the trace stores it.
 pub struct Iteration<'a> {
     pub branch: &'static str,
@@ -143,6 +149,29 @@ impl Trace {
         if reply["connection_lost"] == true {
             line["lost"] = json!(true);
         }
+        // Why a delivery is unusable, and what the GUI geometry cost: a
+        // registry rebuild (`disc`), the event scan (`refresh_ms`), retries.
+        if reply["usable"] != true && let Some(error) = short_text(&reply["error"]) {
+            line["error"] = json!(error);
+        }
+        if let Some(error) = short_text(&reply["native_error"]) {
+            line["native_error"] = json!(error);
+        }
+        let diagnostics = &reply["diagnostics"];
+        let tenth = |value: f64| (value * 10.).round() / 10.;
+        if let Some(value) = diagnostics["snapshot_ms"].as_f64() {
+            line["snap_ms"] = json!(tenth(value));
+        }
+        if let Some(count) = diagnostics["discovered"].as_u64().filter(|n| *n > 0) {
+            line["disc"] = json!(count);
+            line["disc_ms"] = json!(tenth(diagnostics["discovery_ms"].as_f64().unwrap_or(0.)));
+        }
+        if let Some(value) = diagnostics["refresh_ms"].as_f64().filter(|v| *v >= 1.) {
+            line["refresh_ms"] = json!(tenth(value));
+        }
+        if let Some(count) = diagnostics["retry_count"].as_u64().filter(|n| *n > 0) {
+            line["retry"] = json!(count);
+        }
         // A younger delivery than the previous sample is a new one: record how
         // long the backend took to build it.
         if let Some(age) = state_age {
@@ -157,6 +186,9 @@ impl Trace {
             let mut change = json!({"ev": if shown {"show"} else {"hide"},"fg":sample.foreground,"card":sample.card,"marks":sample.marks});
             if !shown {
                 change["cause"] = json!(blank_cause(paused, sample.foreground, reply["connection_lost"] == true, known, sample.capture_error));
+                if let Some(error) = short_text(&reply["error"]) {
+                    change["error"] = json!(error);
+                }
             }
             // The first sample of a process is a state, not a change.
             if self.shown.is_some() || shown {
@@ -224,6 +256,28 @@ mod tests {
         assert!(lines[2]["loop_ms"].is_number());
         assert!(lines[4].get("rt_ms").is_none(), "no request, no round trip");
         assert!(lines.iter().all(|l| l["t"].is_number()));
+    }
+
+    #[test]
+    fn unusable_replies_and_geometry_costs_are_recorded() {
+        let path = temp("reasons");
+        {
+            let mut trace = Trace::open(path.clone());
+            let shown = json!({"usable":true,"error":"ignored while usable","geometry_ms":640.0,
+                "diagnostics":{"snapshot_ms":612.34,"discovered":1,"discovery_ms":590.04,"refresh_ms":0.2,"retry_count":0}});
+            trace.iteration(Iteration { card: true, marks: 5, ..Iteration::new("native", true, &shown) }, false);
+            let blank = json!({"usable":false,"live_delivery_fresh":true,"error":"x".repeat(300),"native_error":"Vista focus di un’altra nazione"});
+            trace.iteration(Iteration::new("native", true, &blank), false);
+        }
+        let lines = lines(&path);
+        assert_eq!((lines[0]["snap_ms"].clone(), lines[0]["disc"].clone(), lines[0]["disc_ms"].clone()), (json!(612.3), json!(1), json!(590.0)));
+        assert!(lines[0].get("error").is_none() && lines[0].get("refresh_ms").is_none() && lines[0].get("retry").is_none());
+        assert_eq!(lines[2]["error"].as_str().unwrap().chars().count(), 120, "bounded");
+        assert_eq!(lines[2]["native_error"], "Vista focus di un’altra nazione");
+        assert!(lines[2].get("disc").is_none());
+        assert_eq!(lines[3]["ev"], "hide");
+        assert_eq!(lines[3]["cause"], "no_card_or_marks");
+        assert_eq!(lines[3]["error"].as_str().unwrap().len(), 120, "the blank says why");
     }
 
     #[test]

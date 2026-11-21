@@ -7,6 +7,19 @@ Guides outside the qualified country/tree scope retain their progress without
 running action observation; the scope gate is shared with runtime preparation.
 `/api/state.pipeline_ms` separates acquisition, progress observation, and packet
 preparation so delayed guide delivery can be distinguished from GUI rendering.
+HUD delivery path (2026-11-21): the delivery loop reads fresh every 250 ms (the
+250 ms packet cache serves other callers only). The 5 s integrity audit runs on
+its own thread (`provider.rs`); probes keep answering from the cached read and a
+finished audit replaces it, while a probe that sees a change still reads in full
+at once. A progress write (HUD Done/Set aside/answers, suite checks) republishes
+one delivery from the last observation plus the new progress, keeping that
+observation's time and 3 s budget; a guide change still withdraws the delivery
+and waits for a read with the new guide's targets. If the new delivery cannot be
+stored, the old one is withdrawn.
+`hud-trace.jsonl` records the `error` of unusable replies, `native_error`, and
+per-request GUI costs (`snap_ms`, registry rebuilds `disc`/`disc_ms`,
+`refresh_ms`, `retry`); `scripts/hud-trace-report.cjs` lists geometry spikes
+with or without a rebuild and the reasons of unusable deliveries.
 Research discovery requires the actual `CCountryTechTreeView`, rather than the
 unrelated `CCountryTechnologyView`. The same identity, ownership, freshness,
 visibility and overlap checks still qualify every highlighted rectangle.

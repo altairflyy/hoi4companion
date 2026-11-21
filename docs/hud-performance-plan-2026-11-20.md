@@ -28,7 +28,13 @@ like a real-time overlay (immediate response, never blank while HOI4 is in the f
    `action`, `start`, `fatal`. Backend adds `handling_ms` to every `/api/overlay` answer and `delivery_pipeline_ms` (acquisition, progress,
    packet, publish) to the HUD delivery. Report: `node scripts/hud-trace-report.cjs [--data-dir DIR] [--json]`.
 2. [x] Diagnose. Done 2026-11-21 on the user's trace (see "Measured 2026-11-21" below). Steps 3-6 reordered from the numbers.
-3. [ ] Backend delivery path (was step 5). Never by raising the 3 s budget or holding an old card as confirmed. In order of measured cost:
+3. [x] Backend delivery path (was step 5). Done 2026-11-21 (a-d; NOT seen in game yet): `invalidate()` uses an atomic
+   `reading_generation`, no `reading` lock; progress writes call `republish(false)` (one delivery from the last observation + new progress,
+   same observed time and budget); guide changes still `invalidate()` (the read targets follow the guide); the delivery loop reads fresh; the audit runs on the
+   `hoi4-integrity-audit` thread (`provider.rs`), a probe-seen change still reads in full at once (that path can still take ~3.5 s:
+   full read + `app.accept` + publish); trace has `error`, `native_error`, `snap_ms`, `disc`/`disc_ms`, `refresh_ms`, `retry`.
+   e) NOT done: it needs a trace with the new fields. Decide it from the next live trace (step 7, or earlier if the user plays).
+   Original text: Never by raising the 3 s budget or holding an old card as confirmed. In order of measured cost:
    a) HUD actions: `invalidate()` must not lock `reading` (held by the poll for a whole audit) and the action must not empty the delivery
    until the next poll: republish one delivery evaluated from the last state plus the new progress right after the progress write.
    b) Audits never expire the delivery: fast probes keep publishing while an integrity audit (and its `app.accept`/publish work) runs,

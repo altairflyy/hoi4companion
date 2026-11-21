@@ -1,5 +1,8 @@
 //! Process-owned acquisition cache. Failed probes discard all pointer caches;
-//! only a new complete qualified read can restore a usable sample.
+//! only a new complete qualified read can restore a usable sample. The
+//! periodic integrity audit (a full read, ~1-1.5 s) runs on its own thread
+//! while probes keep answering from the cached read, so an audit never stops
+//! the delivery loop; a probe that sees a change still reads in full at once.
 use crate::{acquisition, game_process::Game, profile::Profile, watch};
 use serde_json::{Value, json};
 use std::{
@@ -7,7 +10,8 @@ use std::{
     path::PathBuf,
     sync::{
         Arc, Mutex, OnceLock, Weak,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        mpsc,
     },
     time::{Instant, SystemTime},
 };
@@ -16,6 +20,14 @@ struct Cached {
     sample: acquisition::Sample,
     packet: watch::Packet,
     audited: f64,
+}
+type AuditResult = Result<(acquisition::Sample, watch::Packet, f64)>;
+/// An integrity audit in flight: started at provider time `started` over the
+/// full read of `generation`; its result replaces that read only.
+struct Audit {
+    generation: u64,
+    started: f64,
+    result: mpsc::Receiver<AuditResult>,
 }
 struct Provider {
     executable: PathBuf,
@@ -31,6 +43,12 @@ struct Provider {
     profile: Option<Arc<Profile>>,
     game: Option<Arc<Game>>,
     cached: Option<Cached>,
+    /// Bumped by every full read installed and by `close`.
+    generation: u64,
+    audit_job: Option<Audit>,
+    /// False once the session is closed, even while an audit thread still
+    /// holds the game: the GUI lane stops at once.
+    open: Arc<AtomicBool>,
     metrics: Value,
     gui: Arc<Mutex<crate::gui_registry::Registry>>,
 }
@@ -40,6 +58,7 @@ impl Provider {
         if self.political_cost_ids!=*targets {
             self.political_cost_ids=targets.clone();
             self.cached=None;
+            self.audit_job=None;
         }
         Ok(())
     }
@@ -50,6 +69,7 @@ impl Provider {
         if self.province_ids!=*ids {
             self.province_ids=ids.clone();
             self.cached=None;
+            self.audit_job=None;
         }
         Ok(())
     }
@@ -74,14 +94,71 @@ impl Provider {
             profile: None,
             game: None,
             cached: None,
-            metrics: json!({"probes":0,"full_reads":0,"changes":0,"last_read_ms":null,"watch_ranges":0,"watch_bytes":0,"probe_read_calls":0,"probe_read_bytes":0}),
+            generation: 0,
+            audit_job: None,
+            open: Arc::new(AtomicBool::new(false)),
+            metrics: json!({"probes":0,"full_reads":0,"audits":0,"changes":0,"last_read_ms":null,"watch_ranges":0,"watch_bytes":0,"probe_read_calls":0,"probe_read_bytes":0}),
             gui: Arc::new(Mutex::new(crate::gui_registry::Registry::default())),
         })
     }
     fn close(&mut self) {
+        self.open.store(false, Ordering::Release);
         self.gui = Arc::new(Mutex::new(crate::gui_registry::Registry::default()));
         self.game = None;
         self.cached = None;
+        self.audit_job = None;
+        self.generation += 1;
+    }
+    /// Takes a finished audit: its read replaces the cached one (a probe then
+    /// compares against it). A failed audit fails the collect like any read.
+    fn finish_audit(&mut self) -> Result<()> {
+        let Some(job) = self.audit_job.as_ref() else { return Ok(()) };
+        let result = match job.result.try_recv() {
+            Ok(result) => result,
+            Err(mpsc::TryRecvError::Empty) => return Ok(()),
+            Err(mpsc::TryRecvError::Disconnected) => Err("Integrity audit stopped".into()),
+        };
+        let job = self.audit_job.take().unwrap();
+        let (sample, packet, seconds) = result?;
+        if job.generation != self.generation || self.cached.is_none() {
+            return Ok(());
+        }
+        self.install(sample, packet, job.started + seconds);
+        self.increment("audits");
+        Ok(())
+    }
+    fn install(&mut self, sample: acquisition::Sample, packet: watch::Packet, audited: f64) {
+        self.metrics["watch_ranges"] = json!(sample.watch.len());
+        self.metrics["watch_bytes"] = json!(sample.watch.keys().map(|(_, n)| *n).sum::<usize>());
+        self.metrics["probe_read_calls"] = json!(packet.ranges * 2);
+        self.metrics["probe_read_bytes"] = json!(packet.read_bytes * 2);
+        self.cached = Some(Cached { sample, packet, audited });
+        self.generation += 1;
+        self.increment("full_reads");
+    }
+    /// Starts the integrity audit of the cached read on its own thread.
+    fn start_audit(&mut self, now: f64) -> Result<()> {
+        let game = self.game.clone().ok_or("No qualified live game session")?;
+        let cache = self.cached.as_ref().map(|v| v.sample.event_cache.clone()).unwrap_or(Value::Null);
+        let inputs = (self.neighbors.clone(), self.shared_focuses.clone(), self.building_scopes.clone(),
+            self.political_cost_ids.clone(), self.province_ids.clone());
+        let (send, result) = mpsc::channel();
+        std::thread::Builder::new()
+            .name("hoi4-integrity-audit".into())
+            .spawn(move || {
+                let started = Instant::now();
+                let (neighbors, shared, scopes, costs, provinces) = &inputs;
+                let read = acquisition::collect(&game, neighbors, &cache, shared, scopes, costs, provinces)
+                    .and_then(|sample| {
+                        let packet = watch::compile(&sample.watch)?;
+                        Ok((sample, packet, started.elapsed().as_secs_f64()))
+                    });
+                drop(game);
+                let _ = send.send(read);
+            })
+            .map_err(|e| e.to_string())?;
+        self.audit_job = Some(Audit { generation: self.generation, started: now, result });
+        Ok(())
     }
     fn increment(&mut self, key: &str) {
         let value = self.metrics[key].as_u64().unwrap_or(0);
@@ -100,17 +177,16 @@ impl Provider {
             self.stat = Some(key);
         }
         if self.game.is_none() {
-            self.game = Some(Arc::new(Game::open(self.profile.as_ref().unwrap().clone())?))
+            self.game = Some(Arc::new(Game::open(self.profile.as_ref().unwrap().clone())?));
+            self.open = Arc::new(AtomicBool::new(true));
         }
         let game = self.game.as_ref().unwrap();
         if game.identity()? != game.created {
             return Err("Sessione di processo cambiata".into());
         }
         let mut changed = false;
-        let mut full = self
-            .cached
-            .as_ref()
-            .is_none_or(|v| now - v.audited >= self.audit);
+        self.finish_audit()?;
+        let mut full = self.cached.is_none();
         if !full {
             self.increment("probes");
             changed = acquisition::compare(
@@ -128,20 +204,16 @@ impl Provider {
                 .unwrap_or(Value::Null);
             let sample = acquisition::collect(game, &self.neighbors, &cache, &self.shared_focuses, &self.building_scopes, &self.political_cost_ids, &self.province_ids)?;
             let packet = watch::compile(&sample.watch)?;
-            self.metrics["watch_ranges"] = json!(sample.watch.len());
-            self.metrics["watch_bytes"] =
-                json!(sample.watch.keys().map(|(_, n)| *n).sum::<usize>());
-            self.metrics["probe_read_calls"] = json!(packet.ranges * 2);
-            self.metrics["probe_read_bytes"] = json!(packet.read_bytes * 2);
-            self.cached = Some(Cached {
-                sample,
-                packet,
-                audited: now + started.elapsed().as_secs_f64(),
-            });
-            self.increment("full_reads");
+            // An audit begun before this read would only bring older bytes.
+            self.audit_job = None;
+            self.install(sample, packet, now + started.elapsed().as_secs_f64());
             if changed {
                 self.increment("changes")
             }
+        } else if self.audit_job.is_none()
+            && self.cached.as_ref().is_some_and(|v| now - v.audited >= self.audit)
+        {
+            self.start_audit(now)?;
         }
         let game = self.game.as_ref().unwrap();
         let cached = self.cached.as_ref().unwrap();
@@ -175,6 +247,7 @@ impl Provider {
         Ok(GuiLane {
             game: Arc::downgrade(self.game.as_ref().ok_or("No qualified live game session")?),
             gui: self.gui.clone(),
+            open: self.open.clone(),
         })
     }
 }
@@ -185,13 +258,17 @@ impl Provider {
 pub(crate) struct GuiLane {
     game: Weak<Game>,
     gui: Arc<Mutex<crate::gui_registry::Registry>>,
+    open: Arc<AtomicBool>,
 }
 impl GuiLane {
+    fn session(&self) -> Option<Arc<Game>> {
+        self.game.upgrade().filter(|_| self.open.load(Ordering::Acquire))
+    }
     pub(crate) fn matches_pid(&self, pid: Option<u64>) -> bool {
-        self.game.upgrade().is_some_and(|g| Some(g.pid as u64) == pid)
+        self.session().is_some_and(|g| Some(g.pid as u64) == pid)
     }
     pub(crate) fn geometry(&self, args: &Value) -> Result<Value> {
-        let game = self.game.upgrade().ok_or("No qualified live game session")?;
+        let game = self.session().ok_or("No qualified live game session")?;
         if game.identity()? != game.created {
             return Err("Sessione di processo cambiata".into());
         }
@@ -319,6 +396,59 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn read(value:Value)->acquisition::Sample{
+        acquisition::Sample{value,watch:Default::default(),world:0,event_cache:Value::Null}
+    }
+    fn packet()->watch::Packet{watch::Packet{bytes:vec![],ranges:0,read_bytes:0}}
+    /// A provider with a cached read and an audit whose result is `result`.
+    fn auditing(result:Option<AuditResult>)->(Provider,mpsc::Sender<AuditResult>){
+        let mut p=Provider::new(&json!({"path":"unused","manifest_sha256":"unused"})).unwrap();
+        p.install(read(json!("old")),packet(),1.);
+        let (send,receive)=mpsc::channel();
+        if let Some(result)=result {send.send(result).unwrap();}
+        p.audit_job=Some(Audit{generation:p.generation,started:10.,result:receive});
+        (p,send)
+    }
+    #[test]
+    fn a_running_audit_leaves_the_cached_read_and_a_finished_one_replaces_it() {
+        let (mut p,send)=auditing(None);
+        p.finish_audit().unwrap();
+        assert_eq!(p.cached.as_ref().unwrap().sample.value,"old","still running: probes answer from the cached read");
+        assert!(p.audit_job.is_some());
+        send.send(Ok((read(json!("new")),packet(),1.5))).unwrap();
+        let generation=p.generation;
+        p.finish_audit().unwrap();
+        let cached=p.cached.as_ref().unwrap();
+        assert_eq!(cached.sample.value,"new");
+        assert_eq!(cached.audited,11.5,"audited when the audit's read ended");
+        assert!(p.audit_job.is_none()&&p.generation>generation);
+        assert_eq!((p.metrics["audits"].clone(),p.metrics["full_reads"].clone()),(json!(1),json!(2)));
+    }
+    #[test]
+    fn an_audit_older_than_the_cached_read_is_dropped_and_a_failed_one_fails_the_collect() {
+        let (mut p,_send)=auditing(Some(Ok((read(json!("older")),packet(),1.))));
+        p.install(read(json!("probe change")),packet(),12.);
+        p.finish_audit().unwrap();
+        assert_eq!(p.cached.as_ref().unwrap().sample.value,"probe change");
+        assert!(p.audit_job.is_none());
+        let (mut p,_send)=auditing(Some(Err("Lettura incoerente".into())));
+        assert_eq!(p.finish_audit().unwrap_err(),"Lettura incoerente");
+        let (mut p,send)=auditing(None);drop(send);
+        assert!(p.finish_audit().is_err(),"a vanished audit thread is a failed read");
+    }
+    #[test]
+    fn closing_stops_the_gui_lane_even_while_an_audit_still_holds_the_game() {
+        let mut provider=Provider::new(&json!({"path":"unused","manifest_sha256":"unused"})).unwrap();
+        let game=Game::owned_fixture();let pid=game.pid;
+        provider.game=Some(game.clone());provider.open=Arc::new(AtomicBool::new(true));
+        let lane=provider.gui_lane().unwrap();
+        assert!(lane.matches_pid(Some(pid as u64)));
+        provider.close();
+        assert!(Arc::strong_count(&game)>=1,"the audit thread's handle");
+        assert!(!lane.matches_pid(Some(pid as u64)));
+        assert!(lane.geometry(&json!({"view":[1,pid,0,0,1280,720]})).is_err());
+        assert!(provider.audit_job.is_none());
+    }
     #[test]
     fn guide_purchase_target_updates_invalidate_only_changed_acquisition_proofs() {
         let old=json!([{"id":"old","group":"decision","countries":["NOR"]}]);
@@ -354,7 +484,7 @@ mod tests {
     fn warm_gui_lane_uses_the_same_handle_without_waiting_for_collector_lock() {
         let mut provider=Provider::new(&json!({"path":"unused","manifest_sha256":"unused"})).unwrap();
         let game=Game::owned_fixture();let pid=game.pid;
-        provider.game=Some(game.clone());
+        provider.game=Some(game.clone());provider.open=Arc::new(AtomicBool::new(true));
         let lane=provider.gui_lane().unwrap();
         assert!(Arc::ptr_eq(&game,&lane.game.upgrade().unwrap()));
         drop(game);

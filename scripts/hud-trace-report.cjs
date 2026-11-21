@@ -48,7 +48,7 @@ function report(events) {
   };
   const branches = {};
   let foreground = 0, unknownForeground = 0;
-  const stalls = [];
+  const stalls = [], slowGeometry = [], unusable = {}, nativeErrors = {};
   for (const e of iterations) {
     branches[e.branch] = (branches[e.branch] || 0) + 1;
     if (e.fg) { foreground++; if (e.fresh === false) unknownForeground++; }
@@ -56,7 +56,15 @@ function report(events) {
     if (Number.isFinite(e.handling_ms)) series.backend_handling_ms.push(e.handling_ms);
     if (Number.isFinite(e.rt_ms) && Number.isFinite(e.handling_ms)) series.transport_ms.push(Math.max(0, e.rt_ms - e.handling_ms));
     if (Number.isFinite(e.rt_ms) && Number.isFinite(e.bytes)) series.reply_bytes.push(e.bytes);
-    if (Number.isFinite(e.geometry_ms)) series.geometry_ms.push(e.geometry_ms);
+    if (Number.isFinite(e.geometry_ms)) {
+      series.geometry_ms.push(e.geometry_ms);
+      if (e.geometry_ms > STALL_MS) {
+        slowGeometry.push({ t: e.t, geometry_ms: e.geometry_ms, snap_ms: e.snap_ms ?? null, discovered: e.disc || 0,
+          discovery_ms: e.disc_ms ?? null, refresh_ms: e.refresh_ms ?? null, retry: e.retry || 0, marks: e.marks });
+      }
+    }
+    if (e.fg && e.usable === false) { const key = e.error || '(no error)'; unusable[key] = (unusable[key] || 0) + 1; }
+    if (e.fg && e.native_error) nativeErrors[e.native_error] = (nativeErrors[e.native_error] || 0) + 1;
     if (Number.isFinite(e.state_age_ms)) series.state_age_ms.push(e.state_age_ms);
     if (Number.isFinite(e.loop_ms)) {
       series.loop_ms.push(e.loop_ms);
@@ -77,7 +85,7 @@ function report(events) {
   const blanks = [];
   let open = null, shown = false, last = null, error = null;
   const close = (end, endedBy) => {
-    if (open) blanks.push({ start: open.start, end, duration_ms: end != null && open.start != null ? end - open.start : null, cause: open.cause, ended_by: endedBy, ...(open.error ? { error: open.error } : {}) });
+    if (open) blanks.push({ start: open.start, end, duration_ms: end != null && open.start != null ? end - open.start : null, cause: open.cause, ended_by: endedBy, ...(open.error ? { error: open.error } : {}), ...(open.reason ? { reason: open.reason } : {}) });
     open = null;
   };
   for (const e of events) {
@@ -90,7 +98,7 @@ function report(events) {
       if (open) open.error = e.error;
     } else if (e.ev === 'hide') {
       shown = false;
-      if (e.fg && !open) open = { start: e.t, cause: e.cause || 'unknown' };
+      if (e.fg && !open) open = { start: e.t, cause: e.cause || 'unknown', ...(e.error ? { reason: e.error } : {}) };
     } else if (e.ev === 'show') {
       shown = true;
       close(e.t, 'show');
@@ -120,6 +128,10 @@ function report(events) {
     timings,
     stalls: { threshold_ms: STALL_MS, count: stalls.length, worst: stalls.sort((a, b) => b.loop_ms - a.loop_ms).slice(0, 10) },
     blanks_in_foreground: { count: blanks.length, by_cause: causes, intervals: blanks },
+    // Geometry spikes with what they did: a registry rebuild or not.
+    slow_geometry: { threshold_ms: STALL_MS, count: slowGeometry.length, with_discovery: slowGeometry.filter(g => g.discovered > 0).length,
+      worst: slowGeometry.sort((a, b) => b.geometry_ms - a.geometry_ms).slice(0, 10) },
+    unusable_in_foreground: { by_error: unusable, native_errors: nativeErrors },
   };
 }
 
@@ -142,8 +154,19 @@ function format(r) {
   out.push(`Blank while HOI4 foreground: ${r.blanks_in_foreground.count}`);
   for (const [cause, c] of Object.entries(r.blanks_in_foreground.by_cause)) out.push(`  ${cause}: ${c.count}, total ${n(c.total_ms)} ms, longest ${n(c.max_ms)} ms`);
   for (const b of r.blanks_in_foreground.intervals.slice(0, 30)) {
-    out.push(`  ${time(b.start)} +${n(b.duration_ms)} ms ${b.cause} (ended by ${b.ended_by})${b.error ? ` error: ${b.error}` : ''}`);
+    out.push(`  ${time(b.start)} +${n(b.duration_ms)} ms ${b.cause} (ended by ${b.ended_by})${b.error ? ` error: ${b.error}` : ''}${b.reason ? ` reason: ${b.reason}` : ''}`);
   }
+  const g = r.slow_geometry;
+  out.push('');
+  out.push(`Geometry > ${g.threshold_ms} ms: ${g.count}, ${g.with_discovery} with a GUI registry rebuild`);
+  for (const s of g.worst) {
+    out.push(`  ${time(s.t)} ${n(s.geometry_ms)} ms (snapshot ${n(s.snap_ms)}, rebuilds ${s.discovered} ${n(s.discovery_ms)} ms, event scan ${n(s.refresh_ms)} ms, retries ${s.retry}, marks ${s.marks})`);
+  }
+  const u = r.unusable_in_foreground;
+  if (Object.keys(u.by_error).length) out.push('', 'Unusable deliveries while HOI4 foreground (iterations):');
+  for (const [error, count] of Object.entries(u.by_error).sort((a, b) => b[1] - a[1])) out.push(`  ${count} ${error}`);
+  if (Object.keys(u.native_errors).length) out.push('', 'Native geometry errors while HOI4 foreground (iterations):');
+  for (const [error, count] of Object.entries(u.native_errors).sort((a, b) => b[1] - a[1])) out.push(`  ${count} ${error}`);
   for (const f of r.fatal_errors) out.push(`Fatal ${time(f.t)}: ${f.error}`);
   return out.join('\n');
 }

@@ -185,6 +185,15 @@ pub struct Registry {
     missing: VecDeque<String>,
     unsettled_folder: Option<std::time::Instant>,
     pub diagnostics: Value,
+    /// Work of the current `observe` call, reported in its diagnostics so
+    /// the HUD trace can tell a registry rebuild from a slow sample.
+    request: RequestCost,
+}
+#[derive(Default)]
+struct RequestCost {
+    discoveries: u32,
+    discovery: std::time::Duration,
+    refresh: std::time::Duration,
 }
 impl Registry {
     pub fn discover(
@@ -201,6 +210,7 @@ impl Registry {
         {
             return Ok(());
         }
+        let began = std::time::Instant::now();
         let mut s = Candidates {
             memory,
             base,
@@ -445,10 +455,13 @@ impl Registry {
         self.headers = h;
         self.bindings = Some(bindings);
         self.seen = seen;
+        self.request.discoveries += 1;
+        self.request.discovery += began.elapsed();
         Ok(())
     }
     pub fn observe(&mut self, memory: &mut impl Memory, args: &Value) -> Result<Value> {
         let started = std::time::Instant::now();
+        self.request = RequestCost::default();
         for attempt in 0..2 {
             match self.inner(memory, args) {
                 Ok(mut v) => {
@@ -457,6 +470,9 @@ impl Registry {
                         json!(started.elapsed().as_secs_f64() * 1000.);
                     v["diagnostics"]["retry_count"] = json!(attempt);
                     v["diagnostics"]["discovery"] = self.diagnostics.clone();
+                    v["diagnostics"]["discovered"] = json!(self.request.discoveries);
+                    v["diagnostics"]["discovery_ms"] = json!(self.request.discovery.as_secs_f64() * 1000.);
+                    v["diagnostics"]["refresh_ms"] = json!(self.request.refresh.as_secs_f64() * 1000.);
                     return Ok(v);
                 }
                 Err(e) if transient_sample(&e) && attempt == 0 => continue,
@@ -607,13 +623,17 @@ impl Registry {
             s.ptr(base + root_rva, "CGameGui")?
         };
         self.discover(memory, base, profile, root)?;
+        let refresh = std::time::Instant::now();
         if !profile["gui_layout"].is_object() {
-            self.refresh_extensions(memory, base, profile, root, &args["event_instances"], false)?;
+            let refreshed = self.refresh_extensions(memory, base, profile, root, &args["event_instances"], false);
+            self.request.refresh += refresh.elapsed();
+            refreshed?;
         } else {
             // Event popups open after discovery: find new CEventWindow objects
             // by type so a visible popup is known (its answer geometry stays
             // unqualified on this layout). A failed scan changes nothing else.
             let _ = self.refresh_extensions(memory, base, profile, root, &json!([]), true);
+            self.request.refresh += refresh.elapsed();
         }
         let mut result = witnessed_snapshot(memory, args, self.bindings.as_ref().unwrap())?;
         for (panel, field) in [("focus", "focus_ids"), ("research", "technology_ids")] {

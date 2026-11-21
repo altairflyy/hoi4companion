@@ -44,3 +44,26 @@ test('blank intervals count only while HOI4 is foreground, with their cause', ()
   assert.match(text, /delivery_unknown: 1, total 1000 ms/);
   assert.match(text, /process_restart/);
 });
+
+test('geometry spikes say whether the GUI registry was rebuilt, and blanks say why', () => {
+  const t = 1700000000000;
+  const lines = [
+    { ev: 'iter', t, branch: 'native', fg: true, usable: true, card: true, marks: 6, geometry_ms: 900, snap_ms: 880, disc: 1, disc_ms: 860 },
+    { ev: 'show', t, fg: true, card: true, marks: 6 },
+    { ev: 'iter', t: t + 20, branch: 'native', fg: true, usable: true, card: true, marks: 6, geometry_ms: 400, snap_ms: 390, retry: 1 },
+    { ev: 'iter', t: t + 40, branch: 'native', fg: true, usable: true, card: true, marks: 6, geometry_ms: 3 },
+    { ev: 'iter', t: t + 60, branch: 'native', fg: true, usable: false, card: false, marks: 0, error: 'Nessuna indicazione live attuale', native_error: 'Vista focus di un’altra nazione' },
+    { ev: 'hide', t: t + 60, fg: true, card: false, marks: 0, cause: 'no_card_or_marks', error: 'Nessuna indicazione live attuale' },
+    { ev: 'show', t: t + 560, fg: true, card: true, marks: 1 },
+  ];
+  const r = report(lines);
+  assert.equal(r.slow_geometry.count, 2);
+  assert.equal(r.slow_geometry.with_discovery, 1);
+  assert.deepEqual(r.slow_geometry.worst.map(g => [g.geometry_ms, g.discovered, g.discovery_ms, g.retry]), [[900, 1, 860, 0], [400, 0, null, 1]]);
+  assert.deepEqual(r.unusable_in_foreground.by_error, { 'Nessuna indicazione live attuale': 1 });
+  assert.deepEqual(r.unusable_in_foreground.native_errors, { 'Vista focus di un’altra nazione': 1 });
+  assert.equal(r.blanks_in_foreground.intervals[0].reason, 'Nessuna indicazione live attuale');
+  const text = format(r);
+  assert.match(text, /Geometry > 250 ms: 2, 1 with a GUI registry rebuild/);
+  assert.match(text, /reason: Nessuna indicazione live attuale/);
+});

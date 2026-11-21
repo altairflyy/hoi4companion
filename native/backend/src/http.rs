@@ -111,7 +111,8 @@ impl Drop for Upload {
 }
 struct Reading {
     monitor: Monitor,
-    cached: Option<(Instant, Value)>,
+    /// Last packet with its time and the `reading_generation` it was read in.
+    cached: Option<(Instant, u64, Value)>,
 }
 struct ProviderOwner {
     handle: u64,
@@ -137,6 +138,10 @@ pub struct Service {
     catalog: Mutex<Option<Catalog>>,
     catalog_args: Mutex<Option<Value>>,
     reading: Mutex<Reading>,
+    /// Bumped by every progress or guide change: a cached packet read in an
+    /// older generation is never served. An atomic, so a HUD action never
+    /// waits for the reading lock that a poll holds through a whole audit.
+    reading_generation: AtomicU64,
     last_delivery: Mutex<Option<Instant>>,
     last_hud_request: Mutex<Option<Instant>>,
     #[cfg(windows)]
@@ -378,6 +383,7 @@ impl Service {
                 monitor: Monitor::default(),
                 cached: None,
             }),
+            reading_generation: AtomicU64::new(0),
             last_delivery: Mutex::new(None),
             last_hud_request: Mutex::new(None),
             #[cfg(windows)]
@@ -473,7 +479,10 @@ impl Service {
                     }
                     drop(clients);
                     let began = Instant::now();
-                    let packet = owner.poll().unwrap_or_else(
+                    // Always a fresh read: the 250 ms packet cache serves other
+                    // callers only, or every second turn of this 250 ms loop
+                    // was a cache hit and deliveries came every ~500 ms.
+                    let packet = owner.read(true).unwrap_or_else(
                         |e| json!({"usable":false,"status":"disconnected","sample":null,"error":e}),
                     );
                     let _ = owner.publish_hud(&packet["pipeline_ms"]);
@@ -493,12 +502,20 @@ impl Service {
         self.began.elapsed().as_secs_f64()
     }
     fn poll(&self) -> Result<Value> {
+        self.read(false)
+    }
+    /// One acquisition and evaluation; `fresh: false` may answer with the
+    /// packet of the last 250 ms when no progress or guide change came since.
+    fn read(&self, fresh: bool) -> Result<Value> {
         let poll_started = Instant::now();
         let mut reading = self
             .reading
             .lock()
             .map_err(|_| "Reader service unavailable")?;
-        if let Some((when, packet)) = &reading.cached
+        let generation = self.reading_generation.load(Ordering::Acquire);
+        if !fresh
+            && let Some((when, cached_generation, packet)) = &reading.cached
+            && *cached_generation == generation
             && when.elapsed() < Duration::from_millis(250)
         {
             return Ok(packet.clone());
@@ -554,7 +571,7 @@ impl Service {
         packet["overlay"] = crate::hud_diagnostics::read_status(
             &self.hud_status_path, &packet["active_guide_id"], &packet["guide_server_id"],
         );
-        reading.cached = Some((Instant::now(), packet.clone()));
+        reading.cached = Some((Instant::now(), generation, packet.clone()));
         *self.last_delivery.lock().map_err(|_|"Live delivery unavailable")? = Some(Instant::now());
         Ok(packet)
     }
@@ -867,7 +884,7 @@ impl Service {
                     "app_checks",
                     &json!({"guide_id":id,"update":request.json()?}),
                 )?;
-                self.invalidate()?;
+                self.republish()?;
                 Ok(value)
             }
             ("GET", "/api/guide/answers") => self.app("app_answers", &json!({"guide_id":id})),
@@ -881,7 +898,7 @@ impl Service {
                     "app_answers",
                     &json!({"guide_id":input["guide_id"],"update":{"op":"remove","key":input["key"],"quote":input["quote"]}}),
                 )?;
-                self.invalidate()?;
+                self.republish()?;
                 Ok(value)
             }
             ("POST", "/api/guide/progress") => {
@@ -889,7 +906,7 @@ impl Service {
                     "app_progress",
                     &json!({"guide_id":id,"update":request.json()?}),
                 )?;
-                self.invalidate()?;
+                self.republish()?;
                 Ok(result)
             }
             ("POST", "/api/overlay") => self.overlay(request),
@@ -1039,11 +1056,13 @@ impl Service {
     /// `pipeline` is the read's own timing (`pipeline_ms` of the packet);
     /// the delivery carries it with its publication time so the HUD trace can
     /// tell a slow read from a slow projection.
-    fn publish_hud(&self, pipeline:&Value) -> Result<()> {
+    /// Returns whether the delivery was stored (false: no observation yet, or
+    /// the guide, progress or nation changed while it was built).
+    fn publish_hud(&self, pipeline:&Value) -> Result<bool> {
         let publish_started=Instant::now();
         let epoch=self.hud_epoch.load(Ordering::Acquire);
         let observed=*self.last_delivery.lock().map_err(|_|"Live delivery unavailable")?;
-        let Some(observed)=observed else{return Ok(());};
+        let Some(observed)=observed else{return Ok(false);};
         let stamp=self.app("app_overlay_stamp",&json!({}))?;
         let mut value=self.overlay_project()?;
         let eligible=self.overlay_guides()?;
@@ -1054,10 +1073,11 @@ impl Service {
         let mut timing=if pipeline.is_object(){pipeline.clone()}else{json!({})};
         timing["publish"]=json!(publish_started.elapsed().as_secs_f64()*1000.);
         value["delivery_pipeline_ms"]=timing;
-        if self.app("app_overlay_stamp",&json!({}))?!=stamp{return Ok(());}
+        if self.app("app_overlay_stamp",&json!({}))?!=stamp{return Ok(false);}
         let mut delivery=self.hud_delivery.lock().map_err(|_|"HUD delivery unavailable")?;
-        if self.hud_epoch.load(Ordering::Acquire)==epoch{*delivery=Some((epoch,observed,value));}
-        Ok(())
+        if self.hud_epoch.load(Ordering::Acquire)!=epoch{return Ok(false);}
+        *delivery=Some((epoch,observed,value));
+        Ok(true)
     }
     fn overlay_latest(&self) -> Result<Value> {
         // HUD requests lease the same acquisition loop as SSE clients. A closed
@@ -1172,7 +1192,7 @@ impl Service {
                 }
             }
             self.app("app_checks", &json!({"guide_id":guide,"update":{"key":key,"checked":checked}}))?;
-            self.invalidate()?;
+            self.republish()?;
             result["key"] = json!(key);
             result["checked"] = json!(checked);
             return Ok(result);
@@ -1187,7 +1207,7 @@ impl Service {
                 return Err("The current step changed: nothing was set aside".into());
             }
             self.app("app_set_aside", &json!({"guide_id":guide,"key":key,"aside":aside}))?;
-            self.invalidate()?;
+            self.republish()?;
             result["key"] = json!(key);
             result["aside"] = json!(aside);
             return Ok(result);
@@ -1202,7 +1222,7 @@ impl Service {
                 return Err("The event answer is no longer shown: nothing was confirmed".into());
             }
             let value = self.app("app_answers", &json!({"guide_id":guide,"update":{"op":"confirm","key":key,"quote":input["quote"],"event_id":event,"option_id":option}}))?;
-            self.invalidate()?;
+            self.republish()?;
             result["key"] = json!(key);
             result["previous"] = value["previous"].clone();
             result["previous_checked"] = value["previous_checked"].clone();
@@ -1214,7 +1234,7 @@ impl Service {
             let guide = input["guide_id"].as_str().ok_or("Guida non installata")?;
             let key = input["key"].as_str().ok_or("Missing step")?;
             self.app("app_answers", &json!({"guide_id":guide,"update":{"op":"restore","key":key,"quote":input["quote"],"previous":input["previous"],"previous_checked":input["previous_checked"]}}))?;
-            self.invalidate()?;
+            self.republish()?;
             result["key"] = json!(key);
             result["restored"] = json!(true);
             return Ok(result);
@@ -1607,13 +1627,28 @@ impl Service {
         eprintln!("[startup] guides ready in {:.3}s", startup.elapsed().as_secs_f64());
         let _ = self.invalidate();
     }
+    /// Withdraws the HUD delivery and the cached packet; the next poll reads
+    /// again. Never takes the reading lock (held by a poll for a whole read).
     fn invalidate(&self) -> Result<()> {
         self.hud_epoch.fetch_add(1,Ordering::AcqRel);
+        self.reading_generation.fetch_add(1,Ordering::AcqRel);
         *self.hud_delivery.lock().map_err(|_|"HUD delivery unavailable")?=None;
-        self.reading
-            .lock()
-            .map_err(|_| "Reader unavailable")?
-            .cached = None;
+        self.wake.notify_all();
+        Ok(())
+    }
+    /// Progress changed while the last observation still stands: publish one
+    /// HUD delivery evaluated from that observation plus the new progress at
+    /// once, instead of leaving the HUD without one until the next poll. It
+    /// keeps the observation's time, so its 3 s budget is unchanged, and the
+    /// old delivery stays until the new one replaces it. When the new one
+    /// cannot be stored, the old one is withdrawn as before. Only for progress:
+    /// the read targets (political costs, provinces) follow the guides, so a
+    /// guide change uses `invalidate` and waits for a read with its targets.
+    fn republish(&self) -> Result<()> {
+        self.reading_generation.fetch_add(1,Ordering::AcqRel);
+        if !matches!(self.publish_hud(&json!({"republished":true})), Ok(true)) {
+            return self.invalidate();
+        }
         self.wake.notify_all();
         Ok(())
     }
