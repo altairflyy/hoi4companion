@@ -27,18 +27,54 @@ like a real-time overlay (immediate response, never blank while HOI4 is in the f
    rt_ms, bytes, handling_ms, geometry_ms, state_age_ms, fresh, card, marks, `delivery` timings on each new delivery), `show`/`hide` with cause,
    `action`, `start`, `fatal`. Backend adds `handling_ms` to every `/api/overlay` answer and `delivery_pipeline_ms` (acquisition, progress,
    packet, publish) to the HUD delivery. Report: `node scripts/hud-trace-report.cjs [--data-dir DIR] [--json]`.
-2. [ ] Diagnose. Run the report on the user's trace; write the measured causes and numbers here; reorder/adjust steps 3-6. No code.
-3. [ ] Non-blocking HUD loop. Backend requests move to a worker thread (latest result wins, one request in flight); control actions on a
-   queue with their own replies; drawing, card drag and buttons never wait on HTTP. Same gates and deadlines. Tests for the mailbox.
-4. [ ] Card never blinks on transient unknowns. While HOI4 is foreground and the guide/run is unchanged, keep the last card through an
-   unknown delivery, drawn dimmed with a "updating…" mark (never as confirmed) up to a bounded limit (e.g. 30 s); hide at once on a current
-   delivery without a card, a guide/run change, HOI4 in background or pause. Highlights keep their present gates. Translation strings.
-5. [ ] Backend delivery freshness (content set by step 2): e.g. progress writes and audits never hold the delivery, a fast partial read
-   between full reads, geometry sampling off the request path. Rust tests; rebuild.
-6. [ ] Transport (only if step 2 shows its overhead matters; today: new loopback TCP connection per request, `Connection: close`, full JSON snapshot each ~16 ms, `native/common/loopback.rs`): keep-alive or a named pipe, smaller replies, and/or push instead of poll: backend pushes HUD deliveries/geometry over the existing
-   subscription when they change; the overlay polls only as fallback.
-7. [ ] Live check with the user: `/deliver-build`, play ~10 min with the trace on, compare the report with step 1 numbers, update
+2. [x] Diagnose. Done 2026-11-21 on the user's trace (see "Measured 2026-11-21" below). Steps 3-6 reordered from the numbers.
+3. [ ] Backend delivery path (was step 5). Never by raising the 3 s budget or holding an old card as confirmed. In order of measured cost:
+   a) HUD actions: `invalidate()` must not lock `reading` (held by the poll for a whole audit) and the action must not empty the delivery
+   until the next poll: republish one delivery evaluated from the last state plus the new progress right after the progress write.
+   b) Audits never expire the delivery: fast probes keep publishing while an integrity audit (and its `app.accept`/publish work) runs,
+   or the audit work moves off the delivery thread. c) Fix the cadence: the 250 ms loop meets the 250 ms `reading.cached` window, so
+   every second poll is a cache hit and deliveries come every ~510 ms. d) Trace: add the reply `error`/`status` of unusable deliveries
+   and the geometry `diagnostics` (`snapshot_ms`, discovery) to `hud-trace.jsonl`, to confirm the hypotheses of C and I below.
+   e) If d) confirms GUI registry discovery as the geometry spike, run discovery/`refresh_extensions` off the request path (the request
+   answers that panel as unknown meanwhile). Rust tests; rebuild.
+4. [ ] Non-blocking HUD loop (was step 3). Backend requests move to a worker thread (latest result wins, one request in flight); control
+   actions on a queue with their own replies; drawing, card drag and buttons never wait on HTTP. Same gates and deadlines. Also: the idle
+   branch polls at the native cadence (today it sleeps ~100 ms, so every unknown lasts >= 110 ms); one immediate retry of a request that
+   fails with no reply before treating it as connection lost (6 seen). Tests for the mailbox.
+5. [ ] Card through an unusable delivery (was step 4, changed by I). Measured unknown gaps are <= 1.75 s, already inside `CARD_HOLD` 4 s:
+   the "updating…" hold through unknown is no longer the main need. The one blank seen came from a CURRENT delivery without a card. With
+   the reason from 3d: if it is a transient unusable read with the guide/run unchanged, keep the last card dimmed with an "updating…" mark
+   (never as confirmed) up to a bounded limit; hide at once on a guide/run change, HOI4 in background or a real state without a card.
+6. [ ] Transport: NOT needed by the numbers (transport p50 1.7 ms, p95 2.5 ms; 2 outliers ~300 ms in 15.9 min). Close it at step 7 unless
+   the step 7 trace disagrees. The failed-request retry moved to step 4.
+7. [ ] Live check with the user: `/deliver-build`, play ~10 min with the trace on, compare the report with the numbers below, update
    `docs/native-overlay.md`, archive this plan.
+
+## Measured 2026-11-21 (step 2; trace `.local/hud-trace*.jsonl`, overlay pid 35308)
+Session 09:28:52-09:45:45 UTC: 951.5 s with HOI4 foreground, 45k native iterations, 2 overlay starts in the files, 0 fatal errors.
+- A. Steady state is fine: native loop p50 16.4 / p95 18.6 / p99 20.8 ms; observe round trip p50 3.9 / p95 9.3 ms; backend handling
+  p50 2.0 / p95 7.3 ms; transport p50 1.7 / p95 2.5 ms; reply 21-27 KB. HTTP per frame is not the cause of the slowness.
+- B. Whole-loop stalls > 250 ms while foreground: 16, 10.8 s in total. Drawing, card drag and buttons freeze for their duration.
+- C. Geometry spikes: 12 requests of 400-1150 ms (about one per minute), handling = `geometry_ms`, so the time is inside
+  `GuiLane::geometry`. The GUI registry mutex is not shared with the collector, so it is not a lock wait on the audit. The first geometry
+  after start took 1150 ms; most spikes have 5-8 marks (research/production panels). HYPOTHESIS: registry discovery or `refresh_extensions`
+  after a panel change (the trace does not record `diagnostics.discovery`; step 3d).
+- D. HUD actions: `check` 104-108 ms (3 of 5); `set_aside` and one `check` 1563 ms. Cause in code: `invalidate()` locks `reading`, which
+  `poll()` holds for its whole acquisition, and `app_checks`/`app_set_aside` wait for the application lock held by `app.accept`.
+  The overlay loop blocks for the whole round trip (loop 1578 ms twice).
+- E. After every action the delivery is emptied: highlights off (unknown) for 1.31-1.75 s until the next poll (5 times).
+- F. Delivery expiry (3 s budget): 13 times. Probes every ~510 ms take 8-30 ms; an integrity audit every ~6.2 s takes 740-1540 ms of
+  acquisition; when the state changed (87 of 1828 deliveries) `app.accept` adds 775-1890 ms and publish 220-480 ms, so no delivery for
+  2.3-3.5 s. Most expiries last one idle iteration (~110 ms); worst 09:41:56-09:42:03, three in 7 s (0.4-1.3 s each).
+- G. Unknown while foreground: 17.9 s (1.9 %); idle branch 21.4 s; marks 0 for 25.0 s. Also 6 requests with no reply (0 bytes,
+  0.3-23 ms) and 2 one-frame unusable deliveries.
+- H. Cadence: deliveries every 511 ms p50 (p10 292, p90 812) although the loop is 250 ms: see step 3c.
+- I. Card blank (the "disappears for a few seconds" symptom): once, 09:44:25.585 +3330 ms, cause `no_card_or_marks`: a current delivery
+  (age 142 ms, ~800 bytes, `usable: false`, not unknown) without a card; ended by a delivery with a card whose first geometry took 579 ms.
+  Before it, 3 s with 0 marks and 0.1 ms geometry. The trace does not store the reply's `error`/`status`, so the cause is UNKNOWN
+  (hypothesis: a game screen where the qualified read is unusable; the user left HOI4 6 s later). `CARD_HOLD` does not apply to a
+  known delivery.
+- Background branch sleeps ~110 ms: return to foreground shows within one iteration (09:44:59.612 -> 09:44:59.712).
 
 Each code step: tests, `invariant-reviewer`, focused local commit, rebuild + restart (memory: deliver updated build), tick the box here,
 rewrite the Resume prompt. Never push without asking.

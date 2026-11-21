@@ -1,11 +1,11 @@
 # Shared agent handoff
-Updated: 2026-11-20. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `docs/handoff-archive-2026-11-20.md`, `git log`.
+Updated: 2026-11-21. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `docs/handoff-archive-2026-11-20.md`, `git log`.
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD (`docs/hud-performance-plan-2026-11-20.md`): prima l'UTENTE gioca ~10 min con l'HUD (traccia `.local/hud-trace.jsonl`).
-> Poi step 2 "Diagnose": `node scripts/hud-trace-report.cjs`, scrivi cause e numeri misurati nel piano, riordina gli step 3-6; nessun codice. Spunta e riscrivi questo prompt.
-Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per session. UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
+> Piano reattività HUD (`docs/hud-performance-plan-2026-11-20.md`, numeri in "Measured 2026-11-21"): step 3 "Backend delivery path", punti a-e in ordine.
+> File: `native/backend/src/http.rs` (`invalidate`, `poll`, `publish_hud`), `native/overlay/src/trace.rs`. Mai alzare il budget 3 s. Test Rust, invariant-reviewer, commit, rebuild+restart, spunta e riscrivi questo prompt.
+Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per session; steps 1-2 done, 3-6 reordered 2026-11-21. UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
 - 2026-11-20 PURGE (user order): third-party guide data (benchmark/review/probe fixtures, Wojtek guide, `docs/it/walkthrough.md`) is
@@ -16,8 +16,9 @@ Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per sessio
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
-- 2026-11-20 HUD step 1 Measure: overlay trace `hud-trace.jsonl` + backend `handling_ms`/`delivery_pipeline_ms` + `scripts/hud-trace-report.cjs`
-  (test `tests/test_hud_trace_report.cjs`). Overlay/backend Rust and npm test green; rebuilt and restarted. Trace NOT yet seen from a real game.
+- 2026-11-21 HUD step 2 Diagnose: report on 15.9 min of real play in the plan ("Measured 2026-11-21"): steady loop fine (p95 18.6 ms), transport
+  not a cause; stalls = geometry spikes 0.4-1.15 s and HUD actions 1.56 s; 13 delivery expiries from audits; 1 card blank 3.3 s, cause unknown.
+- 2026-11-20 HUD step 1 Measure: overlay `hud-trace.jsonl` + backend `handling_ms`/`delivery_pipeline_ms` + `scripts/hud-trace-report.cjs`. Seen working 2026-11-21.
 - 2026-11-20 `3ac001a` HUD card: a production step is skipped as current step once a later step of its track is completed (cause:
   layouts stop matching when lines change or read briefly unknown). Production list behind a toggle (`production_open` in overlay-card.json).
   Rust unit tests green, rebuilt, app restarted. NOT seen in game.
