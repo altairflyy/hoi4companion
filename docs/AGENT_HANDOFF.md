@@ -5,9 +5,9 @@ Updated: 2026-11-21. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
 > Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): step 1 "cadenza overlay" (wait arrotondati al tick ~15.6 ms).
 > Precondizione: misure in `docs/hud-performance-plan-2026-11-20.md` "Measured 2026-11-21, step 7" (gap p50 30.9 ms, solo 22 % < 20 ms).
-> File: `native/overlay/src/wake.rs`, `mailbox.rs`, `main.rs`. Prima conferma con l'utente l'ordine degli step 1-4 (è una proposta).
+> File: `native/overlay/src/wake.rs`, `mailbox.rs`, `main.rs`. Ordine degli step 1-5 confermato dall'utente il 2026-11-21.
 > Chiusura: test overlay, invariant-reviewer, commit locale, rebuild + riavvio, spunta lo step, riscrivi questo prompt (step 2).
-Plan agreed with the user 2026-11-20: HUD plan 2026-11-20 steps 1-7 done and archived 2026-11-21; part 2 proposed 2026-11-21 (order to confirm).
+Plan agreed with the user 2026-11-20: HUD plan 2026-11-20 steps 1-7 done and archived 2026-11-21; part 2 order confirmed by the user 2026-11-21.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress

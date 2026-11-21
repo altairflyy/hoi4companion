@@ -3,7 +3,7 @@
 Follows `docs/hud-performance-plan-2026-11-20.md` (archived). Numbers: its section "Measured 2026-11-21, step 7".
 Same invariants: read-only toward the game, unknown stays unknown, highlights only with a verified witness, Rust decides guide status.
 Never raise the 3 s delivery budget or show an old card or old highlights as current.
-PROPOSED 2026-11-21 by the step 7 session; the order is a recommendation until the user confirms it.
+Proposed by the step 7 session; order confirmed by the user 2026-11-21.
 
 ## Steps (one per session; `/clear` between them; the Resume prompt in `docs/AGENT_HANDOFF.md` says which is next)
 1. [ ] Overlay cadence (small). Replace the ~15.6 ms timer rounding of `Wake::wait` / `Reads::wait` (`native/overlay/src/wake.rs`,
