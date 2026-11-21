@@ -76,5 +76,14 @@ Session 09:28:52-09:45:45 UTC: 951.5 s with HOI4 foreground, 45k native iteratio
   known delivery.
 - Background branch sleeps ~110 ms: return to foreground shows within one iteration (09:44:59.612 -> 09:44:59.712).
 
+## Follow-up after step 7 (quality, not responsiveness; added 2026-11-21 at the user's request)
+A separate plan, started only after step 7. Each item needs a measurement or a user screenshot before any qualified geometry changes.
+- F1. Map pan and zoom: consistent marker coordinates while the map moves, no misalignment or flicker (map marker pan/zoom is unverified,
+  see the handoff's open questions).
+- F2. Native qualification of edge cases: variable DPI/UI scale, inactive projects, commander roster.
+Not adopted from the same list, by the step 2 numbers: fewer WGC captures and less OCR (no capture iteration in the trace), IPC and
+reply size (transport p95 2.5 ms), caches across game sessions (addresses change per process). Adaptive GUI polling and Windows
+foreground notifications only as CPU savings, if step 7 still shows a cost.
+
 Each code step: tests, `invariant-reviewer`, focused local commit, rebuild + restart (memory: deliver updated build), tick the box here,
 rewrite the Resume prompt. Never push without asking.
