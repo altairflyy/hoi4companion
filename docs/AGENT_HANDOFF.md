@@ -1,13 +1,14 @@
 # Shared agent handoff
-Updated: 2026-11-21. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `docs/handoff-archive-2026-11-20.md`, `git log`.
+Updated: 2026-11-21. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `-2026-11-20.md`, `-2026-11-21.md`, `git log`.
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD (`docs/hud-performance-plan-2026-11-20.md`): step 7 "verifica live con l'utente" (chiude anche lo step 6).
-> Precondizione: build con step 3e-5 già avviata. L'utente gioca ~10 min con HUD e trace; poi `node scripts/hud-trace-report.cjs`.
-> Confronta con "Measured 2026-11-21": stalli, geometry > 250 ms (attesi 0 con rebuild), "GUI registry rebuilds ... off the request path", blank card.
-> Indaga anche perché la sessione qualificata cade ogni pochi minuti. Aggiorna `docs/native-overlay.md`, archivia il piano, riscrivi questo prompt.
-Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per session; steps 1-5 done (3e done 2026-11-21), 3-6 reordered, follow-up F1-F2 added 2026-11-21. UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
+> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): step 1 "cadenza overlay" (wait arrotondati al tick ~15.6 ms).
+> Precondizione: misure in `docs/hud-performance-plan-2026-11-20.md` "Measured 2026-11-21, step 7" (gap p50 30.9 ms, solo 22 % < 20 ms).
+> File: `native/overlay/src/wake.rs`, `mailbox.rs`, `main.rs`. Prima conferma con l'utente l'ordine degli step 1-4 (è una proposta).
+> Chiusura: test overlay, invariant-reviewer, commit locale, rebuild + riavvio, spunta lo step, riscrivi questo prompt (step 2).
+Plan agreed with the user 2026-11-20: HUD plan 2026-11-20 steps 1-7 done and archived 2026-11-21; part 2 proposed 2026-11-21 (order to confirm).
+UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
 - 2026-11-20 PURGE (user order): third-party guide data (benchmark/review/probe fixtures, Wojtek guide, `docs/it/walkthrough.md`) is
@@ -18,16 +19,9 @@ Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per sessio
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
-- 2026-11-21 HUD step 3e (details in the plan): GUI registry discovery (635-892 ms, 8/8 slow geometries in the trace) runs on thread
-  `hoi4-gui-discovery`; requests answer "GUI registry discovery in progress" (every panel unknown). live 71/0, overlay 76/0,
-  backend 58+120/0, report test 5/0, invariant-reviewer: 1 WARN (target not bound to its session) fixed. NOT seen in game.
-- 2026-11-21 HUD step 5 (details in the plan): the 4 card blanks of 2.4-3.8 s in the 10:09-10:27 trace were Rust mode `preview` (lost
-  qualified session) shown as "campaign not valid"; now unknown, card kept <= 6 s dimmed "Updating…" without actions. overlay 75/0, backend
-  58+120, npm 505/0, invariant-reviewer clean. NOT seen in game. Open: why the qualified session drops every few minutes.
-- 2026-11-21 HUD step 4 (non-blocking loop, `mailbox.rs`; details in the plan): `01f7750`; overlay 74/0, npm 505/0; rebuilt, restarted. NOT seen in game.
-- 2026-11-21 HUD step 2 Diagnose: 15.9 min of real play, numbers in the plan ("Measured 2026-11-21").
-- 2026-11-21 HUD step 3 (backend delivery path, a-d; details in the plan): HUD actions republish instead of emptying the delivery, audit on its
-  own thread, fresh 250 ms reads, trace reasons/GUI costs. Rust + report tests green. NOT seen in game. Step 1 trace tooling seen working 2026-11-21.
+- 2026-11-21 HUD plan 2026-11-20 step 7 (live check, 1221 s of play on `f40e999`): stalls 0 (was 16), blank card 0, 7/7 GUI rebuilds off
+  the request path, transport p95 2.5 ms (step 6 closed). New: 6 qualified-session drops (cause not recorded), 98 delivery expiries after
+  a change (pipeline p50 2.6 s), actions 1.8-3.2 s, loop ~31 ms. Numbers: plan section "Measured 2026-11-21, step 7". Steps 3e-5 seen working.
 - 2026-11-20 `3ac001a` HUD card: a production step is skipped as current step once a later step of its track is completed (cause:
   layouts stop matching when lines change or read briefly unknown). Production list behind a toggle (`production_open` in overlay-card.json).
   Rust unit tests green, rebuilt, app restarted. NOT seen in game.
@@ -52,5 +46,5 @@ Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per sessio
 - System WebView2 Runtime is a prerequisite of the desktop host.
 
 ## Where things are
-- Subsystem docs: `docs/README.md`. HUD plan: `docs/hud-performance-plan-2026-11-20.md`. Fast Rust loop: `docs/fast-local-rust.md`. Guide identity: `docs/guide-definition-identity.md`.
+- Subsystem docs: `docs/README.md`. HUD plan: `docs/hud-performance-plan-2026-11-21.md` (part 1 archived: `-2026-11-20.md`). Fast Rust loop: `docs/fast-local-rust.md`. Guide identity: `docs/guide-definition-identity.md`.
 - Automation: skills `deliver-build`, `add-translation`, `improve-loop`; hooks `guard-game.cjs`, `web-test.cjs`; agent `invariant-reviewer`.

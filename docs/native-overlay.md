@@ -20,6 +20,14 @@ stored, the old one is withdrawn.
 per-request GUI costs (`snap_ms`, registry rebuilds `disc`/`disc_ms`,
 `refresh_ms`, `retry`); `scripts/hud-trace-report.cjs` lists geometry spikes
 with or without a rebuild and the reasons of unusable deliveries.
+Measured in play on 2026-11-21 (1221 s with HOI4 in front, build `f40e999`):
+no HUD loop stall over 250 ms, no blank card, every GUI registry rebuild off the
+request path, transport p95 2.5 ms. Still open (numbers and plan:
+`docs/hud-performance-plan-2026-11-21.md`): the qualified session closes every
+0.5-2.5 min on an unrecorded read error (~5 s unknown each); a probe-seen change
+takes ~2.6 s to reach the HUD, so its delivery often expires; HUD actions take
+1.8-3.2 s to answer; the HUD loop runs at ~31 ms because its waits round up to
+the Windows timer tick.
 Research discovery requires the actual `CCountryTechTreeView`, rather than the
 unrelated `CCountryTechnologyView`. The same identity, ownership, freshness,
 visibility and overlap checks still qualify every highlighted rectangle.

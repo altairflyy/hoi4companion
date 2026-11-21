@@ -1,5 +1,8 @@
 # HUD responsiveness plan (2026-11-20)
 
+ARCHIVED 2026-11-21: steps 1-7 closed. The step 7 trace (below, "Measured 2026-11-21, step 7") found new causes; the
+follow-up plan is `docs/hud-performance-plan-2026-11-21.md`.
+
 User report: the HUD is slow and clumsy, sometimes stalls, and sometimes disappears for a few seconds. Target: it should feel
 like a real-time overlay (immediate response, never blank while HOI4 is in the foreground), without relaxing any invariant
 (read-only toward the game, unknown stays unknown, highlights only with a verified witness, Rust decides guide status).
@@ -70,9 +73,10 @@ like a real-time overlay (immediate response, never blank while HOI4 is in the f
    the "updating…" hold through unknown is no longer the main need. The one blank seen came from a CURRENT delivery without a card. With
    the reason from 3d: if it is a transient unusable read with the guide/run unchanged, keep the last card dimmed with an "updating…" mark
    (never as confirmed) up to a bounded limit; hide at once on a guide/run change, HOI4 in background or a real state without a card.
-6. [ ] Transport: NOT needed by the numbers (transport p50 1.7 ms, p95 2.5 ms; 2 outliers ~300 ms in 15.9 min). Close it at step 7 unless
+6. [x] Transport: closed at step 7 (transport p50 1.7 / p95 2.5 / max 20.6 ms in 1254 s). NOT needed by the numbers (transport p50 1.7 ms, p95 2.5 ms; 2 outliers ~300 ms in 15.9 min). Close it at step 7 unless
    the step 7 trace disagrees. The failed-request retry moved to step 4.
-7. [ ] Live check with the user: `/deliver-build`, play ~10 min with the trace on, compare the report with the numbers below, update
+7. [x] Live check with the user: done 2026-11-21 on the build of `f40e999` (steps 3e-5), see "Measured 2026-11-21, step 7".
+   Original text: `/deliver-build`, play ~10 min with the trace on, compare the report with the numbers below, update
    `docs/native-overlay.md`, archive this plan.
 
 ## Measured 2026-11-21 (step 2; trace `.local/hud-trace*.jsonl`, overlay pid 35308)
@@ -100,6 +104,31 @@ Session 09:28:52-09:45:45 UTC: 951.5 s with HOI4 foreground, 45k native iteratio
   (hypothesis: a game screen where the qualified read is unusable; the user left HOI4 6 s later). `CARD_HOLD` does not apply to a
   known delivery.
 - Background branch sleeps ~110 ms: return to foreground shows within one iteration (09:44:59.612 -> 09:44:59.712).
+
+## Measured 2026-11-21, step 7 (trace `.local/hud-trace*.jsonl`, overlay pid 37120, build `f40e999`)
+Session 11:10:14-11:31:26 UTC: 1221 s with HOI4 foreground, 43.8k iterations, 0 fatal errors, 3 HUD actions.
+- Fixed (compare with step 2): whole-loop stalls > 250 ms 0 (was 16, 10.8 s); card blank while foreground 0 (was 1 of 3.3 s; "no
+  card" 0.0 s); GUI registry rebuilds 7 of 7 off the request path (scan p50 755 / max 936 ms); geometry > 250 ms with a rebuild 0.
+- Transport p50 1.7 / p95 2.5 / max 20.6 ms; observe round trip p50 4.7 / p95 9.5 ms: step 6 closed.
+- NEW 1, qualified session drops: 6 in 20 min (11:15:12, 11:16:41, 11:17:13, 11:19:50, 11:21:31, 11:23:42; 32-157 s apart), each
+  ~4.7-6.6 s of HUD unknown (~30 s in total): geometry "No qualified live game session", then delivery mode `preview` ("In attesa di
+  una lettura valida della partita") ~3.5-4.5 s, then a full read, then a background discovery (~0.75 s). Code: `Provider::collect`
+  calls `close()` on ANY error of `collect_inner` (probe compare, full read, a failed integrity audit via `finish_audit`, tick read,
+  identity), dropping the process handle, the cached read and the GUI registry. The error text is NOT recorded anywhere (the
+  delivery reports the Rust `preview` message, the trace the HUD message), so the cause is UNKNOWN.
+- The 3 geometry > 250 ms without a rebuild (956, 1516, 878 ms) are all inside drop episodes, right after a reopen: `provider::gui_lane`
+  locks the provider while `provider_collect` holds it for the full read (acquisition 1333 ms at 11:15:17). Likely, not proven.
+- NEW 2, delivery expiry after a change: 98 expiries of the 3 s budget (was 13 in 15.9 min), ~25 s of unknown. A probe that sees a
+  change reads in full (209 times); that delivery's pipeline is p50 2634 / p90 3103 / max 3725 ms (acquisition p95 859, progress
+  p95 1097, packet up to 798, publish p95 368 ms), so the state is ~2.6 s old when published and expires within ~0.4 s.
+  HYPOTHESIS for "progress" (`app.accept`): `guide-progress.sqlite3` holds one 2.0 MB progress payload (2851 runs, 437 KB
+  `decision_history`) rewritten as a whole; not profiled.
+- NEW 3, HUD actions: `set_aside` 1776, `check` 3012 and 3240 ms round trip (the loop keeps running, step 4). Both checks waited
+  behind a full-read delivery and the HUD went unknown right after them (11:10:53, 11:11:04).
+- NEW 4, overlay cadence: native loop gap p50 30.9 ms, only 22 % of iterations < 20 ms (was p50 16.4 ms). Cause in code: step 4 waits
+  with `Wake::wait` (`Condvar::wait_timeout_while`) and `recv_timeout`, which on Windows round up to the ~15.6 ms system timer tick;
+  `thread::sleep` uses a high-resolution timer. Likely, not proven.
+- Unknown while foreground 55.5 s (4.5 %, was 1.9 %); capture branch 30.4 s; no marks 113.5 s.
 
 ## Follow-up after step 7 (quality, not responsiveness; added 2026-11-21 at the user's request)
 A separate plan, started only after step 7. Each item needs a measurement or a user screenshot before any qualified geometry changes.
