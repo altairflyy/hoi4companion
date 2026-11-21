@@ -398,7 +398,7 @@ fn step_card(snapshot:&Value)->Option<StepCard> {
         let title=reading_title(&step["reading_title"]).or_else(||step["heading"].as_str().map(str::trim).filter(|s|!s.is_empty()).map(str::to_owned)).unwrap_or_else(||key.clone());
         Some((key,title))
     }).collect();
-    Some(StepCard {header,status_line,upcoming,heading,timing,note,body,badge,key,guide_id,checkable,images,production,references,references_scope,answer,confirmed_by_user,can_set_aside,set_aside})
+    Some(StepCard {header,status_line,upcoming,heading,timing,note,body,badge,key,guide_id,checkable,images,production,references,references_scope,answer,confirmed_by_user,can_set_aside,set_aside,updating:false})
 }
 /// The card for this sample: the backend's current card, or the last one kept
 /// briefly while the delivery is unknown (see the stability module), with

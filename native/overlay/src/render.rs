@@ -217,6 +217,9 @@ pub struct StepCard {
     pub can_set_aside: bool,
     /// Steps the player set aside (key, title), each with a "Resume" button.
     pub set_aside: Vec<(String,String)>,
+    /// The last card, kept while the delivery is unknown: drawn dimmed under
+    /// an "Updating…" line, never as current, and without action buttons.
+    pub updating: bool,
 }
 /// An ambiguous event answer as the backend proposes it: the guide line
 /// (`key` and its `quote`) and the visible option it may mean.
@@ -641,6 +644,8 @@ impl Graphics {
             let mut blocks:Vec<(String,usize,u8)>=Vec::new();
             let open=open.filter(|i|*i<card.references.len()&&!collapsed);
             if !collapsed {
+                // A kept card says so first, in full color over the dimmed rest (tone 6).
+                if card.updating {blocks.push((format!("⟳ {}",crate::i18n::text("Updating…")),2,6));}
                 blocks.push((card.status_line.clone(),2,3));
                 blocks.push((card.heading.clone(),1,1));
                 blocks.push((card.timing.clone(),3,0));
@@ -667,7 +672,7 @@ impl Graphics {
             };
             let mut blocks=blocks.into_iter();
             // The guided line, the heading and its condition come before the quick-reference tags.
-            for (text,format,tone) in blocks.by_ref().take(3) {block(self,&text,format,tone,&mut y,&mut lines)?;}
+            for (text,format,tone) in blocks.by_ref().take(3+usize::from(card.updating&&!collapsed)) {block(self,&text,format,tone,&mut y,&mut lines)?;}
             // Quick-reference tags: a click opens the section (never a hover).
             if !collapsed && !card.references.is_empty() && y+row<=limit {
                 let mut x=pad;
@@ -778,7 +783,7 @@ impl Graphics {
                 self.context.DrawBitmap(bitmap,Some(rect),1.0,D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC,None,None);
                 self.context.DrawRectangle(rect,&self.paint.card_border,1.0*scale,None);
             }
-            for (text,format,rect,tone) in &lines {
+            for (text,format,rect,tone) in lines.iter().filter(|l|l.3!=6) {
                 let brush=match tone {0=>self.paint.stroke(Role::Next),1|4=>&self.paint.text,2=>&self.paint.muted,5=>self.paint.stroke(Role::Ambiguous),_=>self.paint.stroke(Role::Choice)};
                 if *tone!=4 {
                     self.context.DrawText(text,&formats[*format],rect,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
@@ -797,6 +802,15 @@ impl Graphics {
                     if hue!=crate::card::Hue::Unknown {layout.SetFontWeight(DWRITE_FONT_WEIGHT_SEMI_BOLD,range)?;}
                 }
                 self.context.DrawTextLayout(windows_numerics::Vector2 {X:rect.left,Y:rect.top},&layout,brush,D2D1_DRAW_TEXT_OPTIONS_CLIP);
+            }
+            // A kept card is dimmed under its "Updating…" line; its buttons stay clear.
+            if card.updating {
+                self.paint.card_bg.SetOpacity(0.55);
+                self.context.FillRoundedRectangle(&panel,&self.paint.card_bg);
+                self.paint.card_bg.SetOpacity(1.0);
+                for (text,format,rect,_) in lines.iter().filter(|l|l.3==6) {
+                    self.context.DrawText(text,&formats[*format],rect,self.paint.stroke(Role::Choice),D2D1_DRAW_TEXT_OPTIONS_CLIP,DWRITE_MEASURING_MODE_NATURAL);
+                }
             }
             for (button,label,[left,top,right,bottom]) in &buttons {
                 let rect=D2D_RECT_F {left:*left,top:*top,right:*right,bottom:*bottom};

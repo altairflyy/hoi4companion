@@ -53,7 +53,15 @@ like a real-time overlay (immediate response, never blank while HOI4 is in the f
    actions on a queue with their own replies; drawing, card drag and buttons never wait on HTTP. Same gates and deadlines. Also: the idle
    branch polls at the native cadence (today it sleeps ~100 ms, so every unknown lasts >= 110 ms); one immediate retry of a request that
    fails with no reply before treating it as connection lost (6 seen). Tests for the mailbox.
-5. [ ] Card through an unusable delivery (was step 4, changed by I). Measured unknown gaps are <= 1.75 s, already inside `CARD_HOLD` 4 s:
+5. [x] Card through an unusable delivery. Done 2026-11-21 (NOT seen in game yet). Cause from the trace of 10:09-10:27 UTC (26 min):
+   4 card blanks of 2.4-3.8 s, all the same: the native read fails with "No qualified live game session" for 0.5-1.3 s, then the
+   delivery's Rust evaluation has mode `preview` (state not usable) and `hud_service` called it "Partita non valida per questa guida",
+   a current answer without a card, so the overlay hid at once; the card came back with a GUI registry discovery (613-694 ms).
+   Fix: `preview` is unknown (`live_delivery_fresh: false`, "Waiting for a current qualified game observation"); `wrong_country`/
+   `wrong_tree` stay a current mismatch. `CARD_HOLD` 6 s from the last current card (measured gaps 2.7-4.6 s); after 300 ms of
+   unknown the kept card is dimmed under "Updating…" without Done/Set aside/Resume/answer buttons. OPEN: why the qualified session
+   drops every few minutes (hypothesis: session re-qualification after a probe failure); look at it in step 7.
+   Original text: Measured unknown gaps are <= 1.75 s, already inside `CARD_HOLD` 4 s:
    the "updating…" hold through unknown is no longer the main need. The one blank seen came from a CURRENT delivery without a card. With
    the reason from 3d: if it is a transient unusable read with the guide/run unchanged, keep the last card dimmed with an "updating…" mark
    (never as confirmed) up to a bounded limit; hide at once on a guide/run change, HOI4 in background or a real state without a card.

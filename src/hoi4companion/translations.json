@@ -16,6 +16,8 @@
     "research_choice_waiting": "an earlier research choice is not completed yet"
   },
   "messages": {
+    "Updating…": "Aggiornamento…",
+    "Waiting for a current qualified game observation": "In attesa di una lettura valida della partita",
     "No reply from Companion: the step may or may not have changed.": "Nessuna risposta da Companion: il passo potrebbe essere cambiato o no.",
     "Card action not sent: try again in a moment.": "Azione non inviata: riprova tra un momento.",
     "Screenshots": "Screenshot",

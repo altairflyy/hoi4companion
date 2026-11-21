@@ -12,9 +12,11 @@
 //! server or game window drops every held row at once.
 //!
 //! Step card: guide text, not GUI evidence. It stays while the backend's live
-//! delivery is momentarily unknown (after a progress write or a slow read) for
-//! at most `CARD_HOLD`, and goes away as soon as a current delivery says the
-//! guide no longer applies or has no next step.
+//! delivery is momentarily unknown (after a progress write, a slow read, or a
+//! game read that is briefly unusable) for at most `CARD_HOLD`, and goes away
+//! as soon as a current delivery says the guide no longer applies or has no
+//! next step. Once the delivery has been unknown for `UPDATING_AFTER`, the kept
+//! card is marked as updating: dimmed, never shown as current, no actions.
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
@@ -25,8 +27,13 @@ use crate::render::StepCard;
 pub const HOLD_GRACE: Duration = Duration::from_millis(150);
 /// Verified samples without a row needed before that row is removed.
 pub const ABSENT_CONFIRMATIONS: u32 = 2;
-/// Longest time the step card is kept while the guide delivery is unknown.
-pub const CARD_HOLD: Duration = Duration::from_millis(4000);
+/// Longest time the step card is kept while the guide delivery is unknown,
+/// counted from the last current card. Measured 2026-11-21: a lost and found
+/// again game session leaves no current card for 2.7-4.6 s.
+pub const CARD_HOLD: Duration = Duration::from_millis(6000);
+/// Unknown time after which the kept card is marked as updating. Shorter
+/// unknowns (one-frame gaps, the answer to a HUD action) keep it unchanged.
+pub const UPDATING_AFTER: Duration = Duration::from_millis(300);
 
 pub enum Observation {
     /// A fully verified sample (identity, revision, window and freshness) with
@@ -100,28 +107,54 @@ impl MarkHold {
 #[derive(Default)]
 pub struct CardHold {
     card: Option<(Value, StepCard, Instant)>,
+    /// Start of the current unknown stretch.
+    unknown_since: Option<Instant>,
 }
 
 impl CardHold {
     pub fn clear(&mut self) {
         self.card = None;
+        self.unknown_since = None;
     }
     /// `known` is `None` when the backend could not deliver a current guide
     /// projection (unknown), `Some(card)` when it did (the card may be absent).
     pub fn observe(&mut self, guide: &Value, known: Option<Option<StepCard>>, now: Instant) -> Option<StepCard> {
         match known {
-            Some(Some(card)) => self.card = Some((guide.clone(), card, now)),
-            Some(None) => self.card = None,
+            Some(Some(card)) => {
+                self.card = Some((guide.clone(), card, now));
+                self.unknown_since = None;
+            }
+            Some(None) => {
+                self.card = None;
+                self.unknown_since = None;
+            }
             None => {
+                let since = *self.unknown_since.get_or_insert(now);
                 let keep = self.card.as_ref().is_some_and(|(id, _, at)| {
                     (guide.is_null() || guide == id) && now.saturating_duration_since(*at) <= CARD_HOLD
                 });
                 if !keep {
                     self.card = None;
                 }
+                if now.saturating_duration_since(since) >= UPDATING_AFTER {
+                    return self.card.as_ref().map(|(_, card, _)| updating(card));
+                }
             }
         }
         self.card.as_ref().map(|(_, card, _)| card.clone())
+    }
+}
+
+/// The kept card while the delivery is unknown: same guide text, marked as
+/// updating, with no action the backend could not verify now.
+fn updating(card: &StepCard) -> StepCard {
+    StepCard {
+        updating: true,
+        checkable: false,
+        can_set_aside: false,
+        answer: None,
+        set_aside: Vec::new(),
+        ..card.clone()
     }
 }
 
@@ -217,15 +250,34 @@ mod tests {
         let guide = json!("g");
         let mut hold = CardHold::default();
         let t0 = Instant::now();
+        let kept = updating(&card);
         assert_eq!(hold.observe(&guide, Some(Some(card.clone())), t0), Some(card.clone()));
-        assert_eq!(hold.observe(&guide, None, t0 + Duration::from_millis(900)), Some(card.clone()));
-        assert_eq!(hold.observe(&Value::Null, None, t0 + CARD_HOLD), Some(card.clone()));
+        assert_eq!(hold.observe(&guide, None, t0 + Duration::from_millis(900)), Some(card.clone()), "a short unknown leaves the card as it is");
+        assert_eq!(hold.observe(&guide, None, t0 + Duration::from_millis(900) + UPDATING_AFTER), Some(kept.clone()));
+        assert_eq!(hold.observe(&Value::Null, None, t0 + CARD_HOLD), Some(kept.clone()));
         assert_eq!(hold.observe(&guide, None, t0 + CARD_HOLD + Duration::from_millis(1)), None);
+        assert_eq!(hold.observe(&guide, Some(Some(card.clone())), t0), Some(card.clone()), "a current card is never marked as updating");
         hold.observe(&guide, Some(Some(card.clone())), t0);
         assert_eq!(hold.observe(&json!("other"), None, t0), None, "another guide never inherits the card");
         hold.observe(&guide, Some(Some(card.clone())), t0);
         assert_eq!(hold.observe(&guide, Some(None), t0), None, "a current delivery without a step clears it");
         assert_eq!(hold.observe(&guide, None, t0), None);
+    }
+
+    #[test]
+    fn a_card_kept_as_updating_offers_no_action() {
+        let card = StepCard {
+            heading: "Build".into(), key: "k".into(), guide_id: "g".into(), checkable: true, can_set_aside: true,
+            answer: Some(crate::render::Answer { key: "k".into(), ..Default::default() }),
+            set_aside: vec![("a".into(), "A".into())], ..Default::default()
+        };
+        let mut hold = CardHold::default();
+        let t0 = Instant::now();
+        hold.observe(&json!("g"), Some(Some(card.clone())), t0);
+        hold.observe(&json!("g"), None, t0);
+        let kept = hold.observe(&json!("g"), None, t0 + UPDATING_AFTER).unwrap();
+        assert!(kept.updating && !kept.checkable && !kept.can_set_aside && kept.answer.is_none() && kept.set_aside.is_empty());
+        assert_eq!((kept.heading.as_str(), kept.key.as_str()), ("Build", "k"), "the guide text stays readable");
     }
 
     #[test]

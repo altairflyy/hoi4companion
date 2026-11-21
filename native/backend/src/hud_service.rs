@@ -55,8 +55,16 @@ impl Hud {
                 }
             }
         }
+        // `preview`: the game observation is not usable, or its country/tree
+        // is not read yet (seen live: the qualified session is lost for
+        // 2-4 s and found again). That is unknown, not a campaign that does
+        // not fit the guide: the delivery is marked as not current, so the
+        // HUD keeps its last card only as "updating" and admits no action.
+        let unknown = runtime["mode"] == "preview";
         let error = if runtime["mode"] == "live" {
             ""
+        } else if unknown {
+            "Waiting for a current qualified game observation"
         } else {
             "Partita non valida per questa guida: evidenziazioni sospese"
         };
@@ -80,6 +88,9 @@ impl Hud {
         self.snapshot = json!({"version":self.version,"proposed":if usable{proposed}else{json!([])},"usable":usable,"title":guide["title"],"error":if error.is_empty() && !usable{"Nessuna indicazione live attuale"}else{error},"age_ms":0,"guide_id":packet["guide_id"],"guide_server_id":packet["server_id"],"source_generation":generation,"idle_explanation":null});
         if error.is_empty() && !usable {
             self.snapshot["idle_explanation"] = notice(runtime);
+        }
+        if unknown {
+            self.snapshot["live_delivery_fresh"] = json!(false);
         }
         // Shown by the HUD whether or not a control can be highlighted.
         self.snapshot["step_card"] = if error.is_empty() { card } else { Value::Null };
@@ -578,6 +589,24 @@ mod tests {
         let done = json!([{"key":"p3","panel":"production","guide_step":"p3","title":"Truck","status":"completed","goal_satisfied":true}]);
         assert_eq!(card_production(&done), json!([]), "satisfied production is not shown forever");
         assert_eq!(card_production(&json!([])), json!([]));
+    }
+    #[test]
+    fn an_unusable_observation_is_unknown_and_a_mismatch_is_not() {
+        let index = Index::new(&json!({"entries":[]})).unwrap();
+        let guide = json!({"id":"g","tracks":{"operations":[{"key":"a","title":"A","action":{"kind":"manual","params":{}}}]}});
+        let mut packet = json!({"guide_id":"g","guide":guide,"state":{"usable":false},
+            "evaluation":{"guide_id":"g","mode":"preview","tracks":{"operations":{"next":"a"}},"steps":[{"key":"a","status":"unverifiable"}]}});
+        let mut hud = Hud::default();
+        let unknown = hud.project(&packet, &index, 1).unwrap();
+        assert_eq!(unknown["live_delivery_fresh"], false, "a lost game read is unknown, not a fresh empty card");
+        assert_eq!(unknown["error"], "Waiting for a current qualified game observation");
+        assert!(unknown["step_card"].is_null());
+        assert_eq!(unknown["proposed"], json!([]));
+        packet["evaluation"]["mode"] = json!("wrong_country");
+        let mismatch = hud.project(&packet, &index, 1).unwrap();
+        assert!(mismatch.get("live_delivery_fresh").is_none(), "a known mismatch is a current answer");
+        assert_eq!(mismatch["error"], "Partita non valida per questa guida: evidenziazioni sospese");
+        assert!(mismatch["step_card"].is_null());
     }
     #[test]
     fn errors_never_keep_usable_targets_or_previous_identity() {
