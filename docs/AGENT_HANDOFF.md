@@ -3,11 +3,11 @@ Updated: 2026-11-21. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`, sezione "Order from 2026-11-21"): step 3b.
-> Utente da remoto: niente partite live; mai avviare o comandare HOI4. Step 3b: `provider::gui_lane` non deve attendere il lock del provider
-> durante una lettura completa (picchi geometria 878-1516 ms dopo un reopen). Prima leggi `native/backend/src/provider.rs` e `http.rs` `read`.
-> Chiusura: test Rust, invariant-reviewer, commit locale, rebuild + riavvio, spunta lo step, riscrivi questo prompt (sessione LIVE).
-Part 2 reordered 2026-11-21 at the user's request (remote, no live play): offline steps 4, 3b first; then ONE live session; then 3a, 5.
+> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`, sezione "Order from 2026-11-21"): SESSIONE LIVE.
+> Solo quando l'utente è al PC e gioca ~10 min (mai avviare o comandare HOI4). Poi leggi `hud-trace.jsonl` con `hud-trace-report.cjs`:
+> motivi di chiusura (step 2), `gap_ms` (step 1), consegna dopo un cambio p90 < 1.5 s (step 4), picchi geometria dopo un reopen (3b).
+> Chiusura: annota i numeri nel piano, decidi lo step 3a dai motivi visti, riscrivi questo prompt.
+Part 2 reordered 2026-11-21 at the user's request (remote, no live play): offline steps 4, 3b done; next ONE live session; then 3a, 5.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
@@ -19,6 +19,8 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-21 part 2 step 3b: HUD geometry no longer waits on the provider lock nor the HTTP provider owner during a full read (lane slot +
+  `provider_handle`). Backend 61+120 green, new lock test, invariant-reviewer clean. Live spikes NOT measured: LIVE session.
 - 2026-11-21 part 2 step 4: progress store reads no longer clone the whole state (offline: 54 `get` 420 -> 0.4 ms; a write ~70 ms, so
   the 2 MB rewrite was NOT the cost). Storage/guides/backend tests green. Live change-to-delivery p90 NOT measured: LIVE session.
 - 2026-11-21 part 2 step 2 (code): provider `metrics.closes` + delivery `provider_close` + trace `close_*` + report section. Backend 60+120,

@@ -64,6 +64,11 @@ struct Provider {
     open: Arc<AtomicBool>,
     metrics: Value,
     gui: Arc<Mutex<crate::gui_registry::Registry>>,
+    /// The GUI lane of the open session, shared with the registry entry so
+    /// `gui_lane(handle)` never waits on this provider's lock: a full read
+    /// after a reopen holds it ~1-1.5 s (geometry spikes 878-1516 ms, HUD
+    /// plan part 2 step 3b). Set when a session opens, cleared on `close`.
+    lane: Arc<Mutex<Option<GuiLane>>>,
 }
 impl Provider {
     fn set_political_cost_ids(&mut self,targets:&Value)->Result<()> {
@@ -112,6 +117,7 @@ impl Provider {
             open: Arc::new(AtomicBool::new(false)),
             metrics: json!({"probes":0,"full_reads":0,"audits":0,"changes":0,"last_read_ms":null,"watch_ranges":0,"watch_bytes":0,"probe_read_calls":0,"probe_read_bytes":0,"close_count":0,"closes":[]}),
             gui: Arc::new(Mutex::new(crate::gui_registry::Registry::deferred())),
+            lane: Arc::new(Mutex::new(None)),
         })
     }
     fn close(&mut self) {
@@ -121,6 +127,15 @@ impl Provider {
         self.cached = None;
         self.audit_job = None;
         self.generation += 1;
+        self.publish_lane();
+    }
+    /// Publishes the current session's GUI lane (or none) to the shared slot.
+    fn publish_lane(&self) {
+        let lane = self.gui_lane().ok();
+        match self.lane.lock() {
+            Ok(mut slot) => *slot = lane,
+            Err(poisoned) => *poisoned.into_inner() = lane,
+        }
     }
     /// Takes a finished audit: its read replaces the cached one (a probe then
     /// compares against it). A failed audit fails the collect like any read.
@@ -214,6 +229,7 @@ impl Provider {
         if self.game.is_none() {
             self.game = Some(Arc::new(Game::open(self.profile.as_ref().unwrap().clone()).at("open")?));
             self.open = Arc::new(AtomicBool::new(true));
+            self.publish_lane();
         }
         let game = self.game.as_ref().unwrap();
         if game.identity().at("identity")? != game.created {
@@ -410,16 +426,20 @@ impl GuiLane {
 fn same_session(expected:Option<&Value>,observed:&Value)->bool {
     expected.is_none_or(|expected|expected.as_str().is_some_and(|s|!s.is_empty()) && expected==observed)
 }
-static REGISTRY: OnceLock<Mutex<HashMap<u64, Arc<Mutex<Provider>>>>> = OnceLock::new();
+/// A provider and its published GUI lane (read without the provider's lock).
+type Entry = (Arc<Mutex<Provider>>, Arc<Mutex<Option<GuiLane>>>);
+static REGISTRY: OnceLock<Mutex<HashMap<u64, Entry>>> = OnceLock::new();
 static NEXT: AtomicU64 = AtomicU64::new(1);
-fn registry() -> &'static Mutex<HashMap<u64, Arc<Mutex<Provider>>>> {
+fn registry() -> &'static Mutex<HashMap<u64, Entry>> {
     REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
 }
+/// The GUI lane of the provider's open session. Never waits on the provider
+/// lock, so geometry answers while a collect (a full read) is running.
 pub(crate) fn gui_lane(handle: u64) -> Result<GuiLane> {
-    let provider=registry().lock().map_err(|_|"Provider registry unavailable")?
-        .get(&handle).cloned().ok_or("Unknown provider handle")?;
-    let lane=provider.lock().map_err(|_|"Provider unavailable")?.gui_lane()?;
-    Ok(lane)
+    let slot=registry().lock().map_err(|_|"Provider registry unavailable")?
+        .get(&handle).map(|(_, lane)| lane.clone()).ok_or("Unknown provider handle")?;
+    let lane=slot.lock().map_err(|_|"Provider unavailable")?.clone();
+    lane.ok_or_else(|| "No qualified live game session".into())
 }
 pub fn execute(op: &str, args: &Value) -> Result<Value> {
     if op == "provider_open" {
@@ -431,7 +451,8 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
             return Err("Provider registry limit exceeded".into());
         }
         let id = NEXT.fetch_add(1, Ordering::Relaxed);
-        entries.insert(id, Arc::new(Mutex::new(provider)));
+        let lane = provider.lane.clone();
+        entries.insert(id, (Arc::new(Mutex::new(provider)), lane));
         return Ok(json!(id));
     }
     let id = args["handle"].as_u64().ok_or("Provider handle missing")?;
@@ -448,7 +469,7 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
         .lock()
         .map_err(|_| "Provider registry unavailable")?
         .get(&id)
-        .cloned()
+        .map(|(provider, _)| provider.clone())
         .ok_or("Unknown provider handle")?;
     let mut provider = provider.lock().map_err(|_| "Provider unavailable")?;
     match op {
@@ -604,6 +625,30 @@ mod tests {
         collector.lock().unwrap().close();
         assert!(!lane.matches_pid(Some(pid as u64)));
         assert!(lane.geometry(&json!({})).is_err());
+    }
+    #[test]
+    fn the_registry_lane_answers_while_a_collect_holds_the_provider_and_closing_clears_it() {
+        let handle=execute("provider_open",&json!({"path":"unused","manifest_sha256":"unused"})).unwrap().as_u64().unwrap();
+        assert_eq!(gui_lane(handle).err().as_deref(),Some("No qualified live game session"));
+        let provider=registry().lock().unwrap().get(&handle).unwrap().0.clone();
+        let game=Game::owned_fixture();let pid=game.pid;
+        {
+            let mut p=provider.lock().unwrap();
+            // What `collect_inner` does when it opens a session, before its full read.
+            p.game=Some(game.clone());p.open=Arc::new(AtomicBool::new(true));p.publish_lane();
+        }
+        let collecting=provider.lock().unwrap();
+        let (send,receive)=mpsc::channel();
+        let worker=std::thread::spawn(move || {send.send(gui_lane(handle).map(|lane|lane.matches_pid(Some(pid as u64)))).unwrap();});
+        let result=receive.recv_timeout(std::time::Duration::from_secs(1));
+        drop(collecting);worker.join().unwrap();
+        assert_eq!(result.expect("gui_lane waited on the provider lock"),Ok(true));
+        let lane=gui_lane(handle).unwrap();
+        provider.lock().unwrap().close();
+        assert!(!lane.matches_pid(Some(pid as u64)));
+        assert_eq!(gui_lane(handle).err().as_deref(),Some("No qualified live game session"));
+        assert_eq!(execute("provider_release",&json!({"handle":handle})).unwrap(),true);
+        assert_eq!(gui_lane(handle).err().as_deref(),Some("Unknown provider handle"));
     }
     #[test]
     fn a_failed_collect_records_its_stage_and_error_and_repeats_are_counted_not_listed() {

@@ -8,7 +8,7 @@ Proposed by the step 7 session; order confirmed by the user 2026-11-21.
 ## Order from 2026-11-21 (user is remote and cannot play; agents never start or control HOI4)
 Work that needs no live game first, live checks batched into one session when the user is back at the PC:
 - done: step 4 (store reads no longer copy the whole progress state);
-- next: step 3b, the reason-independent part of step 3 (`provider::gui_lane` must not wait on the provider lock during a full read);
+- done: step 3b, the reason-independent part of step 3 (`provider::gui_lane` no longer waits on the provider lock during a full read);
 - LIVE session (user plays ~10 min): read the step 2 close reasons and measure steps 1, 3b and 4 in one trace;
 - then: step 3a (keep the session by the reasons seen), then step 5 (final live check).
 
@@ -34,6 +34,12 @@ Work that needs no live game first, live checks batched into one session when th
    read failure retries the full read once before closing. Every failure still makes the delivery unknown at once; only a new complete
    qualified read restores it. Also stop `provider::gui_lane` from waiting on the provider lock during a full read after a reopen
    (3 geometry spikes of 878-1516 ms). Rust tests; rebuild.
+   Done 2026-11-21 (3b, the lock part only): two locks were held through the full read, the HTTP `provider` owner and the
+   provider's own mutex. The provider now publishes its GUI lane to a slot shared with its registry entry (set at session open,
+   cleared by `close`), read by `provider::gui_lane(handle)` without the provider lock; `http.rs` keeps the handle in
+   `provider_handle` (stored before `analysis_generation` moves). The lane may now answer during the first full read after a
+   reopen; it still checks identity, pid and `session_id`. Test `the_registry_lane_answers_while_a_collect_holds_the_provider...`.
+   Live geometry spikes NOT measured yet: the LIVE session. 3a stays open.
 4. [x] Full-read delivery pipeline after a change (p50 2.6 s, p90 3.1 s; 98 expiries in 20 min). Profile first: acquisition, `app.accept`
    (progress), packet, publish. Hypothesis: the 2.0 MB progress payload (2851 runs) is serialized and written whole on each change; if
    so, write only what changed or move the write after the publish. Target: change-to-delivery p90 < 1.5 s. Same effect expected on HUD

@@ -150,6 +150,12 @@ pub struct Service {
     #[cfg(windows)]
     gui_lane: Mutex<Option<(u64, crate::provider::GuiLane)>>,
     provider: Mutex<Option<ProviderOwner>>,
+    /// The handle of `provider` (0 = none), so the HUD geometry finds the GUI
+    /// lane without waiting on `provider`, which a collect holds through a
+    /// full read (HUD plan part 2 step 3b). Stored before
+    /// `analysis_generation` moves, so a lane cached under a new generation
+    /// always comes from the new provider.
+    provider_handle: AtomicU64,
     hud: Mutex<crate::hud_service::Hud>,
     hud_cache: Mutex<Option<(Value, Value)>>,
     hud_delivery: Mutex<Option<(u64, Instant, Value)>>,
@@ -392,6 +398,7 @@ impl Service {
             last_hud_request: Mutex::new(None),
             #[cfg(windows)]
             gui_lane: Mutex::new(None),
+            provider_handle: AtomicU64::new(provider.as_ref().map_or(0, |p| p.handle)),
             provider: Mutex::new(provider),
             hud: Mutex::new(crate::hud_service::Hud::default()),
             hud_cache: Mutex::new(None),
@@ -1124,9 +1131,9 @@ impl Service {
             let lane={
                 let mut cached=self.gui_lane.lock().map_err(|_|"GUI lane unavailable")?;
                 if cached.as_ref().is_none_or(|(g,lane)|*g!=generation||!lane.matches_pid(view[1].as_u64())) {
-                    let provider=self.provider.lock().map_err(|_|"Provider service unavailable")?;
-                    let owner=provider.as_ref().ok_or("Game installation not configured")?;
-                    *cached=Some((generation,crate::provider::gui_lane(owner.handle)?));
+                    let handle=self.provider_handle.load(Ordering::Acquire);
+                    if handle==0 {return Err("Game installation not configured".into());}
+                    *cached=Some((generation,crate::provider::gui_lane(handle)?));
                 }
                 cached.as_ref().unwrap().1.clone()
             };
@@ -1838,6 +1845,7 @@ impl Service {
             .unwrap_or("english")
             .to_owned();
         if let Some(replacement) = replacement {
+            self.provider_handle.store(next_provider.as_ref().map_or(0, |p| p.handle), Ordering::Release);
             self.analysis_generation.fetch_add(1, Ordering::AcqRel);
             *catalog = replacement;
             *provider = next_provider;
