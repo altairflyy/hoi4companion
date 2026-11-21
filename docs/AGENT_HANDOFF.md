@@ -19,7 +19,8 @@ Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per sessio
 
 ## Recently verified
 - 2026-11-21 HUD step 4 (non-blocking loop; details in the plan): reads and card actions on worker threads (`mailbox.rs`), the loop waits
-  <= 16 ms per read, idle polls at 16 ms, one retry of a read failing at once. Overlay tests 73/0, report test green. NOT seen in game.
+  <= 16 ms per read, idle polls at 16 ms, one retry of a read failing at once. `01f7750`; overlay 74/0, npm 505/0; rebuilt, restarted,
+  new overlay writes `gap_ms` (background only, HOI4 closed). NOT seen in game.
 - 2026-11-21 HUD step 2 Diagnose: report on 15.9 min of real play in the plan ("Measured 2026-11-21"): steady loop fine (p95 18.6 ms), transport
   not a cause; stalls = geometry spikes 0.4-1.15 s and HUD actions 1.56 s; 13 delivery expiries from audits; 1 card blank 3.3 s, cause unknown.
 - 2026-11-21 HUD step 3 (backend delivery path, a-d; details in the plan): HUD actions republish instead of emptying the delivery, audit on its
