@@ -3,10 +3,10 @@ Updated: 2026-11-21. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`, sezione "Order from 2026-11-21"): step 4 "pipeline della delivery dopo un cambio".
-> Utente da remoto: niente partite live; mai avviare o comandare HOI4. Profila offline: `app.accept` (progress) sul `guide-progress.sqlite3` locale, packet, publish.
-> Ipotesi: payload progress 2.0 MB (2851 run) riscritto intero a ogni cambio. Obiettivo change-to-delivery p90 < 1.5 s. File: `native/backend` (application, http `read`), store progress.
-> Chiusura: test Rust, invariant-reviewer, commit locale, rebuild + riavvio, spunta lo step, riscrivi questo prompt (step 3b).
+> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`, sezione "Order from 2026-11-21"): step 3b.
+> Utente da remoto: niente partite live; mai avviare o comandare HOI4. Step 3b: `provider::gui_lane` non deve attendere il lock del provider
+> durante una lettura completa (picchi geometria 878-1516 ms dopo un reopen). Prima leggi `native/backend/src/provider.rs` e `http.rs` `read`.
+> Chiusura: test Rust, invariant-reviewer, commit locale, rebuild + riavvio, spunta lo step, riscrivi questo prompt (sessione LIVE).
 Part 2 reordered 2026-11-21 at the user's request (remote, no live play): offline steps 4, 3b first; then ONE live session; then 3a, 5.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
@@ -19,6 +19,8 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-21 part 2 step 4: progress store reads no longer clone the whole state (offline: 54 `get` 420 -> 0.4 ms; a write ~70 ms, so
+  the 2 MB rewrite was NOT the cost). Storage/guides/backend tests green. Live change-to-delivery p90 NOT measured: LIVE session.
 - 2026-11-21 part 2 step 2 (code): provider `metrics.closes` + delivery `provider_close` + trace `close_*` + report section. Backend 60+120,
   overlay 78, report 6 tests green. Close reasons NOT yet seen live: needs the user's play session.
 - 2026-11-21 HUD part 2 step 1: overlay `wake::FineTimer` (1 ms tick for the HUD process). Unit test: a 5 ms wait took median 15.5 ms

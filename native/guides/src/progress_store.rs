@@ -150,7 +150,7 @@ impl Runs {
         }
         let mut ids = vec![];
         let mut asked = 0;
-        let result = loop {
+        let mut result = loop {
             let result = self.raw(op, args.clone(), ids.clone())?;
             if let Some(guide) = result["needs_definition"].as_str() {
                 let provider = provider.as_mut().ok_or("Definition provider unavailable")?;
@@ -190,7 +190,7 @@ impl Runs {
             self.persist(&snapshot, answers)?;
             self.generation = self.generation.wrapping_add(1);
         }
-        let mut value=result["value"].clone();
+        let mut value=result["value"].take();
         if op=="get" && args["include_decision_history"]==true && value["campaign_id"].is_string() {
             let history=self.raw("decision_history",json!({"campaign_id":value["campaign_id"],"country":value["country"]}),vec![])?;
             if history["value"].is_object() {value["decision_history"]=history["value"].clone();}

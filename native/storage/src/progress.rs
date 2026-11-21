@@ -361,32 +361,14 @@ impl State {
             json!({"schema_version":1,"guide_id":guide,"run_id":id,"session_id":session,"checks":checks,"started":{},"run_revision":0}),
         )
     }
-    fn raw(
-        &mut self,
-        op: &str,
-        args: &Value,
-        ids: &mut impl Iterator<Item = Value>,
-    ) -> Result<Value> {
+    /// Operations that only read the state, or None for every other one.
+    /// `Store::request` answers them without copying the whole state.
+    fn read(&self, op: &str, args: &Value) -> Option<Result<Value>> {
         let guide = &args["guide_id"];
-        let session = &args["session_id"];
-        match op {
+        Some(match op {
             "snapshot" => Ok(self.snapshot()),
             "records" => Ok(json!(self.runs)),
             "decision_history" => Ok(self.decision_history.get(&campaign_key(&args["campaign_id"],&args["country"])).cloned().unwrap_or(Value::Null)),
-            "observe_decisions" => {
-                let Some(binding)=self.binding.as_ref() else {return Ok(json!(false));};
-                let tick=self.tick.ok_or("Data campagna non qualificata")?;
-                let key=campaign_key(&binding[0],&binding[1]);
-                let history=self.decision_history.get_mut(&key).ok_or("Storico campagna non associato")?;
-                let state=&args["state"];
-                let before=history.clone();
-                if state["facts"]["campaign.id"]["status"]!="observed" || state["facts"]["campaign.id"]["value"]!=binding[0]
-                    || state["facts"]["country"]["value"]!=binding[1] || state["session_id"]!=binding[2] || state["usable"]!=true {
-                    crate::decision_history::interrupt(history);return Ok(json!(*history!=before));
-                }
-                crate::decision_history::observe(history,state,tick)?;
-                Ok(json!(*history!=before))
-            }
             "get" => self.get(guide, args.get("run_id")),
             "history" => Ok(Value::Array(
                 self.runs
@@ -401,6 +383,35 @@ impl State {
                     .map(|(g, k)| (g.clone(), metadata(&self.runs[string(k)])))
                     .collect(),
             )),
+            _ => return None,
+        })
+    }
+    fn raw(
+        &mut self,
+        op: &str,
+        args: &Value,
+        ids: &mut impl Iterator<Item = Value>,
+    ) -> Result<Value> {
+        if let Some(value) = self.read(op, args) {
+            return value;
+        }
+        let guide = &args["guide_id"];
+        let session = &args["session_id"];
+        match op {
+            "observe_decisions" => {
+                let Some(binding)=self.binding.as_ref() else {return Ok(json!(false));};
+                let tick=self.tick.ok_or("Data campagna non qualificata")?;
+                let key=campaign_key(&binding[0],&binding[1]);
+                let history=self.decision_history.get_mut(&key).ok_or("Storico campagna non associato")?;
+                let state=&args["state"];
+                let before=history.clone();
+                if state["facts"]["campaign.id"]["status"]!="observed" || state["facts"]["campaign.id"]["value"]!=binding[0]
+                    || state["facts"]["country"]["value"]!=binding[1] || state["session_id"]!=binding[2] || state["usable"]!=true {
+                    crate::decision_history::interrupt(history);return Ok(json!(*history!=before));
+                }
+                crate::decision_history::observe(history,state,tick)?;
+                Ok(json!(*history!=before))
+            }
             "load" => {
                 self.load(args["snapshot"].clone())?;
                 Ok(Value::Null)
@@ -733,6 +744,11 @@ impl Store {
         if self.pending.is_some() {
             return Err("Transazione avanzamento non confermata".into());
         }
+        // Reads change nothing: answer them from the state as it is. Copying
+        // the whole state (thousands of runs) for each one cost ~8 ms a call.
+        if let Some(value) = self.state.read(&r.op, &r.args) {
+            return Ok(json!({"changed":false,"value":value?}));
+        }
         let mut next = self.state.clone();
         let mut value = match next.raw(&r.op, &r.args, &mut r.ids.into_iter()) {
             Err(e) if e == "__needs_id__" => return Ok(json!({"needs_id":true})),
@@ -811,9 +827,10 @@ impl Store {
                 && let Some(row) = next.runs.get(id) {
                     value = row.clone()
                 }
-            self.pending = Some(self.state.clone());
+            self.pending = Some(std::mem::replace(&mut self.state, next));
+        } else {
+            self.state = next;
         }
-        self.state = next;
         Ok(if changed {
             json!({"changed":true,"snapshot":self.state.snapshot(),"value":value})
         } else {

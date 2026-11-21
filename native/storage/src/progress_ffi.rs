@@ -117,4 +117,25 @@ mod tests {
             before
         );
     }
+    #[test]
+    fn reads_answer_the_committed_state_and_change_nothing() {
+        let mut store = progress::Store::default();
+        request(&mut store, "ensure", json!({"guide_id":"g"}), vec![json!("id")]);
+        request(&mut store, "accept", json!({}), vec![]);
+        let snapshot = request(&mut store, "snapshot", json!({}), vec![])["value"].clone();
+        for op in ["get", "metadata", "records", "history", "snapshot", "decision_history"] {
+            let reply = request(&mut store, op, json!({"guide_id":"g"}), vec![]);
+            assert_eq!(reply["changed"], false, "{op}");
+            assert!(reply.get("snapshot").is_none(), "{op}");
+        }
+        assert_eq!(request(&mut store, "get", json!({"guide_id":"g"}), vec![])["value"]["run_id"], "id");
+        assert_eq!(request(&mut store, "metadata", json!({}), vec![])["value"]["g"]["run_id"], "id");
+        assert!(store.request(progress::Request { schema_version: 1, op: "get".into(), args: json!({"guide_id":"other"}), ids: vec![] }).is_err());
+        assert_eq!(request(&mut store, "snapshot", json!({}), vec![])["value"], snapshot);
+        // A write after reads still commits and rolls back as one transaction.
+        let changed = request(&mut store, "update", json!({"guide_id":"g","checks":{"a":true}}), vec![]);
+        assert_eq!(changed["changed"], true);
+        request(&mut store, "rollback", json!({}), vec![]);
+        assert_eq!(request(&mut store, "snapshot", json!({}), vec![])["value"], snapshot);
+    }
 }
