@@ -193,7 +193,14 @@ impl Client {
         }
     }
     pub fn request(&mut self, input: &Value, raw: &[u8]) -> Result<Value> {
-        match self.inner(input, raw) {
+        let began = std::time::Instant::now();
+        let mut result = self.inner(input, raw);
+        if result.is_err()
+            && retry_read(&input["kind"], began.elapsed(), crate::local_api::last_reply_bytes())
+        {
+            result = self.inner(input, raw);
+        }
+        match result {
             Ok(value) => {
                 self.last = value.clone();
                 Ok(value)
@@ -259,6 +266,15 @@ impl Drop for Client {
         self.release();
     }
 }
+/// A read (`observe`, `snapshot`) that failed at once with no reply at all is
+/// sent once more before it counts as a lost connection (6 such failures in
+/// the measured 15.9 min, 0.3-23 ms each). Never an action: it may have been
+/// applied before its reply was lost.
+fn retry_read(kind: &Value, took: std::time::Duration, reply_bytes: usize) -> bool {
+    matches!(kind.as_str(), Some("observe" | "snapshot"))
+        && reply_bytes == 0
+        && took < std::time::Duration::from_millis(250)
+}
 fn unavailable(last: &Value, input: &Value, error: &str) -> Value {
     json!({"schema_version":1,"kind":input["kind"],"token":input["token"],"ok":true,"version":last["version"],"guide_id":last["guide_id"],"guide_server_id":last["guide_server_id"],"title":last["title"],"guides":[],"guide_filter":{"status":"unavailable","country":null},"usable":false,"proposed":[],"matches":[],"native_available":false,"suspend_visual":true,"error":error,"age_ms":null,"view":input["view"],"live_delivery_fresh":false,"connection_lost":true})
 }
@@ -277,6 +293,18 @@ mod tests {
         assert_eq!(response["matches"],json!([]));
         assert_eq!(response["live_delivery_fresh"],false,"a lost connection is unknown, not an empty guide");
         assert_eq!(response["connection_lost"],true);
+    }
+    #[test]
+    fn only_a_read_that_failed_at_once_without_a_reply_is_retried() {
+        use std::time::Duration;
+        let quick = Duration::from_millis(5);
+        assert!(retry_read(&json!("observe"), quick, 0));
+        assert!(retry_read(&json!("snapshot"), quick, 0));
+        for kind in ["check", "set_aside", "confirm_answer", "restore_answer", "select", "frame", "geometry"] {
+            assert!(!retry_read(&json!(kind), quick, 0), "{kind} is never sent twice");
+        }
+        assert!(!retry_read(&json!("observe"), quick, 512), "a reply came: its error is the answer");
+        assert!(!retry_read(&json!("observe"), Duration::from_millis(250), 0), "a slow failure is not retried");
     }
     #[test]
     fn folder_ids_cannot_escape_local_query_parameters() {

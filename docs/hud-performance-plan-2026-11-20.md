@@ -43,7 +43,13 @@ like a real-time overlay (immediate response, never blank while HOI4 is in the f
    and the geometry `diagnostics` (`snapshot_ms`, discovery) to `hud-trace.jsonl`, to confirm the hypotheses of C and I below.
    e) If d) confirms GUI registry discovery as the geometry spike, run discovery/`refresh_extensions` off the request path (the request
    answers that panel as unknown meanwhile). Rust tests; rebuild.
-4. [ ] Non-blocking HUD loop (was step 3). Backend requests move to a worker thread (latest result wins, one request in flight); control
+4. [x] Non-blocking HUD loop (was step 3). Done 2026-11-21 (NOT seen in game yet): `mailbox.rs` `Reads` (thread `hud-backend-reads`, own
+   `Bridge`, one read in flight, the loop waits <= 16 ms then goes on) and `Calls` (thread `hud-backend-actions`, `protocol::Actions`, FIFO,
+   failures become "Not changed: …"). An action reply drops every read sent before it; a read for another window/pause state or during a
+   pending guide selection is dropped. Witness origin = the worker's send instant, so the 750 ms bound is unchanged. Idle branch with HOI4
+   in front polls at 16 ms; `observe`/`snapshot` failing in < 250 ms with no reply is retried once (never an action). Trace `gap_ms` =
+   the loop's own longest pause; the report counts stalls from it (`loop_ms` is now the time between answers).
+   Original text: Backend requests move to a worker thread (latest result wins, one request in flight); control
    actions on a queue with their own replies; drawing, card drag and buttons never wait on HTTP. Same gates and deadlines. Also: the idle
    branch polls at the native cadence (today it sleeps ~100 ms, so every unknown lasts >= 110 ms); one immediate retry of a request that
    fails with no reply before treating it as connection lost (6 seen). Tests for the mailbox.

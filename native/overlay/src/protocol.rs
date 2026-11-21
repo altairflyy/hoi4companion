@@ -24,6 +24,24 @@ impl Bridge {
         self.request(json!({"kind":"snapshot","refresh_guides":refresh}),&[])
     }
 }
+/// Control actions (Done, Undo, select…) on a connection of their own: no
+/// change subscription and no vision library. A failed or invalid answer is
+/// a reply with `error`, which the card shows as "Not changed: …"; it never
+/// ends the HUD. With no reply at all (`reply_lost`) the backend may have
+/// applied the action, so the outcome is unknown, not "not changed".
+pub struct Actions { api:crate::local_api::Api, token:u64 }
+impl Actions {
+    pub fn new(port:u16)->Self {Self{api:crate::local_api::Api{port},token:0}}
+    pub fn request(&mut self,mut input:Value)->Value {
+        self.token=self.token.wrapping_add(1);
+        input["schema_version"]=json!(1);input["token"]=json!(self.token);
+        self.api.overlay(&input).and_then(|response|validate(response,&input,self.token))
+            .unwrap_or_else(|error|failure(&error,crate::local_api::last_reply_bytes()))
+    }
+}
+fn failure(error:&str,reply_bytes:usize)->Value {
+    if reply_bytes==0 {json!({"error":error,"reply_lost":true})} else {json!({"error":error})}
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -36,5 +54,10 @@ mod tests {
             let mut invalid=response.clone();invalid[field]=value;
             assert!(validate(invalid,&input,7).is_err());
         }
+    }
+    #[test]
+    fn an_action_without_any_reply_has_an_unknown_outcome() {
+        assert_eq!(failure("timed out",0),json!({"error":"timed out","reply_lost":true}));
+        assert_eq!(failure("Outdated or incompatible native HUD response",120),json!({"error":"Outdated or incompatible native HUD response"}));
     }
 }

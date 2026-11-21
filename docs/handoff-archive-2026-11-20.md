@@ -3,6 +3,11 @@
 Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/ux-analysis-2026-11-19.md` `## Execution order`.
 
 ## Recently verified (moved)
+- 2026-11-20 `f6b1e39` `doctrine-guide.js`: doctrine/spirit documents as cards (quick table, sections nav, sort by rating, spirits also in
+  the spirits guide in green). npm test green; seen in the browser pane on the 5 local documents.
+- 2026-11-20 `9ed86bb` Templates & references page: tabs (images, designs, advanced guides, MIO), side category/document lists,
+  MIO and design searches; `reference-viewer.js` full-screen viewer (fit, 1:1, wheel/+- zoom, drag, prev/next, Esc). npm test green;
+  rebuilt+restarted; seen working in the browser pane (suite, Italian). In the suite it covers only the iframe, not the sidebar.
 - 2026-11-20 R12: "Not this?" on cards/guided items only for correctable bindings (`correctable()` in `web/action-plan.js`), opens the associations
   page on that step; unknown requested step is named, not swapped. npm test 484 / 0 / 3 skipped. NOT rebuilt, NOT live. Details in the UX doc.
 - 2026-11-20 R11: home "Active route" previews up to 3 steps per track from the Rust `live=0` evaluation (`suite-model.js preview()`);

@@ -74,10 +74,14 @@ pub struct Iteration<'a> {
     pub card: bool,
     pub marks: usize,
     pub capture_error: bool,
+    /// Longest pause of the loop itself since the previous recorded sample:
+    /// the time drawing, card drag and buttons could not be served. Since the
+    /// loop no longer waits on HTTP, `loop_ms` is the gap between answers.
+    pub gap: Option<Duration>,
 }
 impl<'a> Iteration<'a> {
     pub fn new(branch: &'static str, foreground: bool, reply: &'a Value) -> Self {
-        Self { branch, foreground, observe: None, reply, reply_bytes: 0, card: false, marks: 0, capture_error: false }
+        Self { branch, foreground, observe: None, reply, reply_bytes: 0, card: false, marks: 0, capture_error: false, gap: None }
     }
 }
 
@@ -137,6 +141,9 @@ impl Trace {
         let mut line = json!({"ev":"iter","branch":sample.branch,"fg":sample.foreground,"loop_ms":loop_ms,
             // As the backend said it: true, false, or null when absent.
             "fresh":reply.get("live_delivery_fresh").cloned().unwrap_or(Value::Null),"usable":reply["usable"]==true,"card":sample.card,"marks":sample.marks});
+        if let Some(gap) = sample.gap {
+            line["gap_ms"] = json!(ms(gap));
+        }
         if let Some(observe) = sample.observe {
             line["rt_ms"] = json!(ms(observe));
             line["bytes"] = json!(sample.reply_bytes);
@@ -197,7 +204,7 @@ impl Trace {
             self.shown = Some(shown);
         }
     }
-    /// Time of a blocking control request (Done, Undo, select…).
+    /// Round trip of a control request (Done, Undo, select…) on its worker.
     pub fn action(&mut self, kind: &str, took: Duration) {
         self.event(json!({"ev":"action","kind":kind,"rt_ms":ms(took)}));
     }
@@ -240,7 +247,7 @@ mod tests {
         {
             let mut trace = Trace::open(path.clone());
             let shown = json!({"usable":true,"handling_ms":12.34,"geometry_ms":3.21,"state_age_ms":400.0,"delivery_pipeline_ms":{"acquisition":900.0}});
-            trace.iteration(Iteration { observe: Some(Duration::from_millis(20)), reply_bytes: 5000, card: true, marks: 2, ..Iteration::new("native", true, &shown) }, false);
+            trace.iteration(Iteration { observe: Some(Duration::from_millis(20)), reply_bytes: 5000, card: true, marks: 2, gap: Some(Duration::from_millis(17)), ..Iteration::new("native", true, &shown) }, false);
             let unknown = json!({"live_delivery_fresh":false,"usable":false});
             trace.iteration(Iteration { observe: Some(Duration::from_millis(5)), ..Iteration::new("idle", true, &unknown) }, false);
             trace.iteration(Iteration::new("idle", false, &unknown), false);
@@ -251,6 +258,8 @@ mod tests {
         assert_eq!(lines[0]["rt_ms"], 20.0);
         assert_eq!(lines[0]["handling_ms"], 12.3);
         assert_eq!(lines[0]["bytes"], 5000);
+        assert_eq!(lines[0]["gap_ms"], 17.0);
+        assert!(lines[2].get("gap_ms").is_none(), "no gap measured, none written");
         assert_eq!(lines[0]["delivery"]["acquisition"], 900.0, "first delivery seen is recorded");
         assert_eq!(lines[3]["cause"], "delivery_unknown");
         assert!(lines[2]["loop_ms"].is_number());

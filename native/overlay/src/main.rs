@@ -15,6 +15,7 @@ mod card;
 mod card_images;
 mod palette;
 mod trace;
+mod mailbox;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
@@ -461,9 +462,35 @@ fn restore_notice(response:&Value)->card::Notice {
         else {i18n::format("Not changed: {0}",&[response["error"].as_str().filter(|s|!s.is_empty()).unwrap_or("?")])};
     card::Notice {text,undo:None,at:Instant::now()}
 }
+/// The card feedback for the reply to a backend action; None for a guide
+/// selection, which the next read shows.
+fn action_notice(action:&ControlAction,response:&Value)->Option<card::Notice> {
+    // No reply at all: the backend may have applied it. Never "Not changed".
+    if response["reply_lost"]==true && !matches!(action,ControlAction::SelectGuide(_)) {
+        return Some(card::Notice {text:i18n::text("No reply from Companion: the step may or may not have changed."),undo:None,at:Instant::now()});
+    }
+    match action {
+        ControlAction::Check {guide_id,key,checked}=>Some(check_notice(response,guide_id,key,*checked)),
+        ControlAction::ConfirmAnswer {guide_id,key,quote,..}=>Some(answer_notice(response,guide_id,key,quote)),
+        ControlAction::SetAside {guide_id,key,aside}=>Some(aside_notice(response,guide_id,key,*aside)),
+        ControlAction::RestoreAnswer {..}=>Some(restore_notice(response)),
+        ControlAction::SelectGuide(_)|ControlAction::RefreshGuides|ControlAction::OpenSuite=>None,
+    }
+}
+fn action_kind(action:&ControlAction)->&'static str {
+    match action {
+        ControlAction::SelectGuide(_)=>"select",ControlAction::Check{..}=>"check",ControlAction::ConfirmAnswer{..}=>"confirm_answer",
+        ControlAction::SetAside{..}=>"set_aside",ControlAction::RestoreAnswer{..}=>"restore_answer",
+        ControlAction::RefreshGuides|ControlAction::OpenSuite=>"",
+    }
+}
+/// One backend read of the HUD loop: `observe` for the game window, or a
+/// `snapshot` when HOI4 is in the background or the HUD is paused.
+struct Read {view:Option<TargetWindow>,refresh:bool}
 /// The backend request for a card action; None for actions handled locally.
 fn action_request(action:&ControlAction)->Option<Value> {
     match action {
+        ControlAction::SelectGuide(id)=>Some(json!({"kind":"select","guide_id":id})),
         ControlAction::Check {guide_id,key,checked}=>Some(json!({"kind":"check","guide_id":guide_id,"key":key,"checked":checked})),
         ControlAction::ConfirmAnswer {guide_id,key,quote,event_id,option_id}=>
             Some(json!({"kind":"confirm_answer","guide_id":guide_id,"key":key,"quote":quote,"event_id":event_id,"option_id":option_id})),
@@ -551,7 +578,27 @@ fn run(options:Options)->Result<(),String> {
     let Some(_instance)=singleton()? else {return Ok(());};
     unsafe {let _=SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);}
     let mut renderer=Renderer::new(options.discreet,options.managed,card::Prefs::path(&options.status))?;renderer.set_paused(!options.start);
-    let mut bridge=protocol::Bridge::new(options.port)?;
+    // Backend requests run off this loop (HUD plan step 4): reads with one in
+    // flight, control actions on their own queue. The loop only takes what
+    // has come back, so drawing, card drag and buttons never wait on HTTP.
+    let port=options.port;
+    let mut reads=mailbox::Reads::new("hud-backend-reads",move||{
+        let mut bridge=protocol::Bridge::new(port)?;
+        Ok(move|read:&Read|{
+            let reply=match read.view.as_ref() {
+                Some(view)=>bridge.request(json!({"kind":"observe","view":view_json(view),"refresh_guides":read.refresh}),&[]),
+                None=>bridge.snapshot(read.refresh),
+            };
+            // Per thread: read it here, next to the request.
+            (reply,local_api::last_reply_bytes())
+        })
+    })?;
+    let mut calls=mailbox::Calls::new("hud-backend-actions",move||{
+        let mut actions=protocol::Actions::new(port);
+        Ok(move|(_,request):&(ControlAction,Value)|actions.request(request.clone()))
+    })?;
+    let mut pending_refresh=false;let mut selecting=0usize;
+    let mut last_turn=Instant::now();let mut gap=Duration::ZERO;
     let mut visual:Option<visual_worker::VisualWorker>=None;
     let mut capture:Option<Capture>=None;let mut target:Option<TargetWindow>=None;
     let mut last_scene=None;let mut last_version=None;let mut cached_ocr=None;
@@ -568,37 +615,13 @@ fn run(options:Options)->Result<(),String> {
     let mut trace=trace::Trace::open(trace::path_for(&options.status));
     trace.event(json!({"ev":"start","pid":std::process::id(),"version":env!("CARGO_PKG_VERSION"),"paused":!options.start}));
     while !renderer.should_exit() {
+        let turn=Instant::now();
+        gap=gap.max(turn.duration_since(last_turn));last_turn=turn;
         let wake_revision=renderer.wake_revision();
-        let mut refresh=false;
+        // Card actions go to their own worker; the loop never waits for them.
         while let Some(action)=renderer.take_action(){
-            let action_kind=match &action {
-                ControlAction::SelectGuide(_)=>"select",ControlAction::Check{..}=>"check",ControlAction::ConfirmAnswer{..}=>"confirm_answer",
-                ControlAction::SetAside{..}=>"set_aside",ControlAction::RestoreAnswer{..}=>"restore_answer",
-                ControlAction::RefreshGuides|ControlAction::OpenSuite=>"",
-            };
-            let action_started=Instant::now();
             match action {
-                ControlAction::SelectGuide(id)=>{
-                    renderer.hide();last_matches.clear();last_version=None;mark_hold.clear();card_hold.clear();
-                    let _=bridge.request(json!({"kind":"select","guide_id":id}),&[])?;
-                },
-                ControlAction::RefreshGuides=>refresh=true,
-                ControlAction::Check{ref guide_id,ref key,checked}=>{
-                    let response=bridge.request(action_request(&action).unwrap_or_default(),&[])?;
-                    renderer.set_notice(Some(check_notice(&response,guide_id,key,checked)));
-                },
-                ControlAction::ConfirmAnswer{ref guide_id,ref key,ref quote,..}=>{
-                    let response=bridge.request(action_request(&action).unwrap_or_default(),&[])?;
-                    renderer.set_notice(Some(answer_notice(&response,guide_id,key,quote)));
-                },
-                ControlAction::SetAside{ref guide_id,ref key,aside}=>{
-                    let response=bridge.request(action_request(&action).unwrap_or_default(),&[])?;
-                    renderer.set_notice(Some(aside_notice(&response,guide_id,key,aside)));
-                },
-                ControlAction::RestoreAnswer{..}=>{
-                    let response=bridge.request(action_request(&action).unwrap_or_default(),&[])?;
-                    renderer.set_notice(Some(restore_notice(&response)));
-                },
+                ControlAction::RefreshGuides=>pending_refresh=true,
                 ControlAction::OpenSuite=>{
                     // Start/reuse only our launcher, never issue game input.
                     if let Ok(exe)=std::env::current_exe() && let Some(native)=exe.parent().and_then(|p|p.parent()) {
@@ -606,16 +629,49 @@ fn run(options:Options)->Result<(),String> {
                             .args(["--no-hud","--port",&options.port.to_string()]).spawn();
                     }
                 },
+                _=>{
+                    let Some(request)=action_request(&action) else {continue};
+                    let select=matches!(action,ControlAction::SelectGuide(_));
+                    if select {
+                        // Nothing of the old guide is shown until the backend has switched.
+                        renderer.hide();last_matches.clear();last_version=None;mark_hold.clear();card_hold.clear();
+                    }
+                    match calls.submit((action,request)) {
+                        Ok(())=>if select {selecting+=1;},
+                        // Too many waiting (or the worker stopped): nothing was sent.
+                        Err(_)=>renderer.set_notice(Some(card::Notice {text:i18n::text("Card action not sent: try again in a moment."),undo:None,at:Instant::now()})),
+                    }
+                },
             }
-            if !action_kind.is_empty() {trace.action(action_kind,action_started.elapsed());}
+        }
+        // Their replies, in order. The backend state changed: reads sent
+        // before the reply are out of date and are dropped.
+        while let Some(done)=calls.take()? {
+            reads.discard_sent();
+            let (action,_)=&done.request;
+            if matches!(action,ControlAction::SelectGuide(_)) {selecting=selecting.saturating_sub(1);}
+            if let Some(notice)=action_notice(action,&done.value) {renderer.set_notice(Some(notice));}
+            trace.action(action_kind(action),done.received.duration_since(done.sent));
         }
         let current=game_view();
-        let geometry_observed=Instant::now();
-        let snapshot=if !renderer.is_paused() && let Some(view)=current.as_ref() {
-            bridge.request(json!({"kind":"observe","view":view_json(view),"refresh_guides":refresh}),&[])?
-        }else{bridge.snapshot(refresh)?};
-        let observe_rt=geometry_observed.elapsed();let reply_bytes=local_api::last_reply_bytes();let foreground=current.is_some();
-        let traced=|branch:&'static str,card:bool,marks:usize,capture_error:bool|trace::Iteration {observe:Some(observe_rt),reply_bytes,card,marks,capture_error,..trace::Iteration::new(branch,foreground,&snapshot)};
+        let paused=renderer.is_paused();
+        let wanted=current.clone().filter(|_|!paused);
+        if !reads.busy() {reads.submit(Read {view:wanted.clone(),refresh:std::mem::take(&mut pending_refresh)})?;}
+        // Wait for the read in flight at most one frame. Until it is back, what
+        // is on screen keeps its own deadlines (highlights 750 ms, card).
+        let Some(read)=reads.wait(Duration::from_millis(16))? else {
+            if wanted.is_none() {renderer.hide();}
+            continue;
+        };
+        // A read for another window or pause state, or one racing a guide
+        // change, proves nothing now: the next turn asks again.
+        if read.request.view!=wanted||selecting>0 {continue;}
+        let (reply,reply_bytes)=read.value;
+        let snapshot=reply?;
+        let geometry_observed=read.sent;
+        let observe_rt=read.received.duration_since(read.sent);let foreground=current.is_some();
+        let loop_gap=std::mem::take(&mut gap);
+        let traced=|branch:&'static str,card:bool,marks:usize,capture_error:bool|trace::Iteration {observe:Some(observe_rt),reply_bytes,card,marks,capture_error,gap:Some(loop_gap),..trace::Iteration::new(branch,foreground,&snapshot)};
         // An unknown delivery has no guide list: keep the shown one meanwhile.
         if stability::delivery_known(&snapshot)||snapshot["connection_lost"]==true {renderer.set_guides(guides(&snapshot),snapshot["guide_id"].as_str().unwrap_or(""));}
         if renderer.is_paused()||current.is_none()||snapshot["usable"]!=true {
@@ -648,7 +704,11 @@ fn run(options:Options)->Result<(),String> {
             if last_status.elapsed()>Duration::from_millis(500) {
                 renderer.set_status(message);let mut status=idle_status(&snapshot,message,code,[renderer.overlay_window(),renderer.control_window()],renderer.foreground_events());status["controls_in_tray"]=json!(renderer.controls_in_tray());save_status(&options.status,&status);last_status=Instant::now();
             }
-            renderer.wait_idle(wake_revision,Duration::from_millis(100));continue;
+            // HOI4 in front: the next read at the native cadence, so an unknown
+            // delivery lasts no longer than it has to. Otherwise wait for a
+            // foreground or control event, at most 100 ms.
+            let pause=if wanted.is_some() {Duration::from_millis(16).saturating_sub(turn.elapsed())} else {Duration::from_millis(100)};
+            renderer.wait_idle(wake_revision,pause);continue;
         }
         let view=current.unwrap();
         if target.as_ref()!=Some(&view) {
@@ -705,7 +765,8 @@ fn run(options:Options)->Result<(),String> {
                 &&native_unchanged_since.elapsed()>Duration::from_millis(250)) {
                 renderer.set_capture_excluded(false);std::thread::sleep(Duration::from_millis(80));
                 let result=render::save_proof(&view,path);renderer.set_capture_excluded(true);result?;
-                let after=bridge.request(json!({"kind":"geometry","version":version,"view":view_json(&view)}),&[])?;
+                // Proof mode only: a one-off read on a connection of its own.
+                let after=protocol::Actions::new(options.port).request(json!({"kind":"geometry","version":version,"view":view_json(&view)}));
                 proof_saved=after["usable"]==true&&after["version"]==version&&after["view"]==view_json(&view)
                     &&after["matches"]==geometry["matches"]&&game_view().as_ref()==Some(&view);
                 save_status(&path.with_extension("json"),&json!({"verified":proof_saved,"before":geometry,
@@ -713,8 +774,9 @@ fn run(options:Options)->Result<(),String> {
                 if !proof_saved {native_unchanged_since=Instant::now();}
             }
             // Bound external observations to display cadence, avoiding a busy
-            // loop. The deadline is independent of this worker's progress.
-            std::thread::sleep(Duration::from_millis(16).saturating_sub(started.elapsed()));
+            // loop. The deadline is independent of this worker's progress. A
+            // card button wakes the loop at once.
+            renderer.wait_idle(wake_revision,Duration::from_millis(16).saturating_sub(turn.elapsed()));
             continue;
         }
         if capture.is_none() && Instant::now()<capture_retry_at {
@@ -1129,6 +1191,23 @@ mod tests {
         assert!(!native_route(&mixed,&geometry));
         geometry["suspend_visual"]=json!(true);
         assert!(native_route(&mixed,&geometry));
+    }
+    #[test]
+    fn queued_action_replies_become_the_same_card_feedback(){
+        let check=ControlAction::Check {guide_id:"g".into(),key:"k".into(),checked:true};
+        assert_eq!(action_notice(&check,&json!({"key":"k","checked":true})).unwrap().undo,Some(card::Undo::Check {guide_id:"g".into(),key:"k".into()}));
+        // A failed request on the action connection is a reply with an error.
+        let failed=action_notice(&check,&json!({"error":"connection refused"})).unwrap();
+        assert!(failed.undo.is_none()&&failed.text.contains("connection refused"));
+        let lost=action_notice(&check,&json!({"error":"timed out","reply_lost":true})).unwrap();
+        assert!(lost.undo.is_none()&&lost.text.contains("may or may not have changed"),"{}",lost.text);
+        let select=ControlAction::SelectGuide("g".into());
+        assert_eq!(action_request(&select),Some(json!({"kind":"select","guide_id":"g"})));
+        assert!(action_notice(&select,&json!({})).is_none(),"the next read shows the new guide");
+        assert_eq!((action_kind(&select),action_kind(&check)),("select","check"));
+        for local in [ControlAction::RefreshGuides,ControlAction::OpenSuite] {
+            assert!(action_request(&local).is_none()&&action_kind(&local).is_empty());
+        }
     }
     #[test]
     fn set_aside_and_resume_reach_the_backend_and_undo_does_the_opposite(){

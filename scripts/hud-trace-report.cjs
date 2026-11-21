@@ -43,7 +43,7 @@ function report(events) {
   const iterations = events.filter(e => e.ev === 'iter');
   const series = {
     observe_round_trip_ms: [], backend_handling_ms: [], transport_ms: [], reply_bytes: [], geometry_ms: [],
-    state_age_ms: [], loop_ms: [], delivery_acquisition_ms: [], delivery_progress_ms: [], delivery_packet_ms: [],
+    state_age_ms: [], loop_ms: [], loop_gap_ms: [], delivery_acquisition_ms: [], delivery_progress_ms: [], delivery_packet_ms: [],
     delivery_publish_ms: [], action_round_trip_ms: [],
   };
   const branches = {};
@@ -66,10 +66,13 @@ function report(events) {
     if (e.fg && e.usable === false) { const key = e.error || '(no error)'; unusable[key] = (unusable[key] || 0) + 1; }
     if (e.fg && e.native_error) nativeErrors[e.native_error] = (nativeErrors[e.native_error] || 0) + 1;
     if (Number.isFinite(e.state_age_ms)) series.state_age_ms.push(e.state_age_ms);
-    if (Number.isFinite(e.loop_ms)) {
-      series.loop_ms.push(e.loop_ms);
-      if (e.loop_ms > STALL_MS) stalls.push({ t: e.t, loop_ms: e.loop_ms, branch: e.branch, rt_ms: e.rt_ms ?? null });
-    }
+    // Since the loop stopped waiting on HTTP (HUD plan step 4), `loop_ms` is the
+    // time between answers and `gap_ms` the loop's own longest pause: a stall
+    // is a pause of the loop. Older traces have only `loop_ms`.
+    if (Number.isFinite(e.loop_ms)) series.loop_ms.push(e.loop_ms);
+    if (Number.isFinite(e.gap_ms)) series.loop_gap_ms.push(e.gap_ms);
+    const pause = Number.isFinite(e.gap_ms) ? e.gap_ms : e.loop_ms;
+    if (Number.isFinite(pause) && pause > STALL_MS) stalls.push({ t: e.t, loop_ms: pause, branch: e.branch, rt_ms: e.rt_ms ?? null });
     const d = e.delivery;
     if (d && typeof d === 'object') {
       for (const [key, name] of [['acquisition', 'delivery_acquisition_ms'], ['progress', 'delivery_progress_ms'], ['packet', 'delivery_packet_ms'], ['publish', 'delivery_publish_ms']]) {

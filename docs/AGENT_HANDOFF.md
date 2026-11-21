@@ -3,9 +3,11 @@ Updated: 2026-11-21. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD (`docs/hud-performance-plan-2026-11-20.md`, numeri in "Measured 2026-11-21"): step 4 "Non-blocking HUD loop".
-> File: `native/overlay/src/main.rs` (`run()`), `local_api.rs`. Stessi gate e scadenze; test della mailbox. Test Rust, invariant-reviewer, commit, rebuild+restart, spunta e riscrivi questo prompt.
-Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per session; steps 1-3 done (3e waits for a new trace), 3-6 reordered, follow-up F1-F2 added 2026-11-21. UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
+> Piano reattività HUD (`docs/hud-performance-plan-2026-11-20.md`): step 5 "Card through an unusable delivery".
+> File: `native/overlay/src/stability.rs` (`CardHold`), `main.rs` (`current_card`), `render.rs`.
+> Prima `node scripts/hud-trace-report.cjs`: serve il motivo (`error`) dei blank `no_card_or_marks`; se il trace non lo ha, chiedere all'utente ~10 min di gioco.
+> Test Rust, invariant-reviewer, commit, rebuild+restart, spunta e riscrivi questo prompt.
+Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per session; steps 1-4 done (3e waits for a new trace), 3-6 reordered, follow-up F1-F2 added 2026-11-21. UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
 - 2026-11-20 PURGE (user order): third-party guide data (benchmark/review/probe fixtures, Wojtek guide, `docs/it/walkthrough.md`) is
@@ -16,6 +18,8 @@ Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per sessio
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-21 HUD step 4 (non-blocking loop; details in the plan): reads and card actions on worker threads (`mailbox.rs`), the loop waits
+  <= 16 ms per read, idle polls at 16 ms, one retry of a read failing at once. Overlay tests 73/0, report test green. NOT seen in game.
 - 2026-11-21 HUD step 2 Diagnose: report on 15.9 min of real play in the plan ("Measured 2026-11-21"): steady loop fine (p95 18.6 ms), transport
   not a cause; stalls = geometry spikes 0.4-1.15 s and HUD actions 1.56 s; 13 delivery expiries from audits; 1 card blank 3.3 s, cause unknown.
 - 2026-11-21 HUD step 3 (backend delivery path, a-d; details in the plan): HUD actions republish instead of emptying the delivery, audit on its
@@ -23,11 +27,6 @@ Plan agreed with the user 2026-11-20: HUD steps 1-7 in that file, one per sessio
 - 2026-11-20 `3ac001a` HUD card: a production step is skipped as current step once a later step of its track is completed (cause:
   layouts stop matching when lines change or read briefly unknown). Production list behind a toggle (`production_open` in overlay-card.json).
   Rust unit tests green, rebuilt, app restarted. NOT seen in game.
-- 2026-11-20 `f6b1e39` `doctrine-guide.js`: doctrine/spirit documents as cards (quick table, sections nav, sort by rating, spirits also in
-  the spirits guide in green). npm test green; seen in the browser pane on the 5 local documents.
-- 2026-11-20 `9ed86bb` Templates & references page: tabs (images, designs, advanced guides, MIO), side category/document lists,
-  MIO and design searches; `reference-viewer.js` full-screen viewer (fit, 1:1, wheel/+- zoom, drag, prev/next, Esc). npm test green;
-  rebuilt+restarted; seen working in the browser pane (suite, Italian). In the suite it covers only the iframe, not the sidebar.
 - 2026-11-20 `8bfbdc5` reload bug: a save reload (tick < bound tick) made a `timeline_rewind` run with no set_aside and no checks
   (seen: run `fa0f389e` 3 aside/21 checks -> `f58745bb` empty). Checks now get `checked_at` (campaign tick, bound runs only, new
   confirmations only); rewind keeps set_aside + checks dated <= loaded tick. Storage/backend/guides tests green; rebuilt, restarted,

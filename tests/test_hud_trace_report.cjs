@@ -30,6 +30,19 @@ test('the report separates transport from backend handling and counts deliveries
   assert.ok(Math.abs(r.unknown_delivery_in_foreground - 1 / 6) < 1e-9);
 });
 
+test('a slow answer is not a stall when the loop itself kept turning', () => {
+  const lines = [
+    { ev: 'iter', t: 1000, branch: 'native', fg: true, loop_ms: 16, gap_ms: 17 },
+    { ev: 'iter', t: 2200, branch: 'native', fg: true, loop_ms: 1200, gap_ms: 20, rt_ms: 1150 },
+    { ev: 'iter', t: 2800, branch: 'native', fg: true, loop_ms: 600, gap_ms: 580 },
+  ];
+  const r = report(lines);
+  assert.equal(r.stalls.count, 1, 'only the 580 ms pause of the loop');
+  assert.equal(r.stalls.worst[0].loop_ms, 580);
+  assert.equal(r.timings.loop_ms.max, 1200);
+  assert.equal(r.timings.loop_gap_ms.max, 580);
+});
+
 test('blank intervals count only while HOI4 is foreground, with their cause', () => {
   const r = report(parse(sample).events);
   const blanks = r.blanks_in_foreground.intervals;
