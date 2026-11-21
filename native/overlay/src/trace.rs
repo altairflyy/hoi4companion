@@ -94,6 +94,8 @@ pub struct Trace {
     last_iteration: Option<Instant>,
     shown: Option<bool>,
     last_state_age: Option<f64>,
+    /// `seq` of the last session close written (`provider_close`).
+    last_close: Option<(u64, f64)>,
 }
 
 impl Trace {
@@ -101,7 +103,7 @@ impl Trace {
         Self::with_limit(path, ROTATE_BYTES)
     }
     fn with_limit(path: PathBuf, limit: u64) -> Self {
-        let mut trace = Self { path, out: None, written: 0, limit, flushed: Instant::now(), last_iteration: None, shown: None, last_state_age: None };
+        let mut trace = Self { path, out: None, written: 0, limit, flushed: Instant::now(), last_iteration: None, shown: None, last_state_age: None, last_close: None };
         trace.reopen();
         trace
     }
@@ -191,6 +193,20 @@ impl Trace {
             }
         }
         self.last_state_age = state_age;
+        // Why the backend last closed the qualified game session: written on
+        // the first sample that carries a new close event (HUD plan part 2,
+        // step 2). The backend keeps sending the last one until another comes.
+        let close = &reply["provider_close"];
+        if let (Some(seq), Some(at)) = (close["seq"].as_u64(), close["unix_ms"].as_f64())
+            && self.last_close != Some((seq, at))
+        {
+            self.last_close = Some((seq, at));
+            line["close_seq"] = json!(seq);
+            line["close_at"] = json!(at);
+            line["close_stage"] = close["stage"].clone();
+            line["close_error"] = json!(short_text(&close["error"]).unwrap_or_default());
+            line["close_had_session"] = json!(close["had_session"] == true);
+        }
         self.event(line);
         let shown = sample.card || sample.marks > 0;
         if self.shown != Some(shown) {
@@ -271,6 +287,28 @@ mod tests {
         assert!(lines.iter().all(|l| l["t"].is_number()));
     }
 
+    #[test]
+    fn a_session_close_is_written_once_with_its_stage_and_error() {
+        let path = temp("close");
+        {
+            let mut trace = Trace::open(path.clone());
+            let close = json!({"seq":3,"unix_ms":1000.0,"stage":"audit","error":"Lettura incoerente","had_session":true,"repeats":1});
+            let reply = json!({"usable":false,"live_delivery_fresh":false,"provider_close":close});
+            for _ in 0..2 {
+                trace.iteration(Iteration::new("idle", true, &reply), false);
+            }
+            let later = json!({"usable":false,"provider_close":{"seq":4,"unix_ms":2000.0,"stage":"probe","error":"e".repeat(300),"had_session":false}});
+            trace.iteration(Iteration::new("idle", true, &later), false);
+            trace.iteration(Iteration::new("idle", true, &json!({"usable":false})), false);
+        }
+        let lines: Vec<Value> = lines(&path).into_iter().filter(|l| l["ev"] == "iter").collect();
+        assert_eq!((lines[0]["close_seq"].clone(), lines[0]["close_stage"].clone(), lines[0]["close_error"].clone(), lines[0]["close_had_session"].clone()),
+            (json!(3), json!("audit"), json!("Lettura incoerente"), json!(true)));
+        assert!(lines[1].get("close_seq").is_none(), "the same close is written once");
+        assert_eq!((lines[2]["close_seq"].clone(), lines[2]["close_stage"].clone()), (json!(4), json!("probe")));
+        assert_eq!(lines[2]["close_error"].as_str().unwrap().chars().count(), 120);
+        assert!(lines[3].get("close_seq").is_none());
+    }
     #[test]
     fn a_registry_rebuild_off_the_request_path_is_marked() {
         let path = temp("background-discovery");

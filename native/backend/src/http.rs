@@ -143,6 +143,9 @@ pub struct Service {
     /// waits for the reading lock that a poll holds through a whole audit.
     reading_generation: AtomicU64,
     last_delivery: Mutex<Option<Instant>>,
+    /// The last time the provider closed the qualified session and why
+    /// (`metrics.closes`), carried in every HUD delivery for its trace.
+    provider_close: Mutex<Value>,
     last_hud_request: Mutex<Option<Instant>>,
     #[cfg(windows)]
     gui_lane: Mutex<Option<(u64, crate::provider::GuiLane)>>,
@@ -385,6 +388,7 @@ impl Service {
             }),
             reading_generation: AtomicU64::new(0),
             last_delivery: Mutex::new(None),
+            provider_close: Mutex::new(Value::Null),
             last_hud_request: Mutex::new(None),
             #[cfg(windows)]
             gui_lane: Mutex::new(None),
@@ -541,6 +545,9 @@ impl Service {
             let handle = provider.handle;
             value["metrics"] =
                 crate::request(0, "provider_inspect", json!({"handle":handle}))?["metrics"].clone();
+            if let Some(last) = value["metrics"]["closes"].as_array().and_then(|closes| closes.last()) {
+                *self.provider_close.lock().map_err(|_| "Live delivery unavailable")? = last.clone();
+            }
         }
         // Guide evaluation/persistence never needs the process-owner lock.
         // Native GUI observations must not queue behind that CPU/SQLite work.
@@ -1073,6 +1080,7 @@ impl Service {
         let mut timing=if pipeline.is_object(){pipeline.clone()}else{json!({})};
         timing["publish"]=json!(publish_started.elapsed().as_secs_f64()*1000.);
         value["delivery_pipeline_ms"]=timing;
+        value["provider_close"]=self.provider_close.lock().map_err(|_|"Live delivery unavailable")?.clone();
         if self.app("app_overlay_stamp",&json!({}))?!=stamp{return Ok(false);}
         let mut delivery=self.hud_delivery.lock().map_err(|_|"HUD delivery unavailable")?;
         if self.hud_epoch.load(Ordering::Acquire)!=epoch{return Ok(false);}
@@ -1106,6 +1114,8 @@ impl Service {
         value["usable"]=json!(false);value["proposed"]=json!([]);
         value["live_delivery_fresh"]=json!(false);
         value["error"]=json!("Waiting for a current qualified game observation");
+        // Why the session closed is known even while no delivery is current.
+        if let Ok(close)=self.provider_close.lock() {value["provider_close"]=close.clone();}
         Ok(value)
     }
     fn native_geometry(&self, view:&Value, proposals:&Value) -> Result<Value> {

@@ -14,10 +14,14 @@ Proposed by the step 7 session; order confirmed by the user 2026-11-21.
    median 15.5 ms on both the condvar and the channel with the default tick, 5.5 ms with a 1 ms tick. Fix: `wake::FineTimer`
    (`timeBeginPeriod(1)` + power-throttling opt-out) held for the HUD process lifetime; the trace `start` line has `fine_timer`.
    Live `gap_ms` NOT measured yet: step 5.
-2. [ ] Record why the qualified session closes. `Provider::collect` closes on any error and nothing keeps the error. Add to the provider
+2. [x] Record why the qualified session closes. `Provider::collect` closes on any error and nothing keeps the error. Add to the provider
    metrics a bounded list of close events (time, stage: probe/full read/audit/tick/identity/open, error text), carry the last one in the
    HUD delivery, write it to `hud-trace.jsonl` (`close_stage`, `close_error`) and list it in `hud-trace-report.cjs`. No behavior change.
    Rust + report tests; rebuild. Then the USER plays ~10 min; read the close reasons before step 3.
+   Done 2026-11-21 (code): `collect_inner` tags each failure with its stage; `metrics.closes` keeps the last 16 (`seq`, `stage`,
+   `error`, `unix_ms`, `had_session`, `repeats` for the same failure again); the delivery and the expired placeholder carry the last
+   one as `provider_close`; the trace writes `close_seq`/`close_stage`/`close_error` once; the report has "Qualified session closes".
+   PENDING: the user's ~10 min of play and reading the reasons.
 3. [ ] Keep the session through a transient read failure, by the reasons from step 2. Candidates, only where the cause allows it: a failed
    integrity audit drops the cached read but keeps the process handle and the GUI registry (same pid and creation time); a probe or full
    read failure retries the full read once before closing. Every failure still makes the delivery unknown at once; only a new complete

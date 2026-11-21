@@ -30,6 +30,26 @@ test('the report separates transport from backend handling and counts deliveries
   assert.ok(Math.abs(r.unknown_delivery_in_foreground - 1 / 6) < 1e-9);
 });
 
+test('session closes are listed once each with their stage, even when a restarted HUD writes them again', () => {
+  const t = 1700000000000;
+  const lines = [
+    { ev: 'iter', t, branch: 'idle', fg: true, close_seq: 4, close_at: t - 50, close_stage: 'audit', close_error: 'Lettura incoerente', close_had_session: true },
+    { ev: 'iter', t: t + 900, branch: 'idle', fg: true, close_seq: 5, close_at: t + 800, close_stage: 'open', close_error: 'Processo non trovato', close_had_session: false },
+    { ev: 'start', t: t + 1000 },
+    { ev: 'iter', t: t + 1100, branch: 'idle', fg: true, close_seq: 5, close_at: t + 800, close_stage: 'open', close_error: 'Processo non trovato', close_had_session: false },
+  ];
+  const sc = report(lines).session_closes;
+  assert.equal(sc.count, 2);
+  assert.equal(sc.with_session, 1);
+  assert.deepEqual(sc.by_stage, { audit: 1, open: 1 });
+  assert.deepEqual(sc.events.map(c => [c.seq, c.stage, c.t]), [[4, 'audit', t - 50], [5, 'open', t + 800]]);
+  const text = format(report(lines));
+  assert.match(text, /Qualified session closes: 2 \(1 of an open session\), by stage: audit 1, open 1/);
+  assert.match(text, /#4 audit: Lettura incoerente/);
+  assert.match(text, /#5 open \(no session open\): Processo non trovato/);
+  assert.equal(report(parse(sample).events).session_closes.count, 0, 'older traces have none');
+});
+
 test('a slow answer is not a stall when the loop itself kept turning', () => {
   const lines = [
     { ev: 'iter', t: 1000, branch: 'native', fg: true, loop_ms: 16, gap_ms: 17 },

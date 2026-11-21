@@ -16,6 +16,19 @@ use std::{
     time::{Instant, SystemTime},
 };
 type Result<T> = std::result::Result<T, String>;
+/// A failed collect with the stage it failed in (`Provider::collect` closes
+/// the session on any of them; the stage says why, HUD plan part 2 step 2).
+type Staged<T> = std::result::Result<T, (&'static str, String)>;
+trait At<T> {
+    fn at(self, stage: &'static str) -> Staged<T>;
+}
+impl<T, E: Into<String>> At<T> for std::result::Result<T, E> {
+    fn at(self, stage: &'static str) -> Staged<T> {
+        self.map_err(|error| (stage, error.into()))
+    }
+}
+/// Close events kept in `metrics.closes`, newest last.
+const CLOSES_KEPT: usize = 16;
 struct Cached {
     sample: acquisition::Sample,
     packet: watch::Packet,
@@ -97,7 +110,7 @@ impl Provider {
             generation: 0,
             audit_job: None,
             open: Arc::new(AtomicBool::new(false)),
-            metrics: json!({"probes":0,"full_reads":0,"audits":0,"changes":0,"last_read_ms":null,"watch_ranges":0,"watch_bytes":0,"probe_read_calls":0,"probe_read_bytes":0}),
+            metrics: json!({"probes":0,"full_reads":0,"audits":0,"changes":0,"last_read_ms":null,"watch_ranges":0,"watch_bytes":0,"probe_read_calls":0,"probe_read_bytes":0,"close_count":0,"closes":[]}),
             gui: Arc::new(Mutex::new(crate::gui_registry::Registry::deferred())),
         })
     }
@@ -160,39 +173,61 @@ impl Provider {
         self.audit_job = Some(Audit { generation: self.generation, started: now, result });
         Ok(())
     }
+    /// Keeps why a collect failed and closed the session. A failure that
+    /// repeats the last one (same stage and error, e.g. HOI4 not running) only
+    /// updates its count and time, so the bounded list keeps the real causes.
+    /// `seq` numbers the events, so a reader sees each new one once.
+    fn record_close(&mut self, stage: &str, error: &str, now: f64) {
+        let unix_ms = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0., |d| d.as_secs_f64() * 1000.).round();
+        let had_session = self.game.is_some();
+        let seq = self.metrics["close_count"].as_u64().unwrap_or(0) + 1;
+        let closes = self.metrics["closes"].as_array_mut().expect("closes is a list");
+        if let Some(last) = closes.last_mut()
+            && last["stage"] == stage && last["error"] == error
+        {
+            last["repeats"] = json!(last["repeats"].as_u64().unwrap_or(1) + 1);
+            last["last_unix_ms"] = json!(unix_ms);
+            return;
+        }
+        closes.push(json!({"seq":seq,"stage":stage,"error":error,"at":now,"unix_ms":unix_ms,"had_session":had_session,"repeats":1}));
+        if closes.len() > CLOSES_KEPT {
+            closes.remove(0);
+        }
+        self.metrics["close_count"] = json!(seq);
+    }
     fn increment(&mut self, key: &str) {
         let value = self.metrics[key].as_u64().unwrap_or(0);
         self.metrics[key] = json!(value + 1);
     }
-    fn collect_inner(&mut self, now: f64) -> Result<Value> {
+    fn collect_inner(&mut self, now: f64) -> Staged<Value> {
         if !now.is_finite() || now < 0. {
-            return Err("Invalid provider clock".into());
+            return Err(("clock", "Invalid provider clock".into()));
         }
         let started = Instant::now();
-        let stat = std::fs::metadata(&self.executable).map_err(|e| e.to_string())?;
-        let key = (stat.len(), stat.modified().map_err(|e| e.to_string())?);
+        let stat = std::fs::metadata(&self.executable).map_err(|e| e.to_string()).at("executable")?;
+        let key = (stat.len(), stat.modified().map_err(|e| e.to_string()).at("executable")?);
         if self.profile.is_none() || self.stat != Some(key) {
             self.close();
-            self.profile = Some(Arc::new(Profile::open(&self.executable, &self.manifest)?));
+            self.profile = Some(Arc::new(Profile::open(&self.executable, &self.manifest).at("profile")?));
             self.stat = Some(key);
         }
         if self.game.is_none() {
-            self.game = Some(Arc::new(Game::open(self.profile.as_ref().unwrap().clone())?));
+            self.game = Some(Arc::new(Game::open(self.profile.as_ref().unwrap().clone()).at("open")?));
             self.open = Arc::new(AtomicBool::new(true));
         }
         let game = self.game.as_ref().unwrap();
-        if game.identity()? != game.created {
-            return Err("Sessione di processo cambiata".into());
+        if game.identity().at("identity")? != game.created {
+            return Err(("identity", "Sessione di processo cambiata".into()));
         }
         let mut changed = false;
-        self.finish_audit()?;
+        self.finish_audit().at("audit")?;
         let mut full = self.cached.is_none();
         if !full {
             self.increment("probes");
             changed = acquisition::compare(
                 self.game.as_ref().unwrap(),
                 &self.cached.as_ref().unwrap().packet,
-            )?;
+            ).at("probe")?;
             full = changed;
         }
         if full {
@@ -202,8 +237,8 @@ impl Provider {
                 .as_ref()
                 .map(|v| v.sample.event_cache.clone())
                 .unwrap_or(Value::Null);
-            let sample = acquisition::collect(game, &self.neighbors, &cache, &self.shared_focuses, &self.building_scopes, &self.political_cost_ids, &self.province_ids)?;
-            let packet = watch::compile(&sample.watch)?;
+            let sample = acquisition::collect(game, &self.neighbors, &cache, &self.shared_focuses, &self.building_scopes, &self.political_cost_ids, &self.province_ids).at("full_read")?;
+            let packet = watch::compile(&sample.watch).at("full_read")?;
             // An audit begun before this read would only bring older bytes.
             self.audit_job = None;
             self.install(sample, packet, now + started.elapsed().as_secs_f64());
@@ -213,17 +248,17 @@ impl Provider {
         } else if self.audit_job.is_none()
             && self.cached.as_ref().is_some_and(|v| now - v.audited >= self.audit)
         {
-            self.start_audit(now)?;
+            self.start_audit(now).at("audit_start")?;
         }
         let game = self.game.as_ref().unwrap();
         let cached = self.cached.as_ref().unwrap();
         let tick = i32::from_le_bytes(
-            game.read(cached.sample.world + 0x468, 4)?
+            game.read(cached.sample.world + 0x468, 4).at("tick")?
                 .try_into()
                 .unwrap(),
         );
-        if game.identity()? != game.created {
-            return Err("Sessione di processo cambiata".into());
+        if game.identity().at("identity")? != game.created {
+            return Err(("identity", "Sessione di processo cambiata".into()));
         }
         let mut sample = cached.sample.value.clone();
         sample["native_tick"] = json!(tick);
@@ -234,7 +269,8 @@ impl Provider {
     fn collect(&mut self, now: f64) -> Result<Value> {
         match self.collect_inner(now) {
             Ok(value) => Ok(value),
-            Err(error) => {
+            Err((stage, error)) => {
+                self.record_close(stage, &error, now);
                 self.close();
                 Err(error)
             }
@@ -568,6 +604,31 @@ mod tests {
         collector.lock().unwrap().close();
         assert!(!lane.matches_pid(Some(pid as u64)));
         assert!(lane.geometry(&json!({})).is_err());
+    }
+    #[test]
+    fn a_failed_collect_records_its_stage_and_error_and_repeats_are_counted_not_listed() {
+        let mut provider=Provider::new(&json!({"path":"Z:\\missing-native-provider-test\\hoi4.exe","manifest_sha256":"invalid"})).unwrap();
+        for _ in 0..3 {assert!(provider.collect(1.).is_err());}
+        let closes=provider.metrics["closes"].as_array().unwrap().clone();
+        assert_eq!(closes.len(),1,"the same failure again is one event: {closes:?}");
+        assert_eq!((closes[0]["seq"].clone(),closes[0]["stage"].clone(),closes[0]["repeats"].clone(),closes[0]["had_session"].clone()),
+            (json!(1),json!("executable"),json!(3),json!(false)));
+        assert!(closes[0]["error"].as_str().is_some_and(|e|!e.is_empty()));
+        assert!(provider.collect(f64::NAN).is_err());
+        let last=provider.metrics["closes"].as_array().unwrap().last().unwrap().clone();
+        assert_eq!((last["seq"].clone(),last["stage"].clone(),last["error"].clone()),(json!(2),json!("clock"),json!("Invalid provider clock")));
+        assert_eq!(provider.metrics["close_count"],2);
+    }
+    #[test]
+    fn a_failed_audit_is_recorded_with_the_open_session_and_the_list_is_bounded() {
+        let mut provider=Provider::new(&json!({"path":"unused","manifest_sha256":"unused"})).unwrap();
+        provider.game=Some(Game::owned_fixture());
+        provider.record_close("audit","Lettura incoerente",5.);
+        assert_eq!(provider.metrics["closes"][0]["had_session"],true);
+        for n in 0..40 {provider.record_close("probe",&format!("error {n}"),6.);}
+        let closes=provider.metrics["closes"].as_array().unwrap();
+        assert_eq!(closes.len(),CLOSES_KEPT);
+        assert_eq!((closes.last().unwrap()["seq"].clone(),provider.metrics["close_count"].clone()),(json!(41),json!(41)));
     }
     #[test]
     fn missing_executable_never_keeps_a_cached_or_usable_session() {

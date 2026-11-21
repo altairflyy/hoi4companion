@@ -20,14 +20,19 @@ stored, the old one is withdrawn.
 per-request GUI costs (`snap_ms`, registry rebuilds `disc`/`disc_ms`,
 `refresh_ms`, `retry`); `scripts/hud-trace-report.cjs` lists geometry spikes
 with or without a rebuild and the reasons of unusable deliveries.
+When a read fails, the provider closes the qualified session and keeps why in
+`metrics.closes` (last 16: `seq`, `stage` such as probe/full_read/audit/tick/
+identity/open, `error`, `had_session`; a repeated failure only counts up). The
+last one rides in every HUD delivery as `provider_close`; the trace writes it
+once (`close_seq`, `close_stage`, `close_error`) and the report lists them.
 Measured in play on 2026-11-21 (1221 s with HOI4 in front, build `f40e999`):
 no HUD loop stall over 250 ms, no blank card, every GUI registry rebuild off the
 request path, transport p95 2.5 ms. Still open (numbers and plan:
 `docs/hud-performance-plan-2026-11-21.md`): the qualified session closes every
-0.5-2.5 min on an unrecorded read error (~5 s unknown each); a probe-seen change
+0.5-2.5 min (~5 s unknown each; the reason is recorded since part 2 step 2); a probe-seen change
 takes ~2.6 s to reach the HUD, so its delivery often expires; HUD actions take
-1.8-3.2 s to answer; the HUD loop runs at ~31 ms because its waits round up to
-the Windows timer tick.
+1.8-3.2 s to answer. The HUD loop ran at ~31 ms because its waits rounded up to
+the Windows timer tick; since part 2 step 1 the overlay holds a 1 ms tick.
 Research discovery requires the actual `CCountryTechTreeView`, rather than the
 unrelated `CCountryTechnologyView`. The same identity, ownership, freshness,
 visibility and overlap checks still qualify every highlighted rectangle.

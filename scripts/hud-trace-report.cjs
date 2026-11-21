@@ -49,6 +49,10 @@ function report(events) {
   const branches = {};
   let foreground = 0, unknownForeground = 0;
   const stalls = [], slowGeometry = [], unusable = {}, nativeErrors = {}, rebuilds = [];
+  // Why the backend closed the qualified game session (HUD plan part 2,
+  // step 2): one event per backend `seq` and time, even if a restarted
+  // overlay writes it again.
+  const closes = new Map();
   for (const e of iterations) {
     branches[e.branch] = (branches[e.branch] || 0) + 1;
     if (e.fg) { foreground++; if (e.fresh === false) unknownForeground++; }
@@ -65,6 +69,9 @@ function report(events) {
     }
     // GUI registry rebuilds; `disc_bg` = run off the request path (HUD plan step 3e).
     if (e.disc > 0) rebuilds.push({ count: e.disc, ms: e.disc_ms, background: e.disc_bg === true });
+    if (Number.isFinite(e.close_seq) && !closes.has(`${e.close_seq}@${e.close_at}`)) {
+      closes.set(`${e.close_seq}@${e.close_at}`, { t: e.close_at ?? e.t, seq: e.close_seq, stage: e.close_stage || 'unknown', error: e.close_error || '', had_session: e.close_had_session === true });
+    }
     if (e.fg && e.usable === false) { const key = e.error || '(no error)'; unusable[key] = (unusable[key] || 0) + 1; }
     if (e.fg && e.native_error) nativeErrors[e.native_error] = (nativeErrors[e.native_error] || 0) + 1;
     if (Number.isFinite(e.state_age_ms)) series.state_age_ms.push(e.state_age_ms);
@@ -139,7 +146,14 @@ function report(events) {
     registry_rebuilds: { count: rebuilds.reduce((n, r) => n + r.count, 0), background: rebuilds.filter(r => r.background).reduce((n, r) => n + r.count, 0),
       duration_ms: stats(rebuilds.map(r => r.ms)) },
     unusable_in_foreground: { by_error: unusable, native_errors: nativeErrors },
+    session_closes: sessionCloses([...closes.values()]),
   };
+}
+
+function sessionCloses(events) {
+  const byStage = {};
+  for (const c of events) byStage[c.stage] = (byStage[c.stage] || 0) + 1;
+  return { count: events.length, with_session: events.filter(c => c.had_session).length, by_stage: byStage, events: events.sort((a, b) => a.t - b.t) };
 }
 
 function format(r) {
@@ -176,6 +190,9 @@ function format(r) {
   for (const [error, count] of Object.entries(u.by_error).sort((a, b) => b[1] - a[1])) out.push(`  ${count} ${error}`);
   if (Object.keys(u.native_errors).length) out.push('', 'Native geometry errors while HOI4 foreground (iterations):');
   for (const [error, count] of Object.entries(u.native_errors).sort((a, b) => b[1] - a[1])) out.push(`  ${count} ${error}`);
+  const sc = r.session_closes;
+  out.push('', `Qualified session closes: ${sc.count} (${sc.with_session} of an open session)${sc.count ? `, by stage: ${Object.entries(sc.by_stage).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''}`);
+  for (const c of sc.events.slice(-30)) out.push(`  ${time(c.t)} #${c.seq} ${c.stage}${c.had_session ? '' : ' (no session open)'}: ${c.error}`);
   for (const f of r.fatal_errors) out.push(`Fatal ${time(f.t)}: ${f.error}`);
   return out.join('\n');
 }
