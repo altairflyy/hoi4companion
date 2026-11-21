@@ -5,6 +5,13 @@ Same invariants: read-only toward the game, unknown stays unknown, highlights on
 Never raise the 3 s delivery budget or show an old card or old highlights as current.
 Proposed by the step 7 session; order confirmed by the user 2026-11-21.
 
+## Order from 2026-11-21 (user is remote and cannot play; agents never start or control HOI4)
+Work that needs no live game first, live checks batched into one session when the user is back at the PC:
+- next: step 4 (profile the delivery pipeline offline on the local progress store, then fix);
+- then: step 3b, the reason-independent part of step 3 (`provider::gui_lane` must not wait on the provider lock during a full read);
+- LIVE session (user plays ~10 min): read the step 2 close reasons and measure steps 1, 3b and 4 in one trace;
+- then: step 3a (keep the session by the reasons seen), then step 5 (final live check).
+
 ## Steps (one per session; `/clear` between them; the Resume prompt in `docs/AGENT_HANDOFF.md` says which is next)
 1. [x] Overlay cadence (small). Replace the ~15.6 ms timer rounding of `Wake::wait` / `Reads::wait` (`native/overlay/src/wake.rs`,
    `mailbox.rs`) so the native loop runs at ~16 ms again: for example `timeBeginPeriod(1)` for the HUD process lifetime, or a

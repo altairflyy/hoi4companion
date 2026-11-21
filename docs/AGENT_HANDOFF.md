@@ -3,11 +3,11 @@ Updated: 2026-11-21. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): fine step 2, poi step 3 "tenere la sessione su un errore di lettura transitorio".
-> Precondizione: l'UTENTE ha giocato ~10 min sulla build dello step 2. Leggi `node scripts/hud-trace-report.cjs`, sezione "Qualified session closes" (stage + errore).
-> Scrivi le cause nel piano (step 2), poi fai lo step 3 solo per le cause viste. File: `native/backend/src/provider.rs` (`collect`, `gui_lane`).
-> Chiusura: test Rust, invariant-reviewer, commit locale, rebuild + riavvio, spunta lo step, riscrivi questo prompt (step 4).
-Plan agreed with the user 2026-11-20: HUD plan 2026-11-20 steps 1-7 done and archived 2026-11-21; part 2 order confirmed by the user 2026-11-21.
+> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`, sezione "Order from 2026-11-21"): step 4 "pipeline della delivery dopo un cambio".
+> Utente da remoto: niente partite live; mai avviare o comandare HOI4. Profila offline: `app.accept` (progress) sul `guide-progress.sqlite3` locale, packet, publish.
+> Ipotesi: payload progress 2.0 MB (2851 run) riscritto intero a ogni cambio. Obiettivo change-to-delivery p90 < 1.5 s. File: `native/backend` (application, http `read`), store progress.
+> Chiusura: test Rust, invariant-reviewer, commit locale, rebuild + riavvio, spunta lo step, riscrivi questo prompt (step 3b).
+Part 2 reordered 2026-11-21 at the user's request (remote, no live play): offline steps 4, 3b first; then ONE live session; then 3a, 5.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
