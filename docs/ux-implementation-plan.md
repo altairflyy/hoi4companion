@@ -55,7 +55,7 @@ Misurate nello step 1 (prima) e nello step 8 (dopo), nella finestra desktop a 12
 
 ## Step 1 · Correzioni rapide e misura di partenza
 
-**Stato:** da fare.
+**Stato:** step 1 implementato e verificato in Edge 158 headless il 2026-11-22. Navigazione e tastiera verificate anche nel launcher WebView2 in una sessione isolata, con HUD disattivato.
 
 - «Template e riferimenti» nella barra laterale (`data-view="templates"`, `web/suite.js`) apre la stessa vista del link dell'importatore
   (`/importer?view=references`) mantenendo il contesto della suite. «Guide salvate» e «Importa ZIP» conservano le proprie destinazioni.
@@ -67,6 +67,52 @@ Misurate nello step 1 (prima) e nello step 8 (dopo), nella finestra desktop a 12
 **Completato quando** Importa ZIP → Template e riferimenti → Importa ZIP funziona in desktop senza caricamento persistente e con titoli
 coerenti; l'accesso da Sala operativa porta alla stessa vista; il giro da tastiera nel dialogo funziona; M1-M4 e la lista R1-R15 sono scritti qui.
 Test: `tests/test_suite.cjs`, `tests/test_importer_view.cjs`.
+
+### Misura di partenza · 2026-11-22
+
+Edge headless a **1282 × 832**, lingua italiana, backend Rust dal checkout con dati isolati e risposte di campagna da fixture.
+Il «prima» usa i file web di `c9b927b`. La riprova Codex ha confermato M1–M4 prima e dopo con le stesse fixture.
+Le catture sintetiche e i log `before-recheck.log` e `after-keyboard-recheck.log` sono in `.local/ux-captures/step-1/`.
+Nella riprova Edge, Invio ha attivato «Template e riferimenti» dalla barra laterale e dall'importatore, «Importa ZIP» al ritorno e
+«Guide salvate». Il frame ha mantenuto `suite=1`, con titolo e breadcrumb coerenti e caricamento concluso.
+
+| Metrica | Baseline | Esito dello step 1 |
+|---|---|---|
+| M1 · Ripresa | **0 clic, 0 scorrimenti** con guida attiva in anteprima. Titolo del primo passo visibile a circa 599–620 px, dopo le metriche. | Baseline offline raggiunta. Lo step 2 deve portare «Ora» sopra le metriche. |
+| M2 · Azione primaria | **2 / 2 / 2** con guida attiva, libreria popolata senza guida attiva e libreria vuota. «Importa ZIP» e «Continua il piano» in tutti e tre gli stati. | Obiettivo ancora da raggiungere nello step 2. |
+| M3 · Riferimenti | **1 clic / 1 clic**. Dalla Sala operativa il percorso usa il vecchio ancoraggio. Dall'importatore il titolo interno è corretto, ma il breadcrumb resta «Importa ZIP» e il frame perde `suite=1`. | **1 clic / 1 clic** verso `/importer?view=references&suite=1`. Titolo e breadcrumb «Template e riferimenti», ritorno a Importa ZIP e destinazione Guide salvate verificati. Stato di caricamento rimosso a ogni arrivo. |
+| M4 · Stati della partita | **0/6** stati della tabella dello step 3 con la coppia messaggio e azione dedicati nella home. Attesa iniziale, gioco assente e build non qualificata mostrano la stessa anteprima. Campagna non verificabile, incompatibilità e campagna collegata producono messaggi distinti. Le azioni della home restano comuni a tutti. | Baseline per lo step 3. Le fixture distinguono anche campione obsoleto (stessa anteprima) e incompatibilità di nazione o albero (stesso avviso). I segnali disponibili sul backend vanno censiti nello step 3. |
+
+**Configurazione.** In Edge, Invio apre con focus su «Chiudi». Tab e Maiusc+Tab scorrono e richiudono il ciclo sui nove controlli.
+Esc, Annulla e Chiudi restituiscono il focus al pulsante della suite. I contorni risultano visibili nella barra laterale e nel dialogo
+con entrambe le preferenze di sistema `light` e `dark`. Il checkout usa una palette scura fissa. Il test di avvio ritardato conferma
+che il modulo riceve la configurazione prima di abilitare il salvataggio. Nella prova già registrata del launcher WebView2 (interfaccia
+inglese, finestra 1282 × 832) sono stati verificati Invio, il ciclo fra Chiudi e Salva con Tab e Maiusc+Tab, il contorno del focus e il
+ritorno a Configurazione con Esc, Annulla e Chiudi. La stessa sessione ha verificato entrambi gli accessi ai riferimenti, il ritorno a
+Importa ZIP e la destinazione Guide salvate, con titoli coerenti a caricamento concluso.
+
+### Riscontro R1–R15
+
+| Intervento | Evidenza o verifica aperta |
+|---|---|
+| R1 · Categorie | «Fabbriche e infrastrutture» nella vista guidata in Edge. Le nuove categorie e il ripiego sono coperti da `test_action_plan.cjs`. |
+| R2 · Badge distinti | «Ordine della fonte» e «Conferma tu» insieme nella voce «Ora» in Edge. |
+| R3, R5 · Avvisi e dettagli | Test JS pertinenti verdi. Avvisi bloccanti, nota unica e dettaglio «Perché?» da riscontrare in finestra su casi rappresentativi. |
+| R4 · Testo originale e glossario | Test JS verdi. Resa del glossario su una frase parzialmente interpretata da riscontrare in finestra. |
+| R6 · Rapporto d'importazione | Card `interpretationOverview`, conteggi e righe non interpretate visibili in Edge con rapporto sintetico. Il collegamento alla correzione è coperto dal test JS. L'esito di un import reale resta da verificare. |
+| R7 · Binder costruzione | Il titolo composto mostra i bersagli forniti dalla fixture. Il binding Rust di una riga importata nella build corrente resta da verificare. |
+| R8 · Titolo composto | In Edge «Costruisci Infrastrutture in Muntenia, poi costruisci Fabbrica militare in Muntenia», da fixture `reading`. |
+| R9 · Vista guidata | «Ora» visibile in Edge. «Poi» e «In attesa» coperti dai test JS e da riscontrare in finestra con una guida che li popola. HUD sospeso. |
+| R10 · Motivi di attesa e focus troncati | Test JS pertinenti verdi. Riga di attesa con motivo e risultato del binding da riscontrare in finestra. |
+| R11 · Anteprima senza gioco | Titoli e passi visibili in Edge a home appena aperta, con valutazione Rust da fixture. |
+| R12 · Correzione dalla card | Test JS pertinenti verdi. Percorso «Non è questo?» e ritorno alla card da riscontrare in finestra. |
+| R13 · Lettura del giocatore | «Cosa significa?» visibile in Edge. Salvataggio e badge «Tua lettura» da riscontrare con dati isolati. |
+| R14 · Giustificazione e obiettivi di guerra | Verifica live aperta nella tabella dell'analisi precedente. Richiede dati qualificati e resta sospesa. |
+| R15 · Libreria raggruppata | Gruppo per nazione e «Altri documenti» visibili in Edge. Doppioni e versioni distinti nei test JS, da riscontrare in finestra. |
+
+Test mirati 68/68 (suite, importatore, caricamento Configurazione e dimensione handoff).
+`npm test` 510 passati, 3 saltati, 0 errori. Revisione invarianti senza rilievi.
+Modifiche web caricate in Edge e WebView2 senza rebuild. La campagna reale e le verifiche live HUD restano sospese.
 
 ## Step 2 · La prossima azione al primo posto
 

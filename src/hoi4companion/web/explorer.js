@@ -205,12 +205,43 @@ async function loadTree(id){
   if(!id){state.tree={id:HoiI18n.t("No compatible trees"),focuses:[]};state.selected=null;state.goal=null;render();$('snapshotInfo').textContent=HoiI18n.t("Check paths and exclusion reasons in the DLC panel.");return;}
   const old=state.tree?.id,tree=await getJson('/api/tree?id='+encodeURIComponent(id)+(window.hoiLive?.enabled?'&source=live':''));if(request!==state.treeRequest)return;if(tree.error)throw new Error(tree.error);state.tree=tree;setManual();if(state.selected&&!currentFocus(state.selected))state.selected=null;const requestedFocus=!old?new URLSearchParams(location.search).get('focus'):null;if(requestedFocus&&currentFocus(requestedFocus))state.selected=requestedFocus;if(!state.selected)state.selected=state.tree.focuses[0]?.id||null;render();if(old!==id)requestAnimationFrame(()=>centerFocus(state.selected));
 }
-async function reload(all=true){try{if(all){state.overview=await getJson('/api/config');updateOverview();if(!state.tree){const requested=new URLSearchParams(location.search).get('tree')||window.hoiGuide?.value?.guide?.applies_to?.tree_id;if(state.overview.trees.some(t=>t.id===requested))$('treeSelect').value=requested;}}await loadTree($('treeSelect').value||state.overview.settings.tree_id);$('connection').textContent=HoiI18n.t("● Local server");}catch(error){$('connection').textContent=HoiI18n.t("● Connection error");$('warnings').hidden=false;$('warnings').textContent=error.message;}}
-function modal(show){hideTooltip();$('settingsModal').classList.toggle('hidden',!show);if(show){for(const [key,value] of Object.entries(state.overview.settings)){const field=$('settingsForm').elements.namedItem(key);if(field)field.value=value;}$('formError').hidden=true;}}
+let overviewRequest;
+function loadOverview(){
+  return overviewRequest??=getJson('/api/config').finally(()=>{overviewRequest=null;});
+}
+async function reload(all=true){try{if(all){state.overview=await loadOverview();updateOverview();if(!state.tree){const requested=new URLSearchParams(location.search).get('tree')||window.hoiGuide?.value?.guide?.applies_to?.tree_id;if(state.overview.trees.some(t=>t.id===requested))$('treeSelect').value=requested;}}await loadTree($('treeSelect').value||state.overview.settings.tree_id);$('connection').textContent=HoiI18n.t("● Local server");}catch(error){$('connection').textContent=HoiI18n.t("● Connection error");$('warnings').hidden=false;$('warnings').textContent=error.message;}}
+async function openSettings(){
+  const dialog=$('settingsModal');if(dialog.open)return;
+  const fields=$('settingsForm').elements,error=$('formError');
+  const editable=Array.from(fields).filter(field=>field.type!=='button');
+  hideTooltip();error.hidden=true;
+  for(const field of editable)field.disabled=!state.overview;
+  dialog.showModal();
+  try{
+    const overview=state.overview??await loadOverview();
+    for(const [key,value] of Object.entries(overview.settings)){
+      const field=fields.namedItem(key);if(field)field.value=value;
+    }
+    for(const field of editable)field.disabled=false;
+  }catch(failure){
+    error.hidden=false;error.textContent=failure.message;
+  }
+}
 function init(){
-  $('navSettings').addEventListener('click',()=>modal(true));$('closeSettings').addEventListener('click',()=>modal(false));$('cancelSettings').addEventListener('click',()=>modal(false));$('settingsModal').addEventListener('click',event=>{if(event.target===$('settingsModal'))modal(false);});
-  document.addEventListener('keydown',event=>{if(event.key==='Escape'){modal(false);hideTooltip();}});
-  $('settingsForm').addEventListener('submit',async event=>{event.preventDefault();try{state.overview=await getJson('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(event.target)))});state.selected=null;state.goal=null;updateOverview();await loadTree(state.overview.settings.tree_id);modal(false);}catch(error){$('formError').hidden=false;$('formError').textContent=error.message;}});
+  const dialog=$('settingsModal'),settingsButton=$('navSettings'),close=()=>dialog.close();
+  settingsButton.addEventListener('click',openSettings);
+  $('closeSettings').addEventListener('click',close);$('cancelSettings').addEventListener('click',close);
+  dialog.addEventListener('click',event=>{if(event.target===dialog)close();});
+  dialog.addEventListener('close',()=>settingsButton.focus());
+  dialog.addEventListener('keydown',event=>{
+    if(event.key!=='Tab')return;
+    const controls=dialog.querySelectorAll('button:enabled,input:enabled,select:enabled');
+    const first=controls[0],last=controls[controls.length-1];
+    if(document.activeElement!==(event.shiftKey?first:last))return;
+    event.preventDefault();(event.shiftKey?last:first).focus();
+  });
+  document.addEventListener('keydown',event=>{if(event.key==='Escape')hideTooltip();});
+  $('settingsForm').addEventListener('submit',async event=>{event.preventDefault();try{state.overview=await getJson('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(event.target)))});state.selected=null;state.goal=null;updateOverview();await loadTree(state.overview.settings.tree_id);close();}catch(error){$('formError').hidden=false;$('formError').textContent=error.message;}});
   $('treeSelect').addEventListener('change',async event=>{state.selected=null;state.goal=null;await loadTree(event.target.value);});
   let searchTimer;$('search').addEventListener('input',event=>{state.search=event.target.value.trim().toLowerCase();render();clearTimeout(searchTimer);searchTimer=setTimeout(()=>{if(state.search){const focus=state.tree.focuses.find(f=>f.id.toLowerCase().includes(state.search)||plain(f.name).toLowerCase().includes(state.search));if(focus)centerFocus(focus.id);}},100);});
   $('resetGoal').addEventListener('click',()=>{state.goal=null;render();});$('centerFocus').addEventListener('click',()=>centerFocus(state.selected));

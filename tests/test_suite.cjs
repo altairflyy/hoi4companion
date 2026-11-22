@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const model=require('../src/hoi4companion/web/suite-model.js');
 function suiteHarness(sidebarButtons=[],emptyActive=false,projectionBody=null,libraryGuides=[]){
  const elements=new Map(),events={},calls=[];let listener;
- const element=id=>{if(!elements.has(id))elements.set(id,{id,dataset:{},value:'',checked:false,hidden:id==='suiteError',src:'about:blank',contentWindow:{dispatchEvent(){}},addEventListener(){},children:[],replaceChildren(){this.children=[];},append(...c){this.children.push(...c);},setAttribute(){},removeAttribute(){}});return elements.get(id);};
+ const element=id=>{if(!elements.has(id))elements.set(id,{id,dataset:{},value:'',checked:false,hidden:id==='suiteError',src:'about:blank',contentWindow:{dispatchEvent(){},location:{origin:'http://localhost'}},addEventListener(name,fn){events[id+':'+name]=fn;},children:[],replaceChildren(){this.children=[];},append(...c){this.children.push(...c);},setAttribute(){},removeAttribute(){}});return elements.get(id);};
  const document={visibilityState:'visible',focused:true,hasFocus(){return this.focused;},getElementById:element,createElement:tag=>({tag,className:'',textContent:'',dataset:{},children:[],append(...c){this.children.push(...c);},setAttribute(){},addEventListener(){}}),querySelectorAll:selector=>selector==='.suite-sidebar [data-view]'?sidebarButtons:[],addEventListener(name,fn){events[name]=fn;}};
  const window={hoiLive:{subscribe(fn){listener=fn;}},addEventListener(name,fn){events[name]=fn;}};
  const location={origin:'http://localhost',hash:'#overview'};
@@ -23,6 +23,31 @@ test('sidebar marks settings and diagnostics as current when navigating',()=>{
  assert.equal(buttons[0].current,'page');
  h.location.hash='#settings';h.events.hashchange();assert.deepEqual(buttons.map(b=>b.current),[false,'page',false]);
  h.location.hash='#analysis';h.events.hashchange();assert.deepEqual(buttons.map(b=>b.current),[false,false,'page']);
+});
+test('embedded collection links retain suite context and keep their own destinations',()=>{
+ const h=suiteHarness(),frame=h.element('workspaceFrame');
+ const links={addEventListener(name,fn){this[name]=fn;}};
+ frame.contentDocument={documentElement:{classList:{add(){}}},head:{append(){}},createElement:h.document.createElement,
+  querySelector:selector=>selector==='.collection-links'?links:null,getElementById:()=>null};
+ const go=(key,search,title)=>{
+  h.location.hash='#'+key;h.events.hashchange();
+  const url=new URL(frame.src);assert.equal(url.pathname,'/importer');assert.equal(url.search,search);assert.equal(url.hash,'');
+  assert.equal(h.element('viewTitle').textContent,title);h.events['workspaceFrame:load']();
+  assert.equal(h.element('frameStatus').textContent,'');
+ };
+ const follow=(key,modifiers={})=>{
+  let prevented=false;
+  links.click({target:{closest:()=>({dataset:{suiteView:key}})},button:0,preventDefault(){prevented=true;},...modifiers});
+  return prevented;
+ };
+ go('templates','?view=references&suite=1','Templates and references');
+ assert.equal(follow('importer'),true);assert.equal(h.location.hash,'importer');
+ go('importer','?suite=1','Import ZIPs');
+ assert.equal(follow('templates',{ctrlKey:true}),false);assert.equal(h.location.hash,'#importer');
+ assert.equal(follow('templates'),true);assert.equal(h.location.hash,'templates');
+ go('templates','?view=references&suite=1','Templates and references');
+ assert.equal(follow('saved-guides'),true);assert.equal(h.location.hash,'saved-guides');
+ go('saved-guides','?view=library&suite=1','Saved guides');
 });
 test('suite does not compete with HUD for projections in embedded views or while hidden',async()=>{
  const h=suiteHarness();await h.flush();h.calls.length=0;

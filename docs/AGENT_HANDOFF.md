@@ -3,15 +3,14 @@ Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano qualità HUD (`docs/hud-quality-plan-2026-11-22.md`): step 2, verifica live F1 con l'utente. Precondizione: un passo guida
-> con marcatori mappa (cantieri). L'utente fa ~5 min di pan e zoom a vari livelli e manda 2-3 screenshot a camera ferma. Poi
-> `node scripts/hud-trace-report.cjs`, sezione "Map markers": decidi quali ipotesi H1-H4 reggono e scrivi i numeri nel piano.
-> Nessuna modifica alla geometria in questo step. Mai avviare o controllare HOI4.
-PAUSED 2026-11-22 (user): no more live game tests for now; every remaining HUD quality step needs live data or a screenshot.
+> Leggi docs/ux-implementation-plan.md, inclusa «Esecuzione con Codex», e docs/AGENT_HANDOFF.md. Esegui solo lo step 2.
+> Porta «Ora» sopra le metriche nella Sala operativa e «Ora / Poi» prima dei riferimenti nel Piano della campagna.
+> Verifica con fixture isolate una sola azione primaria per ciascuno dei tre stati, M1 e M2 a 1282 × 832 e l'anteprima senza progressi. La scelta del passo resta in Rust.
+> Usa le regole del piano per test, catture, revisione e commit locale. Aggiorna piano e handoff e lascia il prompt per lo step 3. Non avviare o controllare HOI4.
+
+PAUSED 2026-11-22 (user): live HUD quality checks need game data or screenshots. Resume F1 step 2 only on request, per `docs/hud-quality-plan-2026-11-22.md`.
 HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
-UX plan 2026-11-22 (`docs/ux-implementation-plan.md`, desktop only, no game): next is step 1. Prompt: «Leggi docs/ux-implementation-plan.md
-e docs/AGENT_HANDOFF.md. Esegui solo lo step 1 (correzioni rapide e misura di partenza).»
 
 ## In progress
 - 2026-11-20 PURGE (user order): third-party guide data (benchmark/review/probe fixtures, Wojtek guide, `docs/it/walkthrough.md`) is
@@ -22,6 +21,9 @@ e docs/AGENT_HANDOFF.md. Esegui solo lo step 1 (correzioni rapide e misura di pa
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-22 UX step 1: embedded reference navigation and Settings keyboard loop pass in Edge headless and desktop WebView2. M1 0/0, M2 2/2/2, M3 1/1 with synchronized titles after fix, M4 0/6.
+  Codex reran baseline and current checkout at 1282 × 832 with fixtures. Enter activates both reference links, Import ZIPs and Saved guides. Targeted tests 68/68, npm test 510 passed, 3 skipped.
+  Evidence and capture logs are linked from `docs/ux-implementation-plan.md`. Ready for UX step 2.
 - 2026-11-22 HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior
   change. Tests green (live 72, overlay 79, backend 65 + 120, JS 508/511, 3 skipped), invariant-reviewer clean. Live data NOT seen yet.
 - 2026-11-22 HUD plan part 2 step 5 (836 s of play on `0e4b001`): change-to-delivery p50 1166 / p90 1365 ms (target < 1.5 s met;

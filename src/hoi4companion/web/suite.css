@@ -38,3 +38,4 @@
  .reader-badge{padding:4px 7px}
  .suite-frame-view{height:calc(100vh - 240px);min-height:320px}
 }
+.suite-sidebar :is(a,button,select):focus-visible{outline:2px solid var(--blue);outline-offset:2px}

@@ -13,3 +13,23 @@ test('a slower initial tree cannot replace the newer guide-selected tree',async(
 });
 
 function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}
+
+test('settings opened during startup share the pending config and cannot save empty paths',async()=>{
+ const code=fs.readFileSync('src/hoi4companion/web/explorer.js','utf8');
+ const input={type:'text',value:''},cancel={type:'button',disabled:false},save={type:'submit'};
+ const fields=Object.assign([input,cancel,save],{namedItem:key=>key==='game_dir'?input:null});
+ const dialog={open:false,showModal(){this.open=true;}};
+ const nodes={settingsModal:dialog,settingsForm:{elements:fields},formError:{}};
+ let resolve,requests=0;
+ const context={state:{overview:null},$:id=>nodes[id],hideTooltip(){},getJson(){
+  requests++;return new Promise(done=>{resolve=done;});
+ }};
+ const start=code.indexOf('let overviewRequest;'),end=code.indexOf('function init(){',start);
+ runLocalized(code.slice(start,end),context);
+ const initial=context.loadOverview(),opening=context.openSettings();
+ assert.equal(requests,1);assert.equal(dialog.open,true);
+ assert.equal(input.disabled,true);assert.equal(save.disabled,true);assert.equal(cancel.disabled,false);
+ resolve({settings:{game_dir:'configured-game'}});
+ await Promise.all([initial,opening]);
+ assert.equal(input.value,'configured-game');assert.equal(save.disabled,false);
+});

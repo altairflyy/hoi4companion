@@ -1,7 +1,7 @@
 'use strict';
 ((root)=>{
  const country=typeof module==='object'&&module.exports?require('./country-model.js'):root.HoiCountryModel;
- const routes={overview:null,library:null,walkthrough:'/walkthrough',focus:'/',technologies:'/technologies',country:'/country',events:'/events',templates:'/importer#collectionTemplatesHeading',importer:'/importer',analysis:'/analysis',settings:'/'};
+ const routes={overview:null,library:null,walkthrough:'/walkthrough',focus:'/',technologies:'/technologies',country:'/country',events:'/events',templates:'/importer?view=references',importer:'/importer','saved-guides':'/importer?view=library',analysis:'/analysis',settings:'/'};
  function title(value){return String(value||'').replace(/\.docx$/i,'').replace(/_/g,' ').replace(/\s+/g,' ').trim();}
  function metrics(packet){const model=country.evaluate(packet),s=model.sections;
   return {current:model.current,country:model.country,divisions:country.number(s.divisions.total,{integer:true}),politicalPower:s.politics.power?.status==='observed'?country.number(s.politics.power.available,{signed:true}):null,factories:country.number(s.production.effective_factories?.military,{integer:true})};

@@ -83,9 +83,9 @@
     </div>
   </main>
 </div>
-<div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+<dialog id="settingsModal" class="modal" aria-labelledby="settingsTitle">
   <div class="modal-window">
-    <div class="modal-head"><div><div class="eyebrow">LOCAL PREFERENCES</div><h2 id="settingsTitle">Settings</h2></div><button id="closeSettings" class="close" aria-label="Close">✕</button></div>
+    <div class="modal-head"><div><div class="eyebrow">LOCAL PREFERENCES</div><h2 id="settingsTitle">Settings</h2></div><button id="closeSettings" class="close" aria-label="Close" autofocus>✕</button></div>
     <p class="muted">Paths are read on the computer running the application. Game and mod files are never modified.</p>
     <form id="settingsForm">
       <label>HOI4 installation folder <input name="game_dir" placeholder="C:\Program Files (x86)\Steam\steamapps\common\Hearts of Iron IV"></label>
@@ -97,7 +97,7 @@
       <div id="formError" class="form-error" hidden></div><div class="modal-actions"><button type="button" class="line-button" id="cancelSettings">Cancel</button><button type="submit" class="primary">Save and reload</button></div>
     </form>
   </div>
-</div>
+</dialog>
 <div id="focusTooltip" class="focus-tooltip" role="tooltip" hidden></div>
 </body>
 </html>
