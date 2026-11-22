@@ -348,7 +348,7 @@ ha confermato le dieci fixture in entrambe le lingue. Evidenze `installed-*`, `d
 
 ## Step 7 · Una sola interfaccia (decisione dell'utente)
 
-**Stato al 2026-11-22:** inventario verificato. Decisione dell’utente in attesa. Il link «Apri interfaccia classica» resta disponibile.
+**Stato al 2026-11-22:** completato. Inventario verificato e scelta dell’utente registrata. La rimozione è prevista nello step 7b.
 
 La barra laterale offre ancora «Apri interfaccia classica» (`/walkthrough`). Inventariare cosa fa la vista classica che la suite non fa,
 con il percorso che lo mostra. Proporre all'utente una scelta: portare quelle funzioni nella suite e togliere il link, oppure tenerla con
@@ -388,7 +388,22 @@ Catture e log in `.local/ux-captures/step-7/`. Test JS mirati 86/86. Nessuna pro
    Verificare i percorsi nella suite prima di togliere il link. La migrazione è uno step separato.
 2. **Tenere il link con un’etichetta esplicita.** Proposta di testo «Vista classica · strumenti degli alberi e ritorno al passo».
 
-**Decisione dell’utente:** in attesa di una risposta in chat. Proseguire con lo step 7 per registrarla prima di cambiare il link.
+**Decisione dell’utente (2026-11-22):** «sì, togliamola dopo la migrazione». Approvata l’opzione 1 della scelta. Il link resta
+disponibile fino alla verifica dei percorsi nella suite.
+
+## Step 7b · Migrazione nella suite
+
+**Stato:** da fare. L’utente ha approvato la rimozione del link dopo la migrazione.
+
+- Ripristinare il salto all’albero rilevato quando il campione lo identifica e il ritorno da Correggi associazioni alla guida e alla
+  stessa istruzione. Aprire le destinazioni nella suite e mantenere coerente la navigazione.
+- Esporre i dettagli del lettore e il ricaricamento nella pagina Tecnologie. In Focus rendere visibile l’origine del catalogo.
+- Dopo aver verificato questi percorsi con fixture isolate, rimuovere «Apri interfaccia classica» dalla barra laterale e aggiornare
+  il messaggio di ripiego della suite. Conservare `/walkthrough`, usato da Piano della campagna.
+
+**Completato quando** i percorsi dell’inventario funzionano nella suite. Verificare anche l’assenza del link, l’apertura del Piano,
+il caso senza albero rilevato e il ritorno da una correzione avviata senza un passo specifico. Aggiornare piano e handoff con le prove,
+senza avviare o controllare HOI4, e lasciare il prompt dello step 8.
 
 ## Step 8 · Verifica finale desktop
 
