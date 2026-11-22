@@ -7,6 +7,7 @@ use crate::{
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap, HashSet};
 type Result<T> = std::result::Result<T, String>;
+pub(crate) const SAMPLE_CHANGED: &str = "Stato cambiato durante la lettura";
 fn compose_position(local: [f64;16], parent: [f64;16]) -> [f64;16] {
     std::array::from_fn(|i| (0..4).map(|k| local[(i/4)*4+k]*parent[k*4+i%4]).sum())
 }
@@ -54,7 +55,7 @@ impl<'a, M: Memory> Sample<'a, M> {
         }
         if let Some(old) = self.witnesses.get(&(a, n)) {
             if old != &bytes {
-                return Err("Stato cambiato durante la lettura".into());
+                return Err(SAMPLE_CHANGED.into());
             }
         } else {
             self.witnesses.insert((a, n), bytes.clone());
@@ -81,7 +82,7 @@ impl<'a, M: Memory> Sample<'a, M> {
             .insert(a, flag)
             .is_some_and(|old| old != flag)
         {
-            return Err("Stato cambiato durante la lettura".into());
+            return Err(SAMPLE_CHANGED.into());
         }
         Ok(flag != 0)
     }
@@ -117,12 +118,12 @@ impl<'a, M: Memory> Sample<'a, M> {
             for (&(a, n), expected) in self.witnesses.range((start, 0)..(end, 0)) {
                 let off = (a - start) as usize;
                 if bytes.get(off..off + n) != Some(expected.as_slice()) {
-                    return Err("Stato cambiato durante la lettura".into());
+                    return Err(SAMPLE_CHANGED.into());
                 }
             }
             for (&a, &flag) in self.visibility.range(start..end) {
                 if bytes[(a - start) as usize] & 8 != flag {
-                    return Err("Stato cambiato durante la lettura".into());
+                    return Err(SAMPLE_CHANGED.into());
                 }
             }
         }

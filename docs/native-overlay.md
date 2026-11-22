@@ -180,7 +180,8 @@ map RVA `33e7700`. Camera matrix at `+90`, center X at `+190`, viewport at
 `+6c8/+6cc`; graphics viewport at `+180/+184`; world width at map `+40`.
 The projection uses column-major clip coordinates, nearest horizontal world wrap,
 positive W, depth [0,1], and viewport clipping. All reads are revalidated; a changed
-camera, mismatching viewport or unknown build yields no marker. Central panels
+camera triggers one complete reread. If the new sample cannot be verified, the
+viewport mismatches or the build is unknown, no marker is drawn. Central panels
 recognized by native GUI observation suppress map markers. Existing foreground,
 window, guide revision and 750 ms freshness gates still apply. No map OCR or screen
 capture fallback starts when native map evidence is unavailable.

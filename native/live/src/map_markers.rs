@@ -1,5 +1,5 @@
 //! Small map points from installed region anchors and a fresh native camera.
-use crate::{gui_observer::Sample, live::Memory};
+use crate::{gui_observer::{SAMPLE_CHANGED, Sample}, live::Memory};
 use serde_json::{Value, json};
 type Result<T> = std::result::Result<T, String>;
 pub fn project(
@@ -40,6 +40,20 @@ pub fn project(
         .then_some([x, y, z])
 }
 pub fn geometry(
+    memory: &mut impl Memory,
+    base: u64,
+    profile: &Value,
+    proposals: &Value,
+    view: &Value,
+) -> Result<Value> {
+    match geometry_sample(memory, base, profile, proposals, view) {
+        // Start from a new set of witnesses when the camera changes mid-read.
+        Err(reason) if reason == SAMPLE_CHANGED => geometry_sample(memory, base, profile, proposals, view),
+        result => result,
+    }
+}
+
+fn geometry_sample(
     memory: &mut impl Memory,
     base: u64,
     profile: &Value,
@@ -126,11 +140,15 @@ fn signature(value: f64) -> f64 {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
-    struct Fixture(BTreeMap<u64, u8>);
+    struct Fixture {
+        bytes: BTreeMap<u64, u8>,
+        matrix_reads: usize,
+        camera_changes: usize,
+    }
     impl Fixture {
         fn put(&mut self, a: u64, b: &[u8]) {
             for (i, v) in b.iter().enumerate() {
-                self.0.insert(a + i as u64, *v);
+                self.bytes.insert(a + i as u64, *v);
             }
         }
         fn u(&mut self, a: u64, v: u64) {
@@ -142,8 +160,16 @@ mod tests {
     }
     impl Memory for Fixture {
         fn read(&mut self, a: u64, n: usize) -> Result<Vec<u8>> {
+            if a == 0x500090 && n == 64 {
+                self.matrix_reads += 1;
+                if self.matrix_reads % 2 == 0 && self.camera_changes > 0 {
+                    self.camera_changes -= 1;
+                    let translation = 0.125 * self.matrix_reads as f32;
+                    self.put(a + 48, &translation.to_le_bytes());
+                }
+            }
             Ok((0..n)
-                .map(|i| *self.0.get(&(a + i as u64)).unwrap_or(&0))
+                .map(|i| *self.bytes.get(&(a + i as u64)).unwrap_or(&0))
                 .collect())
         }
         fn fixture_transport(&self) -> bool {
@@ -153,10 +179,11 @@ mod tests {
             Err("No fixture RTTI".into())
         }
     }
-    #[test]
-    fn native_camera_requires_build_and_viewport_then_verifies_every_read() {
-        let base = 0x140000000;
-        let mut m = Fixture(BTreeMap::new());
+    const BASE: u64 = 0x140000000;
+
+    fn camera_fixture(camera_changes: usize) -> Fixture {
+        let base = BASE;
+        let mut m = Fixture { bytes: BTreeMap::new(), matrix_reads: 0, camera_changes };
         m.u(base + 0x33ddb08, 0x400000);
         m.u(0x400760, 0x500000);
         m.u(base + 0x3500ed0, 0x600000);
@@ -174,6 +201,28 @@ mod tests {
         {
             m.put(0x500090 + i as u64 * 4, &v.to_le_bytes());
         }
+        m
+    }
+
+    #[test]
+    fn a_changed_camera_is_reread_once_and_only_verified_geometry_is_published() {
+        let profile = json!({"sha256":"709f916afbebcfe64a26678702691aeb40945d206074c2a80de8e9d601fce148"});
+        let proposals = json!([{"panel":"construction_map","state_id":219,"world_point":[0.,0.,0.5]}]);
+        let view = json!([1, 2, 0, 0, 1000, 500]);
+        let mut changes_once = camera_fixture(1);
+        let result = geometry(&mut changes_once, BASE, &profile, &proposals, &view).unwrap();
+        assert_eq!(result["matches"][0]["rect"], json!([619., 244., 631., 256.]));
+        assert_eq!(changes_once.matrix_reads, 4);
+
+        let mut keeps_changing = camera_fixture(2);
+        assert!(geometry(&mut keeps_changing, BASE, &profile, &proposals, &view).is_err());
+        assert_eq!(keeps_changing.matrix_reads, 4);
+    }
+
+    #[test]
+    fn native_camera_requires_build_and_viewport_then_verifies_every_read() {
+        let base = BASE;
+        let mut m = camera_fixture(0);
         let profile =
             json!({"sha256":"709f916afbebcfe64a26678702691aeb40945d206074c2a80de8e9d601fce148"});
         let proposals =
