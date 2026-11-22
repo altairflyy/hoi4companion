@@ -26,6 +26,24 @@ Il piano di verifica live dell'HUD (`docs/hud-quality-plan-2026-11-22.md`) resta
   aggiornato, un solo prompt copiabile per lo step successivo. Se lo step è bloccato, il prompt riprende **lo stesso step** con il blocco
   e la prova mancante. Il report distingue: visto in desktop, coperto da test, richiede una partita reale.
 
+## Esecuzione con Codex
+
+Codex legge `CLAUDE.md` tramite `.codex/config.toml` (`project_doc_fallback_filenames`). Gli strumenti di Claude Code non esistono in
+Codex; usare questi equivalenti:
+
+- **Testi (`add-translation`):** `node .claude/skills/add-translation/add.cjs '[["English","Italiano"]]'`, oppure un file `.json` con le
+  coppie. Regole in `.claude/skills/add-translation/SKILL.md`.
+- **Rebuild e riavvio (`deliver-build`):** solo dopo il commit locale, `node .claude/skills/deliver-build/deliver.cjs` (timeout lungo).
+  Le modifiche solo web (JS/HTML/CSS) non richiedono rebuild: basta ricaricare la pagina.
+- **Revisione invarianti (`invariant-reviewer`):** prima del commit, leggere `.claude/agents/invariant-reviewer.md` e applicarne la
+  checklist a `git diff`, riportando una riga per violazione. Oppure `/review` di Codex con quel file come istruzioni.
+- **Hook assenti:** in Codex non girano `.claude/hooks/guard-game.cjs` né `web-test.cjs`. Nessun comando che avvii, chiuda o porti in
+  primo piano HOI4; dopo ogni modifica web eseguire a mano i test `tests/test_*.cjs` pertinenti.
+- **Catture desktop:** Codex non vede la finestra. Usare Edge headless, già presente in Windows, senza nuove dipendenze:
+  `& "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe" --headless --disable-gpu --window-size=1282,832 --screenshot=<file>.png <url>`
+  con l'app avviata. Le prove di tastiera e i controlli visivi che una cattura statica non copre vanno elencati nel report come
+  «da verificare a mano dall'utente», mai dichiarati visti.
+
 ## Metriche
 
 Misurate nello step 1 (prima) e nello step 8 (dopo), nella finestra desktop a 1282 × 832:
