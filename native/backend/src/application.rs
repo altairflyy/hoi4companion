@@ -18,25 +18,26 @@ use std::{
     time::Instant,
 };
 type Result<T> = std::result::Result<T, String>;
-/// Milliseconds spent per part of one `accept`, summed by key (HUD plan part 2
-/// step 4b): carried in the delivery's `pipeline_ms.progress_parts`.
-struct Laps {
+/// Milliseconds spent per part of one `accept` or full read, summed by key (HUD
+/// plan part 2 step 4b): carried in the delivery's `pipeline_ms.progress_parts`
+/// and `pipeline_ms.collect_parts`.
+pub(crate) struct Laps {
     last: Instant,
-    parts: Map<String, Value>,
+    pub(crate) parts: Map<String, Value>,
 }
 impl Laps {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { last: Instant::now(), parts: Map::new() }
     }
     /// Adds the time since the previous lap to `key`.
-    fn lap(&mut self, key: &'static str) {
+    pub(crate) fn lap(&mut self, key: &str) {
         let now = Instant::now();
         let ms = now.duration_since(self.last).as_secs_f64() * 1000.;
         let sum = self.parts.get(key).and_then(Value::as_f64).unwrap_or(0.) + ms;
         self.parts.insert(key.into(), json!((sum * 1000.).round() / 1000.));
         self.last = now;
     }
-    fn count(&mut self, key: &str) {
+    pub(crate) fn count(&mut self, key: &str) {
         let n = self.parts.get(key).and_then(Value::as_u64).unwrap_or(0) + 1;
         self.parts.insert(key.into(), json!(n));
     }
@@ -333,6 +334,12 @@ pub struct Application {
     live_runs: Option<(u64, Value)>,
     /// Where the last `accept` spent its time (`Laps`).
     accept_parts: Value,
+    /// Guides other than the active one that the read loop's last
+    /// `accept_deferring` left for `observe_deferred` (HUD plan part 2 step 4b).
+    deferred_guides: Vec<String>,
+    /// Binding context those deferred guides belong to. `bound_context` stays
+    /// unset meanwhile, so any other caller's `bind` observes every guide.
+    deferred_context: Option<(u64, u64, u64, u64, u64)>,
     /// Guides whose definition for the current catalog is still being prepared
     /// in the background (startup prepares the active guide first). They stay
     /// out of `guides`, so they cannot be selected, evaluated or bound until
@@ -388,6 +395,8 @@ impl Application {
             readable_provinces: None,
             live_runs: None,
             accept_parts: json!({}),
+            deferred_guides: vec![],
+            deferred_context: None,
             preparing: BTreeMap::new(),
             registry_generation: 0,
             interpretation_generation: 0,
@@ -960,15 +969,20 @@ impl Application {
             self.observation_revision, self.runs.generation)
     }
     fn bind(&mut self) -> Result<()> {
-        self.bind_timed(&mut Laps::new())
+        self.bind_timed(&mut Laps::new(), false)
     }
-    fn bind_timed(&mut self, laps: &mut Laps) -> Result<()> {
+    /// `defer`: observe only the active guide and leave the others in
+    /// `deferred_guides` for `observe_deferred`, so the HUD delivery does not
+    /// wait for guides it does not show (HUD plan part 2 step 4b).
+    fn bind_timed(&mut self, laps: &mut Laps, defer: bool) -> Result<()> {
         // Reading progress/projections repeatedly must not observe the same
         // campaign again. Every committed run mutation and qualified observation
         // invalidates this stamp; failures never mark a binding as complete.
         if self.bound_context == Some(self.binding_context()) {
             return Ok(());
         }
+        self.deferred_guides.clear();
+        self.deferred_context = None;
         // Binding a campaign can create a checklist for every guide and pin it
         // to its current definition. While those are still compiling in the
         // background, wait: progress stays unverified meanwhile, and the read
@@ -1003,68 +1017,106 @@ impl Application {
                 if !self.guides.contains_key(id) {
                     continue;
                 }
-                // Other guides move onto their current definition when opened.
-                if self.active.as_deref() == Some(id.as_str())
-                    && let Err(error) = self.upgrade_run(id)
-                {
-                    eprintln!("Checklist update to the current guide failed for {id}: {error}");
-                }
-                laps.lap("upgrade_run");
-                // Observe against the run's own definition. An unverifiable
-                // run (missing/corrupt archive) is not observed at all.
-                let record = self.runs.call("get", json!({"guide_id":id}))?;
-                laps.lap("run_get");
-                // Determine admission from the run's immutable scope before
-                // compiling current definitions for unrelated countries. A
-                // cached scope is tied to the archive hash, never its title.
-                let scope = if record["definition_ref"]["status"] == "pinned" {
-                    let archive_id = text(&record["definition_ref"]["id"]);
-                    if let Some(scope) = self.observation_scopes.get(archive_id) {
-                        scope.clone()
-                    } else {
-                        let Some(payload) = self.runs.archive(archive_id) else {continue};
-                        let Ok(envelope) = definition_archive::open(archive_id, &payload) else {continue};
-                        if envelope["guide_id"] != *id {continue;}
-                        let scope = envelope["definition"]["applies_to"].clone();
-                        self.observation_scopes.insert(archive_id.to_owned(),scope.clone());
-                        scope
-                    }
-                } else { self.guides[id]["applies_to"].clone() };
-                let live = crate::guide_prepare::mode(&json!({"applies_to":scope}), &identity) == "live";
-                laps.lap("scope");
-                if !live {continue;}
-                let definition = self.definition_for_run(id, &record);
-                laps.lap("definition_for_run");
-                let Ok((mut guide, _)) = definition else {
+                if defer && self.active.as_deref() != Some(id.as_str()) {
+                    self.deferred_guides.push(id.clone());
                     continue;
-                };
-                // "UP" research steps bind against what the nation had at the
-                // campaign start, so levels done before the guide was loaded count.
-                if let Some(context) = self.context.as_ref()
-                    && crate::guide_observe::has_relative_research(&guide)
-                {
-                    let start = context.research_start(&guide);
-                    if !start.is_null() {
-                        guide["research_start"] = start;
-                    }
                 }
-                laps.lap("research_start");
-                let active = self.active.as_ref() == Some(id);
-                let (guides, sources, memo, context, associations) =
-                    (&self.guides, &self.sources, &mut self.current_archives, self.context.as_ref(), self.association_directory.as_ref());
-                if self.runs.observe_with(
-                    &guide,
-                    &self.live,
-                    active,
-                    Some(&mut |g| current_archive(guides, sources, associations, context, memo, g)),
-                )? {
-                    self.revision += 1;
-                }
-                laps.lap("observe_guides");
-                laps.count("guides_observed");
+                self.observe_guide(id, &identity, laps)?;
+            }
+        }
+        if self.deferred_guides.is_empty() {
+            self.bound_context = Some(self.binding_context());
+        } else {
+            // Not bound until the deferred guides are observed too.
+            self.bound_context = None;
+            self.deferred_context = Some(self.binding_context());
+        }
+        Ok(())
+    }
+    /// Observes the guides `accept_deferring` left out, against the same
+    /// observation, once the HUD delivery is published. If the binding context
+    /// changed since, a full `bind` observes every guide instead. A failure
+    /// leaves the campaign unbound, so the next `bind` observes every guide.
+    pub fn observe_deferred(&mut self) -> Result<()> {
+        if self.deferred_guides.is_empty() {
+            return Ok(());
+        }
+        let context = self.deferred_context.take();
+        let ids = std::mem::take(&mut self.deferred_guides);
+        if context != Some(self.binding_context()) {
+            return self.bind();
+        }
+        let identity = state::normalize(&json!({"usable":self.live["usable"],"source":self.live["source"],"sample":{"country":self.live["sample"]["country"],"focus_tree_id":self.live["sample"]["focus_tree_id"]}}));
+        let mut laps = Laps::new();
+        for id in ids {
+            if self.guides.contains_key(&id) {
+                self.observe_guide(&id, &identity, &mut laps)?;
             }
         }
         self.bound_context = Some(self.binding_context());
+        Ok(())
+    }
+    /// Observes one guide's run against the current observation.
+    fn observe_guide(&mut self, id: &str, identity: &Value, laps: &mut Laps) -> Result<()> {
+        // Other guides move onto their current definition when opened.
+        if self.active.as_deref() == Some(id)
+            && let Err(error) = self.upgrade_run(id)
+        {
+            eprintln!("Checklist update to the current guide failed for {id}: {error}");
+        }
+        laps.lap("upgrade_run");
+        // Observe against the run's own definition. An unverifiable
+        // run (missing/corrupt archive) is not observed at all.
+        let record = self.runs.call("get", json!({"guide_id":id}))?;
+        laps.lap("run_get");
+        // Determine admission from the run's immutable scope before
+        // compiling current definitions for unrelated countries. A
+        // cached scope is tied to the archive hash, never its title.
+        let scope = if record["definition_ref"]["status"] == "pinned" {
+            let archive_id = text(&record["definition_ref"]["id"]);
+            if let Some(scope) = self.observation_scopes.get(archive_id) {
+                scope.clone()
+            } else {
+                let Some(payload) = self.runs.archive(archive_id) else { return Ok(()) };
+                let Ok(envelope) = definition_archive::open(archive_id, &payload) else { return Ok(()) };
+                if envelope["guide_id"] != *id { return Ok(()); }
+                let scope = envelope["definition"]["applies_to"].clone();
+                self.observation_scopes.insert(archive_id.to_owned(),scope.clone());
+                scope
+            }
+        } else { self.guides[id]["applies_to"].clone() };
+        let live = crate::guide_prepare::mode(&json!({"applies_to":scope}), identity) == "live";
+        laps.lap("scope");
+        if !live { return Ok(()); }
+        let definition = self.definition_for_run(id, &record);
+        laps.lap("definition_for_run");
+        let Ok((mut guide, _)) = definition else {
+            return Ok(());
+        };
+        // "UP" research steps bind against what the nation had at the
+        // campaign start, so levels done before the guide was loaded count.
+        if let Some(context) = self.context.as_ref()
+            && crate::guide_observe::has_relative_research(&guide)
+        {
+            let start = context.research_start(&guide);
+            if !start.is_null() {
+                guide["research_start"] = start;
+            }
+        }
+        laps.lap("research_start");
+        let active = self.active.as_deref() == Some(id);
+        let (guides, sources, memo, context, associations) =
+            (&self.guides, &self.sources, &mut self.current_archives, self.context.as_ref(), self.association_directory.as_ref());
+        if self.runs.observe_with(
+            &guide,
+            &self.live,
+            active,
+            Some(&mut |g| current_archive(guides, sources, associations, context, memo, g)),
+        )? {
+            self.revision += 1;
+        }
+        laps.lap(if active { "observe_active_guide" } else { "observe_other_guides" });
+        laps.count("guides_observed");
         Ok(())
     }
     /// Provinces any definition can read, for `keep_readable_provinces`.
@@ -1108,6 +1160,14 @@ impl Application {
         }
     }
     pub fn accept(&mut self, value: Value) -> Result<Value> {
+        self.accept_with(value, false)
+    }
+    /// `accept` for the read loop: only the active guide is observed before
+    /// the delivery; the loop calls `observe_deferred` once it is published.
+    pub fn accept_deferring(&mut self, value: Value) -> Result<Value> {
+        self.accept_with(value, true)
+    }
+    fn accept_with(&mut self, value: Value, defer: bool) -> Result<Value> {
         let mut laps = Laps::new();
         let mut value = value;
         self.keep_readable_provinces(&mut value);
@@ -1123,7 +1183,7 @@ impl Application {
         laps.lap("compare");
         self.follow_played_nation()?;
         laps.lap("follow");
-        let bound = self.bind_timed(&mut laps);
+        let bound = self.bind_timed(&mut laps, defer);
         laps.lap("bind_rest");
         let result = bound.map(|_| self.live.clone());
         laps.lap("clone");
@@ -1268,6 +1328,15 @@ impl Application {
         self.runs_call("ensure", json!({"guide_id":id,"checks":{}}))?;
         if let Err(error) = self.upgrade_run(id) {
             eprintln!("Checklist update to the current guide failed for {id}: {error}");
+        }
+        // While the read loop's deferred guides wait, a guide observed in that
+        // same binding context is current (the HUD projection of the active
+        // guide); a deferred one is observed first.
+        if self.deferred_context == Some(self.binding_context()) {
+            if !self.deferred_guides.iter().any(|g| g == id) {
+                return Ok(());
+            }
+            return self.observe_deferred();
         }
         self.bind()
     }
@@ -1819,6 +1888,51 @@ mod observation_tests {
         app.accept(json!({"usable":true,"source":"process_memory","sample":{"country":"SOV","session_id":"one","country_overview":{"country":"SOV"}}})).unwrap();
         assert!(!app.current_archives.contains_key("foreign"));
         assert!(app.current_archives.contains_key("current"));
+    }
+    #[test]
+    fn the_read_loop_observes_other_guides_after_the_delivery() {
+        let make=|id:&str|json!({"id":id,"applies_to":{"country":"SOV"},"tracks":{"operations":[{"key":"note","action":{"kind":"manual"}}]}});
+        let mut app=Application::open(&json!({"guides":[make("active"),make("other")]})).unwrap();
+        app.progress(Some("other"),None,None).unwrap();
+        app.active(Some(&json!({"guide_id":"active"}))).unwrap();
+        app.progress(Some("active"),None,None).unwrap();
+        app.current_archives.clear();
+        let live=json!({"usable":true,"source":"process_memory","sample":{"country":"SOV","session_id":"one","country_overview":{"country":"SOV"}}});
+        app.accept_deferring(live.clone()).unwrap();
+        assert!(app.current_archives.contains_key("active"));
+        assert!(!app.current_archives.contains_key("other"));
+        assert_eq!(app.deferred_guides, vec!["other".to_string()]);
+        assert_eq!(app.accept_parts()["guides_observed"], 1);
+        assert_eq!(app.bound_context, None, "not bound while a guide waits");
+        // The HUD projection of the active guide does not wait for the others.
+        app.projection(Some("active"), true).unwrap();
+        assert!(!app.current_archives.contains_key("other"));
+        assert_eq!(app.deferred_guides, vec!["other".to_string()]);
+        app.observe_deferred().unwrap();
+        assert!(app.current_archives.contains_key("other"));
+        assert!(app.deferred_guides.is_empty());
+        assert_eq!(app.bound_context, Some(app.binding_context()));
+        // The same observation binds nothing again; a full accept observes all.
+        app.current_archives.clear();
+        app.accept_deferring(live.clone()).unwrap();
+        assert!(app.deferred_guides.is_empty() && app.current_archives.is_empty());
+        app.accept(json!({"usable":true,"source":"process_memory","sample":{"country":"SOV","session_id":"two","country_overview":{"country":"SOV"}}})).unwrap();
+        assert!(app.current_archives.contains_key("active") && app.current_archives.contains_key("other"));
+        assert!(app.deferred_guides.is_empty());
+        // Reading a deferred guide observes it first.
+        app.accept_deferring(json!({"usable":true,"source":"process_memory","sample":{"country":"SOV","session_id":"three","country_overview":{"country":"SOV"}}})).unwrap();
+        app.current_archives.clear();
+        app.progress(Some("other"),None,None).unwrap();
+        assert!(app.current_archives.contains_key("other") && app.deferred_guides.is_empty());
+        assert_eq!(app.bound_context, Some(app.binding_context()));
+        // A change of the binding context meanwhile makes it a full bind.
+        app.accept_deferring(live.clone()).unwrap();
+        assert_eq!(app.deferred_guides, vec!["other".to_string()]);
+        app.runs.call("update",json!({"guide_id":"active","checks":{"operations:note":true}})).unwrap();
+        app.current_archives.clear();
+        app.observe_deferred().unwrap();
+        assert!(app.current_archives.contains_key("other") && app.deferred_guides.is_empty());
+        assert_eq!(app.bound_context, Some(app.binding_context()));
     }
     #[test]
     fn progress_reads_reuse_binding_but_run_guide_and_live_changes_invalidate_it() {

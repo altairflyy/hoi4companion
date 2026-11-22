@@ -93,7 +93,7 @@ function report(events) {
       }
       if (d.acquisition > CHANGE_MS || d.progress > CHANGE_MS) {
         changeTotals.push(['acquisition', 'progress', 'packet', 'publish'].reduce((sum, key) => sum + (Number.isFinite(d[key]) ? d[key] : 0), 0));
-        for (const group of ['acquisition', 'progress', 'publish']) {
+        for (const group of ['acquisition', 'collect', 'progress', 'publish']) {
           for (const [key, value] of Object.entries(d[`${group}_parts`] || {})) {
             if (Number.isFinite(value)) (changeParts[`${group}.${key}`] ||= []).push(value);
           }
@@ -207,7 +207,7 @@ function format(r) {
   const cd = r.change_delivery;
   if (cd && cd.total_ms.count) {
     out.push('', `Change-to-delivery (acquisition or progress > ${cd.threshold_ms} ms): ${cd.total_ms.count}, p50 ${n(cd.total_ms.p50)} / p95 ${n(cd.total_ms.p95)} / max ${n(cd.total_ms.max)} ms`);
-    for (const [name, st] of Object.entries(cd.parts).slice(0, 12)) out.push(`  ${name.padEnd(36)} p50 ${n(st.p50).padStart(8)} p95 ${n(st.p95).padStart(8)} max ${n(st.max).padStart(8)}`);
+    for (const [name, st] of Object.entries(cd.parts).slice(0, 24)) out.push(`  ${name.padEnd(36)} p50 ${n(st.p50).padStart(8)} p95 ${n(st.p95).padStart(8)} max ${n(st.max).padStart(8)}`);
   }
   const sc = r.session_closes;
   out.push('', `Qualified session closes: ${sc.count} (${sc.with_session} of an open session)${sc.count ? `, by stage: ${Object.entries(sc.by_stage).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''}`);

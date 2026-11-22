@@ -103,16 +103,16 @@ test('geometry spikes say whether the GUI registry was rebuilt, and blanks say w
   assert.match(text, /GUI registry rebuilds: 2, 1 off the request path/);
 });
 
-test('change-to-delivery adds the stages of changed deliveries and ranks their parts', () => {
+test('change-to-delivery adds the stages of changed deliveries and ranks their parts, full-read parts included', () => {
   const line = (t, delivery) => JSON.stringify({ ev: 'iter', t, branch: 'native', delivery });
   const text = [
-    line(1, { acquisition: 900, progress: 400, packet: 2, publish: 300, progress_parts: { observe_guides: 350 }, publish_parts: { project: 260 } }),
-    line(2, { acquisition: 20, progress: 5, packet: 2, publish: 1, progress_parts: { observe_guides: 0 } }),
-    line(3, { acquisition: 1000, progress: 500, packet: 2, publish: 200, acquisition_parts: { collect: 990 } }),
+    line(1, { acquisition: 900, progress: 400, packet: 2, publish: 300, progress_parts: { observe_active_guide: 350 }, publish_parts: { project: 260 } }),
+    line(2, { acquisition: 20, progress: 5, packet: 2, publish: 1, progress_parts: { observe_active_guide: 0 } }),
+    line(3, { acquisition: 1000, progress: 500, packet: 2, publish: 200, acquisition_parts: { collect: 990 }, collect_parts: { events: 270 } }),
   ].join('\n');
   const r = report(parse(text).events);
   assert.equal(r.change_delivery.total_ms.count, 2, 'an unchanged delivery is left out');
   assert.equal(r.change_delivery.total_ms.max, 1702);
-  assert.deepEqual(Object.keys(r.change_delivery.parts), ['acquisition.collect', 'progress.observe_guides', 'publish.project']);
+  assert.deepEqual(Object.keys(r.change_delivery.parts), ['acquisition.collect', 'progress.observe_active_guide', 'collect.events', 'publish.project']);
   assert.match(format(r), /Change-to-delivery \(acquisition or progress > 100 ms\): 2, p50 1602/);
 });

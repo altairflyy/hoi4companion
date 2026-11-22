@@ -12,7 +12,9 @@ Work that needs no live game first, live checks batched into one session when th
 - done 2026-11-22: LIVE session (numbers: section "Measured 2026-11-22, live session" below);
 - done 2026-11-22: step 3a (a full-read consistency failure keeps the session and retries the full read);
 - 2026-11-22: step 4b part 1 (evaluation copies; p90 2442 -> ~1810 ms in the same game, target NOT met; see step 4b);
-- next: step 4b part 2 (the full read and the per-guide observation), then step 5 (final live check).
+- 2026-11-22: step 4b part 2 (full read ~1000 -> ~760 ms on 4 live samples, other guides after the delivery; target p90 < 1.5 s
+  NOT yet verified: HOI4 closed during the measurement);
+- next: step 5 (final live check), which also measures 4b part 2; if p90 stays >= 1.5 s, the leftovers listed under 4b.
 
 ## Steps (one per session; `/clear` between them; the Resume prompt in `docs/AGENT_HANDOFF.md` says which is next)
 1. [x] Overlay cadence (small). Replace the ~15.6 ms timer rounding of `Wake::wait` / `Reads::wait` (`native/overlay/src/wake.rs`,
@@ -87,6 +89,27 @@ Work that needs no live game first, live checks batched into one session when th
    - Left for part 2: the full read (`acquisition::collect`, now the largest part); `observe_guides` (active guide ~150 ms,
      one other guide ~140 ms, three ~20 ms); HUD `project` (projection ~150 ms + HUD projection ~70 ms); the page's own
      projection requests hold the application lock ~200 ms after each change (`publish.guides` up to 160 ms waiting).
+   Part 2 done 2026-11-22 (code; live only partly measured: HOI4 closed at 12:23 local, not by the agent):
+   - Diagnostics: `pipeline_ms.collect_parts` (from `Provider::collect`, successful collects only): `core`, `campaign`, each
+     domain, `refresh` (+ count `refreshed`), `final_verify`, `compile`, `probe`; the report ranks them as `collect.*`.
+   - Measured live (SOV, ~1000 ms full read): `events` ~380 ms = the event window discovery scanned the whole GUI registry
+     on every full read (the cache only holds while a popup is shown); `fortifications` ~200 (56k witnesses); `refresh` ~145
+     with 0 domains re-read; `politics` ~65. Read-only probe `gui_registry_probe::event_discovery_profile`: 185k registry
+     entries, `gui+80` pass ~210 ms, 127k parents but 13.8k distinct; 4 KiB page batching does not help (58k pages).
+   - Every domain was verified twice (right after its decode and in the refresh pass), each verification reading every
+     range twice (`passes: 2`). Now the first pass does not verify: the refresh pass verifies every domain once all are
+     decoded and reads a changed one again, verified at once (before, a domain that changed during its own decode became
+     unavailable with no retry). The discovery scan reads each parent's vtable once per scan (test
+     `event_discovery_reads_a_shared_parent_vtable_once_per_scan`).
+   - Live, 4 changed deliveries before HOI4 closed: acquisition ~760 ms (was ~1000); `events` 272, `fortifications` 118,
+     `politics` 34, `refresh` ~157 (unchanged, now the only verification).
+   - The read loop observes only the active guide before the HUD delivery (`Application::accept_deferring`) and the other
+     guides right after it is published (`observe_deferred`; a full `bind` if the binding context changed meanwhile). Until
+     then the campaign is not marked bound: a read of a deferred guide (`ensure`) observes it first, the active guide's HUD
+     projection does not wait. Laps
+     `observe_active_guide` / `observe_other_guides` replace `observe_guides`. Expected gain ~150-200 ms (part 1: other
+     guides ~180 ms); NOT measured live.
+   - Not done: HUD `project` (~220 ms), `fortifications` read and verification (one read per province field), `refresh`.
 5. [ ] Live check with the user: play ~10 min with the trace, compare with step 7 of the previous plan, update `docs/native-overlay.md`,
    archive this plan.
 

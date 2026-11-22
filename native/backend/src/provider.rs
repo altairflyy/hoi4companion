@@ -256,7 +256,11 @@ impl Provider {
             return Err(("identity", "Sessione di processo cambiata".into()));
         }
         let mut changed = false;
+        // Where this collect spent its time (HUD plan part 2 step 4b); the
+        // delivery carries it as `pipeline_ms.collect_parts`.
+        let mut laps = crate::application::Laps::new();
         self.finish_audit().at("audit")?;
+        laps.lap("open_and_audit");
         let mut full = self.cached.is_none();
         if !full {
             self.increment("probes");
@@ -264,6 +268,7 @@ impl Provider {
                 self.game.as_ref().unwrap(),
                 &self.cached.as_ref().unwrap().packet,
             ).at("probe")?;
+            laps.lap("probe");
             full = changed;
         }
         if full {
@@ -273,8 +278,9 @@ impl Provider {
                 .as_ref()
                 .map(|v| v.sample.event_cache.clone())
                 .unwrap_or(Value::Null);
-            let sample = acquisition::collect(game, &self.neighbors, &cache, &self.shared_focuses, &self.building_scopes, &self.political_cost_ids, &self.province_ids).at("full_read")?;
+            let sample = acquisition::collect_timed(game, &self.neighbors, &cache, &self.shared_focuses, &self.building_scopes, &self.political_cost_ids, &self.province_ids, &mut laps).at("full_read")?;
             let packet = watch::compile(&sample.watch).at("full_read")?;
+            laps.lap("compile");
             // An audit begun before this read would only bring older bytes.
             self.audit_job = None;
             self.install(sample, packet, now + started.elapsed().as_secs_f64());
@@ -298,6 +304,8 @@ impl Provider {
         }
         let mut sample = cached.sample.value.clone();
         sample["native_tick"] = json!(tick);
+        laps.lap("tick_and_copy");
+        self.metrics["last_collect_parts"] = Value::Object(laps.parts);
         self.metrics["last_read_ms"] =
             json!((started.elapsed().as_secs_f64() * 1_000_000.).round_ties_even() / 1000.);
         Ok(sample)

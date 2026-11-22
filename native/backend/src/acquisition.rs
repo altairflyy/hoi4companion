@@ -1,5 +1,6 @@
 //! Complete acquisition through a retained qualified Game; no host callback.
 use crate::{
+    application::Laps,
     country,
     game_process::Game,
     live,
@@ -85,6 +86,12 @@ fn watch_rows(output: &Value, plan: &mut Witnesses) -> Result<()> {
     Ok(())
 }
 pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focuses: &Value, building_scopes: &Value, political_cost_ids:&Value, province_ids:&Value) -> Result<Sample> {
+    collect_timed(game, neighbors, event_cache, shared_focuses, building_scopes, political_cost_ids, province_ids, &mut Laps::new())
+}
+/// `collect` that adds the time of each part (core, campaign, each domain,
+/// refresh, final verification) to `laps` (HUD plan part 2 step 4b).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn collect_timed(game: &Game, neighbors: &Value, event_cache: &Value, shared_focuses: &Value, building_scopes: &Value, political_cost_ids:&Value, province_ids:&Value, laps: &mut Laps) -> Result<Sample> {
     let metadata = game.profile.metadata();
     let attributes = profile_value(&metadata["selected"]);
     let base = game.base;
@@ -106,6 +113,7 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
             watch: true,
         },
     )?;
+    laps.lap("core");
     let world = packet["world"]
         .as_u64()
         .ok_or("World identity unavailable")?;
@@ -144,8 +152,10 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
             },
         ) && let Some(cache) = output.get("event_cache").filter(|v| v.is_array())
         {
-            return collect(game, neighbors, cache, shared_focuses, building_scopes, political_cost_ids, province_ids);
+            laps.lap("event_discovery");
+            return collect_timed(game, neighbors, cache, shared_focuses, building_scopes, political_cost_ids, province_ids, laps);
         }
+        laps.lap("event_discovery");
     }
     let mut state = packet["state"].clone();
     if let Some(compatibility) = attributes.get("compatibility") {
@@ -193,6 +203,7 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
             qualify: false,
         },
     )?;
+    laps.lap("campaign");
     for (key, bytes) in &memory.witnesses {
         if !old.contains(key) {
             plan.insert(*key, bytes.clone());
@@ -208,7 +219,11 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
         cache: Option<Value>,
         attrs: Value,
     }
-    let read_domain = |section: &str, attrs: Value| -> Result<Domain> {
+    // `verified`: check the witnesses at once. The first pass leaves that to the
+    // refresh below, which checks every domain after all of them are decoded
+    // (one check per domain instead of two: live, fortifications 56k witnesses
+    // ~78 ms per check) and reads a changed domain again, verified at once.
+    let read_domain = |section: &str, attrs: Value, verified: bool| -> Result<Domain> {
         let mut current = Memory::new(game, 2 * 1024 * 1024)?;
         let output = country::collect(
             &mut current,
@@ -223,7 +238,9 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
                 attributes: attrs.clone(),
             },
         )?;
-        verify(game, &current.witnesses)?;
+        if verified {
+            verify(game, &current.witnesses)?;
+        }
         let mut watch = Witnesses::new();
         watch_rows(&output, &mut watch)?;
         let mut value = output["value"].clone();
@@ -278,7 +295,7 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
             attrs["event_cache"] = event_cache.clone()
         }
         let read = (|| {
-            let domain = read_domain(section, attrs)?;
+            let domain = read_domain(section, attrs, false)?;
             if section == "fortifications" {
                 let mut combined = plan.clone();
                 combined.extend(domain.watch.clone());
@@ -296,14 +313,17 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
             Ok(value) => value,
             Err(reason) => json!({"status":"unavailable","reason":reason}),
         };
+        laps.lap(section);
     }
-    // Refresh a domain that changed while another domain was being decoded.
+    // Every domain is verified here, after all were decoded: one that changed
+    // during its own or another domain's decode is read again once.
     // A second change withholds that domain rather than poisoning focus/research
     // or publishing stale values. Identity/core witnesses are always mandatory.
     let mut discard = vec![];
     for (section, domain) in &mut domains {
         if verify(game, &domain.witnesses).is_err() {
-            match read_domain(section, domain.attrs.clone()) {
+            laps.count("refreshed");
+            match read_domain(section, domain.attrs.clone(), true) {
                 Ok(current) => {
                     overview[section] = current.value.clone();
                     *domain = current;
@@ -318,6 +338,7 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
     for section in discard {
         domains.remove(&section);
     }
+    laps.lap("refresh");
     // These are independently witnessed domain observations, not a claim that
     // all game memory was frozen in one frame. Each value carries its observed
     // game tick. Requiring all counters to stay unchanged across every domain
@@ -334,6 +355,7 @@ pub fn collect(game: &Game, neighbors: &Value, event_cache: &Value, shared_focus
     if game.identity()? != game.created {
         return Err("Sessione di processo cambiata".into());
     }
+    laps.lap("final_verify");
     publish_focus_tree(&mut state)?;
     state["country_overview"] = overview;
     state["country_observation_scope"] = json!("independently_verified_domains");

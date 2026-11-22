@@ -129,3 +129,81 @@ mod event_window_probe {
         std::fs::write(&path, serde_json::to_string_pretty(&report).unwrap()).unwrap();
     }
 }
+/// Read-only timing of the event window discovery scan of the `events`
+/// section (HUD plan part 2 step 4b): registry size, distinct parents and the
+/// cost of each read pass, on the running game. Run by hand:
+/// `HOI4_EXE=<hoi4.exe> node scripts/dev-native.cjs test backend --lib event_discovery_profile -- --ignored --nocapture`.
+mod event_discovery_profile {
+    use crate::live::Memory as _;
+    use sha2::{Digest, Sha256};
+    use std::collections::{HashMap, HashSet};
+    use std::time::Instant;
+    type M<'a> = crate::live_process::Memory<'a>;
+    fn u(m: &mut M, a: u64) -> Option<u64> {
+        m.discovery_read(a, 8).ok().map(|b| u64::from_le_bytes(b.try_into().unwrap()))
+    }
+    #[test]
+    #[ignore]
+    fn event_discovery_profile() {
+        let exe = std::env::var("HOI4_EXE").expect("HOI4_EXE");
+        let manifest = format!("{:x}", Sha256::digest(include_bytes!("../../../src/hoi4companion/live-profiles-v1.json")));
+        let opened = std::sync::Arc::new(crate::profile::Profile::open(std::path::Path::new(&exe), &manifest).unwrap());
+        let game = crate::game_process::Game::open(opened).unwrap();
+        let profile = crate::live_process::profile_value(&game.profile.metadata()["selected"]);
+        let base = game.base;
+        for round in 0..3 {
+            let mut memory = M::new(&game, 512 * 1024 * 1024).unwrap();
+            let root = u(&mut memory, base + profile["gui_layout"]["root_rva"].as_u64().unwrap_or(0x34531E0)).unwrap();
+            let registry: Vec<u64> = profile["gui_layout"]["registry"].as_array()
+                .map(|v| v.iter().filter_map(|x| x.as_u64()).collect()).unwrap_or(vec![264, 288]);
+            let started = Instant::now();
+            let mut guis = vec![];
+            let mut seen = HashSet::new();
+            let mut extents = vec![];
+            for (offset, dynamic) in [(registry[0], false), (registry[1], true)] {
+                let raw = memory.discovery_read(root + offset, 16).unwrap();
+                let data = u64::from_le_bytes(raw[..8].try_into().unwrap());
+                let capacity = i32::from_le_bytes(raw[8..12].try_into().unwrap());
+                let count = i32::from_le_bytes(raw[12..].try_into().unwrap());
+                let extent = if dynamic { capacity } else { count } as usize;
+                extents.push((capacity, count));
+                for start in (0..extent).step_by(8192) {
+                    let bytes = memory.discovery_read(data + start as u64 * 8, (extent - start).min(8192) * 8).unwrap();
+                    for row in bytes.as_chunks::<8>().0 {
+                        let gui = u64::from_le_bytes(*row);
+                        if gui != 0 && seen.insert(gui) { guis.push(gui); }
+                    }
+                }
+            }
+            let arrays = started.elapsed();
+            let started = Instant::now();
+            let parents: Vec<Option<u64>> = guis.iter().map(|g| u(&mut memory, g + 80)).collect();
+            let parent_pass = started.elapsed();
+            let distinct: HashSet<u64> = parents.iter().flatten().copied().filter(|p| *p != 0).collect();
+            let started = Instant::now();
+            let mut vts = HashMap::new();
+            for p in &distinct { if let Some(vt) = u(&mut memory, *p) { vts.insert(*p, vt); } }
+            let vt_pass = started.elapsed();
+            let distinct_vts: HashSet<u64> = vts.values().copied().collect();
+            let nonzero = parents.iter().flatten().filter(|p| **p != 0).count();
+            println!("round {round}: registries {extents:?}, guis {}, nonzero parents {nonzero}, distinct parents {}, distinct vts {}",
+                guis.len(), distinct.len(), distinct_vts.len());
+            println!("  arrays {:.1} ms, gui+80 pass {:.1} ms, parent vt pass (distinct) {:.1} ms", arrays.as_secs_f64() * 1e3,
+                parent_pass.as_secs_f64() * 1e3, vt_pass.as_secs_f64() * 1e3);
+            // Page-batched gui+80 pass: one read per distinct page or block.
+            for block in [4096u64, 16384, 65536] {
+                let mut blocks: Vec<u64> = guis.iter().map(|g| (g + 80) & !(block - 1)).collect();
+                blocks.sort_unstable();
+                blocks.dedup();
+                let started = Instant::now();
+                let mut failed = 0;
+                let mut bytes = 0usize;
+                for b in &blocks {
+                    match memory.discovery_read(*b, block as usize) { Ok(v) => bytes += v.len(), Err(_) => failed += 1 }
+                }
+                println!("  block {block}: {} blocks, {failed} failed, {:.1} MB, {:.1} ms", blocks.len(), bytes as f64 / 1048576.,
+                    started.elapsed().as_secs_f64() * 1e3);
+            }
+        }
+    }
+}

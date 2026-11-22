@@ -3,11 +3,11 @@ Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): step 4b parte 2. Consegna dopo un cambio p90 ~1.81 s,
-> obiettivo < 1.5 s. Parti in `pipeline_ms` (`node scripts/hud-trace-report.cjs`, "Change-to-delivery"): full read `collect` ~0.9-1.1 s,
-> `observe_guides` ~0.35-0.45 s, `publish.project` ~0.23 s. Profila prima la full read (`acquisition::collect`), poi il resto.
-> Test Rust, invariant-reviewer, commit locale, rebuild + restart. Poi step 5 (live con l'utente).
-Step 4b part 1 done (plan, step 4b). Order now: 4b part 2, then step 5 (live). HOI4 may be running: profile read-only, never control it.
+> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): step 5, verifica live con l'utente (~10 min di gioco col
+> trace). Misura anche lo step 4b parte 2: `node scripts/hud-trace-report.cjs`, "Change-to-delivery" (obiettivo p90 < 1.5 s; parti
+> `collect.*`, `progress.observe_active_guide`, `publish.project`). Se p90 >= 1.5 s: residui elencati in 4b. Poi aggiorna
+> `docs/native-overlay.md` e archivia il piano. Mai avviare o controllare HOI4.
+Step 4b part 2 done in code (plan, step 4b); live effect measured only on 4 deliveries. HOI4 may be running: profile read-only.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
@@ -19,6 +19,9 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-22 step 4b part 2: full read verifies each domain once (refresh pass), event discovery reads each parent vtable once,
+  other guides observed after the HUD delivery. Live, 4 deliveries: acquisition ~1000 -> ~760 ms; HOI4 then closed (12:23, not
+  by the agent), so the delivery p90 and the deferral are NOT measured. Tests green (live 72, backend 65 + 120, report 7), reviewer clean.
 - 2026-11-22 step 4b part 1: fewer evaluation copies (see plan). Live, same game: change-to-delivery p90 2442 -> ~1810 ms, target 1.5 s
   NOT met. Tests green (guides 112, backend 64 + 120, report 7), reviewer clean. Live: 3a retried a full read once, 0 closes.
 - 2026-11-22 step 3a (`provider.rs` `settle`): full-read consistency failure keeps handle/GUI registry, unknown at once, retry next

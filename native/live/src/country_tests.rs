@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 mod political_costs_tests;
 
 #[derive(Default)]
-struct Fixture { bytes: BTreeMap<u64,u8>, classes: BTreeMap<u64,String>, next: u64, native_rtti: bool }
+struct Fixture { bytes: BTreeMap<u64,u8>, classes: BTreeMap<u64,String>, next: u64, native_rtti: bool, reads: BTreeMap<(u64,usize),usize> }
 const BASE:u64=0x140000000;
 const COUNTRY:u64=0x200000;
 const WORLD:u64=0x210000;
@@ -37,7 +37,7 @@ impl Fixture {
     }
 }
 impl Memory for Fixture {
-    fn read(&mut self,a:u64,n:usize)->Result<Vec<u8>>{Ok((0..n).map(|i|*self.bytes.get(&(a+i as u64)).unwrap_or(&0)).collect())}
+    fn read(&mut self,a:u64,n:usize)->Result<Vec<u8>>{*self.reads.entry((a,n)).or_default()+=1;Ok((0..n).map(|i|*self.bytes.get(&(a+i as u64)).unwrap_or(&0)).collect())}
     fn class_name(&mut self,rva:u64)->Result<String>{self.classes.get(&rva).cloned().ok_or("Unknown fixture RTTI".into())}
     fn fixture_transport(&self)->bool{!self.native_rtti}
     fn executable_bytes(&mut self,rva:u64,n:usize)->Result<Vec<u8>>{self.read(BASE+rva,n)}
@@ -256,6 +256,22 @@ fn event_owner_is_recovered_from_the_actual_secondary_rtti_offset(){
     let a=json!({"image_base":BASE,"gui_layout":{"root_rva":0x8000,"registry":[264,288]}});
     assert_eq!(m.request("events",a.clone()).unwrap()["visible"],json!([]));
     m.i(BASE+col+4,600);assert!(m.request("events",a).unwrap_err().contains("non individuata"));
+}
+#[test]
+fn event_discovery_reads_a_shared_parent_vtable_once_per_scan(){
+    // Live registries hold ~185k widgets but ~14k distinct parents: the
+    // discovery scan reads each parent's vtable once, not once per widget.
+    let mut m=Fixture::new();m.native_rtti=true;
+    let root=m.alloc();m.object(root,"CGameGui");m.u(BASE+0x8000,root);
+    let owner=m.alloc();m.object(owner,"CEventWindow");
+    let guis:Vec<u64>=(0..5).map(|_|{let gui=m.alloc();m.u(gui+80,owner+40);gui}).collect();m.array(root+264,&guis);
+    let vt=BASE+0xf000;let col=0xf100;let desc=0xf200;
+    m.u(owner+40,vt);m.u(vt-8,BASE+col);m.i(BASE+col,1);m.i(BASE+col+4,40);m.i(BASE+col+12,desc as i32);m.i(BASE+col+20,col as i32);m.put(BASE+desc+16,b".?AVCEventWindow@@\0");
+    let container=m.alloc();m.object(container,"CContainerWindow");m.u(owner+0x50,container);m.u(container+48+104,root);m.u(container+48+80,owner+56);
+    let a=json!({"image_base":BASE,"gui_layout":{"root_rva":0x8000,"registry":[264,288]}});
+    assert_eq!(m.request("events",a).unwrap()["visible"],json!([]));
+    assert_eq!(m.reads.get(&(owner+40,8)),Some(&1));
+    for gui in guis {assert_eq!(m.reads.get(&(gui+80,8)),Some(&1));}
 }
 #[test]
 fn visible_event_choices_follow_the_build_gui_layout(){

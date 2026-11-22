@@ -49,6 +49,7 @@ impl<M: Memory> Reader<'_, M> {
         let mut owners = BTreeSet::new();
         let mut seen = HashSet::new();
         let mut event_types = std::collections::HashMap::<u64, bool>::new();
+        let mut parent_vtables = std::collections::HashMap::<u64, u64>::new();
         for (offset, dynamic) in [(registry[0], false), (registry[1], true)] {
             let raw = self.track(root + offset, 16)?;
             let data = u64::from_le_bytes(raw[..8].try_into().unwrap());
@@ -77,10 +78,21 @@ impl<M: Memory> Reader<'_, M> {
                             bytes.try_into().map_err(|_| "Partial GUI discovery")?,
                         );
                         if parent != 0 {
-                            let bytes = self.d.memory.discovery_read(parent, 8)?;
-                            let vt = u64::from_le_bytes(
-                                bytes.try_into().map_err(|_| "Partial GUI discovery")?,
-                            );
+                            // Most widgets share a parent (live: 125k parents,
+                            // 13.6k distinct): read each parent's vtable once
+                            // per scan. Owners are still requalified below.
+                            let vt = if let Some(vt) = parent_vtables.get(&parent) {
+                                *vt
+                            } else {
+                                let bytes = self.d.memory.discovery_read(parent, 8)?;
+                                let vt = u64::from_le_bytes(
+                                    bytes.try_into().map_err(|_| "Partial GUI discovery")?,
+                                );
+                                if parent_vtables.len() < 1 << 20 {
+                                    parent_vtables.insert(parent, vt);
+                                }
+                                vt
+                            };
                             if self.d.memory.fixture_transport() {
                                 if vt == self.d.base + 0x29a4878 {
                                     return Ok(Some(

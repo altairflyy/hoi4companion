@@ -498,6 +498,11 @@ impl Service {
                     );
                     let _ = owner.publish_hud(&packet["pipeline_ms"]);
                     let _ = owner.hub.publish(packet, owner.now());
+                    if let Ok(mut app) = owner.application.lock()
+                        && let Err(error) = app.observe_deferred()
+                    {
+                        eprintln!("Deferred guide observation failed: {error}");
+                    }
                     let clients = match owner.clients.lock() {
                         Ok(v) => v,
                         Err(_) => break,
@@ -548,6 +553,7 @@ impl Service {
                 crate::request(0, "provider_collect", json!({"handle":handle,"now":now,"political_cost_ids":political_cost_ids,"province_ids":province_ids}))
             });
         let collected = Instant::now();
+        let collect_ok = sample.is_ok();
         let mut value = match sample {
             Ok(sample) => reading.monitor.accept(sample, now, &timestamp())?,
             Err(error) => reading.monitor.failed(&error, now)?,
@@ -564,6 +570,8 @@ impl Service {
         // Native GUI observations must not queue behind that CPU/SQLite work.
         let monitored = Instant::now();
         drop(provider);
+        // Only a successful collect wrote these parts (a failed one keeps the last).
+        let value_parts = if collect_ok { value["metrics"]["last_collect_parts"].clone() } else { json!({}) };
         let acquired = Instant::now();
         value["transport"] =
             json!({"kind":"change_events","memory_probe_seconds":0.25,"integrity_audit_seconds":5});
@@ -573,7 +581,14 @@ impl Service {
             .map_err(|_| "Application unavailable")?;
         let app_locked = Instant::now();
         let selected = app.active_revision();
-        app.accept(value)?;
+        // The read loop (`fresh`) observes the other guides after it has
+        // published the HUD delivery (`observe_deferred`); other callers wait
+        // for every guide as before.
+        if fresh {
+            app.accept_deferring(value)?;
+        } else {
+            app.accept(value)?;
+        }
         // The played nation changed and another guide became active: the HUD
         // must not keep serving the previous guide's targets.
         if app.active_revision() != selected {
@@ -590,7 +605,8 @@ impl Service {
             // Where acquisition and progress spent their time (HUD plan part 2 step 4b).
             "acquisition_parts": {"reading_lock":ms(poll_started,reading_locked),"inputs_and_provider_lock":ms(reading_locked,provider_locked),
                 "collect":ms(provider_locked,collected),"monitor_and_inspect":ms(collected,monitored),"app_lock":ms(acquired,app_locked)},
-            "progress_parts": app.accept_parts().clone()
+            "progress_parts": app.accept_parts().clone(),
+            "collect_parts": value_parts
         });
         packet["overlay"] = crate::hud_diagnostics::read_status(
             &self.hud_status_path, &packet["active_guide_id"], &packet["guide_server_id"],
