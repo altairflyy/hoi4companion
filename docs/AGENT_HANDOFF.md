@@ -1,13 +1,13 @@
 # Shared agent handoff
-Updated: 2026-11-21. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `-2026-11-20.md`, `-2026-11-21.md`, `git log`.
+Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `-2026-11-20.md`, `-2026-11-21.md`, `-2026-11-22.md`, `git log`.
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`, sezione "Order from 2026-11-21"): SESSIONE LIVE.
-> Solo quando l'utente è al PC e gioca ~10 min (mai avviare o comandare HOI4). Poi leggi `hud-trace.jsonl` con `hud-trace-report.cjs`:
-> motivi di chiusura (step 2), `gap_ms` (step 1), consegna dopo un cambio p90 < 1.5 s (step 4), picchi geometria dopo un reopen (3b).
-> Chiusura: annota i numeri nel piano, decidi lo step 3a dai motivi visti, riscrivi questo prompt.
-Part 2 reordered 2026-11-21 at the user's request (remote, no live play): offline steps 4, 3b done; next ONE live session; then 3a, 5.
+> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): step 3a, offline.
+> Su un errore di coerenza del full read ("Stato cambiato durante la lettura", "Campione incoerente: riprovare", "Stato ricerca vuoto
+> o duplicato") tieni handle e GUI registry, consegna subito unknown, riprova al tick dopo; chiudi solo dopo N fallimenti o altri errori.
+> Test Rust, invariant-reviewer, commit locale, rebuild + restart. Poi step 4b (consegna dopo un cambio p90 1955 ms, obiettivo < 1.5 s).
+Live session 2026-11-22 done: numbers in the plan section "Measured 2026-11-22, live session". Order now: 3a, 4b, then step 5 (live).
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
@@ -19,17 +19,8 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
-- 2026-11-21 part 2 step 3b: HUD geometry no longer waits on the provider lock nor the HTTP provider owner during a full read (lane slot +
-  `provider_handle`). Backend 61+120 green, new lock test, invariant-reviewer clean. Live spikes NOT measured: LIVE session.
-- 2026-11-21 part 2 step 4: progress store reads no longer clone the whole state (offline: 54 `get` 420 -> 0.4 ms; a write ~70 ms, so
-  the 2 MB rewrite was NOT the cost). Storage/guides/backend tests green. Live change-to-delivery p90 NOT measured: LIVE session.
-- 2026-11-21 part 2 step 2 (code): provider `metrics.closes` + delivery `provider_close` + trace `close_*` + report section. Backend 60+120,
-  overlay 78, report 6 tests green. Close reasons NOT yet seen live: needs the user's play session.
-- 2026-11-21 HUD part 2 step 1: overlay `wake::FineTimer` (1 ms tick for the HUD process). Unit test: a 5 ms wait took median 15.5 ms
-  (condvar and channel) with the default tick, 5.5 ms with it. Overlay tests 77/77 green, invariant-reviewer clean. Live `gap_ms` NOT measured (step 5).
-- 2026-11-21 HUD plan 2026-11-20 step 7 (live check, 1221 s of play on `f40e999`): stalls 0 (was 16), blank card 0, 7/7 GUI rebuilds off
-  the request path, transport p95 2.5 ms (step 6 closed). New: 6 qualified-session drops (cause not recorded), 98 delivery expiries after
-  a change (pipeline p50 2.6 s), actions 1.8-3.2 s, loop ~31 ms. Numbers: plan section "Measured 2026-11-21, step 7". Steps 3e-5 seen working.
+- 2026-11-22 live session (1003 s traced, build `603225f`): gap p50 16.8 ms (step 1 ok); geometry max 14 ms after a reopen
+  (3b ok); closes all `full_read` consistency errors (step 3a decided); change-to-delivery p90 1955 ms, target 1.5 s NOT met (4b).
 - 2026-11-20 `3ac001a` HUD card: a production step is skipped as current step once a later step of its track is completed (cause:
   layouts stop matching when lines change or read briefly unknown). Production list behind a toggle (`production_open` in overlay-card.json).
   Rust unit tests green, rebuilt, app restarted. NOT seen in game.
