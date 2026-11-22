@@ -3,6 +3,9 @@
 Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/hud-performance-plan-2026-11-21.md`.
 
 ## Recently verified (moved)
+- 2026-11-22 UX step 4: ZIP, rapporto, due percorsi di correzione, stati senza dati e avvisi Focus verificati in Edge IT/EN.
+  ZIP sintetici e backend isolato. JS mirati 103/103. Catture, altri test e limiti nel piano UX. Verifica manuale WebView2 aperta.
+  Backend e overlay ricompilati dopo `663bb41`. Launcher isolato con HUD disattivato e HTTP 200. Riprova Edge del binario installato riuscita.
 - 2026-11-22 UX step 2: «Ora» prima delle metriche, «Ora / Poi» prima di scorciatoie e riferimenti. Edge headless 1282 × 832 con fixture isolate: M1 0/0, M2 1/1/1, anteprima 0/2 nel Piano.
   Test mirati 74/74, npm test 513 passati, 3 saltati. Backend e overlay ricompilati, Companion su 8766. Catture in `.local/ux-captures/step-2/`. Verifica in WebView2 e in partita reale aperta.
 - 2026-11-22 UX step 1: embedded reference navigation and Settings keyboard loop pass in Edge headless and desktop WebView2. M1 0/0, M2 2/2/2, M3 1/1 with synchronized titles after fix, M4 0/6.

@@ -67,6 +67,7 @@
   const button=$('overviewAction'),hasGuide=!!active?.guide_id;
   const message=[campaign.message,campaign.hint].filter(Boolean).join(' ');
   if($('gameStatus').textContent!==message)$('gameStatus').textContent=message;
+  if($('hudStatus').textContent!==message)$('hudStatus').textContent=message;
   button.hidden=!hasGuide&&(!active||!catalogLoaded);
   $('activeRouteActions').hidden=!hasGuide||campaign.action==='library';
   if(button.hidden)return;
@@ -120,7 +121,7 @@
    }catch(e){if(version!==projectionVersion)return;projection=null;preview=null;drawRoute();error(e.message);}
   })().finally(()=>{loading=null;if(queued){queued=false;refreshProjection();}});return loading;
  }
- window.hoiLive.subscribe(value=>{packet=value;if(value?.active_guide_id&&value.active_guide_id!==active?.guide_id){projectionVersion++;projection=null;preview=null;active={guide_id:value.active_guide_id,title:catalog.find(g=>g.id===value.active_guide_id)?.title};drawRoute();}const m=model.metrics(value);$('countryTag').textContent=m.country||'—';$('metricCountry').textContent=m.country||'—';$('metricDivisions').textContent=display(m.divisions);$('metricPP').textContent=display(m.politicalPower);$('metricFactories').textContent=display(m.factories);$('readerBadge').dataset.connected=String(m.current);$('readerText').textContent=t(m.current?'Reader connected':'Waiting for current game data');$('campaignHint').textContent=t(m.current?'Current campaign':'No qualified game state');$('hudStatus').textContent=value?.usable?(value.overlay?.message||t('No new contextual indication')):t('Waiting for current game data');
+ window.hoiLive.subscribe(value=>{packet=value;if(value?.active_guide_id&&value.active_guide_id!==active?.guide_id){projectionVersion++;projection=null;preview=null;active={guide_id:value.active_guide_id,title:catalog.find(g=>g.id===value.active_guide_id)?.title};drawRoute();}const m=model.metrics(value);$('countryTag').textContent=m.country||'—';$('metricCountry').textContent=m.country||'—';$('metricDivisions').textContent=display(m.divisions);$('metricPP').textContent=display(m.politicalPower);$('metricFactories').textContent=display(m.factories);$('readerBadge').dataset.connected=String(m.current);$('readerText').textContent=t(m.current?'Reader connected':'Waiting for current game data');$('campaignHint').textContent=t(m.current?'Current campaign':'No qualified game state');
   const signature=JSON.stringify([value?.active_guide_id,m.country,value?.active_guide_revision,value?.usable,value?.reader_status]);if(signature!==librarySignature){librarySignature=signature;drawLibrary();}
   const key=model.projectionKey(value);
   if(!value?.usable||projection&&!model.matchingLiveProjection(value,projection)){projection=null;drawRoute();}

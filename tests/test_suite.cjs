@@ -147,13 +147,14 @@ test('suite rejects prior guide/campaign/session projections before displaying o
  for(const change of [p=>p.guide_id='b',p=>p.progress.campaign_id='old',p=>p.progress.run_id='old',p=>p.state.session_id='old',p=>p.state.usable=false]){const copy=structuredClone(projection);change(copy);assert.equal(model.currentProjection(packet,copy),false);}
  packet.sample.campaign_identity.status='unknown';assert.equal(model.currentProjection(packet,projection),false);
 });
-test('suite presents the backend campaign codes and keeps the primary destinations distinct',async()=>{
+test('suite presents the backend campaign codes in the home and HUD panel',async()=>{
  const sample={country:'POL',session_id:'session',focus_tree_id:'tree',campaign_identity:{status:'observed',id:'campaign'}};
  const run={run_id:'r',country:'POL',campaign_id:'campaign',guide_id:'a'};
  const live={usable:true,sample,active_guide_id:'a',guide_runs:{a:run},guide_server_id:'server'};
  const liveProjection={schema_version:1,engine:'rust-guide-core',server_id:'server',guide_id:'a',guide:{tracks:{}},
   state:{usable:true,sample},progress:run,evaluation:{guide_id:'a',mode:'live',run_id:'r'}};
  for(const [packet,campaign,message,destination,label] of [
+  [null,null,/Checking the game/,'walkthrough','Continue the plan'],
   [{usable:false,reader_status:'game_absent'},null,/HOI4 is not running/,'walkthrough','Continue the plan'],
   [{usable:false,reader_status:'build_unsupported'},null,/not supported for reading/,'walkthrough','Continue the plan'],
   [{usable:false,reader_status:'campaign_unverified'},null,/Wait for the campaign/,'walkthrough','Continue the plan'],
@@ -164,14 +165,37 @@ test('suite presents the backend campaign codes and keeps the primary destinatio
   [live,{code:'wrong_campaign'},/does not match the saved checklist/,'library','Choose another guide'],
   [live,{code:'linked',country:'POL',date:19360101},/Game linked: POL, 1936-01-01/,'walkthrough','Continue the plan'],
  ]){
-  const h=suiteHarness([],false,packet.usable?{...liveProjection,campaign_status:campaign}:previewProjection());
-  h.send(packet);await h.settled();await h.flush();
+  const h=suiteHarness([],false,packet?.usable?{...liveProjection,campaign_status:campaign}:previewProjection());
+  if(packet)h.send({...packet,overlay:{message:'HUD visible'}});
+  await h.settled();await h.flush();
   assert.match(h.element('gameStatus').textContent,message);
+  assert.equal(h.element('hudStatus').textContent,h.element('gameStatus').textContent);
   assert.equal(h.element('overviewAction').dataset.view,destination);
   assert.equal(h.element('overviewAction').textContent,label);
  }
+ const h=suiteHarness([],false,{...liveProjection,campaign_status:{code:'linked',country:'POL'}});
+ h.send(live);await h.settled();await h.flush();
+ assert.match(h.element('hudStatus').textContent,/Game linked: POL/);
+ h.send({...live,sample:{...sample,session_id:'new-session'}});
+ assert.match(h.element('hudStatus').textContent,/Checking the game/);
+ await h.flush();
+ assert.match(h.element('hudStatus').textContent,/Checking the game/);
+ h.send({...live,usable:false,status:'stale'});
+ assert.match(h.element('hudStatus').textContent,/Checking the game/);
  assert.equal(model.matchingLiveProjection({...live,sample:{...sample,focus_tree_id:'new'}},liveProjection),false);
  assert.equal(model.matchingLiveProjection({...live,guide_server_id:'restarted'},liveProjection),false);
+});
+test('HUD panel explains verified highlights and shows the step card shortcut in both languages',()=>{
+ const html=fs.readFileSync(require.resolve('../src/hoi4companion/web/suite.html'),'utf8');
+ const panel=html.match(/<section class="session-panel">([\s\S]*?)<\/section>/)[1];
+ const {messages}=require('../src/hoi4companion/translations.json');
+ const highlights='The HUD highlights verified guide targets in a linked game.';
+ const shortcut='During the game, press Ctrl+Alt+H to show or hide the step card.';
+ for(const key of [highlights,shortcut]){
+  assert.ok(panel.includes(`data-copy="${key}">${key}<`));
+  assert.ok(messages[key]);
+ }
+ assert.match(messages[shortcut],/Ctrl\+Alt\+H/);
 });
 test('embedded views share the stream and release subscriptions without owning an EventSource',()=>{
  let disposed=0,subscribed=0;const handlers={},source={enabled:true,value:{usable:false},sample:()=>null,subscribe(fn){subscribed++;fn(this.value);return ()=>disposed++;}};

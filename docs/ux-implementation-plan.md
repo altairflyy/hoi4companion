@@ -312,7 +312,7 @@ La prova non ha richiesto una partita reale. Verifiche HUD in partita sospese.
 
 ## Step 6 · L'HUD spiegato dalla suite
 
-**Stato:** da fare.
+**Stato:** implementato e verificato il 2026-11-22 in Edge headless con fixture isolate.
 
 In «Sessione e HUD»: una frase sulle evidenziazioni e una sulla scheda del passo; `Ctrl+Alt+H` visibile come comando di richiamo.
 Stato di attesa e gioco collegato distinti con i messaggi dello step 3. Solo segnali già disponibili: senza conferma della visibilità
@@ -321,6 +321,26 @@ partita è collegata. Durante la partita premi Ctrl+Alt+H per mostrare o nascond
 
 **Completato quando** la schermata a gioco chiuso spiega perché non ci sono indicazioni e come richiamare la scheda. Fixture per ogni
 stato esposto. Geometria, acquisizione e tempi di validità dell'HUD invariati.
+
+### Verifica dello step 6 · 2026-11-22
+
+Prima (`d388ab4`) e dopo in Edge headless a 1282 × 832, in italiano e inglese. Stesse dieci fixture basate sui dati dello step 3.
+Catture e log in `.local/ux-captures/step-6/`. Prima il pannello mostrava un’attesa generica o un messaggio dell’overlay.
+Ora mostra lo stesso stato della Sala operativa. Con HOI4 chiuso spiega perché mancano le indicazioni e come richiamare la scheda.
+
+| Fixture | Messaggio nel pannello |
+|---|---|
+| Gioco assente, build rifiutata | Stato specifico per ciascun caso. |
+| Campagna non verificabile, con o senza campione | Indicazione di attendere il caricamento. |
+| Nazione, albero o checklist incompatibili | Motivo specifico e progressi sospesi. |
+| Campagna collegata | POL e data 1936-01-01 dalla proiezione, senza attestare la visibilità della scheda. |
+| Indeterminato, campione obsoleto | Controllo della partita in corso. |
+
+`Ctrl+Alt+H` compare in tutte le catture dopo la modifica. I test coprono anche l’attesa iniziale e l’invalidazione della
+proiezione al cambio di sessione. Geometria, acquisizione e validità dell’HUD invariate.
+Test mirati 21/21. Regressione web 515 passati, 3 saltati dal runner. Escluso il test nativo che esercita la scrittura dei preset MIO.
+Revisione invarianti senza rilievi. Resa nella finestra WebView2 e richiamo della scheda in partita da verificare a mano dall’utente.
+La verifica live dell’HUD resta sospesa.
 
 ## Step 7 · Una sola interfaccia (decisione dell'utente)
 

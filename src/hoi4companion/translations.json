@@ -16,6 +16,8 @@
     "research_choice_waiting": "an earlier research choice is not completed yet"
   },
   "messages": {
+    "The HUD highlights verified guide targets in a linked game.": "Quando la partita è collegata, l’HUD evidenzia gli obiettivi verificati della guida.",
+    "During the game, press Ctrl+Alt+H to show or hide the step card.": "Durante la partita, premi Ctrl+Alt+H per mostrare o nascondere la scheda del passo.",
     "You can explore the tree. Guide highlights are unavailable.": "Puoi esplorare l’albero. Le evidenziazioni della guida non sono disponibili.",
     "Guide highlights could not be updated.": "Impossibile aggiornare le evidenziazioni della guida.",
     "{0} steps can be checked automatically, {1} to confirm, {2} not interpreted.": "{0} passi verificabili automaticamente, {1} da confermare, {2} non interpretati.",
