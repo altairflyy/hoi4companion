@@ -16,6 +16,7 @@ test('walkthrough renders only operational instructions, preserves conditions, r
   append(...nodes){this.children.push(...nodes);}
   replaceChildren(...nodes){this.text='';this.children=nodes;}
   setAttribute(key,value){this[key]=value;}getAttribute(key){return this[key];}addEventListener(type,fn){this['on'+type]=fn;}
+  scrollIntoView(){this.scrolled=true;}
   pause(){this.paused=true;}load(){}removeAttribute(key){delete this[key];}showModal(){this.open=true;}close(){this.open=false;if(this.onclose)this.onclose();}
  }
  const nodes=new Map(),get=id=>{if(!nodes.has(id))nodes.set(id,new Node());return nodes.get(id);};get('hideDone').checked=true;
@@ -29,7 +30,9 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  const push=async value=>{current=value;subscriber(value);await settle();};
  const redefine=async()=>{await window.hoiGuide.select(window.hoiGuide.value.guide.id,false);await settle();};let mediaReport={references:[]},alternateGuide=null;let run={schema_version:1,guide_id:'two',run_id:'first',session_id:null,checks:{},started:{},revision:0};const history={first:run};
  const window={hoiLive:{enabled:true,subscribe(fn){subscriber=fn;}},addEventListener(type,fn){this['on'+type]=fn;}};
- const document={getElementById:get,createElement:()=>new Node(),createTextNode:text=>({textContent:text}),querySelectorAll:()=>[],body:{classList:{add(){}}}};
+ const descendants=node=>[node,...(node.children||[]).flatMap(descendants)];
+ const document={getElementById:id=>id.startsWith('operation-')?descendants(get('operationCards')).find(node=>node.id===id)||null:get(id),
+  createElement:()=>new Node(),createTextNode:text=>({textContent:text}),querySelectorAll:()=>[],body:{classList:{add(){}}}};
  const fetch=async(url,options)=>{if(url==='/api/guide/active')return {ok:true,json:async()=>options?{guide_id:JSON.parse(options.body).guide_id,revision:1}:{}};requests.push(url);if(url==='/api/guide?id=other'&&alternateGuide)return {ok:true,json:async()=>alternateGuide};if(url.startsWith('/api/guide/projection')){const params=new URL(url,'http://localhost').searchParams,id=params.get('id'),definition=id==='two'?guide:alternateGuide;
   const state=params.get('live')==='1'?current:{schema_version:1,usable:false,session_id:null,facts:{}},progress={...run,guide_id:id};
   return {ok:true,json:async()=>({schema_version:1,engine:'rust-guide-core',server_id:'core',guide_id:id,definition_revision:definition.runtime_definition_revision,state,progress,evaluation:walkthroughEvaluation(definition,state,progress),verified_operations:0})};}
@@ -66,7 +69,6 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  assert.equal(get('operationCards').textContent.includes('NATIVE'),false);
  assert.equal(get('nextOperation').textContent.includes('NATIVE'),false);
  assert.equal(get('summaryCards').textContent.includes('NATIVE'),false);assert.match(get('summaryNotice').textContent,/non disponibile/);
- const descendants=node=>[node,...(node.children||[]).flatMap(descendants)];
  const stableCard=descendants(get('operationCards')).find(node=>node.id==='operation-build');assert.ok(stableCard);
  await push({usable:false,metrics:{transport_only:1}});
  assert.equal(descendants(get('operationCards')).find(node=>node.id==='operation-build'),stableCard);
@@ -272,6 +274,7 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  get('operationsPlan').open=false;context.location.hash='#operation-design-check';
  assert.equal(typeof window.onhashchange,'function');window.onhashchange();
  assert.equal(get('operationsPlan').open,true);
+ assert.equal(designCard().scrolled,true);
  // A different guide rebuilds the display reader without rewriting its source.
  alternateGuide=structuredClone(guide);alternateGuide.id='other';
  alternateGuide.action_language=require('../src/hoi4companion/guide_language.json');

@@ -348,7 +348,7 @@ ha confermato le dieci fixture in entrambe le lingue. Evidenze `installed-*`, `d
 
 ## Step 7 · Una sola interfaccia (decisione dell'utente)
 
-**Stato al 2026-11-22:** completato. Inventario verificato e scelta dell’utente registrata. La rimozione è prevista nello step 7b.
+**Stato al 2026-11-22:** completato. L’inventario descrive il comportamento prima della migrazione dello step 7b.
 
 La barra laterale offre ancora «Apri interfaccia classica» (`/walkthrough`). Inventariare cosa fa la vista classica che la suite non fa,
 con il percorso che lo mostra. Proporre all'utente una scelta: portare quelle funzioni nella suite e togliere il link, oppure tenerla con
@@ -393,7 +393,7 @@ disponibile fino alla verifica dei percorsi nella suite.
 
 ## Step 7b · Migrazione nella suite
 
-**Stato:** da fare. L’utente ha approvato la rimozione del link dopo la migrazione.
+**Stato al 2026-11-22:** completato con fixture. Il link classico è stato tolto dalla barra laterale dopo la verifica.
 
 - Ripristinare il salto all’albero rilevato quando il campione lo identifica e il ritorno da Correggi associazioni alla guida e alla
   stessa istruzione. Aprire le destinazioni nella suite e mantenere coerente la navigazione.
@@ -404,6 +404,17 @@ disponibile fino alla verifica dei percorsi nella suite.
 **Completato quando** i percorsi dell’inventario funzionano nella suite. Verificare anche l’assenza del link, l’apertura del Piano,
 il caso senza albero rilevato e il ritorno da una correzione avviata senza un passo specifico. Aggiornare piano e handoff con le prove,
 senza avviare o controllare HOI4, e lasciare il prompt dello step 8.
+
+**Esito.** Focus nazionali, Tecnologie e Sala operativa aprono l’albero del campione attuale. Con albero sconosciuto o campione
+obsoleto la scorciatoia è nascosta. Tecnologie mostra stato e slot nel pannello «Stato partita» e rilegge la scheda in uso.
+Focus mostra la provenienza (file HOI4 o demo) accanto ai comandi, con ID e conteggio nell’intestazione del grafico.
+«Torna alla guida» conserva guida e ancora e porta l’istruzione in vista. Dalla correzione generale torna alla guida senza ancora.
+Il Piano della campagna apre ancora `/walkthrough` nella suite.
+
+**Prove.** Edge headless a 1282 × 832 e 820 × 832 con server su loopback, guida sintetica e un solo stream di eventi simulato.
+Percorsi verificati prima della rimozione e riprovati dopo. Log e catture in `.local/ux-captures/step-7b/`.
+JS mirati 30/30. Regressione web 516 passati e 3 saltati, escluso `test_native_service.cjs` che esercita l’installazione di preset MIO.
+Revisione invarianti senza rilievi. Verifica WebView2 rinviata allo step 8. HOI4 non è stato avviato né controllato.
 
 ## Step 8 · Verifica finale desktop
 

@@ -3,16 +3,15 @@ Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Leggi docs/ux-implementation-plan.md («Esecuzione con Codex») e docs/AGENT_HANDOFF.md. Esegui solo lo step 7b.
-> Porta nella suite i percorsi dello step 7 e provali con fixture. Poi rimuovi il link classico, mantenendo /walkthrough per il Piano.
-> Senza avviare o controllare HOI4, aggiorna piano e handoff e lascia il prompt per lo step 8.
+> Leggi docs/ux-implementation-plan.md («Esecuzione con Codex») e docs/AGENT_HANDOFF.md. Esegui solo lo step 8.
+> Verifica la build attuale in desktop con una fixture isolata, confronta M1–M4 con lo step 1 ed esegui npm test e tests/test_agent_handoff_size.cjs.
+> Registra esiti e percorsi delle regressioni nel piano e nel handoff. Non avviare o controllare HOI4. Lascia sospesa la verifica HUD in partita e chiudi il piano desktop se tutti i criteri hanno un esito.
 
 PAUSED 2026-11-22 (user): live HUD quality checks need game data or screenshots. Resume F1 step 2 only on request, per `docs/hud-quality-plan-2026-11-22.md`.
 HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
-- UX step 7b: migrare i percorsi e verificare la suite prima di togliere il link classico, come approvato dall’utente.
 - 2026-11-20 PURGE (user order): third-party guide data (benchmark/review/probe fixtures, Wojtek guide, `docs/it/walkthrough.md`) is
   LOCAL ONLY in `.local/guide-corpus` (`scripts/guide-corpus.cjs`; tests skip without it). History rewritten with filter-branch on all
   branches and tags, force-pushed (main `f43c37a`, 4 remote branches, tags v0.1.0-v0.2.0): ALL commit hashes before it changed.
@@ -21,11 +20,8 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
-- 2026-11-22 UX step 7 chiuso: inventario nel piano UX. L’utente ha approvato la rimozione dopo la migrazione.
-  Edge con fixture, prove in `.local/ux-captures/step-7/`. JS mirati 86/86. Verifica WebView2 aperta.
-- 2026-11-22 UX step 6: Sessione e HUD con i messaggi dello step 3 e Ctrl+Alt+H. Dieci fixture IT/EN in Edge, 21/21 mirati.
-  Rebuild dopo `b619d4c`, launcher isolato senza HUD e riprova Edge sul binario installato riusciti. Evidenze nel piano UX.
-  Verifica manuale WebView2 e prova reale del richiamo ancora aperte.
+- 2026-11-22 UX step 7b: salto all’albero, ritorno all’istruzione, lettore e ricarica Tecnologie, origine Focus verificati in Edge.
+  Link classico rimosso dopo le fixture. `/walkthrough` resta nel Piano. Prove in `.local/ux-captures/step-7b/`. WebView2 allo step 8.
 - 2026-11-22 UX step 5: Focus e Tecnologie verificati in Edge a 1282 × 832 e 820 × 832 con fixture, obiettivo e panoramica.
   Adatta scheda, zoom manuale e tastiera verificati in Edge. JS mirati 58/58. Catture e limiti nel piano UX. Prova manuale WebView2 aperta.
 - 2026-11-22 HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior

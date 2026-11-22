@@ -2,36 +2,55 @@
 (() => {
   // Embedded suite views share the qualified stream, not a second reader.
   // Dispose child subscriptions when navigating to avoid retaining old DOMs.
+  let shared;
   try{
-    const shared=window.parent&&window.parent!==window&&window.parent.location.origin===window.location.origin&&window.parent.HoiSuiteLive;
+    shared=window.parent&&window.parent!==window&&window.parent.location.origin===window.location.origin&&window.parent.HoiSuiteLive;
     if(shared){const subscriptions=new Map(),active=()=>window.parent.HoiSuiteFrameActive!==false;
-      window.hoiLive={get enabled(){return active()&&shared.enabled;},get value(){return active()?shared.value:null;},sample:()=>active()?shared.sample():null,subscribe(fn){const forward=value=>{if(active())fn(value);};subscriptions.set(fn,{forward,off:shared.subscribe(forward)});return ()=>{const item=subscriptions.get(fn);if(typeof item?.off==='function')item.off();subscriptions.delete(fn);};}};
+      window.hoiLive={embedded:true,get enabled(){return active()&&shared.enabled;},get value(){return active()?shared.value:null;},sample:()=>active()?shared.sample():null,subscribe(fn){const forward=value=>{if(active())fn(value);};subscriptions.set(fn,{forward,off:shared.subscribe(forward)});return ()=>{const item=subscriptions.get(fn);if(typeof item?.off==='function')item.off();subscriptions.delete(fn);};}};
       window.addEventListener('pagehide',()=>{for(const item of subscriptions.values()){if(typeof item.off==='function')item.off();item.off=null;}});
       window.addEventListener('pageshow',event=>{if(event.persisted)for(const item of subscriptions.values())if(!item.off)item.off=shared.subscribe(item.forward);});
-      window.addEventListener('suiteviewchange',()=>{if(active())for(const item of subscriptions.values())item.forward(shared.value);});return;}
+      window.addEventListener('suiteviewchange',()=>{if(active())for(const item of subscriptions.values())item.forward(shared.value);});}
   }catch{/* A cross-origin parent never receives or supplies game state. */}
+  if(shared&&!document.body?.hasAttribute('data-embedded-live-details'))return;
   const root=document.createElement('section');root.className='live-panel';root.setAttribute('aria-label',HoiI18n.t("Current game state"));
   const heading=document.createElement('div');heading.className='live-heading';
   const label=document.createElement('label'),toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=sessionStorage.getItem('hoi4-live-enabled')!=='off';
-  label.append(toggle,document.createTextNode(HoiI18n.t(" Read current state · experimental")));
-  const status=document.createElement('strong');status.textContent=HoiI18n.t("Connecting to the game…");heading.append(label,status);
+  if(!shared){label.append(toggle,document.createTextNode(HoiI18n.t(" Read current state · experimental")));heading.append(label);}
+  const status=document.createElement('strong');status.textContent=HoiI18n.t("Connecting to the game…");heading.append(status);
   const detail=document.createElement('p'),list=document.createElement('ul'),follow=document.createElement('button');follow.type='button';follow.textContent=HoiI18n.t("Open the observed country's focus tree");follow.className='line-button';follow.hidden=true;
-  if(document.body.classList.contains?.('guide-page')){const disclosure=document.createElement('details'),summary=document.createElement('summary');disclosure.className='live-details';summary.textContent=HoiI18n.t('Game state details');disclosure.append(summary,detail,list,follow);root.append(heading,disclosure);}else{root.append(heading,detail,list,follow);}const liveHost=document.querySelector('[data-live-host]');if(liveHost)liveHost.append(root);else document.querySelector('.hero').after(root);
-  let value=null,connection=null,signature='',lastArrival=0;const listeners=[];
-  const api=window.hoiLive={enabled:toggle.checked,value:null,subscribe(callback){listeners.push(callback);if(value)callback(value);return ()=>{const index=listeners.indexOf(callback);if(index>=0)listeners.splice(index,1);};},
-    sample(){return this.enabled&&this.value?.usable?this.value.sample:null;}};
-  function changed(){for(const fn of listeners)fn(value);}
-  function draw(){api.value=value;api.enabled=toggle.checked;document.body.classList.toggle('live-mode',toggle.checked);list.replaceChildren();follow.hidden=true;
-    if(!toggle.checked){status.textContent=HoiI18n.t("Memory reading disabled");detail.textContent=HoiI18n.t("Views return to their snapshot or manual data source.");return;}
+  const useDisclosure=document.body.classList.contains?.('guide-page')||
+    (shared&&document.body.classList.contains('focus-page'));
+  if(useDisclosure){
+    const disclosure=document.createElement('details'),summary=document.createElement('summary');
+    disclosure.className='live-details';summary.textContent=HoiI18n.t('Game state details');
+    disclosure.append(summary,detail,list,follow);root.append(heading,disclosure);
+  }else root.append(heading,detail,list,follow);
+  const liveHost=document.querySelector('[data-live-host]');
+  if(liveHost)liveHost.append(root);else document.querySelector('.hero').after(root);
+  function draw(value,enabled){if(!shared)document.body.classList.toggle('live-mode',enabled);list.replaceChildren();follow.hidden=true;
+    if(!enabled){status.textContent=HoiI18n.t("Memory reading disabled");detail.textContent=HoiI18n.t("Views return to their snapshot or manual data source.");return;}
     if(!value?.usable){status.textContent=value?.sample?HoiI18n.t("Stale data · not applied to the graph"):HoiI18n.t("Game not connected");detail.textContent=(value?.error||HoiI18n.t("Waiting for a sample"))+(value?.sample?HoiI18n.t(" · last country {0}",value.sample.country):'');return;}
     const s=value.sample;status.textContent=`${s.country} · memoria del processo · sperimentale`;
     detail.textContent=HoiI18n.t("{0} completed or bypassed focuses · {1} technologies with researched levels · {2} slots. {3}. Browser events are sent when state changes; detection uses lightweight memory reads. Progress percentages and dynamic availability are not determined.",s.completed_focuses.length,s.researched_technologies.length,s.research_slots.length,s.current_focus?'Focus: '+(s.focus_name||s.current_focus):s.continuous_focus?'Focus continuo: '+(s.continuous_focus_name||s.continuous_focus):HoiI18n.t("No focus selected"));
     for(const slot of s.research_slots){const li=document.createElement('li');li.textContent=`Slot ${slot.slot}: ${slot.name||slot.technology_id||HoiI18n.t("free")}`;list.append(li);}
-    follow.hidden=!s.focus_tree_id;follow.onclick=()=>window.dispatchEvent(new CustomEvent('hoi-live-follow',{detail:s}));
+    follow.hidden=!s.focus_tree_id;
   }
+  follow.onclick=()=>{
+    const sample=window.hoiLive.sample();
+    if(sample?.focus_tree_id)window.dispatchEvent(new CustomEvent('hoi-live-follow',{detail:sample}));
+  };
+  if(shared){
+    draw(shared.value,shared.enabled);
+    window.hoiLive.subscribe(value=>draw(value,shared.enabled));
+    return;
+  }
+  let value=null,connection=null,signature='',lastArrival=0;const listeners=[];
+  const api=window.hoiLive={enabled:toggle.checked,value:null,subscribe(callback){listeners.push(callback);if(value)callback(value);return ()=>{const index=listeners.indexOf(callback);if(index>=0)listeners.splice(index,1);};},
+    sample(){return this.enabled&&this.value?.usable?this.value.sample:null;}};
+  function changed(){for(const fn of listeners)fn(value);}
   function publish(next){
     const stamp=JSON.stringify([next.usable,next.status,next.reader_status,next.sample?{...next.sample,native_tick:undefined,metrics:undefined}:null,window.HoiContracts?.state(next).facts?.['campaign.date']?.value,next.error,next.guide_id,next.active_guide_id,next.active_guide_revision,next.guide_server_id,next.guide_storage,next.overlay,next.guide_revision,next.guide_checks,next.guide_states,next.guide_started,next.guide_baselines,next.guide_runs]);
-    value=next;draw();if(stamp!==signature){signature=stamp;changed();}
+    value=next;api.value=value;api.enabled=toggle.checked;draw(value,api.enabled);if(stamp!==signature){signature=stamp;changed();}
   }
   function unavailable(message,statusName='disconnected'){
     publish({usable:false,status:statusName,sample:value?.sample||null,error:message});
@@ -76,5 +95,5 @@
     if(api.enabled&&value?.usable&&Date.now()-lastArrival>12000)
       unavailable(HoiI18n.t("No recent reader confirmation; state not applied"),'stale');
   },2000);
-  draw();connect();
+  draw(value,api.enabled);connect();
 })();

@@ -193,7 +193,8 @@ $('center').addEventListener('click',()=>center(state.selected));
 $('zoom').addEventListener('input',()=>{guideTargetInitialised=true;camera.manual(techPoint(state.selected));});
 window.hoiGuideTree?.connect(showGuideTechnology);
 window.addEventListener('hoi-guide-change',()=>{if(!state.tree)return;renderTabs();paintLive();if(state.selected)inspect(tech(state.selected));openInitialGuideTechnology();});
-window.hoiLive?.subscribe(()=>{if(state.tree&&!window.hoiGuide)paintLive();});window.addEventListener('hoi-live-follow',event=>location.assign('/?tree='+encodeURIComponent(event.detail.focus_tree_id)));
+window.hoiLive?.subscribe(()=>{if(state.tree&&!window.hoiGuide)paintLive();});
+if(!window.hoiLive?.embedded)window.addEventListener('hoi-live-follow',event=>location.assign('/?tree='+encodeURIComponent(event.detail.focus_tree_id)));
 let drag=null;viewport.addEventListener('pointerdown',e=>{if(e.button!==0||e.target.closest('button'))return;drag={x:e.clientX,y:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};viewport.setPointerCapture(e.pointerId);});viewport.addEventListener('pointermove',e=>{if(!drag)return;viewport.scrollLeft=drag.left-(e.clientX-drag.x);viewport.scrollTop=drag.top-(e.clientY-drag.y);});viewport.addEventListener('pointerup',()=>drag=null);viewport.addEventListener('pointercancel',()=>drag=null);viewport.addEventListener('scroll',hideTip);window.addEventListener('resize',hideTip);document.addEventListener('keydown',e=>{if(e.key==='Escape')hideTip();});start().catch(fail);
 
 $('fit').addEventListener('click',()=>{guideTargetInitialised=true;camera.fit();});

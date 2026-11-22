@@ -4,7 +4,13 @@ html.suite-embedded .side,html.suite-embedded .view-tabs,html.suite-embedded .si
 html.suite-embedded .app{display:block}
 html.suite-embedded .main{margin-left:0;width:100%}
 html.suite-embedded .topbar{min-height:0;height:auto;justify-content:flex-end;padding:12px 24px}
-html.suite-embedded .topbar:not(:has(.top-actions)){display:none}
+html.suite-embedded .topbar:not(:has(.top-actions,.page-actions,#returnGuide)){display:none}
+html.suite-embedded .topbar:has(#returnGuide){justify-content:flex-start}
+html.suite-embedded .topbar:has(#returnGuide) :is(nav > :not(#returnGuide),header > span){display:none}
+html.suite-embedded .technology-page #sheetTitle{display:none}
+html.suite-embedded .technology-page #reload{display:inline-block}
+html.suite-embedded .technology-page:not(.show-live-details) .live-panel{display:none}
+html.suite-embedded .live-panel button[hidden]{display:none}
 html.suite-embedded .content{padding-top:20px}
 html.suite-embedded .hero{margin-top:0}
 
@@ -12,6 +18,8 @@ html.suite-embedded .focus-page .hero:not(:has(.demo-banner:not(.hidden))),
 html.suite-embedded .focus-page .hero > :first-child{display:none}
 html.suite-embedded .focus-page .hero{margin-bottom:8px}
 html.suite-embedded .focus-page .topbar{padding:4px 16px}
+html.suite-embedded .focus-page #catalogSource{margin-right:auto}
+html.suite-embedded .focus-page .live-panel{padding:8px 12px;margin-bottom:8px}
 html.suite-embedded .focus-page .content{padding-top:8px}
 html.suite-embedded .focus-page .workspace-body{height:clamp(260px,56vh,680px);min-height:0}
 @media(max-width:830px){

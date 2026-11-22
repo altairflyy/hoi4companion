@@ -35,3 +35,8 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/hud-pe
   JS mirati 35/35, npm 514 passati e 3 saltati. Rust backend 69 + 120 passati, live 72 passati. Esiti e inventario nel piano UX.
   Backend e overlay ricompilati dopo `1b3c779`, HTTP 200 e riprova Edge isolata riuscita. Catture in `.local/ux-captures/step-3/`.
   Prove manuali in WebView2 e in partita ancora aperte.
+- UX step 6: Sessione e HUD con i messaggi dello step 3 e Ctrl+Alt+H. Dieci fixture IT/EN in Edge, 21/21 mirati.
+  Rebuild dopo `b619d4c`, launcher isolato senza HUD e riprova Edge sul binario installato riusciti. Evidenze nel piano UX.
+  Verifica manuale WebView2 e prova reale del richiamo ancora aperte.
+- UX step 7: inventario nel piano UX. L’utente ha approvato la rimozione dopo la migrazione.
+  Edge con fixture, prove in `.local/ux-captures/step-7/`. JS mirati 86/86. Verifica WebView2 aperta.

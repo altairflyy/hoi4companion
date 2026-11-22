@@ -57,6 +57,7 @@ function updateOverview(){
   const v=state.overview;if(!v)return;
   $('demoBadge').classList.toggle('hidden',!v.demo);$('modeDot').classList.toggle('gold',v.demo);
   $('modeText').textContent=v.demo?HoiI18n.t("Local demo"):HoiI18n.t("HOI4 data");$('modeHint').textContent=v.demo?HoiI18n.t("Game path not configured"):HoiI18n.t("Actual files, read-only");
+  $('catalogSource').textContent=typeof v.demo==='boolean'?$('modeText').textContent:'';
   const impact=v.demo?HoiI18n.t("You can explore an example tree. Configure HOI4 to see the game's focuses."):
     v.trees.length?HoiI18n.t('Some focuses or trees may be missing.'):HoiI18n.t('No focus tree is available. Check the game path and enabled DLCs.');
   showWarnings(impact,(v.warnings||[]).slice(0,5).join('\n'));

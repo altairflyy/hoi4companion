@@ -16,7 +16,7 @@
   <script defer src="/tree-viewport.js"></script>
   <script defer src="/explorer.js"></script>
 </head>
-<body class="focus-page">
+<body class="focus-page" data-embedded-live-details>
 <div class="app">
   <aside class="side">
     <div class="brand"><div class="brandmark">H<span>4</span></div><div><strong>HOI4 COMPANION</strong><small>STRATEGY INTELLIGENCE</small></div></div>
@@ -36,6 +36,7 @@
   <main class="main">
     <header class="topbar">
       <nav class="crumb view-tabs" aria-label="Views"><a href="/" aria-current="page">National focuses</a> <span>/</span> <a href="/technologies">Technologies</a> <a href="/country">Country</a> <a href="/walkthrough">Walkthrough</a> <a href="/importer">Import guide</a> <a href="/analysis">Script analysis</a></nav>
+      <span id="catalogSource" class="connection" hidden></span>
       <div class="top-actions"><span id="connection" class="connection">● Local server</span><button id="reload" class="ghost-button" title="Reload from disk">↻ Reload</button></div>
     </header>
     <div class="content">

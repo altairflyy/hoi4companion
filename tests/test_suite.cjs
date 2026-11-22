@@ -69,6 +69,32 @@ test('embedded collection links retain suite context and keep their own destinat
  assert.equal(follow('saved-guides'),true);assert.equal(h.location.hash,'saved-guides');
  go('saved-guides','?view=library&suite=1','Saved guides');
 });
+test('embedded destinations retain the observed tree and the guide return anchor',()=>{
+ const h=suiteHarness(),frame=h.element('workspaceFrame'),listeners={};
+ const back={href:'http://localhost/walkthrough?guide=sample#operation-a%20b',addEventListener(name,fn){listeners[name]=fn;}};
+ const load=(url,technology=false)=>{
+  frame.contentDocument={URL:url,documentElement:{classList:{add(){}}},body:{classList:{contains:()=>technology}},
+   head:{append(){}},createElement:h.document.createElement,querySelector:()=>null,getElementById:id=>id==='returnGuide'&&!technology?back:null};
+  frame.contentWindow.addEventListener=(name,fn)=>{listeners[name]=fn;};
+  h.events['workspaceFrame:load']();
+ };
+ h.location.hash='#technologies';h.events.hashchange();
+ load(frame.src,true);
+ listeners['hoi-live-follow']({detail:{}});
+ assert.equal(h.location.hash,'#technologies');
+ listeners['hoi-live-follow']({detail:{focus_tree_id:'tree&test'}});
+ assert.equal(h.location.hash,'focus');h.location.hash='#focus';h.events.hashchange();
+ assert.equal(new URL(frame.src).searchParams.get('tree'),'tree&test');
+ h.location.hash='#walkthrough';h.events.hashchange();
+ load('http://localhost/associations?guide=sample');
+ let prevented=false;
+ const event={button:0,currentTarget:back,preventDefault(){prevented=true;}};
+ listeners.click({...event,ctrlKey:true});
+ assert.equal(prevented,false);
+ listeners.click(event);
+ assert.equal(prevented,true);
+ assert.equal(frame.src,'http://localhost/walkthrough?guide=sample&suite=1#operation-a%20b');
+});
 test('suite does not compete with HUD for projections in embedded views or while hidden',async()=>{
  const h=suiteHarness();await h.flush();h.calls.length=0;
  const packet={usable:true,active_guide_id:'a',sample:{country:'AAA',native_tick:1}};

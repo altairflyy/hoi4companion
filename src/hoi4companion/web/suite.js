@@ -18,28 +18,47 @@
   for(const button of document.querySelectorAll('.suite-sidebar [data-view]')){if(button.dataset.view===key)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
   $('viewTitle').textContent=t(titles[key]);$('overviewView').hidden=key!=='overview';$('libraryView').hidden=key!=='library';$('frameView').hidden=!model.routes[key];
   const target=routeTarget?.key===key?routeTarget.href:null;routeTarget=null;
-  if(model.routes[key]){const url=new URL(target||model.routes[key],location.origin);url.searchParams.set('suite','1');if($('workspaceFrame').src!==url.href){$('frameStatus').textContent=t('Loading workspace…');$('workspaceFrame').src=url.href;}else if(key==='settings')$('workspaceFrame').contentDocument?.getElementById('navSettings')?.click();}
+  if(model.routes[key]){const url=new URL(target||model.routes[key],location.origin);url.searchParams.set('suite','1');
+   const frame=$('workspaceFrame');
+   const current=new URL(frame.contentDocument?.URL||frame.src,location.origin);
+   if(current.href!==url.href&&(target||frame.src!==url.href||current.pathname!==url.pathname)){
+    $('frameStatus').textContent=t('Loading workspace…');frame.src=url.href;
+   }
+   else if(key==='settings')frame.contentDocument?.getElementById('navSettings')?.click();
+  }
   if(key==='library')loadLibrary();
   if(key==='overview')refreshProjection();
  }
  function navigate(key,href){if(!Object.hasOwn(model.routes,key))key='overview';routeTarget=href?{key,href}:null;if(location.hash.slice(1)===key)route(key);else location.hash=key;}
+ function followObservedTree(event){
+  const tree=event.detail?.focus_tree_id;
+  if(tree)navigate('focus','/?tree='+encodeURIComponent(tree));
+ }
+ function plainClick(event){return !event.defaultPrevented&&event.button===0&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey;}
  document.addEventListener('click',event=>{const button=event.target.closest('[data-view]');if(button){event.preventDefault();navigate(button.dataset.view);}});
  window.addEventListener('hashchange',()=>route(location.hash.slice(1)));
+ window.addEventListener('hoi-live-follow',followObservedTree);
  $('workspaceFrame').addEventListener('load',()=>{
   const frame=$('workspaceFrame');try{const doc=frame.contentDocument;if(!doc||frame.contentWindow.location.origin!==location.origin)return;
    doc.documentElement.classList.add('suite-embedded');if(!doc.querySelector('link[data-suite-style]')){const style=doc.createElement('link');style.rel='stylesheet';style.href='/suite-embedded.css';style.dataset.suiteStyle='true';doc.head.append(style);}
+   doc.getElementById('catalogSource')?.removeAttribute('hidden');
    // Retain existing graph/search/guide behavior. Only duplicate navigation is hidden.
    $('frameStatus').textContent='';
    doc.querySelector('.collection-links')?.addEventListener('click',event=>{
     const link=event.target.closest('a[data-suite-view]');
-    if(!link||event.defaultPrevented||event.button!==0||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey)return;
+    if(!link||!plainClick(event))return;
     event.preventDefault();navigate(link.dataset.suiteView);
    });
+   doc.getElementById('returnGuide')?.addEventListener('click',event=>{
+    if(!plainClick(event))return;
+    event.preventDefault();navigate('walkthrough',event.currentTarget.href);
+   });
+   if(doc.body?.classList.contains('technology-page'))frame.contentWindow.addEventListener('hoi-live-follow',followObservedTree);
    doc.getElementById('settingsModal')?.addEventListener('close',()=>{
     if(view==='settings')document.querySelector('.suite-sidebar [data-view="settings"]').focus();
    });
    if(view==='settings')doc.getElementById('navSettings')?.click();
-  }catch{$('frameStatus').textContent=t('Workspace unavailable. Open the classic workspace to continue.');}
+  }catch{$('frameStatus').textContent=t('Workspace unavailable. Reload Companion to try again.');}
  });
  function drawLibrary(){const tag=packet?.usable?packet.sample?.country:null,all=$('allCountries').checked;
   const groups=model.libraryGroups(catalog,tag,all,$('guideSearch').value),count=groups.nations.reduce((n,g)=>n+g.guides.length,groups.other.length);$('libraryCount').textContent=catalog.length?format.format(catalog.length):'—';$('guideCards').replaceChildren();
