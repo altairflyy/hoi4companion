@@ -9,7 +9,8 @@
 //! `ABSENT_CONFIRMATIONS - 1` verified samples that no longer contain it. The
 //! row keeps its original witness time, so the renderer's 750 ms deadline still
 //! counts from the real observation. Any change of guide, guide revision, run
-//! server or game window drops every held row at once.
+//! server or game window drops every held row at once. Construction map
+//! markers are drawn only from the current sample's verified projection.
 //!
 //! Step card: guide text, not GUI evidence. It stays while the backend's live
 //! delivery is momentarily unknown (after a progress write, a slow read, or a
@@ -69,6 +70,8 @@ impl MarkHold {
     /// it is only trusted for verified samples. Returns the rows to draw and
     /// the oldest witness time among them (the frame's deadline origin).
     pub fn observe(&mut self, context: Value, observation: Observation, now: Instant) -> (Vec<Value>, Option<Instant>) {
+        // A map rectangle cannot be reused across samples: the camera may have moved.
+        self.held.retain(|held| held.row["panel"] != "construction_map");
         match observation {
             Observation::Verified(rows, witnessed) => {
                 if self.context.as_ref() != Some(&context) {
@@ -189,6 +192,25 @@ mod tests {
         let t2 = t0 + Duration::from_millis(32);
         let (rows, at) = hold.observe(ctx(1), Observation::Verified(vec![], t2), t2);
         assert!(rows.is_empty() && at.is_none(), "a confirmed absence removes the row");
+    }
+
+    #[test]
+    fn map_markers_require_a_projection_in_the_current_sample() {
+        let mut hold = MarkHold::default();
+        let t0 = Instant::now();
+        let map = json!({"panel":"construction_map","key":"chita","rect":[8.0,10.0,20.0,22.0]});
+        let focus = row("a", 10.0);
+        let initial = hold.observe(ctx(1), Observation::Verified(vec![map.clone(), focus.clone()], t0), t0);
+        assert_eq!(initial.0, vec![map.clone(), focus.clone()]);
+
+        let t1 = t0 + Duration::from_millis(16);
+        let missing = hold.observe(ctx(1), Observation::Verified(vec![], t1), t1);
+        assert_eq!(missing, (vec![focus.clone()], Some(t0)));
+
+        let t2 = t1 + Duration::from_millis(16);
+        hold.observe(ctx(1), Observation::Verified(vec![map, focus.clone()], t2), t2);
+        let t3 = t2 + Duration::from_millis(16);
+        assert_eq!(hold.observe(ctx(1), Observation::Unverified, t3), (vec![focus], Some(t2)));
     }
 
     #[test]
