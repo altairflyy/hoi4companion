@@ -472,9 +472,9 @@ contratto dello step 3 (identità del campione, stato campagna, etichette) e all
 **Test automatici.** `npm test` 517 passati, 3 saltati, 0 errori. I tre skip sono un caso con corpus locale e due prove opt-in
 del ciclo di vita desktop. `node --test tests/test_agent_handoff_size.cjs` 3/3. Log `npm-test.log` e `handoff-size.log`.
 
-**Prompt di ripresa, solo quando l'utente riapre i test live:** «Leggi il handoff e la sezione live del piano UX. Esegui solo la verifica
-HUD con una partita compatibile già aperta dall'utente. Osserva leggibilità, ingombro, allineamento e richiamo della scheda. Registra le
-evidenze senza controllare il gioco o modificare la geometria.»
+**Ripresa live, solo su richiesta dell'utente.** La verifica di leggibilità, ingombro, allineamento e richiamo della scheda confluisce
+in F1 del [piano HUD](hud-quality-plan-2026-11-22.md), insieme alla prova dei marker in mappa. Il prompt aggiornato è nel
+[handoff](AGENT_HANDOFF.md#next-actions).
 
 ## Prompt iniziale
 

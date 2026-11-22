@@ -4,10 +4,13 @@ Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 ## Next actions
 Piano UX desktop chiuso 2026-11-22. Esiti per criterio e percorso in `docs/ux-implementation-plan.md`, step 8.
 Resume prompt, solo su richiesta esplicita di riaprire i test live:
-> Leggi il handoff e lo step 8 del piano UX. Esegui solo la verifica HUD con una partita compatibile già aperta dall'utente.
-> Osserva leggibilità, ingombro, allineamento e richiamo della scheda. Registra le evidenze senza controllare HOI4 o modificare la geometria.
+> Leggi docs/AGENT_HANDOFF.md, la verifica live dello step 8 UX e F1 in docs/hud-quality-plan-2026-11-22.md. Esegui solo F1, passi 2–3, in questa chat.
+> Con una partita compatibile già aperta da me, verifica leggibilità, ingombro, allineamento e richiamo della scheda HUD. Io eseguo gli input in gioco.
+> Su un passo con marker di costruzione, raccogli circa 5 minuti di trace durante pan e zoom a più livelli e 2–3 screenshot a camera ferma forniti da me.
+> Usa il report «Map markers» per valutare H1–H4. Correggi solo i problemi sostenuti dalle misure. Se correggi, testa, ricompila Companion e ripeti una breve prova comparabile.
+> Registra esiti e percorsi nel piano e nel handoff. Lascia pendenti le verifiche senza evidenza. Non avviare né controllare HOI4. Lascia F2 a chat dedicate.
 
-PAUSED 2026-11-22 (user): live HUD quality checks need game data or screenshots. Resume F1 step 2 only on request, per `docs/hud-quality-plan-2026-11-22.md`.
+PAUSED 2026-11-22 (user): HUD live sospeso fino a riapertura esplicita. Dopo F1, DPI/scala UI e progetti inattivi/roster sono due obiettivi F2.
 HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
@@ -49,7 +52,7 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 ## Working boundaries
 - Preserve active guide, campaigns, imports and concurrent edits. Never close, foreground or control HOI4; closing/installing/restarting Companion/HUD is allowed.
 - Commit finished work locally in focused commits, then rebuild/restart the app. Never push without asking.
-- Step end: rewrite `Resume prompt` for the next step (Italian: step, files, preconditions, closing routine) and show it in a fenced block.
+- End of objective: rewrite `Resume prompt` for the next objective (Italian: scope, files, preconditions, closing routine) and show it in a fenced block.
 - System WebView2 Runtime is a prerequisite of the desktop host.
 
 ## Where things are
