@@ -57,26 +57,33 @@
   if(groups.other.length)section(t('Other documents'),t('Not national guides: videos, notes, instructions.'),groups.other);
  }
  function loadLibrary(){if(libraryLoading)return libraryLoading;libraryLoading=(async()=>{try{const data=await json('/api/guides');catalog=data.guides||[];catalogLoaded=true;drawLibrary();drawRoute();}catch(e){error(e.message);}})().finally(()=>libraryLoading=null);return libraryLoading;}
- function drawOverviewAction(){
+ function campaignPresentation(){
+  const current=active?.guide_id===projection?.guide_id&&model.matchingLiveProjection(packet,projection);
+  return HoiCampaignStatus.present(packet,current?projection.campaign_status:null,t);
+ }
+ function drawOverviewAction(campaign=campaignPresentation()){
   const button=$('overviewAction'),hasGuide=!!active?.guide_id;
+  const message=[campaign.message,campaign.hint].filter(Boolean).join(' ');
+  if($('gameStatus').textContent!==message)$('gameStatus').textContent=message;
   button.hidden=!hasGuide&&(!active||!catalogLoaded);
-  $('activeRouteActions').hidden=!hasGuide;
+  $('activeRouteActions').hidden=!hasGuide||campaign.action==='library';
   if(button.hidden)return;
-  const [destination,label]=hasGuide?['walkthrough','Continue the plan']:catalog.length?['library','Choose a guide']:['importer','Import a ZIP'];
+  const [destination,label]=hasGuide?(campaign.action==='library'?['library','Choose another guide']:['walkthrough','Continue the plan']):catalog.length?['library','Choose a guide']:['importer','Import a ZIP'];
   button.dataset.view=destination;button.textContent=t(label);
  }
  function drawRoute(){const name=active?.title||catalog.find(g=>g.id===active?.guide_id)?.title;
   drawOverviewAction();
   $('activeGuideTitle').textContent=name?model.title(name):t('Choose a guide to begin');$('activeGuideShort').textContent=name?model.title(name):t('No guide selected');$('routeItems').replaceChildren();
-  const current=model.currentProjection(packet,projection);
+  const current=model.currentProjection(packet,projection)&&projection.campaign_status?.code==='linked';
   const groups=!current&&!packet?.usable?model.preview(preview,active?.guide_id):null;
   const next=model.nextSteps(current?projection:groups?preview:null,active?.guide_id,current?'live':'preview');
+  $('routeStatus').hidden=!current&&!groups;
   $('nowItems').replaceChildren();$('nowRoute').hidden=!next.length&&!groups;
   $('nowHeading').textContent=t(next.length?'Now':'Preview without the game');
   $('nowNotice').textContent=groups?t('Preview: no progress is counted until the game is linked.'):'';
   for(const item of next)drawStep(item,item.label,$('nowItems'));
   if(groups){drawPreview(groups,new Set(next.map(item=>item.key)));return;}
-  if(!current){$('routeStatus').textContent=t('Waiting for current game data');$('routeNotice').textContent=t(packet?.usable?'Guide progress is unavailable; no steps are inferred.':'Open HOI4 to qualify the current campaign. Your library stays available.');return;}
+  if(!current){$('routeStatus').textContent=t('Waiting for current game data');$('routeNotice').textContent='';return;}
   const summary=HoiOperationalSummary.project(projection.guide,projection.evaluation,projection.state,{limit:4});
   $('routeStatus').textContent=t(projection.evaluation.mode==='live'?'Current campaign':'Guide ready');$('routeNotice').textContent=summary.notice||t('Readiness follows the guide conditions; unknown data never completes a step.');
   const definitions=new Map(Object.values(projection.guide.tracks||{}).flat().map(step=>[step.key,step]));
@@ -105,15 +112,18 @@
     preview=null;
     const result=await json('/api/guide/projection?id='+encodeURIComponent(identity.guide_id)+'&live='+(packet?.usable?'1':'0'));
     if(version!==projectionVersion||packet?.active_guide_id&&result.guide_id!==packet.active_guide_id)return;
-    if(result.schema_version!==1||result.engine!=='rust-guide-core'||result.guide_id!==identity.guide_id||result.evaluation?.guide_id!==identity.guide_id||result.progress?.guide_id!==identity.guide_id)throw Error(t('Guide progress is unavailable; no steps are inferred.'));
+    if(result.schema_version!==1||result.engine!=='rust-guide-core'||result.guide_id!==identity.guide_id||result.evaluation?.guide_id!==identity.guide_id||result.progress?.guide_id!==identity.guide_id||
+       result.evaluation.run_id!=null&&result.evaluation.run_id!==result.progress.run_id)throw Error(t('Guide progress is unavailable; no steps are inferred.'));
     projection=result;drawRoute();if(view==='library')drawLibrary();
    }catch(e){if(version!==projectionVersion)return;projection=null;preview=null;drawRoute();error(e.message);}
   })().finally(()=>{loading=null;if(queued){queued=false;refreshProjection();}});return loading;
  }
- window.hoiLive.subscribe(value=>{packet=value;if(value?.active_guide_id&&value.active_guide_id!==active?.guide_id){projectionVersion++;projection=null;preview=null;active={guide_id:value.active_guide_id,title:catalog.find(g=>g.id===value.active_guide_id)?.title};drawRoute();}const m=model.metrics(value);$('countryTag').textContent=m.country||'—';$('metricCountry').textContent=m.country||'—';$('metricDivisions').textContent=display(m.divisions);$('metricPP').textContent=display(m.politicalPower);$('metricFactories').textContent=display(m.factories);$('readerBadge').dataset.connected=String(m.current);$('readerText').textContent=t(m.current?'Reader connected':'Waiting for HOI4');$('campaignHint').textContent=t(m.current?'Current campaign':'No qualified game state');$('hudStatus').textContent=value?.usable?(value.overlay?.message||t('No new contextual indication')):t('Waiting for current game data');
+ window.hoiLive.subscribe(value=>{packet=value;if(value?.active_guide_id&&value.active_guide_id!==active?.guide_id){projectionVersion++;projection=null;preview=null;active={guide_id:value.active_guide_id,title:catalog.find(g=>g.id===value.active_guide_id)?.title};drawRoute();}const m=model.metrics(value);$('countryTag').textContent=m.country||'—';$('metricCountry').textContent=m.country||'—';$('metricDivisions').textContent=display(m.divisions);$('metricPP').textContent=display(m.politicalPower);$('metricFactories').textContent=display(m.factories);$('readerBadge').dataset.connected=String(m.current);$('readerText').textContent=t(m.current?'Reader connected':'Waiting for current game data');$('campaignHint').textContent=t(m.current?'Current campaign':'No qualified game state');$('hudStatus').textContent=value?.usable?(value.overlay?.message||t('No new contextual indication')):t('Waiting for current game data');
   const signature=JSON.stringify([value?.active_guide_id,m.country,value?.active_guide_revision]);if(signature!==librarySignature){librarySignature=signature;drawLibrary();}
   const key=model.projectionKey(value);
-  if(!value?.usable){projection=null;drawRoute();}if(key!==projectionKey){projectionKey=key;refreshProjection();}
+  if(!value?.usable||projection&&!model.matchingLiveProjection(value,projection)){projection=null;drawRoute();}
+  else drawOverviewAction();
+  if(key!==projectionKey){projectionKey=key;refreshProjection();}
  });
  $('guideSearch').addEventListener('input',drawLibrary);$('allCountries').addEventListener('change',drawLibrary);
  window.addEventListener('pageshow',event=>{if(event.persisted&&document.visibilityState!=='hidden')loadLibrary();});

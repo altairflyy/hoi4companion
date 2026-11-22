@@ -13,7 +13,7 @@ use std::sync::{
 };
 use windows::{
     Win32::{
-        Foundation::{CloseHandle, FILETIME, HANDLE},
+        Foundation::{CloseHandle, ERROR_NO_MORE_FILES, FILETIME, HANDLE},
         System::{
             Diagnostics::{Debug::ReadProcessMemory, ToolHelp::*},
             Threading::*,
@@ -59,6 +59,9 @@ impl Game {
         Arc::new(Self::open_pid(Arc::new(profile),unsafe { GetCurrentProcessId() }).unwrap())
     }
     pub(crate) fn open(profile: Arc<profile::Profile>) -> Result<Self> {
+        Self::open_pid(profile, Self::find_pid()?.ok_or("Gioco non avviato")?)
+    }
+    pub(crate) fn find_pid() -> Result<Option<u32>> {
         let snapshot = Owned(
             unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }
                 .map_err(|_| "Elenco processi non disponibile")?,
@@ -67,28 +70,29 @@ impl Game {
             dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
             ..Default::default()
         };
-        let mut more = unsafe { Process32FirstW(snapshot.0, &mut row) }.is_ok();
+        unsafe { Process32FirstW(snapshot.0, &mut row) }
+            .map_err(|_| "Elenco processi non disponibile")?;
         let mut found = vec![];
-        while more {
+        loop {
             if text(&row.szExeFile)
                 .to_string_lossy()
                 .eq_ignore_ascii_case("hoi4.exe")
             {
                 found.push(row.th32ProcessID)
             }
-            more = unsafe { Process32NextW(snapshot.0, &mut row) }.is_ok();
-        }
-        if found.len() != 1 {
-            return Err(if found.is_empty() {
-                "Gioco non avviato"
-            } else {
-                "Più processi HOI4: selezione ambigua"
+            match unsafe { Process32NextW(snapshot.0, &mut row) } {
+                Ok(()) => {}
+                Err(error) if error.code() == ERROR_NO_MORE_FILES.to_hresult() => break,
+                Err(_) => return Err("Elenco processi non disponibile".into()),
             }
-            .into());
         }
-        Self::open_pid(profile, found[0])
+        match found.as_slice() {
+            [] => Ok(None),
+            [pid] => Ok(Some(*pid)),
+            _ => Err("Più processi HOI4: selezione ambigua".into()),
+        }
     }
-    fn open_pid(profile: Arc<profile::Profile>, pid: u32) -> Result<Self> {
+    pub(crate) fn open_pid(profile: Arc<profile::Profile>, pid: u32) -> Result<Self> {
         let process = Owned(
             unsafe { OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid) }
                 .map_err(|_| "Accesso in sola lettura al processo negato")?,

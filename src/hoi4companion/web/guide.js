@@ -110,7 +110,15 @@
   const own=row.interpretation;if(own){const c=el('span','badge badge-interpretation',HoiI18n.t("Your reading: {0}",[categories[own.category]||HoiI18n.t("Other instructions"),own.target?.name].filter(Boolean).join(' · ')));c.title=HoiI18n.t("Saved by you in Correct bindings. It changes how the line is shown, never when it counts as done.");box.append(c);}
   return box;}
  function badge(row){return [whenLabel(row),verificationLabels[verification(row)]].filter(Boolean).join(' · ');}
- function confirm(key,text){const label=el('label','checkpoint-check'),input=el('input');input.type='checkbox';input.checked=value.progress.checks[key]===true;input.disabled=value.pending>0;input.setAttribute('data-check',key);input.addEventListener('change',()=>window.hoiGuide.confirm(key,input.checked).catch(()=>{}));label.title=HoiI18n.t("Tick it when you have done this in the game. The ✓ on the in-game card does the same.");label.append(input,el('span','',text));return label;}
+ function confirm(key,text,detail){
+  const label=el('label','checkpoint-check'),input=el('input');
+  input.type='checkbox';input.checked=value.progress.checks[key]===true;input.disabled=value.pending>0;
+  input.setAttribute('data-check',key);
+  input.addEventListener('change',()=>window.hoiGuide.confirm(key,input.checked).catch(()=>{}));
+  label.title=HoiI18n.t("Tick it when you have done this in the game. The ✓ on the in-game card does the same.");
+  const saved=detail?HoiI18n.t('Confirmed by you · {0}',detail):HoiI18n.t('Confirmed by you');
+  label.append(input,el('span','',input.checked?saved:text));return label;
+ }
  // Set aside / resume: stored with the checklist; Rust then stops proposing the
  // step and lets the following ones go on. Never completes anything by itself.
  function asideButton(row){if(row.tracking==='reminder'||['completed','not_applicable'].includes(row.runtime_status))return null;
@@ -121,14 +129,18 @@
   if(row.superseded_by?.length){box.append(el('p','operation-copy',HoiI18n.t('Superseded targets are no longer requested; this does not prove the earlier setup was completed.')),dependencyItems(row.superseded_by,row));if(row.runtime_reason==='production_superseded')return;}
   if(row.tracking==='reminder'){box.append(el('p','operation-copy',HoiI18n.t("Method reminder: no confirmation required; it does not block other steps.")));return;}
   if(row.started_when&&row.runtime_status!=='completed'){
-   box.append(el('p','operation-start-note',row.runtime_status==='active'?HoiI18n.t("Start detected using the guide's condition. Starting alone does not prove completion."):HoiI18n.t("Automatic start detection: waiting for the guide's condition to be met.")));
+   box.append(el('p','operation-start-note',row.runtime_status==='active'?HoiI18n.t("Start detected using the guide's condition. Starting alone does not prove completion."):row.selection?.value===false?HoiI18n.t("Automatic start detection: waiting for the guide's condition to be met."):HoiI18n.t('Start cannot be verified')));
   }
-  if(['manual','special_project'].includes(row.action.kind)&&!row.completion_condition)box.append(confirm(row.key,HoiI18n.t("Done")+(row.confirmation?' · '+row.confirmation:'')));
+  const done=HoiI18n.t("Done")+(row.confirmation?' · '+row.confirmation:'');
+  if(['manual','special_project'].includes(row.action.kind)&&!row.completion_condition)box.append(confirm(row.key,done,row.confirmation));
   const phase=value.guide.phases?.find(p=>p.id===row.phase);
   const keys=new Set([row.when,row.priority_when,row.skip_when,row.started_when,phase?.when].flatMap(node=>HoiContracts.checkKeys(node)));
   if(row.completion_condition)for(const key of HoiContracts.checkKeys(row.completion_condition))if(key!==row.action.params?.legacy_key)keys.add(key);
   const finalKeys=new Set(HoiContracts.checkKeys(row.completion_condition));
-  for(const key of keys)box.append(confirm(key,finalKeys.has(key)?HoiI18n.t("Final criterion verified in the game"):key===row.key?HoiI18n.t("Done")+(row.confirmation?' · '+row.confirmation:''):HoiI18n.t("Condition verified in the game")));
+  for(const key of keys){
+   const condition=finalKeys.has(key)?HoiI18n.t("Final criterion verified in the game"):HoiI18n.t("Condition verified in the game");
+   box.append(finalKeys.has(key)||key!==row.key?confirm(key,condition,condition):confirm(key,done,row.confirmation));
+  }
   const aside=asideButton(row);if(aside)box.append(aside);
  }
  function cachedCard(row,highlight=false){
@@ -397,17 +409,21 @@
   }
   $('guideSelect').disabled=value.pending>0;$('reset').disabled=value.pending>0;links();
   renderSummary();
-  $('mode').textContent={live:HoiI18n.t("Linked path · ")+(view.country||HoiI18n.t("current game")),preview:HoiI18n.t("Guide preview"),wrong_country:HoiI18n.t("Guide suspended · different country"),wrong_tree:HoiI18n.t("Guide suspended · different tree")}[view.mode];
-  $('modeNote').textContent=view.mode==='live'?HoiI18n.t("Focus and research update in their respective trees. Operations with live criteria advance automatically; reminders remain available without confirmation. Confirm only criteria that cannot be observed."):HoiI18n.t("Instructions remain available. No progress is inferred without a compatible game.");
+  const game=HoiCampaignStatus.present(value.live,value.campaign,HoiI18n.t);
+  $('mode').textContent=game.action==='walkthrough'?HoiI18n.t('Current campaign'):HoiI18n.t('Guide preview');
+  $('modeNote').textContent=[game.message,game.hint].filter(Boolean).join(' ');
   const p=value.progress,storage=p.storage||{},campaign=p.campaign_id;
   $('campaignStatus').textContent=storage.error?HoiI18n.t("Progress not saved: ")+storage.error:
-   ['wrong_campaign','campaign_unverified'].includes(view.progress_status)?HoiI18n.t("This game does not match the saved checklist. Open the right save or start a new checklist."):
    (campaign?HoiI18n.t("Campaign ")+p.country+' · '+campaign.split(':')[1].slice(0,8)+' · ':HoiI18n.t("Campaign identity not verified · "))+
    (storage.status==='persistent'?HoiI18n.t("Progress saved on this PC."):HoiI18n.t("Temporary progress."));
   const history=(p.history||[]).filter(row=>row.campaign_id===campaign&&row.country===p.country);
   $('runHistory').replaceChildren(...history.map((row,index)=>{const option=el('option','',`Checklist ${index+1} · ${row.run_id.slice(0,8)}${row.run_id===p.run_id?HoiI18n.t(" · current"):''}${row.branch_reason==='timeline_rewind'?HoiI18n.t(" · after loading an earlier save"):''}`);option.value=row.run_id;return option;}));
   $('runHistory').value=p.run_id;$('restoreHistory').disabled=value.pending>0||!history.length;$('refreshHistory').disabled=value.pending>0;
-  const allRows=value.view.operations,rows=allRows.filter(r=>r.tracking!=='reminder'),done=rows.filter(r=>r.runtime_status==='completed').length,active=rows.filter(r=>r.runtime_status==='active').length;$('operationProgress').textContent=done+'/'+rows.length;$('operationActive').textContent=active?active+HoiI18n.t(" in progress"):'';
+  const allRows=value.view.operations,rows=allRows.filter(r=>r.tracking!=='reminder'),done=rows.filter(r=>r.runtime_status==='completed').length,active=rows.filter(r=>r.runtime_status==='active').length;
+  const verified=value.verifiedOperations;
+  const progress=Number.isInteger(verified)?HoiI18n.t('Verified in game: {0}/{1}',verified,rows.length):'';
+  const total=done===verified?'':HoiI18n.t('Completed steps: {0}/{1}',done,rows.length);
+  $('operationProgress').textContent=[progress,total].filter(Boolean).join(' · ');$('operationActive').textContent=active?active+HoiI18n.t(" in progress"):'';
   const political=value.view.model.runtime.action_sequence?.political;
   const compact=HoiActionPlan.compact(allRows,political),upcoming=compact.next;
   const current=[];

@@ -291,6 +291,55 @@ fn campaign(state: &Value) -> Option<&str> {
     }
 }
 
+fn campaign_status(state: &Value, guide: &Value, progress: &Value, evaluation: &Value) -> Value {
+    if state["usable"] != true {
+        return json!({"code":"indeterminate"});
+    }
+    let sample = &state["sample"];
+    let country = &sample["country"];
+    let mode = evaluation["mode"].as_str();
+    let progress_status = evaluation["progress_status"].as_str();
+    let code = match (mode, progress_status) {
+        (Some("wrong_country"), _) => "wrong_country",
+        (Some("wrong_tree"), _) => "wrong_tree",
+        (_, Some("wrong_campaign" | "wrong_session")) => "wrong_campaign",
+        (Some("live"), Some("accepted"))
+            if campaign(state).is_some_and(|id| progress["campaign_id"] == id)
+                && country.as_str().is_some_and(|tag| !tag.is_empty())
+                && progress["country"] == *country
+                && sample["session_id"].as_str().is_some_and(|id| !id.is_empty())
+                && progress["session_id"] == sample["session_id"] => "linked",
+        _ => "campaign_unverified",
+    };
+    json!({"code":code,"country":country,"guide_country":guide_country(guide),
+        "date":if code == "linked" { crate::events::calendar(sample) } else { None }})
+}
+
+fn verified_operations(guide: &Value, evaluation: &Value) -> usize {
+    if evaluation["mode"] != "live" {
+        return 0;
+    }
+    // A condition involving a manual check is not evidence from the game alone.
+    fn uses_check(node: &Value) -> bool {
+        node["op"] == "check"
+            || node["args"].as_array().is_some_and(|args| args.iter().any(uses_check))
+            || node.get("arg").is_some_and(uses_check)
+    }
+    let completed: HashSet<_> = evaluation["steps"].as_array().into_iter().flatten()
+        .filter(|step| step["status"] == "completed" && step["completion_basis"] == "condition")
+        .filter_map(|step| step["key"].as_str())
+        .collect();
+    if completed.is_empty() {
+        return 0;
+    }
+    rows(guide).filter(|step| {
+        !matches!(step["action"]["kind"].as_str(), Some("select_focus" | "research" | "free"))
+            && step["tracking"] != "reminder"
+            && step["key"].as_str().is_some_and(|key| completed.contains(key))
+            && !uses_check(&step["completion"])
+    }).count()
+}
+
 pub struct Application {
     guides: Map<String, Value>,
     political_cost_ids: Value,
@@ -1472,6 +1521,8 @@ impl Application {
         let (definition, info) = self.definition_for_run(&id, &progress)?;
         let mut guide = self.project_definition(&definition, &state, &progress)?;
         let evaluation = guide_runtime::evaluate(&guide, &state, &progress)?;
+        let campaign_status = campaign_status(&state, &guide, &progress, &evaluation);
+        let verified_operations = verified_operations(&guide, &evaluation);
         // The player's line interpretations (UX R13) are attached after the
         // evaluation, so they can never change a status or a completion.
         let stale = match &self.association_directory {
@@ -1479,7 +1530,7 @@ impl Application {
             None => vec![],
         };
         Ok(
-            json!({"schema_version":1,"engine":"rust-guide-core","server_id":self.server,"guide_id":id,"definition_revision":guide["runtime_definition_revision"],"definition":info,"guide":guide,"state":state,"progress":progress,"evaluation":evaluation,"stale_interpretations":stale}),
+            json!({"schema_version":1,"engine":"rust-guide-core","server_id":self.server,"guide_id":id,"definition_revision":guide["runtime_definition_revision"],"definition":info,"guide":guide,"state":state,"progress":progress,"evaluation":evaluation,"stale_interpretations":stale,"campaign_status":campaign_status,"verified_operations":verified_operations}),
         )
     }
     /// Lines of the guide the player may interpret (UX R13) and the saved
@@ -1794,6 +1845,77 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+    #[test]
+    fn campaign_status_requires_a_qualified_matching_run() {
+        let id = "hoi4:12345678-1234-1234-1234-123456789abc:00000007";
+        let mut state = json!({"usable":true,"sample":{"country":"POL","session_id":"one",
+            "campaign_identity":{"status":"observed","source":"native_game_unique_id_and_seed","id":id},
+            "country_identity_validation":"primary_selector_and_country_map",
+            "executable_sha256":"a".repeat(64),"native_tick":(1936+5000)*365*24}});
+        let guide = json!({"applies_to":{"country":"POL"}});
+        let run = json!({"country":"POL","session_id":"one","campaign_id":id});
+        let status = |state: &Value, mode, progress_status| {
+            campaign_status(state, &guide, &run, &json!({"mode":mode,"progress_status":progress_status}))
+        };
+        assert_eq!(status(&state, "live", "accepted"),
+            json!({"code":"linked","country":"POL","guide_country":"POL","date":19360101}));
+        for (mode, progress, expected) in [
+            ("preview", "accepted", "campaign_unverified"),
+            ("live", "campaign_unverified", "campaign_unverified"),
+            ("live", "session_unverified", "campaign_unverified"),
+            ("wrong_country", "wrong_campaign", "wrong_country"),
+            ("wrong_tree", "accepted", "wrong_tree"),
+            ("live", "wrong_campaign", "wrong_campaign"),
+            ("live", "wrong_session", "wrong_campaign"),
+        ] {
+            assert_eq!(status(&state, mode, progress)["code"], expected);
+        }
+        state["sample"]["session_id"] = json!("another");
+        assert_eq!(status(&state, "live", "accepted")["code"], "campaign_unverified");
+        state["usable"] = json!(false);
+        assert_eq!(status(&state, "wrong_country", "wrong_campaign"), json!({"code":"indeterminate"}));
+    }
+    #[test]
+    fn verifications_exclude_manual_confirmations_without_changing_completed_steps() {
+        let guide = json!({"id":"ux", "title":"Synthetic guide", "tracks":{"operations":[
+            {"key":"manual","title":"Confirm","action":{"kind":"manual"}},
+            {"key":"mixed","title":"Mixed","action":{"kind":"manual"},"completion":{"op":"check","key":"manual"}},
+            {"key":"auto","title":"Automatic","action":{"kind":"manual"},"completion":{"op":"fact","key":"country","test":"eq","value":"POL"}}
+        ]}});
+        let state = json!({"usable":true,"source":"process_memory","sample":{"country":"POL","session_id":"one"}});
+        let progress = json!({"schema_version":1,"guide_id":"ux","run_id":"fixture","checks":{"manual":true}});
+        let evaluation = guide_runtime::evaluate(&guide, &state, &progress).unwrap();
+        assert_eq!(evaluation["mode"], "live");
+        assert_eq!(evaluation["steps"].as_array().unwrap().iter().filter(|row| row["status"] == "completed").count(), 3);
+        assert_eq!(verified_operations(&guide, &evaluation), 1);
+        assert_eq!(progress["checks"]["manual"], true);
+    }
+    #[test]
+    fn saved_confirmation_and_unknown_start_keep_zero_of_98_in_preview() {
+        let operations: Vec<_> = (0..98).map(|i| json!({
+            "key":format!("step-{i}"), "title":format!("Synthetic step {i}"),
+            "action":{"kind":"manual"},
+            "started_when":{"op":"fact","key":"country","test":"eq","value":"POL"}
+        })).collect();
+        let guide = json!({"id":"ux","title":"Synthetic guide","applies_to":{"country":"POL"},
+            "tracks":{"operations":operations}});
+        let mut app = Application::open(&json!({"guides":[guide]})).unwrap();
+        app.accept(json!({"usable":true,"source":"process_memory","sample":{"country":"POL","session_id":"one",
+            "native_tick":(1936+5000)*365*24,
+            "campaign_identity":{"status":"observed","source":"native_game_unique_id_and_seed",
+                "id":"hoi4:12345678-1234-1234-1234-123456789abc:00000007"}}})).unwrap();
+        let saved = app.checks(Some("ux"), Some(&json!({"key":"step-0","checked":true}))).unwrap();
+        assert_eq!(saved["checks"]["step-0"], true);
+        let projection = app.projection(Some("ux"), false).unwrap();
+        assert_eq!(projection["progress"]["checks"]["step-0"], true);
+        assert_eq!(projection["evaluation"]["progress_status"], "campaign_unverified");
+        assert_eq!(projection["campaign_status"]["code"], "indeterminate");
+        let steps = projection["evaluation"]["steps"].as_array().unwrap();
+        assert_eq!(steps.len(), 98);
+        assert!(steps.iter().all(|step| step["status"] != "completed"));
+        assert_eq!(steps.iter().find(|step| step["key"] == "step-0").unwrap()["selection"]["status"], "unknown");
+        assert_eq!(projection["verified_operations"], 0);
+    }
     #[test]
     fn library_rows_carry_a_definition_hash_that_ignores_only_the_id() {
         let make = |id: &str, note: &str| json!({"id":id,"title":"Same title","tracks":{"operations":[{"key":"note","title":note,"action":{"kind":"manual"}}]}});

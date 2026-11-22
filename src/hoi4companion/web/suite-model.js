@@ -1,6 +1,7 @@
 'use strict';
 ((root)=>{
  const country=typeof module==='object'&&module.exports?require('./country-model.js'):root.HoiCountryModel;
+ const contracts=typeof module==='object'&&module.exports?require('./contracts.js'):root.HoiContracts;
  const routes={overview:null,library:null,walkthrough:'/walkthrough',focus:'/',technologies:'/technologies',country:'/country',events:'/events',templates:'/importer?view=references',importer:'/importer','saved-guides':'/importer?view=library',analysis:'/analysis',settings:'/'};
  function title(value){return String(value||'').replace(/\.docx$/i,'').replace(/_/g,' ').replace(/\s+/g,' ').trim();}
  function metrics(packet){const model=country.evaluate(packet),s=model.sections;
@@ -26,11 +27,19 @@
   return {nations:ordered,other};
  }
  function selectable(guide,tag){return guide?.compatibility?.blocked!==true&&(!tag||!guide?.applies_to?.country||guide.applies_to.country===tag);}
+ function matchingLiveProjection(packet,projection){const id=packet?.active_guide_id,run=packet?.guide_runs?.[id],sample=packet?.sample,projected=projection?.state?.sample;
+  return !!(packet?.usable===true&&id&&projection?.engine==='rust-guide-core'&&projection.guide_id===id&&projection.state?.usable===true&&
+   sample?.session_id&&(projected?.session_id??projection.state.session_id)===sample.session_id&&run?.run_id&&projection.progress?.run_id===run.run_id&&
+   (!packet.guide_server_id||projection.server_id===packet.guide_server_id)&&
+   (!projected||(projected.country===sample.country&&projected.focus_tree_id===sample.focus_tree_id&&
+    projected.campaign_identity?.status===sample.campaign_identity?.status&&projected.campaign_identity?.id===sample.campaign_identity?.id)));
+ }
  function currentProjection(packet,projection){const id=packet?.active_guide_id,run=packet?.guide_runs?.[id],campaign=packet?.sample?.campaign_identity;
-  return !!(packet?.usable===true&&id&&projection?.engine==='rust-guide-core'&&projection.guide_id===id&&projection.state?.usable===true&&projection.state.session_id===packet.sample.session_id&&run?.run_id&&projection.progress?.run_id===run.run_id&&run.country===packet.sample.country&&campaign?.status==='observed'&&projection.progress.campaign_id===campaign.id&&run.campaign_id===campaign.id);
+  return matchingLiveProjection(packet,projection)&&run.country===packet.sample.country&&campaign?.status==='observed'&&projection.progress.campaign_id===campaign.id&&run.campaign_id===campaign.id;
  }
  function projectionKey(packet){const sample={...packet?.sample};for(const key of ['native_tick','metrics','observed_at','age_seconds','transport'])delete sample[key];
-  return JSON.stringify([packet?.usable,packet?.guide_server_id,packet?.active_guide_id,packet?.active_guide_revision,packet?.guide_revision,sample,packet?.guide_runs,packet?.guide_states,packet?.guide_started,packet?.guide_baselines]);
+  const date=packet?.usable?contracts.state(packet).facts?.['campaign.date']?.value:null;
+  return JSON.stringify([packet?.usable,date,packet?.guide_server_id,packet?.active_guide_id,packet?.active_guide_revision,packet?.guide_revision,sample,packet?.guide_runs,packet?.guide_states,packet?.guide_started,packet?.guide_baselines]);
  }
  // Home preview without the game (UX R11): the first open steps of each track,
  // read only from a Rust evaluation in preview mode (its order, next step and
@@ -76,5 +85,5 @@
   }
   return groups;
  }
- const api={routes,title,metrics,library,libraryGroups,selectable,currentProjection,projectionKey,preview,nextSteps};if(typeof module==='object'&&module.exports)module.exports=api;else root.HoiSuiteModel=api;
+ const api={routes,title,metrics,library,libraryGroups,selectable,matchingLiveProjection,currentProjection,projectionKey,preview,nextSteps};if(typeof module==='object'&&module.exports)module.exports=api;else root.HoiSuiteModel=api;
 })(typeof window==='object'?window:globalThis);

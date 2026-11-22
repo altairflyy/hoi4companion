@@ -1,6 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const model=require('../src/hoi4companion/web/suite-model.js');
+const campaignStatus=require('../src/hoi4companion/web/campaign-status.js');
 function suiteHarness(sidebarButtons=[],emptyActive=false,projectionBody=null,libraryGuides=[]){
  const elements=new Map(),events={},calls=[];let listener;
  const element=id=>{if(!elements.has(id))elements.set(id,{id,dataset:{},value:'',checked:false,hidden:id==='suiteError',src:'about:blank',contentWindow:{dispatchEvent(){},location:{origin:'http://localhost'}},addEventListener(name,fn){events[id+':'+name]=fn;},children:[],replaceChildren(){this.children=[];},append(...c){this.children.push(...c);},setAttribute(){},removeAttribute(){}});return elements.get(id);};
@@ -9,7 +10,7 @@ function suiteHarness(sidebarButtons=[],emptyActive=false,projectionBody=null,li
  const location={origin:'http://localhost',hash:'#overview'};
  const fetch=async path=>{calls.push(path);return {ok:!(emptyActive&&path==='/api/guide/active'),json:async()=>path==='/api/guides'?{guides:libraryGuides}:path==='/api/guide/active'?(emptyActive?{error:'No guide available'}:{guide_id:'a'}):(projectionBody||{schema_version:1,engine:'rust-guide-core',guide_id:'a',guide:{tracks:{}},evaluation:{guide_id:'a'},progress:{guide_id:'a'},state:{usable:false}})};};
  const source=fs.readFileSync(require.resolve('../src/hoi4companion/web/suite.js'),'utf8').replace(/\}\)\(\);\s*$/, 'window.__suiteSettled=()=>loading;})();');
- vm.runInNewContext(source,{window,document,location,fetch,HoiSuiteModel:model,HoiI18n:{t:s=>s,language:'english'},Intl,URL,Event});
+ vm.runInNewContext(source,{window,document,location,fetch,HoiSuiteModel:model,HoiCampaignStatus:campaignStatus,HoiI18n:{t:(s,...args)=>s.replace(/\{(\d+)\}/g,(_,i)=>args[i]),language:'english'},HoiOperationalSummary:{project:()=>({items:[]})},Intl,URL,Event});
  return {document,location,events,calls,element,settled:()=>window.__suiteSettled(),send:value=>listener(value),flush:()=>new Promise(resolve=>setImmediate(resolve))};
 }
 test('an empty guide collection does not show an error',async()=>{
@@ -145,6 +146,32 @@ test('suite rejects prior guide/campaign/session projections before displaying o
  assert.equal(model.currentProjection(packet,projection),true);
  for(const change of [p=>p.guide_id='b',p=>p.progress.campaign_id='old',p=>p.progress.run_id='old',p=>p.state.session_id='old',p=>p.state.usable=false]){const copy=structuredClone(projection);change(copy);assert.equal(model.currentProjection(packet,copy),false);}
  packet.sample.campaign_identity.status='unknown';assert.equal(model.currentProjection(packet,projection),false);
+});
+test('suite presents the backend campaign codes and keeps the primary destinations distinct',async()=>{
+ const sample={country:'POL',session_id:'session',focus_tree_id:'tree',campaign_identity:{status:'observed',id:'campaign'}};
+ const run={run_id:'r',country:'POL',campaign_id:'campaign',guide_id:'a'};
+ const live={usable:true,sample,active_guide_id:'a',guide_runs:{a:run},guide_server_id:'server'};
+ const liveProjection={schema_version:1,engine:'rust-guide-core',server_id:'server',guide_id:'a',guide:{tracks:{}},
+  state:{usable:true,sample},progress:run,evaluation:{guide_id:'a',mode:'live',run_id:'r'}};
+ for(const [packet,campaign,message,destination,label] of [
+  [{usable:false,reader_status:'game_absent'},null,/HOI4 is not running/,'walkthrough','Continue the plan'],
+  [{usable:false,reader_status:'build_unsupported'},null,/not supported for reading/,'walkthrough','Continue the plan'],
+  [{usable:false,reader_status:'campaign_unverified'},null,/Wait for the campaign/,'walkthrough','Continue the plan'],
+  [{usable:false,status:'stale',sample},null,/Checking the game/,'walkthrough','Continue the plan'],
+  [live,{code:'campaign_unverified'},/Wait for the campaign/,'walkthrough','Continue the plan'],
+  [live,{code:'wrong_country',country:'POL',guide_country:'GER'},/POL, guide for GER/,'library','Choose another guide'],
+  [live,{code:'wrong_tree'},/different focus tree/,'library','Choose another guide'],
+  [live,{code:'wrong_campaign'},/does not match the saved checklist/,'library','Choose another guide'],
+  [live,{code:'linked',country:'POL',date:19360101},/Game linked: POL, 1936-01-01/,'walkthrough','Continue the plan'],
+ ]){
+  const h=suiteHarness([],false,packet.usable?{...liveProjection,campaign_status:campaign}:previewProjection());
+  h.send(packet);await h.settled();await h.flush();
+  assert.match(h.element('gameStatus').textContent,message);
+  assert.equal(h.element('overviewAction').dataset.view,destination);
+  assert.equal(h.element('overviewAction').textContent,label);
+ }
+ assert.equal(model.matchingLiveProjection({...live,sample:{...sample,focus_tree_id:'new'}},liveProjection),false);
+ assert.equal(model.matchingLiveProjection({...live,guide_server_id:'restarted'},liveProjection),false);
 });
 test('embedded views share the stream and release subscriptions without owning an EventSource',()=>{
  let disposed=0,subscribed=0;const handlers={},source={enabled:true,value:{usable:false},sample:()=>null,subscribe(fn){subscribed++;fn(this.value);return ()=>disposed++;}};

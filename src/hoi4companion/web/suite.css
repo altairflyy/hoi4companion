@@ -3,6 +3,7 @@
 
 /* Keep secondary controls reachable in short desktop windows. */
 @media(min-width:761px){.suite-sidebar{overflow-y:auto;scrollbar-width:thin}}
+#gameStatus{margin:-8px 0 18px}
 
 /* A compact, quiet application frame keeps the campaign content in focus. */
 .suite-sidebar{padding:20px 12px 16px;background:#0b0e13;border-color:#222a34}

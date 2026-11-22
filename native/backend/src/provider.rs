@@ -5,7 +5,7 @@
 //! the delivery loop; a probe that sees a change still reads in full at once.
 //! A full read that fails because the game changed the state meanwhile keeps
 //! the session and is retried at the next collect (`Provider::settle`).
-use crate::{acquisition, game_process::Game, profile::Profile, watch};
+use crate::{acquisition, game_process::Game, profile::{OpenError, Profile}, watch};
 use serde_json::{Value, json};
 use std::{
     collections::HashMap,
@@ -45,6 +45,14 @@ const TRANSIENT_FULL_READ: [&str; 3] = [
 ];
 /// Consecutive transient full-read failures that close the session anyway.
 const FULL_READ_FAILURES: u64 = 8;
+fn reader_status(stage: &str) -> &'static str {
+    match stage {
+        "process_absent" => "game_absent",
+        "profile_unqualified" => "build_unsupported",
+        "full_read" => "campaign_unverified",
+        _ => "indeterminate",
+    }
+}
 struct Cached {
     sample: acquisition::Sample,
     packet: watch::Packet,
@@ -87,6 +95,7 @@ struct Provider {
     lane: Arc<Mutex<Option<GuiLane>>>,
     /// Consecutive transient full-read failures of the open session.
     full_read_streak: u64,
+    reader_status: &'static str,
 }
 impl Provider {
     fn set_political_cost_ids(&mut self,targets:&Value)->Result<()> {
@@ -137,6 +146,7 @@ impl Provider {
             gui: Arc::new(Mutex::new(crate::gui_registry::Registry::deferred())),
             lane: Arc::new(Mutex::new(None)),
             full_read_streak: 0,
+            reader_status: "indeterminate",
         })
     }
     fn close(&mut self) {
@@ -241,13 +251,25 @@ impl Provider {
         let started = Instant::now();
         let stat = std::fs::metadata(&self.executable).map_err(|e| e.to_string()).at("executable")?;
         let key = (stat.len(), stat.modified().map_err(|e| e.to_string()).at("executable")?);
-        if self.profile.is_none() || self.stat != Some(key) {
+        let new_profile = self.profile.is_none() || self.stat != Some(key);
+        if new_profile {
             self.close();
-            self.profile = Some(Arc::new(Profile::open(&self.executable, &self.manifest).at("profile")?));
-            self.stat = Some(key);
         }
         if self.game.is_none() {
-            self.game = Some(Arc::new(Game::open(self.profile.as_ref().unwrap().clone()).at("open")?));
+            let pid = Game::find_pid().at("open")?
+                .ok_or(("process_absent", "Gioco non avviato".into()))?;
+            if new_profile {
+                let profile = Profile::open_classified(&self.executable, &self.manifest).map_err(|error| {
+                    let stage = match error {
+                        OpenError::Unqualified(_) => "profile_unqualified",
+                        OpenError::Other(_) => "profile",
+                    };
+                    (stage, error.into())
+                })?;
+                self.profile = Some(Arc::new(profile));
+                self.stat = Some(key);
+            }
+            self.game = Some(Arc::new(Game::open_pid(self.profile.as_ref().unwrap().clone(), pid).at("open")?));
             self.open = Arc::new(AtomicBool::new(true));
             self.publish_lane();
         }
@@ -324,10 +346,12 @@ impl Provider {
         let (stage, error) = match outcome {
             Ok(value) => {
                 self.full_read_streak = 0;
+                self.reader_status = "game_observed";
                 return Ok(value);
             }
             Err(failure) => failure,
         };
+        self.reader_status = reader_status(stage);
         if stage == "full_read" && self.game.is_some() && TRANSIENT_FULL_READ.contains(&error.as_str()) {
             self.full_read_streak += 1;
             if self.full_read_streak < FULL_READ_FAILURES {
@@ -543,7 +567,7 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
             provider.collect(args["now"].as_f64().ok_or("Provider clock missing")?)
         }
         "provider_inspect" => Ok(
-            json!({"metrics":provider.metrics,"cached":provider.cached.is_some(),"connected":provider.game.is_some()}),
+            json!({"metrics":provider.metrics,"cached":provider.cached.is_some(),"connected":provider.game.is_some(),"reader_status":provider.reader_status}),
         ),
         "provider_geometry" => provider.geometry(args),
         "provider_close" => {
@@ -556,6 +580,23 @@ pub fn execute(op: &str, args: &Value) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn reader_status_distinguishes_absent_unqualified_and_unreadable_games() {
+        let mut provider = Provider::new(&json!({"path":"unused","manifest_sha256":"unused"})).unwrap();
+        for (stage, expected) in [
+            ("process_absent", "game_absent"),
+            ("profile_unqualified", "build_unsupported"),
+            ("full_read", "campaign_unverified"),
+            ("profile", "indeterminate"),
+            ("identity", "indeterminate"),
+            ("open", "indeterminate"),
+        ] {
+            assert!(provider.settle(Err((stage, "fixture".into())), 0.).is_err());
+            assert_eq!(provider.reader_status, expected);
+        }
+        assert!(provider.settle(Ok(json!({})), 0.).is_ok());
+        assert_eq!(provider.reader_status, "game_observed");
+    }
     fn read(value:Value)->acquisition::Sample{
         acquisition::Sample{value,watch:Default::default(),world:0,event_cache:Value::Null}
     }

@@ -26,12 +26,12 @@
   // Between two projections the last readings of this same definition stay shown.
   const shown=shared?interpreted(guide,shared.guide):readingMemo.definition===guide&&readingMemo.shown||guide;
   const state=shared?shared.state:window.hoiLive?.enabled?live:null,view=shown?HoiGuidePresentation.evaluate(shown,state,progress,shared?.evaluation):null;
-  api.value={guide:shown,catalog,progress,view,state,error,pending};for(const fn of listeners)fn(api.value);
+  api.value={guide:shown,catalog,progress,view,state,error,pending,live,campaign:shared?.campaign_status,verifiedOperations:shared?.verified_operations};for(const fn of listeners)fn(api.value);
  }
  // A projection is evaluated against the live observation its request saw. Rust reads live state only when this
  // predicate holds, so another event with the same basis cannot change the evaluation and keeps the current cards.
  const readsLive=value=>!!window.hoiLive?.enabled&&value?.usable===true&&(typeof document==='undefined'||document.visibilityState!=='hidden');
- const liveBasis=value=>JSON.stringify([readsLive(value),value?.session_id??null,value?.sample?.session_id??null,value?.sample?.country??null]);
+ const liveBasis=value=>JSON.stringify([readsLive(value),value?.session_id??null,value?.sample?.session_id??null,value?.sample?.country??null,value?.sample?.focus_tree_id??null,value?.sample?.campaign_identity??null]);
  function requestProjection(){
   if(guide?.runtime_engine!=='rust-guide-core')return Promise.resolve();
   projectionVersion++;if(projectionTask)return projectionTask;

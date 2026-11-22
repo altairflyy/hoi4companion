@@ -32,7 +32,7 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  const document={getElementById:get,createElement:()=>new Node(),createTextNode:text=>({textContent:text}),querySelectorAll:()=>[],body:{classList:{add(){}}}};
  const fetch=async(url,options)=>{if(url==='/api/guide/active')return {ok:true,json:async()=>options?{guide_id:JSON.parse(options.body).guide_id,revision:1}:{}};requests.push(url);if(url==='/api/guide?id=other'&&alternateGuide)return {ok:true,json:async()=>alternateGuide};if(url.startsWith('/api/guide/projection')){const params=new URL(url,'http://localhost').searchParams,id=params.get('id'),definition=id==='two'?guide:alternateGuide;
   const state=params.get('live')==='1'?current:{schema_version:1,usable:false,session_id:null,facts:{}},progress={...run,guide_id:id};
-  return {ok:true,json:async()=>({schema_version:1,engine:'rust-guide-core',server_id:'core',guide_id:id,definition_revision:definition.runtime_definition_revision,state,progress,evaluation:walkthroughEvaluation(definition,state,progress)})};}
+  return {ok:true,json:async()=>({schema_version:1,engine:'rust-guide-core',server_id:'core',guide_id:id,definition_revision:definition.runtime_definition_revision,state,progress,evaluation:walkthroughEvaluation(definition,state,progress),verified_operations:0})};}
   if(url.startsWith('/api/guide/media'))return {ok:true,json:async()=>mediaReport};if(url.startsWith('/api/guide/frame'))return {ok:true,blob:async()=>new Blob(['image'])};if(url.startsWith('/api/guide/progress')&&options){const body=JSON.parse(options.body);run=body.run_id?history[body.run_id]:(history.second={...run,run_id:'second',checks:{},started:{}});if(body.checks)run.checks=body.checks;if(body.started)run.started=body.started;run.revision++;}
   return {ok:true,json:async()=>url.startsWith('/api/guide/progress')?run:url==='/api/guides'?{guides:[{id:'two',title:'Generic'}]}:guide};};
  const context={window,document,fetch,URL,URLSearchParams,sessionStorage:{getItem:()=>null,setItem(){}},location:{pathname:'/walkthrough',search:'?guide=two',href:'http://localhost/walkthrough?guide=two'},HoiContracts:require('../src/hoi4companion/web/contracts.js'),HoiGuidePresentation:require('../src/hoi4companion/web/guide-presentation.js'),HoiOperationalSummary:require('../src/hoi4companion/web/operational-summary.js')};
@@ -80,21 +80,23 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  assert.ok(diagnostics.children.some(node=>node.className?.startsWith('operation-hud ')));
  assert.equal(descendants(get('operationCards')).find(node=>node.className?.split(' ').includes('operation-card')).children.some(node=>node.className==='operation-monitoring'),false);
  await push({usable:true,sample:{country:'GER'},guide_revision:1,guide_id:'one',guide_states:{one:{done:true}}});
- assert.equal(get('operationProgress').textContent,'0/1');
+ assert.equal(get('operationProgress').textContent,'Verificati in gioco: 0/1');
  run.checks={done:true};run.revision++;await push({usable:true,sample:{country:'GER'},guide_revision:2});
- assert.equal(get('operationProgress').textContent,'1/1');assert.equal(get('operationCards').children.length,1); // empty-state text
+ assert.equal(get('operationProgress').textContent,'Verificati in gioco: 0/1 · Passi completati: 1/1');assert.equal(get('operationCards').children.length,1); // empty-state text
  get('hideDone').checked=false;get('hideDone').onchange();
- const checkbox=descendants(get('operationCards')).find(node=>node['data-check']==='done');checkbox.checked=false;checkbox.onchange();await settle();
- assert.equal(run.checks.done,false);assert.equal(get('operationProgress').textContent,'0/1');
+ const checkbox=descendants(get('operationCards')).find(node=>node['data-check']==='done');assert.equal(checkbox.checked,true);
+ assert.match(get('operationCards').textContent,/Confermato da te/);
+ checkbox.checked=false;checkbox.onchange();await settle();
+ assert.equal(run.checks.done,false);assert.equal(get('operationProgress').textContent,'Verificati in gioco: 0/1');
  // There is no manual start control; a run that already records a start still shows the step in progress.
  assert.equal(descendants(get('operationCards')).some(node=>node['data-start']),false);
  run.started={build:true};run.revision++;await push(current);
- assert.equal(run.started.build,true);assert.equal(get('operationProgress').textContent,'0/1');assert.equal(get('operationActive').textContent,'1 in corso');
+ assert.equal(run.started.build,true);assert.equal(get('operationProgress').textContent,'Verificati in gioco: 0/1');assert.equal(get('operationActive').textContent,'1 in corso');
  // Status and verification are two separate labels: a user-ticked step is in progress and confirmed by the player.
  {const pair=descendants(get('operationCards')).find(node=>node.className==='badge-pair');assert.deepEqual(pair.children.map(node=>node.textContent),['In corso','Conferma tu']);}
  assert.equal(get('nextOperation').textContent.includes('Construction'),false);
  const finish=descendants(get('operationCards')).find(node=>node['data-check']==='done');finish.checked=true;finish.onchange();await settle();
- assert.equal(get('operationProgress').textContent,'1/1');assert.equal(get('operationActive').textContent,'');
+ assert.equal(get('operationProgress').textContent,'Verificati in gioco: 0/1 · Passi completati: 1/1');assert.equal(get('operationActive').textContent,'');
  const reopen=descendants(get('operationCards')).find(node=>node['data-check']==='done');reopen.checked=false;reopen.onchange();await settle();
  assert.equal(get('operationActive').textContent,'1 in corso');
  get('reset').onclick();await settle();assert.equal(run.run_id,'second');assert.equal(get('resetNotice').hidden,false);
@@ -115,17 +117,17 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  assert.equal(get('hudDiagnosticMessage').textContent.includes('OLD_SECRET'),false);
  await push(live([line]));
  assert.match(get('summaryCards').textContent,/Costruzione avviata/);
- assert.equal(get('operationActive').textContent,'1 in corso');assert.equal(get('operationProgress').textContent,'0/1');
+ assert.equal(get('operationActive').textContent,'1 in corso');assert.equal(get('operationProgress').textContent,'Verificati in gioco: 0/1');
  assert.match(get('operationCards').textContent,/In corsoConferma tu/);assert.match(get('operationCards').textContent,/3 in coda · 0 fabbriche attive/);
  await push(live([{...line,amount:4}]));assert.match(get('operationCards').textContent,/4 in coda/);
- await push(live([]));assert.equal(get('operationActive').textContent,'');assert.equal(get('operationProgress').textContent,'0/1');assert.match(get('operationCards').textContent,/Nessun ordine rilevato/);
+ await push(live([]));assert.equal(get('operationActive').textContent,'');assert.equal(get('operationProgress').textContent,'Verificati in gioco: 0/1');assert.match(get('operationCards').textContent,/Nessun ordine rilevato/);
  await push({...live([line]),usable:false});assert.equal(get('operationActive').textContent,'');assert.match(get('operationCards').textContent,/Avvio non verificabile/);assert.equal(get('operationCards').textContent.includes('ORDINI LETTI LIVE'),false);
  assert.equal(get('summaryCards').textContent,'');assert.match(get('summaryNotice').textContent,/non disponibile/);
  guide.tracks.operations.push({key:'method',tracking:'reminder',title:'Follow supply hubs',action:{kind:'manual',params:{category:'army',instructions:['Keep railways connected']}}});
  await redefine();await push(live([]));
  const reminder=descendants(get('operationCards')).find(node=>node.dataset?.step==='method');
  assert.match(reminder.textContent,/Promemoria/);assert.equal(descendants(reminder).some(node=>node['data-check']||node['data-start']),false);
- assert.equal(get('operationProgress').textContent,'0/1');assert.equal(get('nextOperation').textContent.includes('Follow supply hubs'),false);
+ assert.equal(get('operationProgress').textContent,'Verificati in gioco: 0/1');assert.equal(get('nextOperation').textContent.includes('Follow supply hubs'),false);
  // The verification label comes from the prepared step: a waiting reminder keeps both labels,
  // a game-state criterion is automatic, an unbound Actions line is not interpreted.
  const pairOf=key=>descendants(descendants(get('operationCards')).find(node=>node.dataset?.step===key)).find(node=>node.className==='badge-pair').children.map(node=>node.textContent);
@@ -148,7 +150,7 @@ test('walkthrough renders only operational instructions, preserves conditions, r
  guide.tracks.operations.push({key:'event',depends_on:[],title:'Choose event answer',started_when:{op:'fact',key:'events.visible_options',test:'contains',value:'example.1:example.1.a'},action:{kind:'manual',params:{event_id:'example.1',event_option_id:'example.1.a',event_option_name:'Recommended answer'}}});
  const eventLive=live([]);eventLive.sample.country_overview.events={status:'observed',visible:[{instance_id:'1',event_id:'example.1',option_ids:['example.1.a']}]};
  await redefine();await push(eventLive);assert.match(get('operationCards').textContent,/EVENTO APERTO.*Scelta consigliata: Recommended answer · disponibile nella finestra/);
- assert.match(get('nextOperation').textContent,/Recommended answer/);assert.equal(get('operationProgress').textContent,'0/2');
+ assert.match(get('nextOperation').textContent,/Recommended answer/);assert.equal(get('operationProgress').textContent,'Verificati in gioco: 0/2');
  assert.ok(descendants(get('nextOperation')).some(node=>node.id==='next-operation-event'));
  guide.source={url:'https://www.youtube.com/watch?v=abcdefghijk'};
  guide.tracks.operations[0].action.params.source_seconds=118;await push(eventLive);
@@ -342,7 +344,7 @@ function walkthroughEvaluation(guide,state,progress){
  const {revision,...record}=progress;
  return require('./presentation-fixtures.cjs').forInputs(definition,state,record);
 }
-function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;return vm.runInNewContext(code,context,options);}
+function runLocalized(code,context,options){const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');context.HoiI18n=i18n;context.HoiCampaignStatus=require('../src/hoi4companion/web/campaign-status.js');return vm.runInNewContext(code,context,options);}
 
 test('readiness notes keep actionable reasons visible and put unknowns under Why?',()=>{
  const i18n=require('../src/hoi4companion/web/i18n.js');i18n.setLanguage('italian');

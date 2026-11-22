@@ -11,6 +11,22 @@ use std::sync::{
 };
 const MANIFEST: &str = include_str!("../../../src/hoi4companion/live-profiles-v1.json");
 type Result<T> = std::result::Result<T, String>;
+pub enum OpenError {
+    Unqualified(String),
+    Other(String),
+}
+impl From<String> for OpenError {
+    fn from(message: String) -> Self {
+        Self::Other(message)
+    }
+}
+impl From<OpenError> for String {
+    fn from(error: OpenError) -> Self {
+        match error {
+            OpenError::Unqualified(message) | OpenError::Other(message) => message,
+        }
+    }
+}
 pub struct Profile {
     pub path: PathBuf,
     pub data: Vec<u8>,
@@ -61,23 +77,26 @@ impl Profile {
         }
     }
     pub fn open(path: &Path, manifest_hash: &str) -> Result<Self> {
+        Self::open_classified(path, manifest_hash).map_err(Into::into)
+    }
+    pub fn open_classified(path: &Path, manifest_hash: &str) -> std::result::Result<Self, OpenError> {
         if manifest_hash != digest(MANIFEST.as_bytes()) {
-            return Err("Profili live modificati: ricompilare il backend Rust".into());
+            return Err(OpenError::Other("Profili live modificati: ricompilare il backend Rust".into()));
         }
         let path = std::fs::canonicalize(path).map_err(|e| e.to_string())?;
         if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() > 512 * 1024 * 1024 {
-            return Err("Eseguibile oltre il limite".into());
+            return Err(OpenError::Other("Eseguibile oltre il limite".into()));
         }
         let data = std::fs::read(&path).map_err(|e| e.to_string())?;
         if data.len() > 512 * 1024 * 1024 {
-            return Err("Eseguibile oltre il limite".into());
+            return Err(OpenError::Other("Eseguibile oltre il limite".into()));
         }
         let sha = digest(&data);
         let manifest: Value = serde_json::from_str(MANIFEST).map_err(|e| e.to_string())?;
         let selected = match manifest["profiles"].get(&sha) {
             Some(profile) => profile.clone(),
             None => crate::abi::qualify(&data,&manifest)
-                .map_err(|reason|format!("Versione HOI4: struttura nativa non compatibile ({reason})"))?,
+                .map_err(|reason| OpenError::Unqualified(format!("Versione HOI4: struttura nativa non compatibile ({reason})")))?,
         };
         let pe = Pe::new(&data)?;
         let header = number(&data, 0x3c, 4)? as usize;

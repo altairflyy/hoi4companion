@@ -161,11 +161,24 @@ Il riscontro con una partita reale e i test live HUD restano sospesi.
 
 ## Step 3 · Stato della partita e avanzamento
 
-**Stato:** da fare.
+**Stato:** implementato e verificato con fixture isolate il 2026-11-22.
 
-**Prima parte, inventario.** Elencare qui quali stati la UI riceve oggi dal backend e da quale campo (modalità `preview`/live della
-proiezione, collegamento della run, campagna non corrispondente, build non qualificata in `live-profiles-v1.json`). Se uno stato della
-tabella non è distinguibile, aggiungere il codice nel backend con un test Rust prima di toccare la UI. Senza questo inventario lo step si ferma.
+| Stato | Segnali backend prima dello step |
+|---|---|
+| Gioco assente | `/api/state/events`: `usable=false`, `status=disconnected` o `stale`, uguali agli altri errori. Solo la diagnostica della ricerca del processo distingue il caso. |
+| Build non supportata | Stessi campi. L'errore della qualifica distingue il rifiuto del profilo per hash (`live-profiles-v1.json`) o firma ABI (`live-abi-v1*.json`) dagli errori di configurazione e I/O. Manca un codice pubblico. |
+| Campagna non verificabile | Con una proiezione live richiesta: `evaluation.mode=preview` se manca lo scope, oppure `evaluation.progress_status=campaign_unverified/session_unverified`. Prima del campione, i fallimenti di lettura espongono solo diagnostica. |
+| Incompatibilità accertata | Su campione utilizzabile: `evaluation.mode=wrong_country/wrong_tree` oppure `evaluation.progress_status=wrong_campaign/wrong_session`. Lo scope atteso è in `guide.applies_to`. |
+| Campagna collegata | `evaluation.mode=live`, `evaluation.progress_status=accepted`, identità osservata in `sample.campaign_identity` e run corrispondente in `progress` e `guide_runs`. La data viene da `campaign.date` nel LiveState normalizzato. |
+| Indeterminato | Stream senza campione, in riconnessione, scaduto o con errore generico. `live=0` forza `preview` anche quando il gioco è disponibile, quindi `preview` da solo non identifica lo stato. |
+
+Servono codici stabili per lo stato della lettura e per la presentazione del collegamento alla guida. Le spunte arrivano da
+`progress.checks`; il Piano mostra i conteggi delle righe operative e gli stati prodotti da Rust.
+
+Il backend ora espone `reader_status` nello stream. Distingue processo assente, build rifiutata e lettura senza campagna verificabile.
+Senza provider, con un errore generico o durante la riconnessione, lo stato resta indeterminato. La proiezione espone
+`campaign_status.code` per campagna collegata, non verificabile o incompatibilità per nazione, albero o checklist.
+Il collegamento richiede identità osservata e run corrispondente. La data appare solo se ricavabile dal campione qualificato.
 
 **Seconda parte, messaggi.** Bozze:
 
@@ -189,6 +202,32 @@ Avanzamento: una spunta salvata si chiama «Confermato da te» (EN «Confirmed b
 **Completato quando** la schermata offline non parla di partita incompatibile e il caso «spunta salvata, avvio non verificabile, 0/98»
 si capisce senza tooltip. Fixture per ogni stato dell'inventario, inclusi incompatibilità accertata e campagna collegata; test che
 spunte e contatori mantengono i valori originali.
+
+### Verifica dello step 3 · 2026-11-22
+
+Edge 158 headless, 1282 × 832, lingua italiana. Backend senza discovery con dati isolati. Le proiezioni sono prodotte da Rust con la
+stessa sequenza di campioni sintetici prima (`dfb3fa5`) e dopo. Log e PNG in `.local/ux-captures/step-3/`.
+
+| Stato | Riscontro in Edge |
+|---|---|
+| Gioco assente | Messaggio offline e accesso al piano, senza azione dedicata alla partita. |
+| Build non supportata | Messaggio di lettura non supportata. |
+| Campagna non verificabile | Indicazione di attendere il caricamento, sia quando manca il campione sia quando manca l'identità. |
+| Incompatibilità accertata | Nazione e albero distinti. «Scegli un'altra guida» apre la Libreria. Il caso checklist è coperto da Rust e dal test web. |
+| Campagna collegata | POL e data 1936-01-01. «Continua il piano» apre il Piano della campagna. |
+| Indeterminato | Attesa iniziale e campione obsoleto mostrano il controllo in corso. |
+
+M4 **6/6** rispetto a 0/6 nello step 1. La Sala operativa conserva un solo pulsante primario, con l'azione di navigazione relativa
+alla guida. Dove la tabella prevede «nessuna», non compare un comando dedicato alla partita.
+
+Nel Piano offline, la spunta salvata resta selezionata e mostra «Confermato da te». La riga mostra «Avvio non verificabile» e il
+contatore «Verificati in gioco: 0/98». Il confronto conserva spunte, stati delle righe e valori originali. Con la stessa conferma in
+una campagna collegata, i verificati in gioco restano 0/98 e i passi completati restano 1/98. Quando i valori differiscono, entrambi
+sono visibili. Il nuovo numeratore Rust include i completamenti operativi sostenuti da criteri di gioco senza spunte manuali.
+
+Test mirati 35/35. Backend Rust 69 unit test passati, 2 ignorati, e 120 test di integrazione passati. Crate `live` 72/72 con fixture.
+`npm test`: 514 passati, 3 saltati. Revisione invarianti senza rilievi. Verifica nella finestra WebView2 da fare a mano.
+Verifica in partita reale e HUD sospese.
 
 ## Step 4 · Importazione e schermate d'attesa
 

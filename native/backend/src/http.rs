@@ -560,8 +560,9 @@ impl Service {
         };
         if let Some(provider) = provider.as_ref() {
             let handle = provider.handle;
-            value["metrics"] =
-                crate::request(0, "provider_inspect", json!({"handle":handle}))?["metrics"].clone();
+            let inspection = crate::request(0, "provider_inspect", json!({"handle":handle}))?;
+            value["metrics"] = inspection["metrics"].clone();
+            value["reader_status"] = inspection["reader_status"].clone();
             if let Some(last) = value["metrics"]["closes"].as_array().and_then(|closes| closes.last()) {
                 *self.provider_close.lock().map_err(|_| "Live delivery unavailable")? = last.clone();
             }

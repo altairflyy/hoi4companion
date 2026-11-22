@@ -3,10 +3,9 @@ Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Leggi docs/ux-implementation-plan.md, inclusa «Esecuzione con Codex», e docs/AGENT_HANDOFF.md. Esegui solo lo step 3.
-> Prima inventaria nel piano i campi backend che distinguono gli stati della partita. Aggiungi un codice backend e un test Rust dove manca un segnale, prima di modificare la UI.
-> Verifica con fixture isolate messaggi, azioni e valori originali di spunte e contatori, incluso il caso con spunta salvata, avvio non verificabile e 0/98.
-> Segui il piano per test, catture, revisione e commit locale. Aggiorna piano e handoff e lascia il prompt di ripresa previsto. Non avviare o controllare HOI4.
+> Leggi docs/ux-implementation-plan.md, inclusa «Esecuzione con Codex», e docs/AGENT_HANDOFF.md. Esegui solo lo step 4.
+> Verifica in italiano e inglese scelta ZIP, rapporto, errori, correzione e schermate senza dati. Usa fixture o un HOI4COMPANION_DATA_DIR isolato. Non usare la libreria utente, installare preset, avviare o controllare HOI4.
+> Segui il piano per test, catture, revisione e commit locale. Aggiorna piano e handoff e lascia il prompt di ripresa dello step 5.
 
 PAUSED 2026-11-22 (user): live HUD quality checks need game data or screenshots. Resume F1 step 2 only on request, per `docs/hud-quality-plan-2026-11-22.md`.
 HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
@@ -21,6 +20,8 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-22 UX step 3: Edge headless con fixture isolate, M4 6/6. Spunta salvata, «Avvio non verificabile» e 0/98 nel Piano. Catture e log in `.local/ux-captures/step-3/`.
+  JS mirati 35/35, npm 514 passati e 3 saltati. Rust backend 69 + 120 passati, live 72 passati. Esiti e inventario nel piano UX. Verifiche WebView2 manuale e in partita aperte.
 - 2026-11-22 UX step 2: «Ora» prima delle metriche, «Ora / Poi» prima di scorciatoie e riferimenti. Edge headless 1282 × 832 con fixture isolate: M1 0/0, M2 1/1/1, anteprima 0/2 nel Piano.
   Test mirati 74/74, npm test 513 passati, 3 saltati. Backend e overlay ricompilati, Companion su 8766. Catture in `.local/ux-captures/step-2/`. Verifica in WebView2 e in partita reale aperta.
 - 2026-11-22 HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior
