@@ -57,12 +57,35 @@ use a guide step that proposes construction markers for the map trial. Keep sepa
 Use an isolated Companion profile with deterministic fixtures. The next sessions focus on what the UI displays and how it responds.
 Live qualification of HOI4 readers, camera geometry, UI scaling and HUD placement relative to the game remains pending.
 
-- [ ] Step 4 · DPI and layout. Compare the same Companion views at two scales or viewport sizes. Check readability, footprint,
+- [x] Step 4 · DPI and layout. Compare the same Companion views at two scales or viewport sizes. Check readability, footprint,
   clipping, alignment and keyboard focus in WebView2. Cover the HUD card through isolated rendering or existing fixtures where
-  available. Record the actual scale or viewport used and keep findings specific to that test surface.
+  available. Results below for desktop WebView2 and a synthetic native HUD target.
 - [ ] Step 5 · Inactive projects and commander roster. Use fixtures for observed, empty and unavailable data. Check labels,
   hierarchy, navigation and whether the UI clearly distinguishes unavailable data from an empty list.
 ## Measured
+
+### F2 · Step 4 · 2026-11-23
+
+WebView2 **157.0.4341.60** nel launcher Companion, italiano, viewport CDP **1282 × 832** e **740 × 560 CSS px** entrambi
+con DPR 1. Baseline web `4a58eec`. Ogni ripetizione usa un nuovo profilo, API su loopback, cartelle gioco e documenti vuote, overlay
+del launcher spento e nessun lettore live configurato. Stessa fixture `game_absent` dallo step UX 3 con proiezione Rust e guida sintetica.
+
+| Superficie | Esito del confronto |
+|---|---|
+| Sala operativa | A 1282 × 832 il titolo del primo passo resta a y=380–401 px. A 740 × 560 era fuori dal primo viewport (y=561–582 px). Ridotti tre spazi verticali della home compatta. Titolo a y=533–554 px alla riapertura, senza scorrere. |
+| Navigazione e focus | Nella barra orizzontale compatta WebView2 tagliava il contorno esterno e lasciava «Libreria guide» parzialmente fuori barra anche dopo Tab. Contorno interno da 2 px e scorrimento del solo contenitore al focus. Riprova con contorno intero su Sala operativa, Libreria guide, Importa ZIP e Configurazione. |
+| Piano, Libreria, Importa ZIP | Titoli, azioni e testi allineati nelle due larghezze, senza overflow orizzontale della pagina o dell'iframe. Nel compatto il piano e l'importatore scorrono nel riquadro da 320 px. Ricerca in Libreria raggiunta con Tab, un risultato per «Piano». |
+| Configurazione e Sessione e HUD | Invio apre il dialogo e sposta il focus su Chiudi. Maiusc+Tab raggiunge Salva e ricarica, Tab torna a Chiudi ed Esc restituisce il focus a Configurazione. Salto al contenuto e apertura da tastiera di Dettagli del lettore verificati. Il testo HUD rimane leggibile con il pannello affiancato o impilato. |
+| Scheda HUD Direct2D | Renderer nativo su due client sintetici, a **96 DPI**, senza marker. Forma della fixture del test `construction_card_is_said_in_words_with_one_line_per_region`, con nomi sintetici e Produzione espansa. A 1282 × 832 la scheda misura **360 × 283 px** (9,6%), a 740 × 560 **311 × 304 px** (22,8%). Margine destro 16 px in entrambi. Titolo e righe vanno a capo, istruzioni e due righe di produzione rimangono visibili. |
+
+Evidenze locali in `.local/ux-captures/f2-step-4/`: `before/`, `after/` e i relativi log. Catture native
+`hud-1282x832.png`, `hud-740x560.png` e ritagli `*-card.png`. Riproduzione dalla radice con
+`node .local/ux-captures/f2-step-4/replay.cjs before` e `after`, poi `& .local/ux-captures/f2-step-4/run-hud.ps1`
+per il renderer nativo. La build della prova HUD usa una copia locale del sorgente e una finestra fittizia.
+
+Test web mirati **89/89** (`suite`, `action_plan`, `guide_view`, `importer_view`, `focus_loading`) e prova nativa **1/1**.
+Confronto prima/dopo ripetuto sull'app isolata. Restano aperti DPI di sistema diversi, scorciatoia globale della scheda,
+interazioni native e sovrapposizione ai controlli in gioco, qualificazione live e H3/H4. Il passo 5 resta aperto per una chat separata.
 
 ### F1 · 2026-11-23
 

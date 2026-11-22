@@ -36,6 +36,13 @@
  }
  function plainClick(event){return !event.defaultPrevented&&event.button===0&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey;}
  document.addEventListener('click',event=>{const button=event.target.closest('[data-view]');if(button){event.preventDefault();navigate(button.dataset.view);}});
+ document.addEventListener('focusin',event=>{
+  const control=event.target;
+  const strip=control.closest('.suite-sidebar nav,.sidebar-bottom');
+  if(strip&&strip.scrollWidth>strip.clientWidth&&control.matches(':focus-visible')){
+   control.scrollIntoView({block:'nearest',inline:'nearest',container:'nearest'});
+  }
+ });
  window.addEventListener('hashchange',()=>route(location.hash.slice(1)));
  window.addEventListener('hoi-live-follow',followObservedTree);
  $('workspaceFrame').addEventListener('load',()=>{

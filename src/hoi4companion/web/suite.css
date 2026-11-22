@@ -35,9 +35,13 @@
  .sidebar-bottom{display:flex;overflow-x:auto;margin:6px 0 0;padding:6px 0 0;border-top:1px solid #222a34;gap:3px}
  .sidebar-bottom button,.sidebar-bottom a{flex:none;white-space:nowrap;font-size:12px;padding:7px 10px}
  .sidebar-bottom p{display:none}
+ .suite-sidebar :is(nav,.sidebar-bottom) :is(a,button,select):focus-visible{outline-offset:-3px}
  .suite-topbar{height:56px}
  .reader-badge{padding:4px 7px}
  .suite-frame-view{height:calc(100vh - 240px);min-height:320px}
+ .suite-dashboard{padding-top:24px}
+ .suite-dashboard .hero{margin-bottom:16px}
+ .now-route{padding:16px}
 }
 .suite-sidebar :is(a,button,select):focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .now-route{margin-bottom:24px}

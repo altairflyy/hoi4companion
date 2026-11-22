@@ -2,14 +2,12 @@
 Updated: 2026-11-23. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `-2026-11-20.md`, `-2026-11-21.md`, `-2026-11-22.md`, `git log`.
 
 ## Next actions
-Piano UX desktop chiuso 2026-11-22. Esiti per criterio e percorso in `docs/ux-implementation-plan.md`, step 8.
-F1 (passi 2–3) misurato; H3/H4 restano pendenti. Dal 2026-11-23 le prossime prove sono solo UI/UX, offline e con fixture.
+Piano UX desktop chiuso. F2 passo 4 verificato offline. F2 passo 5 è la prossima prova, in una chat separata. H3/H4 restano pendenti.
 Resume prompt:
-> Leggi docs/AGENT_HANDOFF.md, docs/ux-implementation-plan.md e F2 nel piano HUD del 2026-11-22. Esegui solo F2 passo 4 offline.
-> Usa Companion con dati isolati e fixture deterministiche. Verifica leggibilità, ingombro, allineamento e tastiera a due configurazioni di scala o viewport.
-> Correggi solo i difetti UI riprodotti, ripeti il confronto e registra catture, test e limiti. Lascia la geometria nativa di HOI4 e il passo 5 pendenti.
-HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
-UX steps 1–9 (2026-11-19): archiviati. Le prove live del passo 9 sono fuori dal prossimo ciclo UI/UX.
+> Leggi docs/AGENT_HANDOFF.md, docs/ux-implementation-plan.md e F2 nel piano HUD del 2026-11-22. Esegui solo F2 passo 5 offline.
+> In WebView2 con profilo isolato, prova progetti inattivi ed elenco comandanti con fixture di dati osservati, vuoti e indisponibili. Verifica etichette, gerarchia e navigazione.
+> Correggi solo i difetti riprodotti. Esegui i test pertinenti e ripeti le prove. Registra catture, esiti e limiti nel piano e nel handoff. Tieni HOI4 e la partita live fuori dalle prove.
+Optional HUD responsiveness work (full read, HUD `project`): plan 2026-11-21 step 4b.
 
 ## In progress
 - 2026-11-20 PURGE (user order): third-party guide data (benchmark/review/probe fixtures, Wojtek guide, `docs/it/walkthrough.md`) is
@@ -20,6 +18,8 @@ UX steps 1–9 (2026-11-19): archiviati. Le prove live del passo 9 sono fuori da
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-23 F2 passo 4: WebView2 157, 1282 × 832 e 740 × 560, DPR 1. Corretti focus e visibilità del primo titolo di «Ora». Test web 89/89.
+- HUD fittizio a 96 DPI: 360 × 283 e 311 × 304 px, Produzione leggibile, prova 1/1. Catture e log in `.local/ux-captures/f2-step-4/`. Dettagli nei piani UX e HUD.
 - 2026-11-23 F1 scheda JAP: 360 × 466–483 px nel client 2560 × 1440, leggibile e libera dai controlli visibili in Produzione.
   L'utente conferma nascondi/richiama con `Ctrl+Alt+H`. Evidenze `.local/hud-quality-f1/card-proof.png`, `card-windows.jsonl`, `card-trace.jsonl`.
 - F1 scheda SOV: posizione salvata a y=43 px, sovrapposizione alla fila notifiche quando è popolata. `.local/hud-quality-f1/map-proof-1.png`.
@@ -44,6 +44,7 @@ UX steps 1–9 (2026-11-19): archiviati. Le prove live del passo 9 sono fuori da
 - R7 prefixes use game-start ownership only: a guide for a later bookmark could bind a prefix unique at start but not in its campaign.
 - Research "UP" steps (`98bc02a`) and abbreviated/written-out references: unit and catalog checks pass, NOT verified live in game.
 - Allineamento ai singoli edifici e al bordo per i marker pendente (H3/H4). Unit stacks unqualified.
+- F2 passo 4: DPI di sistema diversi, scorciatoia e interazioni native, sovrapposizione ai controlli in partita da verificare.
 - Intermittent startup/import JS test seen once; no root cause claimed.
 
 ## Working boundaries

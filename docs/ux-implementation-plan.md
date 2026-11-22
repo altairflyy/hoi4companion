@@ -479,9 +479,16 @@ Su URSS, la posizione salvata copre parte delle notifiche quando la fila superio
 posizione predefinita non è stata provata.
 Gli esiti della scheda e quelli dei marker in mappa sono registrati separatamente in F1. [Piano HUD](hud-quality-plan-2026-11-22.md)
 
-**Prossime prove.** Il seguito riguarda solo UI/UX di Companion. Usare un profilo isolato e fixture ripetibili in WebView2,
-confrontare leggibilità, layout e tastiera a scale o viewport diverse e registrare le catture. Le verifiche che richiedono una
-partita o la geometria nativa rimangono pendenti.
+**Verifica offline F2, passo 4 · 2026-11-23.** Confronto in WebView2 157.0.4341.60 a 1282 × 832 e 740 × 560 CSS px, DPR 1,
+in italiano con profili isolati e la fixture `game_absent` dello step 3. Nel compatto il titolo di «Ora» è ora leggibile senza
+scorrere (y=533–554 px, prima 561–582 px). Il focus resta visibile nelle barre e Tab porta interamente in vista il controllo.
+Esaminati Sala operativa, Sessione e HUD, Piano, Libreria, Importa ZIP e Configurazione. Verificati anche apertura e ciclo del
+dialogo, Esc, salto al contenuto e ricerca. Riprova prima/dopo e test web 89/89.
+
+Scheda HUD Direct2D renderizzata su due client fittizi delle stesse dimensioni a 96 DPI, con Produzione espansa e contenuto leggibile.
+Configurazioni, misure, limiti e comandi di riproduzione nella [sezione F2 del piano HUD](hud-quality-plan-2026-11-22.md#f2--step-4--2026-11-23).
+Catture e log in `.local/ux-captures/f2-step-4/`. DPI di sistema diversi e comportamento rispetto a una partita restano da verificare.
+Il passo 5 è riservato a una chat separata.
 
 ## Prompt iniziale
 
