@@ -116,3 +116,37 @@ test('change-to-delivery adds the stages of changed deliveries and ranks their p
   assert.deepEqual(Object.keys(r.change_delivery.parts), ['acquisition.collect', 'progress.observe_active_guide', 'collect.events', 'publish.project']);
   assert.match(format(r), /Change-to-delivery \(acquisition or progress > 100 ms\): 2, p50 1602/);
 });
+
+test('map markers are split by camera state, with read failures, skips and blinks', () => {
+  const t = 1700000000000;
+  const it = (dt, fields) => JSON.stringify({ ev: 'iter', branch: 'native', fg: true, t: t + dt, map_n: 2, ...fields });
+  const lines = [
+    it(0, { map: 1, map_pts: 1, map_cam: [1, 2, 3, 4, 5] }),
+    it(17, { map: 1, map_pts: 1, map_cam: [1, 2, 3, 4, 5] }),
+    // Camera moves from 1000 ms: one failed read, then none drawn, then back.
+    it(1000, { map: 1, map_pts: 1, map_cam: [9, 2, 3, 4, 5] }),
+    it(1017, { map: 1, map_err: 'Stato cambiato durante la lettura' }),
+    it(1034, { map: 0, map_err: 'Stato cambiato durante la lettura' }),
+    it(1100, { map: 1, map_pts: 1, map_cam: [10, 2, 3, 4, 5] }),
+    // A central panel hides them: not a blink.
+    it(2000, { map: 0, map_skip: 'central_panel' }),
+    it(3200, { map: 1, map_pts: 1, map_cam: [10, 2, 3, 4, 5] }),
+    JSON.stringify({ ev: 'iter', branch: 'native', fg: false, t: t + 3300, map_n: 2, map: 0 }),
+    JSON.stringify({ ev: 'iter', branch: 'native', fg: true, t: t + 3400, marks: 1 }),
+  ].join('\n');
+  const r = report(parse(lines).events);
+  const m = r.map_markers;
+  assert.equal(m.iterations, 8, 'foreground iterations with map proposals only');
+  assert.equal(m.camera_changes, 2);
+  assert.deepEqual(m.by_camera.still, { iterations: 3, drawn: 3, projected: 3, held_without_projection: 0, read_failed: 0, skipped: 0 });
+  assert.deepEqual(m.by_camera.moving, { iterations: 4, drawn: 3, projected: 2, held_without_projection: 1, read_failed: 2, skipped: 0 });
+  assert.deepEqual(m.by_camera.unknown, { iterations: 1, drawn: 0, projected: 0, held_without_projection: 0, read_failed: 0, skipped: 1 });
+  assert.deepEqual(m.read_errors, { 'Stato cambiato durante la lettura': 2 });
+  assert.deepEqual(m.skipped, { central_panel: 1 });
+  assert.equal(m.blinks.count, 1);
+  assert.deepEqual(m.blinks.by_camera, { moving: 1 });
+  assert.equal(m.blinks.off_ms.max, 66);
+  assert.match(format(r), /Map markers \(foreground iterations with map proposals\): 8, camera changes 2/);
+  assert.match(format(r), /blinks \(drawn, none, drawn again within 1000 ms\): 1, by camera: moving 1/);
+  assert.equal(report(parse(it(0, { map: 0 }).replace('"map_n":2,', '')).events).map_markers.iterations, 0);
+});

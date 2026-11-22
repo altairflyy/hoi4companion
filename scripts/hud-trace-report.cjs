@@ -159,9 +159,58 @@ function report(events) {
       duration_ms: stats(rebuilds.map(r => r.ms)) },
     unusable_in_foreground: { by_error: unusable, native_errors: nativeErrors },
     session_closes: sessionCloses([...closes.values()]),
+    map_markers: mapMarkers(iterations),
     change_delivery: { threshold_ms: CHANGE_MS, total_ms: stats(changeTotals),
       parts: Object.fromEntries(Object.entries(changeParts).map(([k, v]) => [k, stats(v)]).sort((a, b) => b[1].p50 - a[1].p50)) },
   };
+}
+
+// Construction map markers (HUD quality plan F1 step 1): foreground iterations
+// whose delivery proposes map markers, split by camera state. The camera is
+// "moving" when its signature (`map_cam`) changes within MOVE_WINDOW_MS of the
+// iteration, "still" when a signature is known and did not change, "unknown"
+// without any signature nearby (the map was not projected). A blink is drawn
+// markers going to none and back within BLINK_MS, with no central panel open.
+const MOVE_WINDOW_MS = 300;
+const BLINK_MS = 1000;
+function mapMarkers(iterations) {
+  const rows = iterations.filter(e => e.fg && Number.isFinite(e.map_n));
+  const changes = [], known = [];
+  let previous = null;
+  for (const e of rows) {
+    if (!Array.isArray(e.map_cam)) continue;
+    known.push(e.t);
+    const signature = JSON.stringify(e.map_cam);
+    if (previous !== null && signature !== previous) changes.push(e.t);
+    previous = signature;
+  }
+  const near = (times, t) => times.some(x => Math.abs(x - t) <= MOVE_WINDOW_MS);
+  const state = e => (near(changes, e.t) ? 'moving' : near(known, e.t) ? 'still' : 'unknown');
+  const empty = () => ({ iterations: 0, drawn: 0, projected: 0, held_without_projection: 0, read_failed: 0, skipped: 0 });
+  const byCamera = { still: empty(), moving: empty(), unknown: empty() };
+  const errors = {}, skipped = {};
+  const blinks = [];
+  let lastDrawn = null, off = null;
+  for (const e of rows) {
+    const c = byCamera[state(e)];
+    c.iterations++;
+    if (e.map > 0) c.drawn++;
+    if (e.map_pts > 0) c.projected++;
+    if (e.map > 0 && !(e.map_pts > 0)) c.held_without_projection++;
+    if (e.map_err) { c.read_failed++; errors[e.map_err] = (errors[e.map_err] || 0) + 1; }
+    if (e.map_skip) { c.skipped++; skipped[e.map_skip] = (skipped[e.map_skip] || 0) + 1; off = null; continue; }
+    if (e.map > 0) {
+      if (off && e.t - off.t <= BLINK_MS) blinks.push({ t: off.t, off_ms: e.t - off.t, camera: off.camera });
+      off = null;
+      lastDrawn = e.t;
+    } else if (lastDrawn !== null && !off) {
+      off = { t: e.t, camera: state(e) };
+    }
+  }
+  const blinkCamera = {};
+  for (const b of blinks) blinkCamera[b.camera] = (blinkCamera[b.camera] || 0) + 1;
+  return { iterations: rows.length, camera_changes: changes.length, by_camera: byCamera, read_errors: errors, skipped,
+    blinks: { count: blinks.length, by_camera: blinkCamera, off_ms: stats(blinks.map(b => b.off_ms)), first: blinks.slice(0, 10) } };
 }
 
 function sessionCloses(events) {
@@ -212,6 +261,18 @@ function format(r) {
   const sc = r.session_closes;
   out.push('', `Qualified session closes: ${sc.count} (${sc.with_session} of an open session)${sc.count ? `, by stage: ${Object.entries(sc.by_stage).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''}`);
   for (const c of sc.events.slice(-30)) out.push(`  ${time(c.t)} #${c.seq} ${c.stage}${c.had_session ? '' : ' (no session open)'}: ${c.error}`);
+  const mm = r.map_markers;
+  if (mm && mm.iterations) {
+    out.push('', `Map markers (foreground iterations with map proposals): ${mm.iterations}, camera changes ${mm.camera_changes}`);
+    out.push('  camera     iterations   drawn  projected  held-only  read-failed  skipped');
+    for (const [name, c] of Object.entries(mm.by_camera)) {
+      out.push(`  ${name.padEnd(9)} ${String(c.iterations).padStart(11)} ${String(c.drawn).padStart(7)} ${String(c.projected).padStart(10)} ${String(c.held_without_projection).padStart(10)} ${String(c.read_failed).padStart(12)} ${String(c.skipped).padStart(8)}`);
+    }
+    for (const [error, count] of Object.entries(mm.read_errors).sort((a, b) => b[1] - a[1])) out.push(`  read failed ${count}: ${error}`);
+    for (const [reason, count] of Object.entries(mm.skipped).sort((a, b) => b[1] - a[1])) out.push(`  skipped ${count}: ${reason}`);
+    const b = mm.blinks;
+    out.push(`  blinks (drawn, none, drawn again within ${BLINK_MS} ms): ${b.count}${b.count ? `, by camera: ${Object.entries(b.by_camera).map(([k, v]) => `${k} ${v}`).join(', ')}; off p50 ${n(b.off_ms.p50)} / max ${n(b.off_ms.max)} ms` : ''}`);
+  }
   for (const f of r.fatal_errors) out.push(`Fatal ${time(f.t)}: ${f.error}`);
   return out.join('\n');
 }

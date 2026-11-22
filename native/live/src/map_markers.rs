@@ -113,7 +113,14 @@ pub fn geometry(
         }
     }
     s.verify()?;
-    Ok(json!({"matches":matches,"bytes":s.used}))
+    // Diagnostics only (HUD quality plan F1 step 1): a compact camera
+    // signature, so the trace can tell a still camera from pan and zoom.
+    let camera = [center, matrix[0], matrix[5], matrix[12], matrix[13]].map(signature);
+    Ok(json!({"matches":matches,"bytes":s.used,"camera":camera}))
+}
+/// `value` rounded to 5 significant digits (keeps trace lines short).
+fn signature(value: f64) -> f64 {
+    format!("{value:.4e}").parse().unwrap_or(0.)
 }
 #[cfg(test)]
 mod tests {
@@ -177,6 +184,9 @@ mod tests {
             result["matches"][0]["rect"],
             json!([494., 244., 506., 256.])
         );
+        assert_eq!(result["camera"], json!([0., 1., 1., 0., 0.]));
+        assert_eq!(signature(1234.5678), 1234.6);
+        assert_eq!(signature(-0.000123456), -0.00012346);
         assert!(geometry(&mut m, base, &json!({"sha256":"other"}), &proposals, &view).is_err());
         // HOI4 1.20 slots are admitted only with their RTTI, which this fixture lacks.
         let v120 = json!({"sha256":"1beb2a38fe2d747e5b7adb9b9648e350b0b851845dd228ffb87d2d2ac1b63a9f"});

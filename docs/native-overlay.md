@@ -183,6 +183,12 @@ camera, mismatching viewport or unknown build yields no marker. Central panels
 recognized by native GUI observation suppress map markers. Existing foreground,
 window, guide revision and 750 ms freshness gates still apply. No map OCR or screen
 capture fallback starts when native map evidence is unavailable.
+Since 2026-11-22 the geometry diagnostics carry `map_points`, a camera signature
+`map_camera`, `map_unavailable` (read failure) or `map_skipped` (no projection
+ran); `hud-trace.jsonl` writes them as `map_n`/`map`/`map_pts`/`map_cam`/
+`map_err`/`map_skip` while map markers are proposed, and the report's "Map
+markers" section splits them by still and moving camera
+(`docs/hud-quality-plan-2026-11-22.md`, F1).
 
 Evidence: static disassembly of projection VA `14121d5c0` and a separate external
 RPM-only probe on the installed build/current game. 39 native VictoryPoint icons

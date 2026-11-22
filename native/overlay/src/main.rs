@@ -166,6 +166,8 @@ fn production_line(row:&Value,title:&str)->String {
     if let Some(priority)=row["production_priority"].as_str(){caption.push_str(" · ");caption.push_str(&i18n::text(if priority=="first"{"Top priority"}else{"Last line"}));}
     caption
 }
+/// Construction map markers among the rows to draw (trace only).
+fn map_rows(rows:&[Value])->usize {rows.iter().filter(|row|row["panel"]=="construction_map").count()}
 fn marks(rows:&[Value],width:u32,height:u32)->Vec<Highlight> {
     rows.iter().filter_map(|row|{
         let rect=evidence::valid_rectangle(&row["rect"],width,height)?;
@@ -688,7 +690,7 @@ fn run(options:Options)->Result<(),String> {
                     last_matches=rows;
                     let card=current_card(&mut card_hold,&mut card_images,&snapshot,now);
                     let highlights=marks(&last_matches,view.width,view.height);
-                    trace.iteration(traced("idle",card.is_some(),highlights.len(),false),false);
+                    trace.iteration(trace::Iteration{map:map_rows(&last_matches),..traced("idle",card.is_some(),highlights.len(),false)},false);
                     present(&renderer,view,highlights,witnessed,card)?;
                 }
                 None=>{
@@ -743,7 +745,7 @@ fn run(options:Options)->Result<(),String> {
             last_matches=rows;
             let card=current_card(&mut card_hold,&mut card_images,&snapshot,now);
             let highlights=marks(&last_matches,view.width,view.height);
-            trace.iteration(traced("native",card.is_some(),highlights.len(),false),false);
+            trace.iteration(trace::Iteration{map:map_rows(&last_matches),..traced("native",card.is_some(),highlights.len(),false)},false);
             present(&renderer,&view,highlights,witnessed,card)?;
             native_frames+=1;
             if last_status.elapsed()>Duration::from_millis(500){

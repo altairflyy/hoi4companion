@@ -462,12 +462,24 @@ impl GuiLane {
         }
         let mut result = crate::hud_geometry::admit(&raw, proposals, &args["view"])?;
         if let Some(panels)=result["handled_panels"].as_array_mut() {panels.push(json!("construction_map"));}
-        if raw["available"]==true && raw["resolution"]==json!([args["view"][4],args["view"][5]])
-            && raw["active_panel"].as_str().is_none_or(str::is_empty)
-            && crate::hud_geometry::rows(proposals).iter().any(|p|p["panel"]=="construction_map") {
-            match crate::map_markers::geometry(&mut memory,game.base,&profile,proposals,&args["view"]) {
-                Ok(map)=>{if let (Some(rows),Some(points))=(result["matches"].as_array_mut(),map["matches"].as_array()){rows.extend(points.iter().cloned());}result["diagnostics"]["map_bytes"]=map["bytes"].clone();},
-                Err(reason)=>result["diagnostics"]["map_unavailable"]=json!(reason),
+        if crate::hud_geometry::rows(proposals).iter().any(|p|p["panel"]=="construction_map") {
+            // Why no projection ran (diagnostics only, HUD quality plan F1 step 1).
+            let skipped=if raw["available"]!=true {Some("gui_unavailable")}
+                else if raw["resolution"]!=json!([args["view"][4],args["view"][5]]) {Some("resolution")}
+                else if raw["active_panel"].as_str().is_some_and(|p|!p.is_empty()) {Some("central_panel")}
+                else {None};
+            match skipped {
+                Some(reason)=>result["diagnostics"]["map_skipped"]=json!(reason),
+                None=>match crate::map_markers::geometry(&mut memory,game.base,&profile,proposals,&args["view"]) {
+                    Ok(map)=>{
+                        let points=map["matches"].as_array().map_or(0,Vec::len);
+                        if let (Some(rows),Some(found))=(result["matches"].as_array_mut(),map["matches"].as_array()){rows.extend(found.iter().cloned());}
+                        result["diagnostics"]["map_bytes"]=map["bytes"].clone();
+                        result["diagnostics"]["map_points"]=json!(points);
+                        result["diagnostics"]["map_camera"]=map["camera"].clone();
+                    },
+                    Err(reason)=>result["diagnostics"]["map_unavailable"]=json!(reason),
+                },
             }
         }
         result["sample_age_ms"] = json!(raw["sample_age_ms"].as_f64().ok_or("Missing native GUI witness age")?

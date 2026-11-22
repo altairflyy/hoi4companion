@@ -73,6 +73,8 @@ pub struct Iteration<'a> {
     pub reply_bytes: usize,
     pub card: bool,
     pub marks: usize,
+    /// Construction map markers among the drawn rows (HUD quality plan F1).
+    pub map: usize,
     pub capture_error: bool,
     /// Longest pause of the loop itself since the previous recorded sample:
     /// the time drawing, card drag and buttons could not be served. Since the
@@ -81,7 +83,7 @@ pub struct Iteration<'a> {
 }
 impl<'a> Iteration<'a> {
     pub fn new(branch: &'static str, foreground: bool, reply: &'a Value) -> Self {
-        Self { branch, foreground, observe: None, reply, reply_bytes: 0, card: false, marks: 0, capture_error: false, gap: None }
+        Self { branch, foreground, observe: None, reply, reply_bytes: 0, card: false, marks: 0, map: 0, capture_error: false, gap: None }
     }
 }
 
@@ -184,6 +186,26 @@ impl Trace {
         }
         if let Some(count) = diagnostics["retry_count"].as_u64().filter(|n| *n > 0) {
             line["retry"] = json!(count);
+        }
+        // Construction map markers (HUD quality plan F1 step 1), only while the
+        // delivery proposes some: proposed (`map_n`), drawn (`map`), projected
+        // in view (`map_pts`), the camera signature, and why none was projected.
+        let proposed = reply["proposed"].as_array().map_or(0, |rows| rows.iter().filter(|row| row["panel"] == "construction_map").count());
+        if proposed > 0 {
+            line["map_n"] = json!(proposed);
+            line["map"] = json!(sample.map);
+            if let Some(points) = diagnostics["map_points"].as_u64() {
+                line["map_pts"] = json!(points);
+            }
+            if diagnostics["map_camera"].is_array() {
+                line["map_cam"] = diagnostics["map_camera"].clone();
+            }
+            if let Some(error) = short_text(&diagnostics["map_unavailable"]) {
+                line["map_err"] = json!(error);
+            }
+            if let Some(reason) = short_text(&diagnostics["map_skipped"]) {
+                line["map_skip"] = json!(reason);
+            }
         }
         // A younger delivery than the previous sample is a new one: record how
         // long the backend took to build it.
@@ -342,6 +364,31 @@ mod tests {
         assert_eq!(lines[3]["ev"], "hide");
         assert_eq!(lines[3]["cause"], "no_card_or_marks");
         assert_eq!(lines[3]["error"].as_str().unwrap().len(), 120, "the blank says why");
+    }
+
+    #[test]
+    fn construction_map_markers_are_traced_only_while_proposed() {
+        let path = temp("map");
+        {
+            let mut trace = Trace::open(path.clone());
+            let proposed = json!([{"panel":"construction_map"},{"panel":"construction_map"},{"panel":"focus"}]);
+            let projected = json!({"usable":true,"proposed":proposed,
+                "diagnostics":{"map_points":1,"map_camera":[512.0,0.0012,-0.0021,0.5,0.25]}});
+            trace.iteration(Iteration { marks: 1, map: 1, ..Iteration::new("native", true, &projected) }, false);
+            let failed = json!({"usable":true,"proposed":proposed,"diagnostics":{"map_unavailable":"Stato cambiato durante la lettura"}});
+            trace.iteration(Iteration { marks: 1, map: 1, ..Iteration::new("native", true, &failed) }, false);
+            let skipped = json!({"usable":true,"proposed":proposed,"diagnostics":{"map_skipped":"central_panel"}});
+            trace.iteration(Iteration::new("native", true, &skipped), false);
+            trace.iteration(Iteration::new("native", true, &json!({"usable":true,"proposed":[{"panel":"focus"}]})), false);
+        }
+        let lines: Vec<Value> = lines(&path).into_iter().filter(|l| l["ev"] == "iter").collect();
+        assert_eq!((lines[0]["map_n"].clone(), lines[0]["map"].clone(), lines[0]["map_pts"].clone()), (json!(2), json!(1), json!(1)));
+        assert_eq!(lines[0]["map_cam"], json!([512.0, 0.0012, -0.0021, 0.5, 0.25]));
+        assert!(lines[0].get("map_err").is_none() && lines[0].get("map_skip").is_none());
+        assert_eq!(lines[1]["map_err"], "Stato cambiato durante la lettura");
+        assert!(lines[1].get("map_cam").is_none() && lines[1].get("map_pts").is_none());
+        assert_eq!((lines[2]["map"].clone(), lines[2]["map_skip"].clone()), (json!(0), json!("central_panel")));
+        assert!(lines[3].get("map_n").is_none() && lines[3].get("map").is_none(), "no map proposal, no map fields");
     }
 
     #[test]
