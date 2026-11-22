@@ -420,7 +420,7 @@ dal backend installato in un profilo isolato. Suite, Piano, Tecnologie e catalog
 
 ## Step 8 · Verifica finale desktop
 
-**Stato al 2026-11-22:** piano desktop chiuso. Verifica HUD in partita sospesa.
+**Stato al 2026-11-23:** piano desktop chiuso. Verifica HUD in partita riaperta dall'utente per F1.
 
 Con la build corrente ripercorrere avvio, Sala operativa, ricerca in Libreria, Piano, Focus, Tecnologie, riferimenti, importazione e
 stato HUD, con una guida attiva o una fixture isolata. Rimisurare M1-M4 e confrontarle con lo step 1. Eseguire `npm test` e
@@ -472,9 +472,12 @@ contratto dello step 3 (identità del campione, stato campagna, etichette) e all
 **Test automatici.** `npm test` 517 passati, 3 saltati, 0 errori. I tre skip sono un caso con corpus locale e due prove opt-in
 del ciclo di vita desktop. `node --test tests/test_agent_handoff_size.cjs` 3/3. Log `npm-test.log` e `handoff-size.log`.
 
-**Ripresa live, solo su richiesta dell'utente.** La verifica di leggibilità, ingombro, allineamento e richiamo della scheda confluisce
-in F1 del [piano HUD](hud-quality-plan-2026-11-22.md), insieme alla prova dei marker in mappa. Il prompt aggiornato è nel
-[handoff](AGENT_HANDOFF.md#next-actions).
+**Ripresa live del 2026-11-23.** Sul Giappone a 2560 × 1440 px, scheda leggibile nella cattura a risoluzione piena, interamente
+nel client e senza sovrapposizioni ai controlli visibili con Produzione aperta. Evidenze `.local/hud-quality-f1/card-proof.png`
+e `card-windows.jsonl`. L'utente ha confermato che `Ctrl+Alt+H` nasconde e richiama la scheda.
+Su URSS, la posizione salvata copre parte delle notifiche quando la fila superiore è popolata (`map-proof-1.png`). La
+posizione predefinita non è stata provata.
+Gli esiti della scheda e quelli dei marker in mappa sono registrati separatamente in F1. [Piano HUD](hud-quality-plan-2026-11-22.md)
 
 ## Prompt iniziale
 

@@ -7,7 +7,7 @@ never draw a marker at a position that no fresh camera read supports.
 Each item is measured (trace or a user screenshot) before any qualified geometry changes. Agents never start or control HOI4; live
 checks that use the same game setup can be batched when the user is at the PC. Live work remains paused until the user reopens it.
 
-## What the code does today (read 2026-11-22, not measured)
+## Baseline before F1 steps 2–3 (read 2026-11-22)
 - Construction map markers (`native/live/src/map_markers.rs`, doc `docs/native-overlay.md` "Construction map markers"): each HUD
   geometry request (`provider.rs` `GuiLane::geometry`, ~every 16 ms) reads the camera matrix, center X, viewport and map width, projects
   each `construction_map` proposal's static `world_point`, then `Sample::verify` reads every range again. A 12 px square per point.
@@ -45,7 +45,7 @@ use a guide step that proposes construction markers for the map trial. Keep sepa
    For a guide step with construction targets (the HUD shows map markers), collect ~5 min of pan and zoom at
    several zoom levels, plus 2-3 user screenshots of markers over the map (still camera) to judge H4. Read the "Map markers"
    section; decide which of H1-H4 hold.
-3. [ ] Fix by the numbers only. Candidates: for H1 retry the camera read in the same request when verify sees a change (the read is
+3. [x] Fix by the numbers only. Candidates: for H1 retry the camera read in the same request when verify sees a change (the read is
    ~120 bytes), and treat a sample whose map read failed as unverified for `construction_map` rows instead of a verified absence;
    for H2 never hold a map marker's old rectangle across a camera change (hide it until a fresh projection); for H4 only with
    screenshots that show the offset. Rust tests; rebuild Companion; then a short live check under the same conditions.
@@ -63,4 +63,50 @@ use a guide step that proposes construction markers for the map trial. Keep sepa
   its live check with a measurement or screenshot.
 
 ## Measured
-Nothing yet.
+
+### F1 · 2026-11-23
+
+- **Scheda.** Partita giapponese `JAP` / `japan_wtt_focus`, con la guida giapponese attivata dall'utente. Nel client di
+  2560 × 1440 px la finestra è rimasta interamente contenuta, con origine `[1783,43]` e dimensioni osservate di 360 × 466–483 px
+  (4,55–4,72% del client). Nella cattura nativa con Produzione aperta il titolo, il testo e le sei righe di produzione si leggono
+  a risoluzione piena. La scheda copre una porzione di mappa e lascia liberi il pannello Produzione e i controlli visibili.
+  L'utente ha confermato che `Ctrl+Alt+H` nasconde la scheda e la seconda pressione la richiama. Evidenze in
+  `.local/hud-quality-f1/`: `card-proof.png` e `card-proof.json` (cattura
+  verificata), `card-windows.jsonl` (finestra), `card-trace.jsonl` (consegna della scheda e primo piano).
+  Su SOV la scheda, alta 635 px con la lista Produzione espansa (6,20% del client), resta entro il client e copre parte
+  della fila delle notifiche in alto all'origine salvata `[1783,43]`. Evidenza `map-proof-1.png`. La posizione salvata è
+  rimasta quella scelta dall'utente. Il posizionamento predefinito non è stato provato.
+- **Marker.** La proiezione giapponese è priva di marker. Su `SOV` / `soviet_focus`, il passo di costruzione di «Reverse
+  Barbarossa» risulta completato. Per la prova è stata selezionata temporaneamente «Third Rome», con passo corrente
+  `word-0001--line-2` e due marker unici (Chita 563 e Buriazia 564). «Map markers» nel preflight registra 3969 iterazioni
+  con proposte, 3968 sospese per `central_panel` (Produzione), zero proiezioni. Evidenze `.local/hud-quality-f1/map-preflight.jsonl`
+  e `map-preflight-report.txt`.
+- **Baseline marker.** Pan e zoom a più livelli per 300,0 s, client 2560 × 1440, prima della correzione. «Map markers» conta
+  14.932 iterazioni in primo piano con proposte, 10.616 con marker disegnati, 3955 cambi di firma camera e 91 sospensioni da
+  pannello centrale. Evidenze in `.local/hud-quality-f1/`: `map-baseline.jsonl`, `map-baseline-report.txt`,
+  `map-baseline-comparison.json`, `map-baseline-blinks.jsonl`. L'avvicinamento precedente è in `map-approach.jsonl`.
+  - **H1, rara e isolata nella riprova.** Nella baseline due letture incoerenti su 5507 iterazioni in movimento (0,036%). Nessuna coincide con i
+    10 intervalli senza marker poi ricomparsi entro 1 s: uno ha zero punti proiettati, nove passano per la cattura mentre
+    il backend proietta due punti. Il ramo cattura ha priorità quando la geometria del popup evento non è qualificata.
+  - **H2, confermata.** 11 iterazioni con più marker disegnati che proiettati, nove su un cambio di camera con meno punti
+    proiettati rispetto al campione precedente. Il report conta quattro frame in movimento con soli marker mantenuti.
+  - **H3 e H4, pendenti.** Una cattura nativa verificata a camera ferma (`map-proof-1.png` e `map-proof-1.json`) mostra
+    Chita e Buriazia nella zona attesa. Entrambi i marker sono interni al viewport. La cattura non individua l'icona dello
+    specifico edificio usato come ancora. L'utente ha chiuso la raccolta dopo questa immagine, quindi manca il confronto
+    a più zoom e sul bordo.
+- **Correzione H2.** `0a6a820`: i marker escono immediatamente quando il campione corrente non li conferma. Test di
+  regressione riprodotto prima della modifica, suite overlay 80/80 dopo, report 8/8. Build overlay Dev reinstallata e
+  riavviata. Log `overlay-test-before.log`, `overlay-test-after.log`, `overlay-build.log`.
+- **Riprova H2.** 60,0 s sulla stessa partita, 3343 iterazioni con proposte, 2497 in movimento. Zero marker mantenuti su sette
+  cali di proiezione con cambio camera, contro nove su nove nella baseline. Cinque letture incoerenti causano cinque interruzioni
+  singole di 16–19 ms; la sesta interruzione (319 ms) ha campioni verificati senza punti. Evidenze `map-retest.jsonl`,
+  `map-retest-report.txt`, `map-retest-comparison.json`, `map-retest-blinks.jsonl`.
+- **Correzione H1.** `d82c1f6` rilegge la camera una sola volta quando la verifica segnala un cambio durante il campione.
+  Usa solo la nuova proiezione verificata e conserva la soppressione se anche la seconda lettura è incoerente. Test di
+  regressione fallito prima, suite `live` 73/73 dopo. Ricompilati e reinstallati backend e DLL Dev, Companion riavviato,
+  stesso processo HOI4. Log `map-retry-test-before.log`, `map-retry-test-after.log`, `backend-build.log`, `final-launcher.log`.
+- **Riprova finale.** 60,0 s sulla stessa partita, 3050 iterazioni con proposte, 1386 in movimento, 2997 con marker visibili.
+  Zero incoerenze camera riportate e zero marker mantenuti, inclusi due cali di proiezione con cambio camera. Quattro
+  intervalli brevi senza marker, senza errori camera: uno con zero punti proiettati (222 ms) e tre nel ramo idle (13–20 ms).
+  Evidenze `map-final.jsonl`, `map-final-report.txt`, `map-final-comparison.json`, `map-final-blinks.json`. Riattivata la guida
+  «Reverse Barbarossa» al termine. Nessuna modifica ai margini o alle ancore. F2 rimane aperto per chat separate.

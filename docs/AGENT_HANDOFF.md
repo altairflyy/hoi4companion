@@ -1,16 +1,13 @@
 # Shared agent handoff
-Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `-2026-11-20.md`, `-2026-11-21.md`, `-2026-11-22.md`, `git log`.
+Updated: 2026-11-23. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `-2026-11-20.md`, `-2026-11-21.md`, `-2026-11-22.md`, `git log`.
 
 ## Next actions
 Piano UX desktop chiuso 2026-11-22. Esiti per criterio e percorso in `docs/ux-implementation-plan.md`, step 8.
-Resume prompt, solo su richiesta esplicita di riaprire i test live:
-> Leggi docs/AGENT_HANDOFF.md, la verifica live dello step 8 UX e F1 in docs/hud-quality-plan-2026-11-22.md. Esegui solo F1, passi 2–3, in questa chat.
-> Con una partita compatibile già aperta da me, verifica leggibilità, ingombro, allineamento e richiamo della scheda HUD. Io eseguo gli input in gioco.
-> Su un passo con marker di costruzione, raccogli circa 5 minuti di trace durante pan e zoom a più livelli e 2–3 screenshot a camera ferma forniti da me.
-> Usa il report «Map markers» per valutare H1–H4. Correggi solo i problemi sostenuti dalle misure. Se correggi, testa, ricompila Companion e ripeti una breve prova comparabile.
-> Registra esiti e percorsi nel piano e nel handoff. Lascia pendenti le verifiche senza evidenza. Non avviare né controllare HOI4. Lascia F2 a chat dedicate.
-
-PAUSED 2026-11-22 (user): HUD live sospeso fino a riapertura esplicita. Dopo F1, DPI/scala UI e progetti inattivi/roster sono due obiettivi F2.
+F1 (passi 2–3) misurato; restano H3/H4 senza qualificazione visiva a bordo e a più zoom. F2 in chat separate.
+Resume prompt:
+> Leggi docs/AGENT_HANDOFF.md e F2 in docs/hud-quality-plan-2026-11-22.md. In questa chat esegui solo F2 passo 4, DPI e scala UI.
+> Usa una partita compatibile già aperta da me. Gli input in gioco li eseguo io. Misura una scala alternativa concordata e correggi solo i problemi riprodotti.
+> Se correggi, esegui i test mirati, ricompila Companion e ripeti la misura. Registra risultati, evidenze e limiti nel piano e nel handoff. Lascia il passo 5 a una chat separata.
 HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
@@ -23,12 +20,12 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
-- 2026-11-22 UX step 8: launcher e WebView2 isolati. M1 0 clic/0 scroll, M2 1/1/1, M3 1/1, M4 6/6. Verificati Libreria,
-  Piano, Focus, Tecnologie, riferimenti, ZIP IT/EN e Sessione e HUD. Prove in `.local/ux-captures/step-8/`.
-  Nessuna regressione riprodotta. Prime riprove di home vuota/collegata e contatore Piano allineate a fixture e testi correnti, log in
-  `check-2/`. `npm test` 517 passati, 3 saltati. Handoff 3/3. Verifica HUD in partita sospesa.
-- 2026-11-22 HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior
-  change. Tests green (live 72, overlay 79, backend 65 + 120, JS 508/511, 3 skipped), invariant-reviewer clean. Live data NOT seen yet.
+- 2026-11-23 F1 scheda JAP: 360 × 466–483 px nel client 2560 × 1440, leggibile e libera dai controlli visibili in Produzione.
+  L'utente conferma nascondi/richiama con `Ctrl+Alt+H`. Evidenze `.local/hud-quality-f1/card-proof.png`, `card-windows.jsonl`, `card-trace.jsonl`.
+- F1 scheda SOV: posizione salvata a y=43 px, sovrapposizione alla fila notifiche quando è popolata. `.local/hud-quality-f1/map-proof-1.png`.
+- 2026-11-23 F1 marker SOV: baseline 300 s, H2 in 9 cambi di camera; con `0a6a820` 0 su 7 comparabili (60 s). Overlay 80/80.
+  H1: cinque lampeggi da lettura incoerente; con `d82c1f6` 0 errori camera in 1386 iterazioni in movimento (60 s), live 73/73.
+  `.local/hud-quality-f1/map-baseline-report.txt`, `map-retest-report.txt`, `map-final-report.txt`, `map-proof-1.png`. H3–H4 pendenti.
 - 2026-11-22 HUD plan part 2 step 5 (836 s of play on `0e4b001`): change-to-delivery p50 1166 / p90 1365 ms (target < 1.5 s met;
   was 2634 / 3103 on 2026-11-21), no delivery past 3 s, 0 session closes in play, 2 full-read retries (~1.5 s unknown each), gap p50
   16.9 ms, geometry max 26.9 ms. HUD actions NOT measured (none done). Plan archived; numbers in its "Measured 2026-11-22, step 5".
@@ -46,7 +43,7 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   the overlay window cannot be captured; needs a user screenshot with borders before touching qualified geometry.
 - R7 prefixes use game-start ownership only: a guide for a later bookmark could bind a prefix unique at start but not in its campaign.
 - Research "UP" steps (`98bc02a`) and abbreviated/written-out references: unit and catalog checks pass, NOT verified live in game.
-- In-game highlight alignment and fluidity not qualified. Map marker pan/zoom unverified. Unit stacks unqualified.
+- Allineamento ai singoli edifici e al bordo per i marker pendente (H3/H4). Unit stacks unqualified.
 - Intermittent startup/import JS test seen once; no root cause claimed.
 
 ## Working boundaries

@@ -40,3 +40,9 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/hud-pe
   Verifica manuale WebView2 e prova reale del richiamo ancora aperte.
 - UX step 7: inventario nel piano UX. L’utente ha approvato la rimozione dopo la migrazione.
   Edge con fixture, prove in `.local/ux-captures/step-7/`. JS mirati 86/86. Verifica WebView2 aperta.
+- UX step 8: launcher e WebView2 isolati. M1 0 clic/0 scroll, M2 1/1/1, M3 1/1, M4 6/6. Verificati Libreria,
+  Piano, Focus, Tecnologie, riferimenti, ZIP IT/EN e Sessione e HUD. Prove in `.local/ux-captures/step-8/`.
+  Nessuna regressione riprodotta. Prime riprove di home vuota/collegata e contatore Piano allineate a fixture e testi correnti, log in
+  `check-2/`. `npm test` 517 passati, 3 saltati. Handoff 3/3. La verifica in partita è ripresa il 23 novembre in F1.
+- HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior change.
+  Tests passed (live 72, overlay 79, backend 65 + 120, JS 508/511, 3 skipped), invariant-reviewer clean. First live data in F1 step 2.
