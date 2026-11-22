@@ -22,6 +22,7 @@ are preserved in [it/](it/README.md); archived test counts apply to their record
 - [Rust backend migration and verification gates](rust-backend-migration.md)
 - [Qualified LiveState](live-state.md)
 - [Native Windows HUD](native-overlay.md) (responsiveness plans: [2026-11-20, archived](hud-performance-plan-2026-11-20.md), [2026-11-21, archived](hud-performance-plan-2026-11-21.md); quality plan: [2026-11-22](hud-quality-plan-2026-11-22.md))
+- [UI/UX improvement plan, 2026-11-22](ux-implementation-plan.md) (follows [UX analysis 2026-11-19](ux-analysis-2026-11-19.md))
 - [Contextual operational summary](operational-summary.md)
 - [Parsing compatibility and excluded inputs](parsing-compatibility.md)
 - [Political state and appointments](politics-live.md)

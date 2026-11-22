@@ -10,6 +10,8 @@ Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the a
 PAUSED 2026-11-22 (user): no more live game tests for now; every remaining HUD quality step needs live data or a screenshot.
 HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
+UX plan 2026-11-22 (`docs/ux-implementation-plan.md`, desktop only, no game): next is step 1. Prompt: «Leggi docs/ux-implementation-plan.md
+e docs/AGENT_HANDOFF.md. Esegui solo lo step 1 (correzioni rapide e misura di partenza).»
 
 ## In progress
 - 2026-11-20 PURGE (user order): third-party guide data (benchmark/review/probe fixtures, Wojtek guide, `docs/it/walkthrough.md`) is
