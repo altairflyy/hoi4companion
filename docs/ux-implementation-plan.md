@@ -479,6 +479,10 @@ Su URSS, la posizione salvata copre parte delle notifiche quando la fila superio
 posizione predefinita non è stata provata.
 Gli esiti della scheda e quelli dei marker in mappa sono registrati separatamente in F1. [Piano HUD](hud-quality-plan-2026-11-22.md)
 
+**Prossime prove.** Il seguito riguarda solo UI/UX di Companion. Usare un profilo isolato e fixture ripetibili in WebView2,
+confrontare leggibilità, layout e tastiera a scale o viewport diverse e registrare le catture. Le verifiche che richiedono una
+partita o la geometria nativa rimangono pendenti.
+
 ## Prompt iniziale
 
 ```text

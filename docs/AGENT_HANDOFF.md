@@ -3,13 +3,13 @@ Updated: 2026-11-23. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Piano UX desktop chiuso 2026-11-22. Esiti per criterio e percorso in `docs/ux-implementation-plan.md`, step 8.
-F1 (passi 2–3) misurato; restano H3/H4 senza qualificazione visiva a bordo e a più zoom. F2 in chat separate.
+F1 (passi 2–3) misurato; H3/H4 restano pendenti. Dal 2026-11-23 le prossime prove sono solo UI/UX, offline e con fixture.
 Resume prompt:
-> Leggi docs/AGENT_HANDOFF.md e F2 in docs/hud-quality-plan-2026-11-22.md. In questa chat esegui solo F2 passo 4, DPI e scala UI.
-> Usa una partita compatibile già aperta da me. Gli input in gioco li eseguo io. Misura una scala alternativa concordata e correggi solo i problemi riprodotti.
-> Se correggi, esegui i test mirati, ricompila Companion e ripeti la misura. Registra risultati, evidenze e limiti nel piano e nel handoff. Lascia il passo 5 a una chat separata.
+> Leggi docs/AGENT_HANDOFF.md, docs/ux-implementation-plan.md e F2 nel piano HUD del 2026-11-22. Esegui solo F2 passo 4 offline.
+> Usa Companion con dati isolati e fixture deterministiche. Verifica leggibilità, ingombro, allineamento e tastiera a due configurazioni di scala o viewport.
+> Correggi solo i difetti UI riprodotti, ripeti il confronto e registra catture, test e limiti. Lascia la geometria nativa di HOI4 e il passo 5 pendenti.
 HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
-UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
+UX steps 1–9 (2026-11-19): archiviati. Le prove live del passo 9 sono fuori dal prossimo ciclo UI/UX.
 
 ## In progress
 - 2026-11-20 PURGE (user order): third-party guide data (benchmark/review/probe fixtures, Wojtek guide, `docs/it/walkthrough.md`) is

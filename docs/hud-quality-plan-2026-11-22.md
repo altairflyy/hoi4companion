@@ -52,16 +52,16 @@ use a guide step that proposes construction markers for the map trial. Keep sepa
    Record the findings and evidence paths. If evidence is missing, leave the affected check pending. If no fix is warranted,
    record that outcome for step 3.
 
-### F2 · Variable DPI and UI scale (step 4, after F1)
+### F2 · Offline UI/UX only (from 2026-11-23)
 
-- [ ] List which geometry paths assume 100 % (overlay window scale, GUI matrix scale, map viewport check). Measure at one other
-  Windows scale or HOI4 UI scale chosen by the user. Use the measurement or a screenshot to decide whether geometry needs a change.
+Use an isolated Companion profile with deterministic fixtures. The next sessions focus on what the UI displays and how it responds.
+Live qualification of HOI4 readers, camera geometry, UI scaling and HUD placement relative to the game remains pending.
 
-### F2 · Inactive projects and commander roster (step 5, after F1)
-
-- [ ] List what the native observers report and what the guide proposes. Choose with the user which case to qualify, then start
-  its live check with a measurement or screenshot.
-
+- [ ] Step 4 · DPI and layout. Compare the same Companion views at two scales or viewport sizes. Check readability, footprint,
+  clipping, alignment and keyboard focus in WebView2. Cover the HUD card through isolated rendering or existing fixtures where
+  available. Record the actual scale or viewport used and keep findings specific to that test surface.
+- [ ] Step 5 · Inactive projects and commander roster. Use fixtures for observed, empty and unavailable data. Check labels,
+  hierarchy, navigation and whether the UI clearly distinguishes unavailable data from an empty list.
 ## Measured
 
 ### F1 · 2026-11-23
@@ -109,4 +109,4 @@ use a guide step that proposes construction markers for the map trial. Keep sepa
   Zero incoerenze camera riportate e zero marker mantenuti, inclusi due cali di proiezione con cambio camera. Quattro
   intervalli brevi senza marker, senza errori camera: uno con zero punti proiettati (222 ms) e tre nel ramo idle (13–20 ms).
   Evidenze `map-final.jsonl`, `map-final-report.txt`, `map-final-comparison.json`, `map-final-blinks.json`. Riattivata la guida
-  «Reverse Barbarossa» al termine. Nessuna modifica ai margini o alle ancore. F2 rimane aperto per chat separate.
+  «Reverse Barbarossa» al termine. Nessuna modifica ai margini o alle ancore. F2 prosegue con prove UI/UX offline e fixture.
