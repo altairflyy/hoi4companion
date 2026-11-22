@@ -7,6 +7,7 @@ Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the a
 > con marcatori mappa (cantieri). L'utente fa ~5 min di pan e zoom a vari livelli e manda 2-3 screenshot a camera ferma. Poi
 > `node scripts/hud-trace-report.cjs`, sezione "Map markers": decidi quali ipotesi H1-H4 reggono e scrivi i numeri nel piano.
 > Nessuna modifica alla geometria in questo step. Mai avviare o controllare HOI4.
+PAUSED 2026-11-22 (user): no more live game tests for now; every remaining HUD quality step needs live data or a screenshot.
 HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
