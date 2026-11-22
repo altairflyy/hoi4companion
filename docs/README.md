@@ -21,7 +21,7 @@ are preserved in [it/](it/README.md); archived test counts apply to their record
 - [Rust/Jomini parser integration](jomini-migration.md)
 - [Rust backend migration and verification gates](rust-backend-migration.md)
 - [Qualified LiveState](live-state.md)
-- [Native Windows HUD](native-overlay.md) (responsiveness plans: [2026-11-20, archived](hud-performance-plan-2026-11-20.md), [2026-11-21](hud-performance-plan-2026-11-21.md))
+- [Native Windows HUD](native-overlay.md) (responsiveness plans: [2026-11-20, archived](hud-performance-plan-2026-11-20.md), [2026-11-21, archived](hud-performance-plan-2026-11-21.md))
 - [Contextual operational summary](operational-summary.md)
 - [Parsing compatibility and excluded inputs](parsing-compatibility.md)
 - [Political state and appointments](politics-live.md)

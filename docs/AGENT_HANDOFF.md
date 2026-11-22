@@ -3,11 +3,11 @@ Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): step 5, verifica live con l'utente (~10 min di gioco col
-> trace). Misura anche lo step 4b parte 2: `node scripts/hud-trace-report.cjs`, "Change-to-delivery" (obiettivo p90 < 1.5 s; parti
-> `collect.*`, `progress.observe_active_guide`, `publish.project`). Se p90 >= 1.5 s: residui elencati in 4b. Poi aggiorna
-> `docs/native-overlay.md` e archivia il piano. Mai avviare o controllare HOI4.
-Step 4b part 2 done in code (plan, step 4b); live effect measured only on 4 deliveries. HOI4 may be running: profile read-only.
+> Follow-up qualità HUD F1 (`docs/hud-performance-plan-2026-11-20.md`, sezione "Follow-up after step 7"): pan e zoom della mappa,
+> marcatori coerenti senza disallineamenti o sfarfallio. Prima scrivi un piano breve in un nuovo `docs/hud-quality-plan-*.md`
+> (F1, poi F2), leggi `docs/native-overlay.md` (Construction map markers) e misura con trace o screenshot dell'utente prima di
+> toccare la geometria qualificata. Mai avviare o controllare HOI4.
+HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
@@ -19,15 +19,9 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
-- 2026-11-22 step 4b part 2: full read verifies each domain once (refresh pass), event discovery reads each parent vtable once,
-  other guides observed after the HUD delivery. Live, 4 deliveries: acquisition ~1000 -> ~760 ms; HOI4 then closed (12:23, not
-  by the agent), so the delivery p90 and the deferral are NOT measured. Tests green (live 72, backend 65 + 120, report 7), reviewer clean.
-- 2026-11-22 step 4b part 1: fewer evaluation copies (see plan). Live, same game: change-to-delivery p90 2442 -> ~1810 ms, target 1.5 s
-  NOT met. Tests green (guides 112, backend 64 + 120, report 7), reviewer clean. Live: 3a retried a full read once, 0 closes.
-- 2026-11-22 step 3a (`provider.rs` `settle`): full-read consistency failure keeps handle/GUI registry, unknown at once, retry next
-  collect, close at the 8th in a row. Backend tests green (lib 64, integration 120), reviewer clean. Live effect NOT measured (step 5).
-- 2026-11-22 live session (1003 s traced, build `603225f`): gap p50 16.8 ms (step 1 ok); geometry max 14 ms after a reopen
-  (3b ok); closes all `full_read` consistency errors (step 3a decided); change-to-delivery p90 1955 ms, target 1.5 s NOT met (4b).
+- 2026-11-22 HUD plan part 2 step 5 (836 s of play on `0e4b001`): change-to-delivery p50 1166 / p90 1365 ms (target < 1.5 s met;
+  was 2634 / 3103 on 2026-11-21), no delivery past 3 s, 0 session closes in play, 2 full-read retries (~1.5 s unknown each), gap p50
+  16.9 ms, geometry max 26.9 ms. HUD actions NOT measured (none done). Plan archived; numbers in its "Measured 2026-11-22, step 5".
 - 2026-11-20 `3ac001a` HUD card: a production step is skipped as current step once a later step of its track is completed (cause:
   layouts stop matching when lines change or read briefly unknown). Production list behind a toggle (`production_open` in overlay-card.json).
   Rust unit tests green, rebuilt, app restarted. NOT seen in game.
@@ -52,5 +46,5 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 - System WebView2 Runtime is a prerequisite of the desktop host.
 
 ## Where things are
-- Subsystem docs: `docs/README.md`. HUD plan: `docs/hud-performance-plan-2026-11-21.md` (part 1 archived: `-2026-11-20.md`). Fast Rust loop: `docs/fast-local-rust.md`. Guide identity: `docs/guide-definition-identity.md`.
+- Subsystem docs: `docs/README.md`. HUD plans (archived): `docs/hud-performance-plan-2026-11-20.md`, `-2026-11-21.md`. Fast Rust loop: `docs/fast-local-rust.md`. Guide identity: `docs/guide-definition-identity.md`.
 - Automation: skills `deliver-build`, `add-translation`, `improve-loop`; hooks `guard-game.cjs`, `web-test.cjs`; agent `invariant-reviewer`.

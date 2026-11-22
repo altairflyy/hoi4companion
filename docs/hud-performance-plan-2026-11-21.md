@@ -1,5 +1,8 @@
 # HUD responsiveness plan, part 2 (2026-11-21)
 
+ARCHIVED 2026-11-22: steps 1-5 closed. Step 5 measured change-to-delivery p90 1365 ms (target < 1.5 s met), 0 session
+closes in play; numbers in "Measured 2026-11-22, step 5". Next: the quality follow-ups F1/F2 of the previous plan.
+
 Follows `docs/hud-performance-plan-2026-11-20.md` (archived). Numbers: its section "Measured 2026-11-21, step 7".
 Same invariants: read-only toward the game, unknown stays unknown, highlights only with a verified witness, Rust decides guide status.
 Never raise the 3 s delivery budget or show an old card or old highlights as current.
@@ -14,7 +17,7 @@ Work that needs no live game first, live checks batched into one session when th
 - 2026-11-22: step 4b part 1 (evaluation copies; p90 2442 -> ~1810 ms in the same game, target NOT met; see step 4b);
 - 2026-11-22: step 4b part 2 (full read ~1000 -> ~760 ms on 4 live samples, other guides after the delivery; target p90 < 1.5 s
   NOT yet verified: HOI4 closed during the measurement);
-- next: step 5 (final live check), which also measures 4b part 2; if p90 stays >= 1.5 s, the leftovers listed under 4b.
+- done 2026-11-22: step 5 (final live check, also measures 4b part 2): p90 1365 ms, the 4b leftovers are not needed.
 
 ## Steps (one per session; `/clear` between them; the Resume prompt in `docs/AGENT_HANDOFF.md` says which is next)
 1. [x] Overlay cadence (small). Replace the ~15.6 ms timer rounding of `Wake::wait` / `Reads::wait` (`native/overlay/src/wake.rs`,
@@ -67,7 +70,7 @@ Work that needs no live game first, live checks batched into one session when th
    observed guide, and `live_packet` one per guide after any write: ~0.4-0.9 s each. Fix: `progress::Store` answers read-only ops from
    the committed state (54 `get` 420 ms -> 0.4 ms; `metadata` 10 -> 0.3 ms); the write moves the old state into `pending` instead of
    copying it. Live 2026-11-22: change-to-delivery p50 1603 / p90 1955 ms (was 2634 / 3103): better, target p90 < 1.5 s NOT met.
-4b. [ ] Change-to-delivery below p90 1.5 s (new 2026-11-22). Live breakdown of the 199 changed deliveries: acquisition p50 790 / p95 1141,
+4b. [x] Change-to-delivery below p90 1.5 s (new 2026-11-22). Live breakdown of the 199 changed deliveries: acquisition p50 790 / p95 1141,
    progress (`app.accept`) p50 540 / p95 662, publish p50 333 / p95 478, packet ~2 ms. Profile live first which part of
    `app.accept` still takes ~0.5 s after step 4, and what publish does for 0.3 s; HUD actions (715-941 ms, all ~730) likely wait on
    the same work. Rust tests; rebuild.
@@ -110,8 +113,9 @@ Work that needs no live game first, live checks batched into one session when th
      `observe_active_guide` / `observe_other_guides` replace `observe_guides`. Expected gain ~150-200 ms (part 1: other
      guides ~180 ms); NOT measured live.
    - Not done: HUD `project` (~220 ms), `fortifications` read and verification (one read per province field), `refresh`.
-5. [ ] Live check with the user: play ~10 min with the trace, compare with step 7 of the previous plan, update `docs/native-overlay.md`,
-   archive this plan.
+   Live 2026-11-22 (step 5): p50 1166 / p90 1365 / p95 1486 ms; target p90 < 1.5 s met. The leftovers above stay optional.
+5. [x] Live check with the user: play ~10 min with the trace, compare with step 7 of the previous plan, update `docs/native-overlay.md`,
+   archive this plan. Done 2026-11-22: see "Measured 2026-11-22, step 5".
 
 ## Measured 2026-11-22, live session (build `603225f`, Companion started 09:57 local)
 Trace `.local/hud-trace{.2,.1,}.jsonl`: 1003 s (10:09-10:25 local), 58.1k iterations, 0 fatal errors, 11 HUD actions. The first
@@ -129,6 +133,20 @@ covers the whole backend run.
   2634 / 3103 / 3725). Target p90 < 1.5 s NOT met: step 4b.
 - HUD actions: 8 `set_aside` + 3 `check`, 715-941 ms round trip (was 1776-3240 ms).
 - Transport p50 1.9 / p95 2.4 ms; observe round trip p50 5.0 / p95 8.2 ms.
+
+## Measured 2026-11-22, step 5 (build `0e4b001`, HOI4 started 19:06 local by the user)
+Trace `.local/hud-trace{.2,.1,}.jsonl`: 836 s (19:24:06-19:38:03 local), ~48k iterations, 0 fatal errors, 0 HUD actions. Compared with
+step 7 of the previous plan (2026-11-21, 1221 s) and the morning live session (2026-11-22, 1003 s):
+- Change-to-delivery (acquisition or progress > 100 ms; 225 deliveries): p50 1166 / p90 1365 / p95 1486 / max 1569 ms, 8 of 225 >= 1.5 s
+  (was 2634 / 3103 on 2026-11-21, 1603 / 1955 in the morning). Target p90 < 1.5 s met. Largest parts (p50): `acquisition.collect` 688,
+  `publish.project` 222, `collect.refresh` 192, `collect.events` 189 (of which `event_discovery` 182), `progress.observe_active_guide` 175,
+  `collect.fortifications` 111, `progress.observe_decisions` 49. `state_age_ms` max 2066: no delivery reached the 3 s budget (98 expiries in 20 min on 2026-11-21).
+- Step 3a: `metrics.closes` has only the game start (19:06:23-19:06:52: "Nessuna partita caricata", "Modulo HOI4 non disponibile",
+  "Paese giocato non identificato con certezza" while the save loaded), none in play. `full_read_retries` 2 (`last_retry`: "Campione incoerente:
+  riprovare", streak 1; the first one's text is not kept); each gave one unknown episode of ~1.5 s (19:28:42, 19:32:25). Unknown while foreground 0.4 % (was 4.5 %).
+- Step 1: loop gap p50 16.9 / p95 17.8 ms. Step 3b: geometry p50 4.1 / p95 9.7 / max 26.9 ms, 0 > 250 ms; 3 GUI registry rebuilds, all
+  off the request path. Loop stalls > 250 ms 0, blank card 0. Transport p50 2.0 / p95 2.5 ms.
+- HUD action round trips NOT measured (no action in the trace); last measured 715-941 ms (morning session, before 4b).
 
 Not in this plan: the quality follow-ups F1 (map pan/zoom) and F2 (DPI/UI scale, inactive projects, commander roster) from the previous
 plan; they start after step 5.

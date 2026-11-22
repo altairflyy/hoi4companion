@@ -25,14 +25,25 @@ When a read fails, the provider closes the qualified session and keeps why in
 identity/open, `error`, `had_session`; a repeated failure only counts up). The
 last one rides in every HUD delivery as `provider_close`; the trace writes it
 once (`close_seq`, `close_stage`, `close_error`) and the report lists them.
-Measured in play on 2026-11-21 (1221 s with HOI4 in front, build `f40e999`):
-no HUD loop stall over 250 ms, no blank card, every GUI registry rebuild off the
-request path, transport p95 2.5 ms. Still open (numbers and plan:
-`docs/hud-performance-plan-2026-11-21.md`): the qualified session closes every
-0.5-2.5 min (~5 s unknown each; the reason is recorded since part 2 step 2); a probe-seen change
-takes ~2.6 s to reach the HUD, so its delivery often expires; HUD actions take
-1.8-3.2 s to answer. The HUD loop ran at ~31 ms because its waits rounded up to
-the Windows timer tick; since part 2 step 1 the overlay holds a 1 ms tick.
+A full-read consistency failure ("Stato cambiato durante la lettura",
+"Campione incoerente: riprovare", "Stato ricerca vuoto o duplicato") keeps the
+process handle and GUI registry, makes the delivery unknown at once and reads in
+full at the next collect; the 8th in a row, or any other failure, closes
+(`metrics.full_read_retries`, `last_retry`). The full read verifies each domain
+once, in a refresh pass after all are decoded; the read loop observes only the
+active guide before the HUD delivery and the other guides right after it.
+`pipeline_ms` splits the delivery into `acquisition_parts`, `collect_parts`,
+`progress_parts` and `publish_parts`; the report ranks them under
+"Change-to-delivery". The overlay holds a 1 ms Windows timer tick for its
+lifetime (`wake::FineTimer`), so its loop runs at ~16 ms.
+Measured in play on 2026-11-22 (836 s with HOI4 in front, build `0e4b001`;
+numbers: `docs/hud-performance-plan-2026-11-21.md`, archived): change-to-delivery
+p50 1166 / p90 1365 ms (was 2634 / 3103 on 2026-11-21), no delivery past its 3 s
+budget, no session close in play (2 full-read retries of ~1.5 s unknown each),
+loop gap p50 16.9 ms, geometry max 26.9 ms, no stall over 250 ms, no blank card,
+every GUI registry rebuild off the request path, transport p95 2.5 ms. The full
+read (~690 ms p50) is the largest part left. HUD action round trips were last
+measured at 715-941 ms, before part 2 step 4b.
 Research discovery requires the actual `CCountryTechTreeView`, rather than the
 unrelated `CCountryTechnologyView`. The same identity, ownership, freshness,
 visibility and overlap checks still qualify every highlighted rectangle.
