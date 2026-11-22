@@ -3,9 +3,9 @@ Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Leggi docs/ux-implementation-plan.md, inclusa «Esecuzione con Codex», e docs/AGENT_HANDOFF.md. Esegui solo lo step 4.
-> Verifica in italiano e inglese scelta ZIP, rapporto, errori, correzione e schermate senza dati. Usa fixture o un HOI4COMPANION_DATA_DIR isolato. Non usare la libreria utente, installare preset, avviare o controllare HOI4.
-> Segui il piano per test, catture, revisione e commit locale. Aggiorna piano e handoff e lascia il prompt di ripresa dello step 5.
+> Leggi docs/ux-implementation-plan.md, inclusa «Esecuzione con Codex», e docs/AGENT_HANDOFF.md. Esegui solo lo step 5.
+> Verifica Focus e Tecnologie con e senza obiettivo a 1282 × 832 e a larghezza ridotta. Prova «Adatta scheda», persistenza dello zoom e tastiera. Usa fixture o dati isolati senza avviare o controllare HOI4.
+> Segui il piano per test, catture prima/dopo, revisione e commit locale. Aggiorna piano e handoff e lascia il prompt di ripresa dello step 6.
 
 PAUSED 2026-11-22 (user): live HUD quality checks need game data or screenshots. Resume F1 step 2 only on request, per `docs/hud-quality-plan-2026-11-22.md`.
 HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
@@ -20,9 +20,8 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
-- 2026-11-22 UX step 3: Edge headless con fixture isolate, M4 6/6. Spunta salvata, «Avvio non verificabile» e 0/98 nel Piano. Catture e log in `.local/ux-captures/step-3/`.
-  JS mirati 35/35, npm 514 passati e 3 saltati. Rust backend 69 + 120 passati, live 72 passati. Esiti e inventario nel piano UX. Verifiche WebView2 manuale e in partita aperte.
-  Backend e overlay ricompilati dopo `1b3c779`, Companion su 8766, HTTP 200 e riprova Edge isolata con il binario installato riuscita.
+- 2026-11-22 UX step 4: ZIP, rapporto, due percorsi di correzione, stati senza dati e avvisi Focus verificati in Edge IT/EN.
+  ZIP sintetici e backend isolato. JS mirati 103/103. Catture, altri test e limiti nel piano UX. Verifica manuale WebView2 aperta.
 - 2026-11-22 HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior
   change. Tests green (live 72, overlay 79, backend 65 + 120, JS 508/511, 3 skipped), invariant-reviewer clean. Live data NOT seen yet.
 - 2026-11-22 HUD plan part 2 step 5 (836 s of play on `0e4b001`): change-to-delivery p50 1166 / p90 1365 ms (target < 1.5 s met;

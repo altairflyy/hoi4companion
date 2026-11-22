@@ -38,7 +38,16 @@
   const a=el('a','',HoiI18n.t("Operational instructions ↗"));a.href=window.hoiGuide.withGuide('/walkthrough');box.append(a);
   const edit=el('a','',HoiI18n.t("Correct this binding"));edit.href=window.hoiGuide.withGuide('/associations?step='+encodeURIComponent(row.key));box.append(edit);return box;
  }
- function render(){host.replaceChildren();if(!value?.guide){host.append(el('p','',value?.error||HoiI18n.t("Loading guide…")));return;}
+ function errorNotice(diagnostic,consequence){
+  const details=el('details','guide-assist-error');
+  details.append(el('summary','',HoiI18n.t('Technical details')),el('p','',diagnostic));
+  host.append(el('p','',HoiI18n.t(consequence)),details);
+ }
+ function render(){host.replaceChildren();if(!value?.guide){
+  if(lane==='focus'&&value?.error)errorNotice(value.error,'You can explore the tree. Guide highlights are unavailable.');
+  else host.append(el('p','',value?.error||HoiI18n.t("Loading guide…")));
+  return;
+ }
   const header=el('div','guide-assist-heading'),label=el('label','',HoiI18n.t("Guide ")),select=el('select');select.setAttribute('aria-label',HoiI18n.t("Guide to highlight"));
   for(const item of value.catalog){const opt=el('option','',item.title);opt.value=item.id;opt.selected=item.id===value.guide.id;if(typeof HoiGuideAvailability!=='undefined')HoiGuideAvailability.decorate(opt,item.compatibility,HoiI18n.t);select.append(opt);}select.disabled=value.pending>0;select.addEventListener('change',()=>window.hoiGuide.select(select.value));label.append(select);header.append(label);
   const a=el('a','',HoiI18n.t("Operational instructions ↗"));a.href=window.hoiGuide.withGuide('/walkthrough');header.append(a);
@@ -57,7 +66,11 @@
   host.append(summary);
   if(lane==='focus'){criteria(host,plan.next);if(first?.tone==='alternative')host.append(el('p','guide-assist-note',HoiI18n.t('Optional alternative from this guide. The main focus keeps its priority and returns when its requirements are met.')));}
   const note=view.mode==='live'?HoiI18n.t("Gold: main step · purple: optional choice or available alternative · blue: in progress · dashed: waiting. Unknown requirements still need checking in the game."):HoiI18n.t("Preview from the start of the guide: no current selection verified. Connect a valid game to update highlights.");
-  host.append(el('p','guide-assist-note',note));if(value.error)host.append(el('p','guide-assist-error',value.error));
+  host.append(el('p','guide-assist-note',note));
+  if(value.error){
+   if(lane==='focus')errorNotice(value.error,'Guide highlights could not be updated.');
+   else host.append(el('p','guide-assist-error',value.error));
+  }
  }
  window.hoiGuideTree={paint,details,marker,connect(fn){navigate=fn;}};
  window.hoiGuide.subscribe(next=>{value=next;render();window.dispatchEvent(new CustomEvent('hoi-guide-change'));});

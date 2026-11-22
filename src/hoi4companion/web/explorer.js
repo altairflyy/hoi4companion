@@ -47,11 +47,16 @@ function statuses(){
 }
 function ancestors(target){const result=new Set(),byId=new Map(state.tree.focuses.map(f=>[f.id,f])),stack=[target];while(stack.length){const id=stack.pop();if(!byId.has(id)||result.has(id))continue;result.add(id);for(const group of byId.get(id).prerequisites)stack.push(...group);}return result;}
 function currentFocus(id){return state.tree.focuses.find(f=>f.id===id);}
+function showWarnings(message,diagnostic){
+  $('warnings').hidden=!diagnostic;$('warningsImpact').textContent=message;$('warningsTechnical').textContent=diagnostic;
+}
 function updateOverview(){
   const v=state.overview;if(!v)return;
   $('demoBadge').classList.toggle('hidden',!v.demo);$('modeDot').classList.toggle('gold',v.demo);
   $('modeText').textContent=v.demo?HoiI18n.t("Local demo"):HoiI18n.t("HOI4 data");$('modeHint').textContent=v.demo?HoiI18n.t("Game path not configured"):HoiI18n.t("Actual files, read-only");
-  $('warnings').hidden=!v.warnings?.length;$('warnings').textContent=(v.warnings||[]).slice(0,5).join('\n');
+  const impact=v.demo?HoiI18n.t("You can explore an example tree. Configure HOI4 to see the game's focuses."):
+    v.trees.length?HoiI18n.t('Some focuses or trees may be missing.'):HoiI18n.t('No focus tree is available. Check the game path and enabled DLCs.');
+  showWarnings(impact,(v.warnings||[]).slice(0,5).join('\n'));
   $('modsPanel').hidden=!v.mods;
   if(v.mods){
     const mods=v.mods,labels={observed:HoiI18n.t("Profile loaded"),partial:HoiI18n.t("Some mods could not be read"),unavailable:HoiI18n.t("Profile unavailable"),off:HoiI18n.t("Mods disabled in settings")};
@@ -192,7 +197,11 @@ function renderInspector(byId,status){
   const ul=el('ul','requirements');if(!focus.prerequisites.length)ul.append(el('li','',HoiI18n.t("No previous focus required.")));
   for(const group of focus.prerequisites){const item=el('li');item.append(el('b','',group.length>1?HoiI18n.t("AT LEAST ONE · "):HoiI18n.t("REQUIRED · ")));group.forEach((id,index)=>{if(index)item.append(document.createTextNode(HoiI18n.t(" or ")));const button=el('button','focus-reference',plain(byId.get(id)?.name||id));button.addEventListener('click',()=>{if(byId.has(id)){selectFocus(id);centerFocus(id);}});item.append(button);});ul.append(item);}
   if(focus.mutually_exclusive.length){const item=el('li');item.append(el('b','',HoiI18n.t("EXCLUSIVE · ")),richText(focus.mutually_exclusive.map(id=>byId.get(id)?.name||id).join(', ')));ul.append(item);}
-  if(focus.has_conditions)ul.append(el('li','',HoiI18n.t("⚠ Additional conditions to check in the game.")));if(focus.has_bypass)ul.append(el('li','',HoiI18n.t("↷ Bypass conditions are defined.")));if(focus.position_warning)ul.append(el('li','',HoiI18n.t("⚠ Approximate position: missing or cyclic reference.")));container.append(ul);
+  if(focus.has_conditions)ul.append(el('li','',HoiI18n.t("⚠ Additional conditions to check in the game.")));if(focus.has_bypass)ul.append(el('li','',HoiI18n.t("↷ Bypass conditions are defined.")));container.append(ul);
+  if(focus.position_warning){
+    const details=el('details','asset-details');details.append(el('summary','',HoiI18n.t('Technical details')),el('p','',HoiI18n.t("⚠ Approximate position: missing or cyclic reference.")));
+    container.append(el('p','tooltip-note',HoiI18n.t('This focus may appear in a different place in HOI4.')),details);
+  }
   for(const section of focus.tooltip_sections||[])container.append(el('div','minor-heading',section.heading.toUpperCase()),richText(section.text));
   container.append(el('div','minor-heading',HoiI18n.t("ACTIONS")));
   const goal=el('button','action',HoiI18n.t("◈ Highlight all prerequisites"));goal.addEventListener('click',()=>{state.goal=focus.id;render();});container.append(goal);
@@ -209,7 +218,7 @@ let overviewRequest;
 function loadOverview(){
   return overviewRequest??=getJson('/api/config').finally(()=>{overviewRequest=null;});
 }
-async function reload(all=true){try{if(all){state.overview=await loadOverview();updateOverview();if(!state.tree){const requested=new URLSearchParams(location.search).get('tree')||window.hoiGuide?.value?.guide?.applies_to?.tree_id;if(state.overview.trees.some(t=>t.id===requested))$('treeSelect').value=requested;}}await loadTree($('treeSelect').value||state.overview.settings.tree_id);$('connection').textContent=HoiI18n.t("● Local server");}catch(error){$('connection').textContent=HoiI18n.t("● Connection error");$('warnings').hidden=false;$('warnings').textContent=error.message;}}
+async function reload(all=true){try{if(all){state.overview=await loadOverview();updateOverview();if(!state.tree){const requested=new URLSearchParams(location.search).get('tree')||window.hoiGuide?.value?.guide?.applies_to?.tree_id;if(state.overview.trees.some(t=>t.id===requested))$('treeSelect').value=requested;}}await loadTree($('treeSelect').value||state.overview.settings.tree_id);$('connection').textContent=HoiI18n.t("● Local server");}catch(error){$('connection').textContent=HoiI18n.t("● Connection error");showWarnings(HoiI18n.t('The focus tree could not be loaded.'),error.message);}}
 async function openSettings(){
   const dialog=$('settingsModal');if(dialog.open)return;
   const fields=$('settingsForm').elements,error=$('formError');
@@ -245,7 +254,7 @@ function init(){
   $('treeSelect').addEventListener('change',async event=>{state.selected=null;state.goal=null;await loadTree(event.target.value);});
   let searchTimer;$('search').addEventListener('input',event=>{state.search=event.target.value.trim().toLowerCase();render();clearTimeout(searchTimer);searchTimer=setTimeout(()=>{if(state.search){const focus=state.tree.focuses.find(f=>f.id.toLowerCase().includes(state.search)||plain(f.name).toLowerCase().includes(state.search));if(focus)centerFocus(focus.id);}},100);});
   $('resetGoal').addEventListener('click',()=>{state.goal=null;render();});$('centerFocus').addEventListener('click',()=>centerFocus(state.selected));
-  $('reload').addEventListener('click',async()=>{const button=$('reload');button.disabled=true;try{await getJson('/api/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});await reload(true);}catch(error){$('warnings').hidden=false;$('warnings').textContent=error.message;}finally{button.disabled=false;}});
+  $('reload').addEventListener('click',async()=>{const button=$('reload');button.disabled=true;try{await getJson('/api/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});await reload(true);}catch(error){showWarnings(HoiI18n.t('The focus tree could not be refreshed.'),error.message);}finally{button.disabled=false;}});
   $('zoom').addEventListener('input',event=>{state.zoom=Number(event.target.value)/100;$('zoomValue').textContent=event.target.value+'%';render();centerFocus(state.selected);});$('poll').addEventListener('change',event=>state.poll=event.target.checked);
   const viewport=$('graphViewport');viewport.addEventListener('scroll',()=>{hideTooltip();const node=document.activeElement;if(node?.dataset.focusId)requestAnimationFrame(()=>{const rect=node.getBoundingClientRect(),box=viewport.getBoundingClientRect(),focus=currentFocus(node.dataset.focusId);if(focus&&rect.bottom>box.top&&rect.top<box.bottom&&rect.right>box.left&&rect.left<box.right)showTooltip(focus,node);});});addEventListener('resize',hideTooltip);let drag=null;
   viewport.addEventListener('pointerdown',event=>{if(event.button!==0||event.target.closest('button'))return;drag={x:event.clientX,y:event.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};viewport.setPointerCapture(event.pointerId);viewport.classList.add('dragging');});

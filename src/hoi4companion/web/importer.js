@@ -392,11 +392,11 @@
   const card=$('interpretationOverview'),info=value.interpretation,counts=info?.verification;card.replaceChildren();
   card.hidden=!counts||!info.step_count;if(card.hidden)return;
   card.append(node('h3',HoiI18n.t('What the companion will follow')),
-   node('p',HoiI18n.t('{0} of {1} steps followed by themselves · {2} to confirm with a tick · {3} reminders without verification · {4} not interpreted.',counts.automatic,info.step_count,counts.manual,counts.reminder,counts.uninterpreted)));
+   node('p',m.interpretationSummary(counts,HoiI18n.t)));
   const lines=info.uninterpreted||[];if(!lines.length)return;
   const details=node('details');details.append(node('summary',HoiI18n.t('Lines not interpreted ({0})',lines.length)),node('p',HoiI18n.t('They stay visible as the source wrote them. After adding the guide you can say what each one means in Correct bindings.')));
   const list=node('ul'),id=value.guide?.id||'';
-  for(const line of lines){const item=node('li',line.text||line.key+' ');const link=node('a',HoiI18n.t('Correct bindings'));link.href='/associations?guide='+encodeURIComponent(id)+'&step='+encodeURIComponent(line.key);item.append(' · ',link);list.append(item);}
+  for(const line of lines){const item=node('li',line.text||line.key+' ');const link=node('a',HoiI18n.t('Correct bindings'));link.href=m.bindingsHref(id,line.key);item.append(' · ',link);list.append(item);}
   details.append(list);card.append(details);
  }
  function showReport(value){report=value;coverageView(value);interpretationView(value);$('issues').replaceChildren();$('sourceWarnings').replaceChildren();$('preview').replaceChildren();
@@ -409,7 +409,9 @@
    $('reviewSummary').textContent=HoiI18n.t('Missing or incompatible DLC content is not an import error and does not require association review.');
    controls();return;
   }
-  $('validation').textContent=value.valid?HoiI18n.t("Validation passed: the guide is ready to add. Check the source details shown below."):HoiI18n.t("Review required: ")+value.errors.length+HoiI18n.t(" blocking issues.");
+  $('validation').textContent=value.valid?(value.interpretation?.verification?.uninterpreted>0?
+   HoiI18n.t('You can save this guide. Review the lines Companion could not interpret.'):
+   HoiI18n.t("Validation passed: the guide is ready to add. Check the source details shown below.")):HoiI18n.t("Review required: ")+value.errors.length+HoiI18n.t(" blocking issues.");
   for(const message of value.errors)$('issues').append(node('li',message));
   for(const message of new Set(value.warnings))$('sourceWarnings').append(node('li',message));
   const operations=value.operations||[],count=mode=>operations.filter(row=>row.monitoring===mode).length;

@@ -118,6 +118,8 @@ pub fn payload(value: &Value, locale: &str) -> Value {
             Value::String(s)
                 if [
                     "error",
+                    "errors",
+                    "issues",
                     "message",
                     "reason",
                     "hint",

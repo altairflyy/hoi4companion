@@ -167,6 +167,11 @@
   const needle=String(query).trim().toLocaleLowerCase(),match=row=>row&&typeof row.name==='string'&&(category==='all'||(row.category||'mios')===category)&&[row.name,row.text,row.organization_id,row.organization_name,...(row.traits||[])].filter(s=>typeof s==='string').join(' ').toLocaleLowerCase().includes(needle);
   return {documents:(data.documents||[]).filter(match).slice().sort((a,b)=>a.category.localeCompare(b.category)||a.name.localeCompare(b.name)),mios:(data.mio_queues||[]).filter(match).slice().sort((a,b)=>a.name.localeCompare(b.name)||a.organization_id.localeCompare(b.organization_id))};
  }
- const api={advancedReferences,referenceDesigns,referenceGroups,editCoverage,sourceHref,readDraft,editStep,editConstruction,eventCatalog,catalogSections,countryCompatibility,normalise:c.guide,canPublish:(report,reviewed,busy)=>report?.valid===true&&!report.compatibility?.blocked&&reviewed===true&&!busy};
+ function interpretationSummary(counts,t){
+  const summary=t('{0} steps can be checked automatically, {1} to confirm, {2} not interpreted.',counts.automatic,counts.manual,counts.uninterpreted);
+  return counts.reminder?summary+' '+t('Reminders without verification: {0}.',counts.reminder):summary;
+ }
+ function bindingsHref(id,key){return '/associations?guide='+encodeURIComponent(id)+'&step='+encodeURIComponent(key);}
+ const api={advancedReferences,referenceDesigns,referenceGroups,editCoverage,sourceHref,readDraft,editStep,editConstruction,eventCatalog,catalogSections,countryCompatibility,interpretationSummary,bindingsHref,normalise:c.guide,canPublish:(report,reviewed,busy)=>report?.valid===true&&!report.compatibility?.blocked&&reviewed===true&&!busy};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiImporter=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -42,8 +42,10 @@
   }catch{$('frameStatus').textContent=t('Workspace unavailable. Open the classic workspace to continue.');}
  });
  function drawLibrary(){const tag=packet?.usable?packet.sample?.country:null,all=$('allCountries').checked;
-  const groups=model.libraryGroups(catalog,tag,all,$('guideSearch').value),count=groups.nations.reduce((n,g)=>n+g.guides.length,groups.other.length);$('libraryCount').textContent=format.format(catalog.length);$('guideCards').replaceChildren();
-  $('libraryNotice').textContent=!catalog.length?t('Import a collection to populate your library.'):!count?t('No guides match this view.'):tag&&!all?t('Recommended for your observed country. Missing DLCs remain visible and unavailable.'):'—';
+  const groups=model.libraryGroups(catalog,tag,all,$('guideSearch').value),count=groups.nations.reduce((n,g)=>n+g.guides.length,groups.other.length);$('libraryCount').textContent=catalog.length?format.format(catalog.length):'—';$('guideCards').replaceChildren();
+  $('libraryCampaign').hidden=packet?.usable===true||packet?.reader_status!=='game_absent';
+  if(!$('libraryCampaign').hidden)$('libraryCampaign').textContent=HoiCampaignStatus.present(packet,null,t).message;
+  $('libraryNotice').textContent=!catalogLoaded?'':!catalog.length?t('Import a collection to populate your library.'):!count?t('No guides match this view.'):tag&&!all?t('Recommended for your observed country. Missing DLCs remain visible and unavailable.'):'';
   const card=({guide,duplicateOf,sameTitle})=>{const card=document.createElement('article');card.className='guide-card';card.dataset.blocked=String(guide.compatibility?.blocked===true);card.dataset.active=String(guide.id===active?.guide_id);card.dataset.duplicate=String(!!duplicateOf);
    const country=document.createElement('span');country.className='guide-country';country.textContent=guide.applies_to?.country||t('Not a national guide');const title=document.createElement('h3');title.textContent=model.title(guide.title);
    const info=document.createElement('p');info.textContent=guide.compatibility?.blocked?t('Missing DLC'):!model.selectable(guide,tag)?t('Different country'):guide.id===active?.guide_id?t('Active guide'):t('Guide ready');
@@ -119,7 +121,7 @@
   })().finally(()=>{loading=null;if(queued){queued=false;refreshProjection();}});return loading;
  }
  window.hoiLive.subscribe(value=>{packet=value;if(value?.active_guide_id&&value.active_guide_id!==active?.guide_id){projectionVersion++;projection=null;preview=null;active={guide_id:value.active_guide_id,title:catalog.find(g=>g.id===value.active_guide_id)?.title};drawRoute();}const m=model.metrics(value);$('countryTag').textContent=m.country||'—';$('metricCountry').textContent=m.country||'—';$('metricDivisions').textContent=display(m.divisions);$('metricPP').textContent=display(m.politicalPower);$('metricFactories').textContent=display(m.factories);$('readerBadge').dataset.connected=String(m.current);$('readerText').textContent=t(m.current?'Reader connected':'Waiting for current game data');$('campaignHint').textContent=t(m.current?'Current campaign':'No qualified game state');$('hudStatus').textContent=value?.usable?(value.overlay?.message||t('No new contextual indication')):t('Waiting for current game data');
-  const signature=JSON.stringify([value?.active_guide_id,m.country,value?.active_guide_revision]);if(signature!==librarySignature){librarySignature=signature;drawLibrary();}
+  const signature=JSON.stringify([value?.active_guide_id,m.country,value?.active_guide_revision,value?.usable,value?.reader_status]);if(signature!==librarySignature){librarySignature=signature;drawLibrary();}
   const key=model.projectionKey(value);
   if(!value?.usable||projection&&!model.matchingLiveProjection(value,projection)){projection=null;drawRoute();}
   else drawOverviewAction();

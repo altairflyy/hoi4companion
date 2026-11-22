@@ -39,9 +39,9 @@ pub fn safe(name: &str) -> bool {
 }
 pub fn archive<R: Read + Seek>(reader: R) -> Result<ZipArchive<R>> {
     let archive =
-        ZipArchive::new(reader).map_err(|_| "Documento Word o archivio ZIP non valido")?;
+        ZipArchive::new(reader).map_err(|_| "Invalid Word document or ZIP archive")?;
     if archive.len() > 5000 {
-        return Err("Archivio con troppi elementi".into());
+        return Err("The archive contains too many entries".into());
     }
     // zip 2.x maps names to their final entry. Check raw central records first
     // so duplicate names cannot hide behind that map. Decompression stays in zip.
@@ -60,27 +60,27 @@ pub fn archive<R: Read + Seek>(reader: R) -> Result<ZipArchive<R>> {
         let mut header = [0u8; 42];
         reader
             .read_exact(&mut header)
-            .map_err(|_| "Archivio danneggiato")?;
+            .map_err(|_| "The archive is damaged")?;
         let length = u16::from_le_bytes([header[24], header[25]]) as usize;
         let extra = u16::from_le_bytes([header[26], header[27]]) as i64;
         let comment = u16::from_le_bytes([header[28], header[29]]) as i64;
         let mut name = vec![0; length];
         reader
             .read_exact(&mut name)
-            .map_err(|_| "Archivio danneggiato")?;
+            .map_err(|_| "The archive is damaged")?;
         if !names.insert(name) {
-            return Err("Archivio con elementi dal nome duplicato".into());
+            return Err("The archive contains duplicate entry names".into());
         }
         count += 1;
         if count > 5000 {
-            return Err("Archivio con troppi elementi".into());
+            return Err("The archive contains too many entries".into());
         }
         reader
             .seek(SeekFrom::Current(extra + comment))
             .map_err(|e| e.to_string())?;
     }
     reader.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
-    ZipArchive::new(reader).map_err(|_| "Documento Word o archivio ZIP non valido".into())
+    ZipArchive::new(reader).map_err(|_| "Invalid Word document or ZIP archive".into())
 }
 pub fn read_entry<R: Read + Seek>(
     archive: &mut ZipArchive<R>,

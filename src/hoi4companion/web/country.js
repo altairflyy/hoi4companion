@@ -40,7 +40,9 @@
   document.body.classList.toggle('country-current',view.mode==='current');
   $('countryTag').textContent=view.country||'—';
   const mode={current:[HoiI18n.t("Current game sample"),HoiI18n.t("Each section reports its coverage separately. Unobserved fields remain empty.")],unavailable:[HoiI18n.t("Country connected · extended data unavailable"),HoiI18n.t("The focus and research reader is connected; country data is not available yet or does not match the observed country.")],disabled:[HoiI18n.t("Reading disabled"),HoiI18n.t("Enable game reading to see current values.")],stale:[HoiI18n.t("State is not current · values hidden"),HoiI18n.t("The connection no longer confirms a usable sample. Previous data is not presented as current.")],disconnected:[HoiI18n.t("Game not connected"),HoiI18n.t("Load a game and keep the reader connected. Statistics are never estimated.")]}[view.mode];
-  $('dataStatus').textContent=mode[0];$('dataNote').textContent=mode[1];
+  const absent=window.hoiLive?.enabled!==false&&value?.usable!==true&&value?.reader_status==='game_absent';
+  $('dataStatus').textContent=absent?HoiCampaignStatus.present(value,null,HoiI18n.t).message:mode[0];
+  $('dataNote').textContent=absent?HoiI18n.t('Country statistics appear when Companion receives current data.'):mode[1];
   const date=typeof view.observed_at==='string'?new Date(view.observed_at):null;
   $('observationTime').hidden=!date||!Number.isFinite(date.getTime());
   $('observationTime').textContent=date&&Number.isFinite(date.getTime())?HoiI18n.t("Sample: ")+date.toLocaleString('it-IT'):'';

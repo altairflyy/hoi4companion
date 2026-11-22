@@ -236,7 +236,8 @@ con il binario installato e dati isolati confermano i risultati. Catture e log `
 
 ## Step 4 · Importazione e schermate d'attesa
 
-**Stato:** da fare. **Si basa su** R6 (`interpretationOverview`) e R15 (libreria raggruppata).
+**Stato:** implementato il 2026-11-22 e verificato in Edge headless in italiano e inglese. **Si basa su** R6
+(`interpretationOverview`) e R15 (libreria raggruppata).
 
 - I tre selettori ZIP restano; ognuno ha un esempio di una riga e uno solo è indicato come «per iniziare con una guida».
 - Dopo un import riuscito, la prima riga è il rapporto R6 in forma onesta: «{a} passi verificati da soli, {b} da confermare, {c} non
@@ -249,6 +250,26 @@ con il binario installato e dati isolati confermano i risultati. Catture e log `
 **Completato quando** si capisce quale ZIP scegliere, cosa fare con un archivio rifiutato e perché mancano i dati della nazione, in
 italiano e inglese. Fixture o dati isolati (`HOI4COMPANION_DATA_DIR` in una cartella temporanea) per successo, errore e revisione;
 mai la libreria dell'utente, mai preset installati nel gioco.
+
+### Verifica dello step 4 · 2026-11-22
+
+Edge 158 headless, 1282 × 832, suite con backend Rust e profili temporanei separati per italiano e inglese. Baseline
+`e40623d`. Catture e log in `.local/ux-captures/step-4/`. Verifica manuale di tastiera e resa nella finestra WebView2 ancora aperta.
+
+| Caso | Evidenza |
+|---|---|
+| Scelta ZIP | Tre selettori con un esempio ciascuno. Solo «Inizia con una guida» è evidenziato. Provati tre archivi sintetici con guide Word, un'immagine di riferimento e un documento avanzato. |
+| Rapporto | Il primo contenuto del risultato è il rapporto Rust della guida salvata. Lo ZIP Word ha prodotto 2 passi verificabili automaticamente e 1 promemoria. Una fixture di guida con conteggi Rust ha verificato il caso con 1 riga non interpretata, senza annuncio di completamento totale. |
+| Errore e correzione | ZIP danneggiato e ZIP senza contenuti supportati mostrano causa e azione. Il secondo documento Word apre la bozza da «Correggi associazioni». Scelto il focus corretto, rivalidata e salvata la guida. Dalla fixture con riga non interpretata, aperta la riga esatta in «Correggi associazioni» e salvata una lettura personale. |
+| Senza dati | Libreria, Stato della nazione ed Eventi mostrano la stessa frase «Gioco assente» prima dei controlli. I contatori senza dati mostrano «—». Eventi distingue una risposta valida con zero risultati e scarta quelle arrivate dopo la perdita della partita. |
+| Focus | Il messaggio spiega l'effetto prima dei dettagli tecnici. Verificati diagnostica dell'albero, indisponibilità delle indicazioni della guida e avviso sulla posizione del nodo. |
+
+Le guide importate e le correzioni sono rimaste nelle cartelle isolate. Le cartelle documenti di prova sono rimaste vuote.
+I rapporti delle importazioni precedenti privi dei nuovi dati non mostrano conteggi retroattivi.
+
+Test web mirati 103/103. `npm test`: 514 passati, 3 saltati dal runner e un test del servizio nativo escluso perché prova la
+scrittura dei preset MIO. Rust: backend 69 passati e 2 ignorati, model 7 passati, rapporto di interpretazione 1 passato.
+Revisione invarianti senza rilievi.
 
 ## Step 5 · Alberi leggibili
 

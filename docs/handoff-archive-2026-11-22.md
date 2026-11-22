@@ -28,3 +28,7 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/hud-pe
   collect, close at the 8th in a row. Backend tests green (lib 64, integration 120), reviewer clean. Live effect NOT measured (step 5).
 - 2026-11-22 live session (1003 s traced, build `603225f`): gap p50 16.8 ms (step 1 ok); geometry max 14 ms after a reopen
   (3b ok); closes all `full_read` consistency errors (step 3a decided); change-to-delivery p90 1955 ms, target 1.5 s NOT met (4b).
+- UX step 3: Edge headless con fixture isolate, M4 6/6. Spunta salvata, «Avvio non verificabile» e 0/98 nel Piano.
+  JS mirati 35/35, npm 514 passati e 3 saltati. Rust backend 69 + 120 passati, live 72 passati. Esiti e inventario nel piano UX.
+  Backend e overlay ricompilati dopo `1b3c779`, HTTP 200 e riprova Edge isolata riuscita. Catture in `.local/ux-captures/step-3/`.
+  Prove manuali in WebView2 e in partita ancora aperte.

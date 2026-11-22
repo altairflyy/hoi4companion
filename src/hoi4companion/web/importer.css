@@ -38,6 +38,13 @@ details.import-section>summary{color:var(--gold);font-size:16px;cursor:pointer}d
 
 .collection-page .collection-hero{display:block}.collection-hero .eyebrow{margin-bottom:8px}.collection-page .live-heading{display:flex;gap:16px;flex-wrap:wrap;align-items:center}.collection-page .live-heading label{margin:0}.collection-page .collection-hero h1{max-width:none}
 .collection-upload>div:first-child{grid-column:1/-1}.collection-drop strong>span{font-size:inherit;color:inherit}
+.collection-upload{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
+.collection-drop:not(.collection-primary){border-color:var(--control-border)}
+.collection-drop.collection-primary strong{color:var(--gold)}
+.collection-drop input{margin-top:auto}
+.import-job .interpretation-overview{margin-bottom:16px}
+.import-job .interpretation-overview h4{margin:0}
+@media(max-width:760px){.collection-upload{grid-template-columns:1fr}}
 
 .advanced-reference-text{white-space:pre-wrap;font:inherit;line-height:1.65;overflow-wrap:anywhere;max-height:65vh;overflow:auto}
 

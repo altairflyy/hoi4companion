@@ -494,6 +494,12 @@ impl Service {
                             app.put_guide(&report["guide"])?;
                             published.commit();
                             row["status"] = json!("installed");
+                            if let Some(interpretation) = report.get("interpretation") {
+                                row["interpretation"] = json!({
+                                    "verification": interpretation["verification"],
+                                    "first_uninterpreted": interpretation["uninterpreted"][0]["key"]
+                                });
+                            }
                         }
                         Err(e) => {
                             row["status"] = json!("needs_revision");

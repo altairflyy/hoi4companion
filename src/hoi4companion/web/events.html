@@ -2,11 +2,11 @@
 <html lang="en"><head><script src="/i18n.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
 <title>HOI4 Companion — Events</title>
 <link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/country.css"><link rel="stylesheet" href="/live-state.css"><link rel="stylesheet" href="/events.css">
-<script defer src="/live-state.js"></script><script defer src="/events-model.js"></script><script defer src="/events.js"></script>
+<script defer src="/live-state.js"></script><script defer src="/campaign-status.js"></script><script defer src="/events-model.js"></script><script defer src="/events.js"></script>
 </head><body>
 <main>
 <section class="hero"><p class="eyebrow" data-copy="EVENTS">EVENTS</p><h1><span data-copy="Events for">Events for</span> <span id="eventsCountry">—</span></h1>
-<p data-copy="Events the game can send to the nation you play, read from the installed scripts. Open one to see its answers and what triggers it.">Events the game can send to the nation you play, read from the installed scripts. Open one to see its answers and what triggers it.</p><p id="eventsGuide" class="events-guide"></p></section>
+<p id="eventsCampaign" class="events-guide" role="status"></p><p data-copy="Events the game can send to the nation you play, read from the installed scripts. Open one to see its answers and what triggers it.">Events the game can send to the nation you play, read from the installed scripts. Open one to see its answers and what triggers it.</p><p id="eventsGuide" class="events-guide"></p></section>
 <section class="events-toolbar">
  <select id="eventsScope" aria-label="Which events">
   <option value="guide" data-copy="From your guide">From your guide</option>

@@ -494,8 +494,9 @@ test('interpretation overview says how much the companion follows and lists unin
  h.get('guideJson').value=JSON.stringify(definition);await h.get('validate').onclick();
  const card=h.get('interpretationOverview');
  assert.equal(card.hidden,false);
- assert.match(card.textContent,/4 su 10 passi seguiti da soli/);
- assert.match(card.textContent,/3 da confermare/);assert.match(card.textContent,/2 promemoria/);assert.match(card.textContent,/1 non interpretat/);
+ assert.match(card.textContent,/4 passi verificabili automaticamente/);
+ assert.match(card.textContent,/3 da confermare/);assert.match(card.textContent,/Promemoria senza verifica: 2/);assert.match(card.textContent,/1 non interpretat/);
+ assert.match(h.get('validation').textContent,/Puoi salvare la guida/);
  assert.match(card.textContent,/Def against YUG/);
  const link=descendants(card).find(n=>n.tag==='a');
  assert.equal(link.href,'/associations?guide=opening&step=raw');

@@ -1,6 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const model=require('../src/hoi4companion/web/collection-model.js');
+const importer=require('../src/hoi4companion/web/importer-model.js');
 test('recommendations require fresh country and tree; DLC never becomes a recommendation',()=>{
  const guide={applies_to:{country:'HUN',tree_id:'hungary'}};
  const packet={usable:true,sample:{country:'HUN',focus_tree_id:'hungary'}};
@@ -31,7 +32,7 @@ function harness({initial=[],view='import'}={}){
   setAttribute(k,v){this[k]=v;}removeAttribute(k){delete this[k];}addEventListener(k,fn){this.events[k]=fn;}
  }
  const nodes=new Map(),get=id=>{if(!nodes.has(id))nodes.set(id,new Node());return nodes.get(id);};
- const collection={id:'a'.repeat(64),status:'prepared',auto_import:true,auto_finished:true,import_stage:'complete',reviewed:true,name:'Country guides.zip',counts:{total:2,processed:2,installed:1,needs_revision:1},items:[{key:'b'.repeat(64),guide_id:'pending',title:'Needs work',status:'needs_revision',issues:['Unresolved focus']},{title:'Already saved',status:'installed'}]};
+ const collection={id:'a'.repeat(64),status:'prepared',auto_import:true,auto_finished:true,import_stage:'complete',reviewed:true,name:'Country guides.zip',counts:{total:2,processed:2,installed:1,needs_revision:1},items:[{key:'b'.repeat(64),guide_id:'pending',title:'Needs work',status:'needs_revision',issues:['Unresolved focus']},{title:'Already saved',guide_id:'saved',status:'installed',interpretation:{verification:{automatic:2,manual:1,uninterpreted:1,reminder:0},first_uninterpreted:'unreadable'}}]};
  let data=initial,requests=[],fail=false,failCommit=false,commits=0,timer,subscribed;const events={};
  const fetch=async(url,options)=>{requests.push({url,options});if(fail)throw Error('offline');let result={};
   if(url==='/api/import/collections')result={collections:data};
@@ -41,7 +42,7 @@ function harness({initial=[],view='import'}={}){
   return {ok:true,json:async()=>result};};
  const document={hidden:false,getElementById:get,createElement:()=>new Node(),addEventListener(k,fn){events[k]=fn;}};
  const window={hoiLive:{subscribe(fn){subscribed=fn;}},hoiImportEditor:{initialize:async()=>{},refreshReferences:async()=>{get('referenceGallery').open=true;}}};
- vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/collections.js','utf8'),{document,window,URL,location:{href:'http://local/importer?view='+view},fetch,HoiCollections:model,HoiGuideAvailability:{notice:()=>''},HoiI18n:{t:(s,...args)=>s.replace(/\{(\d+)\}/g,(_,i)=>args[i])},setTimeout:fn=>{timer=fn;return 1;},clearTimeout(){timer=null;}});
+ vm.runInNewContext(fs.readFileSync('src/hoi4companion/web/collections.js','utf8'),{document,window,URL,location:{href:'http://local/importer?view='+view},fetch,HoiCollections:model,HoiImporter:importer,HoiGuideAvailability:{notice:()=>''},HoiI18n:{t:(s,...args)=>s.replace(/\{(\d+)\}/g,(_,i)=>args[i])},setTimeout:fn=>{timer=fn;return 1;},clearTimeout(){timer=null;}});
  return {get,requests,collection,events,setData:v=>data=v,setFail:v=>fail=v,setFailCommit:v=>failCommit=v,commits:()=>commits,poll:()=>timer?.(),subscribed};
 }
 const tick=()=>new Promise(setImmediate);
@@ -49,6 +50,12 @@ const tick=()=>new Promise(setImmediate);
 test('ZIP import completes without a publication button; only real corrections are listed',async()=>{
  const h=harness();await tick();h.get('guideZipFiles').files=[{name:'country.zip',size:10}];await h.get('guideZipFiles').onchange();
  assert.equal(h.commits(),0);assert.match(h.get('collectionJobs').textContent,/Import complete|items to correct/);
+ const [heading,report,progress]=h.get('collectionJobs').children[0].children;
+ assert.equal(heading.textContent,'Country guides.zip');
+ assert.match(report.textContent,/2 steps can be checked automatically, 1 to confirm, 1 not interpreted/);
+ assert.equal(report.children[2].href,'/associations?guide=saved&step=unreadable');
+ assert.match(progress.textContent,/Read archive/);
+ assert.doesNotMatch(h.get('collectionJobs').textContent,/No further confirmation/);
  assert.match(h.get('collections').textContent,/Needs work/);assert.doesNotMatch(h.get('collections').textContent,/Already saved/);
  assert.equal(h.get('collectionLibrary').hidden,true);assert.equal(h.get('collectionTemplates').hidden,true);
  assert.equal(h.requests.some(r=>r.url==='/api/guide/active'||r.url==='/api/import/catalog'),false);
