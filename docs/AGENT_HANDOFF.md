@@ -3,10 +3,10 @@ Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Follow-up qualità HUD F1 (`docs/hud-performance-plan-2026-11-20.md`, sezione "Follow-up after step 7"): pan e zoom della mappa,
-> marcatori coerenti senza disallineamenti o sfarfallio. Prima scrivi un piano breve in un nuovo `docs/hud-quality-plan-*.md`
-> (F1, poi F2), leggi `docs/native-overlay.md` (Construction map markers) e misura con trace o screenshot dell'utente prima di
-> toccare la geometria qualificata. Mai avviare o controllare HOI4.
+> Piano qualità HUD (`docs/hud-quality-plan-2026-11-22.md`): step 2, verifica live F1 con l'utente. Precondizione: un passo guida
+> con marcatori mappa (cantieri). L'utente fa ~5 min di pan e zoom a vari livelli e manda 2-3 screenshot a camera ferma. Poi
+> `node scripts/hud-trace-report.cjs`, sezione "Map markers": decidi quali ipotesi H1-H4 reggono e scrivi i numeri nel piano.
+> Nessuna modifica alla geometria in questo step. Mai avviare o controllare HOI4.
 HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
@@ -19,6 +19,8 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-22 HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior
+  change. Tests green (live 72, overlay 79, backend 65 + 120, JS 508/511, 3 skipped), invariant-reviewer clean. Live data NOT seen yet.
 - 2026-11-22 HUD plan part 2 step 5 (836 s of play on `0e4b001`): change-to-delivery p50 1166 / p90 1365 ms (target < 1.5 s met;
   was 2634 / 3103 on 2026-11-21), no delivery past 3 s, 0 session closes in play, 2 full-read retries (~1.5 s unknown each), gap p50
   16.9 ms, geometry max 26.9 ms. HUD actions NOT measured (none done). Plan archived; numbers in its "Measured 2026-11-22, step 5".
@@ -46,5 +48,5 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 - System WebView2 Runtime is a prerequisite of the desktop host.
 
 ## Where things are
-- Subsystem docs: `docs/README.md`. HUD plans (archived): `docs/hud-performance-plan-2026-11-20.md`, `-2026-11-21.md`. Fast Rust loop: `docs/fast-local-rust.md`. Guide identity: `docs/guide-definition-identity.md`.
+- Subsystem docs: `docs/README.md`. HUD plans (archived): `docs/hud-performance-plan-2026-11-20.md`, `-2026-11-21.md`; quality plan `docs/hud-quality-plan-2026-11-22.md`. Fast Rust loop: `docs/fast-local-rust.md`. Guide identity: `docs/guide-definition-identity.md`.
 - Automation: skills `deliver-build`, `add-translation`, `improve-loop`; hooks `guard-game.cjs`, `web-test.cjs`; agent `invariant-reviewer`.
