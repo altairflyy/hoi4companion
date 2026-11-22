@@ -117,8 +117,25 @@ fn definitions(guide: &Value) -> Value {
     }
     result
 }
-fn campaign(guide: &Value, state: &Value, record: &mut Value, milestones: &Value) -> Result<()> {
+/// The last evaluation of one observation and the record it was made from.
+type Memo = Option<(Value, Value)>;
+/// The evaluation of `record`, reused while the record is unchanged: within
+/// one `observe` the guide and state are fixed, so an equal record gives an
+/// equal evaluation. Each evaluation takes ~0.25 s on a large guide, and
+/// campaign, research and candidates used to make the same one in turn (HUD
+/// plan part 2 step 4b).
+fn evaluated(guide: &Value, state: &Value, record: &Value, memo: &mut Memo) -> Result<Value> {
+    if let Some((seen, evaluation)) = memo.as_ref()
+        && seen == record
+    {
+        return Ok(evaluation.clone());
+    }
     let evaluation = guide_runtime::evaluate(guide, state, record)?;
+    *memo = Some((record.clone(), evaluation.clone()));
+    Ok(evaluation)
+}
+fn campaign(guide: &Value, state: &Value, record: &mut Value, milestones: &Value, memo: &mut Memo) -> Result<()> {
+    let evaluation = evaluated(guide, state, record, memo)?;
     if !admitted(&evaluation, state, record) {
         return Ok(());
     }
@@ -245,8 +262,8 @@ fn intended_up_targets(guide: &Value, record: &Value) -> Option<HashMap<String, 
     }
     Some(result)
 }
-fn research(guide: &Value, state: &Value, record: &mut Value, runs: &Value) -> Result<()> {
-    let evaluation = guide_runtime::evaluate(guide, state, record)?;
+fn research(guide: &Value, state: &Value, record: &mut Value, runs: &Value, memo: &mut Memo) -> Result<()> {
+    let evaluation = evaluated(guide, state, record, memo)?;
     if !admitted(&evaluation, state, record) {
         return Ok(());
     }
@@ -434,8 +451,8 @@ fn research(guide: &Value, state: &Value, record: &mut Value, runs: &Value) -> R
     }
     Ok(())
 }
-fn candidates(guide: &Value, state: &Value, record: &mut Value, specs: &Value) -> Result<()> {
-    let evaluation = guide_runtime::evaluate(guide, state, record)?;
+fn candidates(guide: &Value, state: &Value, record: &mut Value, specs: &Value, memo: &mut Memo) -> Result<()> {
+    let evaluation = evaluated(guide, state, record, memo)?;
     if !admitted(&evaluation, state, record)
         || !evaluation["country"]
             .as_str()
@@ -541,18 +558,19 @@ pub fn observe(
         .into_iter()
         .flat_map(|m| m.keys())
         .any(|key| history["milestones"].get(key).is_none());
+    let mut memo = None;
     if needs_war || needs_milestones {
-        campaign(guide, &state, &mut record, &milestones)?
+        campaign(guide, &state, &mut record, &milestones, &mut memo)?
     }
     if allow_research
         && steps
             .iter()
             .any(|s| truth(&s["relative_research"]) || truth(&s["research_choice"]))
     {
-        research(guide, &state, &mut record, runs)?
+        research(guide, &state, &mut record, runs, &mut memo)?
     }
     if truth(&specs) {
-        candidates(guide, &state, &mut record, &specs)?
+        candidates(guide, &state, &mut record, &specs, &mut memo)?
     }
     Ok(json!({"changed":record!=before,"record":record}))
 }

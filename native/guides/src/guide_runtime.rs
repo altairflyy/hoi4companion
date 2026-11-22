@@ -38,17 +38,26 @@ fn compiled(definition: &Value) -> Result<Arc<CompiledGuide>> {
     cache.push_back((key, compiled.clone()));
     Ok(compiled)
 }
+/// The compiled definition and the owned input `guide_prepare::prepare` makes:
+/// the input is deserialized from the prepared payload without copying it.
+fn prepared(guide: &Value, state: &Value, progress: &Value) -> Result<(Arc<CompiledGuide>, Input)> {
+    let Value::Array(mut prepared) = crate::guide_prepare::prepare(guide, state, progress)? else {
+        return Err("Invalid prepared guide".into());
+    };
+    let (Some(payload), Some(definition), true) = (prepared.pop(), prepared.pop(), prepared.is_empty()) else {
+        return Err("Invalid prepared guide".into());
+    };
+    let compiled = compiled(&definition)?;
+    let input: Input = serde_json::from_value(payload).map_err(|e| e.to_string())?;
+    Ok((compiled, input))
+}
 pub fn evaluate(guide: &Value, state: &Value, progress: &Value) -> Result<Value> {
     EVALUATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let prepared = crate::guide_prepare::prepare(guide, state, progress)?;
-    let compiled = compiled(&prepared[0])?;
-    let input: Input = serde_json::from_value(prepared[1].clone()).map_err(|e| e.to_string())?;
+    let (compiled, input) = prepared(guide, state, progress)?;
     compiled.evaluate(&input)
 }
 pub fn choices(guide: &Value, state: &Value, progress: &Value) -> Result<Value> {
-    let prepared = crate::guide_prepare::prepare(guide, state, progress)?;
-    let compiled = compiled(&prepared[0])?;
-    let input: Input = serde_json::from_value(prepared[1].clone()).map_err(|e| e.to_string())?;
+    let (compiled, input) = prepared(guide, state, progress)?;
     Ok(Value::Object(
         compiled.research_choices(&input).into_iter().collect(),
     ))
@@ -115,5 +124,34 @@ mod set_aside_tests {
         // A run of another guide hands nothing over.
         let foreign = json!({"schema_version":1,"guide_id":"other","run_id":"r","checks":{},"set_aside":{"a":true}});
         assert!(step(&evaluate(&guide, &state, &foreign).unwrap(), "a").get("set_aside").is_none());
+    }
+    #[test]
+    fn admission_reports_the_mode_and_progress_status_of_a_full_evaluation() {
+        let fact=|v:&str|json!({"status":"observed","source":"fixture","value":v});
+        let state=|country:Option<&str>,tree:Option<&str>,usable:bool| {
+            let mut facts=json!({"campaign.id":fact("hoi4:12345678-1234-1234-1234-123456789abc:00000001")});
+            if let Some(c)=country {facts["country"]=fact(c);}
+            if let Some(t)=tree {facts["focus.tree"]=fact(t);}
+            json!({"schema_version":1,"usable":usable,"session_id":"s1","facts":facts})
+        };
+        let states=[state(Some("HUN"),Some("hungary"),true),state(Some("GER"),Some("hungary"),true),state(Some("HUN"),Some("other"),true),
+            state(Some("HUN"),None,true),state(None,Some("hungary"),true),state(Some("HUN"),Some("hungary"),false),json!({"usable":false})];
+        let run=|extra:Value| {let mut r=json!({"schema_version":1,"guide_id":"g","run_id":"r","checks":{}});for (k,v) in extra.as_object().unwrap() {r[k]=v.clone();}r};
+        let progresses=[Value::Null,run(json!({})),run(json!({"guide_id":"other"})),run(json!({"session_id":"s1"})),run(json!({"session_id":"s2"})),
+            run(json!({"campaign_id":"hoi4:12345678-1234-1234-1234-123456789abc:00000001","country":"HUN"})),run(json!({"campaign_id":"hoi4:12345678-1234-1234-1234-123456789abc:00000002","country":"HUN"})),run(json!({"campaign_required":true}))];
+        for scope in [json!({}),json!({"country":"HUN"}),json!({"country":"HUN","tree_id":"hungary"})] {
+            let guide=json!({"id":"g","applies_to":scope,"tracks":{"focus":[{"key":"a","kind":"focus","action":{"kind":"manual"}}]}});
+            for state in &states {
+                for progress in &progresses {
+                    let evaluation=evaluate(&guide,state,progress).unwrap();
+                    let (mode,status)=crate::guide_prepare::admission(&guide,state,progress).unwrap();
+                    assert_eq!((json!(mode),json!(status)),(evaluation["mode"].clone(),evaluation["progress_status"].clone()),
+                        "scope {scope} state {state} progress {progress}");
+                }
+            }
+        }
+        let guide=json!({"id":"g","applies_to":{},"tracks":{"focus":[]}});
+        let invalid=json!({"schema_version":1,"guide_id":"g","run_id":"r","checks":{"a":"yes"}});
+        assert!(evaluate(&guide,&states[0],&invalid).is_err()&&crate::guide_prepare::admission(&guide,&states[0],&invalid).is_err());
     }
 }

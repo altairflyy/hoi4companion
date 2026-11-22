@@ -531,12 +531,15 @@ impl Service {
         {
             return Ok(packet.clone());
         }
+        let ms=|from:Instant,to:Instant|(to.duration_since(from).as_secs_f64()*1_000_000.).round()/1000.;
+        let reading_locked = Instant::now();
         let now = self.now();
         let (political_cost_ids,province_ids)={let mut app=self.application.lock().map_err(|_|"Application unavailable")?;(app.political_cost_ids().clone(),app.readable_province_ids())};
         let provider = self
             .provider
             .lock()
             .map_err(|_| "Provider service unavailable")?;
+        let provider_locked = Instant::now();
         let sample = provider
             .as_ref()
             .ok_or_else(|| "Game installation not configured".into())
@@ -544,6 +547,7 @@ impl Service {
                 let handle = provider.handle;
                 crate::request(0, "provider_collect", json!({"handle":handle,"now":now,"political_cost_ids":political_cost_ids,"province_ids":province_ids}))
             });
+        let collected = Instant::now();
         let mut value = match sample {
             Ok(sample) => reading.monitor.accept(sample, now, &timestamp())?,
             Err(error) => reading.monitor.failed(&error, now)?,
@@ -558,6 +562,7 @@ impl Service {
         }
         // Guide evaluation/persistence never needs the process-owner lock.
         // Native GUI observations must not queue behind that CPU/SQLite work.
+        let monitored = Instant::now();
         drop(provider);
         let acquired = Instant::now();
         value["transport"] =
@@ -566,6 +571,7 @@ impl Service {
             .application
             .lock()
             .map_err(|_| "Application unavailable")?;
+        let app_locked = Instant::now();
         let selected = app.active_revision();
         app.accept(value)?;
         // The played nation changed and another guide became active: the HUD
@@ -580,7 +586,11 @@ impl Service {
         packet["pipeline_ms"] = json!({
             "acquisition": acquired.duration_since(poll_started).as_secs_f64()*1000.,
             "progress": accepted.duration_since(acquired).as_secs_f64()*1000.,
-            "packet": accepted.elapsed().as_secs_f64()*1000.
+            "packet": accepted.elapsed().as_secs_f64()*1000.,
+            // Where acquisition and progress spent their time (HUD plan part 2 step 4b).
+            "acquisition_parts": {"reading_lock":ms(poll_started,reading_locked),"inputs_and_provider_lock":ms(reading_locked,provider_locked),
+                "collect":ms(provider_locked,collected),"monitor_and_inspect":ms(collected,monitored),"app_lock":ms(acquired,app_locked)},
+            "progress_parts": app.accept_parts().clone()
         });
         packet["overlay"] = crate::hud_diagnostics::read_status(
             &self.hud_status_path, &packet["active_guide_id"], &packet["guide_server_id"],
@@ -1077,15 +1087,21 @@ impl Service {
         let epoch=self.hud_epoch.load(Ordering::Acquire);
         let observed=*self.last_delivery.lock().map_err(|_|"Live delivery unavailable")?;
         let Some(observed)=observed else{return Ok(false);};
+        let ms=|from:Instant,to:Instant|(to.duration_since(from).as_secs_f64()*1_000_000.).round()/1000.;
         let stamp=self.app("app_overlay_stamp",&json!({}))?;
+        let stamped=Instant::now();
         let mut value=self.overlay_project()?;
+        let projected=Instant::now();
         let eligible=self.overlay_guides()?;
+        let listed=Instant::now();
         let identity=self.app("app_hud_context",&json!({}))?;
+        let identified=Instant::now();
         value["guides"]=eligible["guides"].clone();
         value["guide_filter"]=eligible["guide_filter"].clone();
         value["observer_session_id"]=identity["sample"]["session_id"].clone();
         let mut timing=if pipeline.is_object(){pipeline.clone()}else{json!({})};
         timing["publish"]=json!(publish_started.elapsed().as_secs_f64()*1000.);
+        timing["publish_parts"]=json!({"stamp":ms(publish_started,stamped),"project":ms(stamped,projected),"guides":ms(projected,listed),"context":ms(listed,identified)});
         value["delivery_pipeline_ms"]=timing;
         value["provider_close"]=self.provider_close.lock().map_err(|_|"Live delivery unavailable")?.clone();
         if self.app("app_overlay_stamp",&json!({}))?!=stamp{return Ok(false);}

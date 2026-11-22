@@ -15,8 +15,32 @@ use std::{
         Arc, Mutex, OnceLock,
         atomic::{AtomicU64, Ordering},
     },
+    time::Instant,
 };
 type Result<T> = std::result::Result<T, String>;
+/// Milliseconds spent per part of one `accept`, summed by key (HUD plan part 2
+/// step 4b): carried in the delivery's `pipeline_ms.progress_parts`.
+struct Laps {
+    last: Instant,
+    parts: Map<String, Value>,
+}
+impl Laps {
+    fn new() -> Self {
+        Self { last: Instant::now(), parts: Map::new() }
+    }
+    /// Adds the time since the previous lap to `key`.
+    fn lap(&mut self, key: &'static str) {
+        let now = Instant::now();
+        let ms = now.duration_since(self.last).as_secs_f64() * 1000.;
+        let sum = self.parts.get(key).and_then(Value::as_f64).unwrap_or(0.) + ms;
+        self.parts.insert(key.into(), json!((sum * 1000.).round() / 1000.));
+        self.last = now;
+    }
+    fn count(&mut self, key: &str) {
+        let n = self.parts.get(key).and_then(Value::as_u64).unwrap_or(0) + 1;
+        self.parts.insert(key.into(), json!(n));
+    }
+}
 
 fn same_observation(left: &Value, right: &Value) -> bool {
     let (Some(left), Some(right)) = (left.as_object(), right.as_object()) else {
@@ -307,6 +331,8 @@ pub struct Application {
     /// keyed by the run store generation (bumped by every committed change).
     /// Rebuilding it read every checklist on every observation (~0.5 s).
     live_runs: Option<(u64, Value)>,
+    /// Where the last `accept` spent its time (`Laps`).
+    accept_parts: Value,
     /// Guides whose definition for the current catalog is still being prepared
     /// in the background (startup prepares the active guide first). They stay
     /// out of `guides`, so they cannot be selected, evaluated or bound until
@@ -361,6 +387,7 @@ impl Application {
             archived_guides: HashMap::new(),
             readable_provinces: None,
             live_runs: None,
+            accept_parts: json!({}),
             preparing: BTreeMap::new(),
             registry_generation: 0,
             interpretation_generation: 0,
@@ -933,6 +960,9 @@ impl Application {
             self.observation_revision, self.runs.generation)
     }
     fn bind(&mut self) -> Result<()> {
+        self.bind_timed(&mut Laps::new())
+    }
+    fn bind_timed(&mut self, laps: &mut Laps) -> Result<()> {
         // Reading progress/projections repeatedly must not observe the same
         // campaign again. Every committed run mutation and qualified observation
         // invalidates this stamp; failures never mark a binding as complete.
@@ -948,6 +978,7 @@ impl Application {
         if self.still_preparing() || self.background_archives && !self.cold_archive_ids()?.is_empty() {
             return Ok(());
         }
+        laps.lap("bind_cold_archives");
         let changed = if let Some(id) = campaign(&self.live) {
             let args = json!({"campaign_id":id,"country":self.live["sample"]["country"],"session_id":self.live["sample"]["session_id"],"tick":self.live["sample"]["native_tick"]});
             self.runs_call("bind_campaign", args)?
@@ -959,12 +990,15 @@ impl Application {
         if changed == true {
             self.revision += 1;
         }
+        laps.lap("bind_campaign");
         if self.runs.observe_decisions(&self.live)? {
             self.revision += 1;
         }
+        laps.lap("observe_decisions");
         if self.live["usable"] == true {
             let identity = state::normalize(&json!({"usable":self.live["usable"],"source":self.live["source"],"sample":{"country":self.live["sample"]["country"],"focus_tree_id":self.live["sample"]["focus_tree_id"]}}));
             let ids = self.runs.call("metadata", json!({}))?;
+            laps.lap("metadata");
             for id in ids.as_object().into_iter().flat_map(|m| m.keys()) {
                 if !self.guides.contains_key(id) {
                     continue;
@@ -975,9 +1009,11 @@ impl Application {
                 {
                     eprintln!("Checklist update to the current guide failed for {id}: {error}");
                 }
+                laps.lap("upgrade_run");
                 // Observe against the run's own definition. An unverifiable
                 // run (missing/corrupt archive) is not observed at all.
                 let record = self.runs.call("get", json!({"guide_id":id}))?;
+                laps.lap("run_get");
                 // Determine admission from the run's immutable scope before
                 // compiling current definitions for unrelated countries. A
                 // cached scope is tied to the archive hash, never its title.
@@ -994,8 +1030,12 @@ impl Application {
                         scope
                     }
                 } else { self.guides[id]["applies_to"].clone() };
-                if crate::guide_prepare::mode(&json!({"applies_to":scope}), &identity) != "live" {continue;}
-                let Ok((mut guide, _)) = self.definition_for_run(id, &record) else {
+                let live = crate::guide_prepare::mode(&json!({"applies_to":scope}), &identity) == "live";
+                laps.lap("scope");
+                if !live {continue;}
+                let definition = self.definition_for_run(id, &record);
+                laps.lap("definition_for_run");
+                let Ok((mut guide, _)) = definition else {
                     continue;
                 };
                 // "UP" research steps bind against what the nation had at the
@@ -1008,6 +1048,7 @@ impl Application {
                         guide["research_start"] = start;
                     }
                 }
+                laps.lap("research_start");
                 let active = self.active.as_ref() == Some(id);
                 let (guides, sources, memo, context, associations) =
                     (&self.guides, &self.sources, &mut self.current_archives, self.context.as_ref(), self.association_directory.as_ref());
@@ -1019,6 +1060,8 @@ impl Application {
                 )? {
                     self.revision += 1;
                 }
+                laps.lap("observe_guides");
+                laps.count("guides_observed");
             }
         }
         self.bound_context = Some(self.binding_context());
@@ -1065,8 +1108,10 @@ impl Application {
         }
     }
     pub fn accept(&mut self, value: Value) -> Result<Value> {
+        let mut laps = Laps::new();
         let mut value = value;
         self.keep_readable_provinces(&mut value);
+        laps.lap("provinces");
         // A successful fresh read need not rerun every guide or invalidate HUD
         // targets when only delivery timestamps and diagnostic counters changed.
         // All game data, identity, validity and unknown fields remain significant.
@@ -1075,9 +1120,19 @@ impl Application {
         if changed {
             self.observation_revision = self.observation_revision.wrapping_add(1);
         }
+        laps.lap("compare");
         self.follow_played_nation()?;
-        self.bind()?;
-        Ok(self.live.clone())
+        laps.lap("follow");
+        let bound = self.bind_timed(&mut laps);
+        laps.lap("bind_rest");
+        let result = bound.map(|_| self.live.clone());
+        laps.lap("clone");
+        self.accept_parts = Value::Object(laps.parts);
+        result
+    }
+    /// Where the last `accept` spent its time, in ms per part.
+    pub fn accept_parts(&self) -> &Value {
+        &self.accept_parts
     }
     pub fn active_revision(&self) -> u64 {
         self.active_revision
@@ -1389,10 +1444,13 @@ impl Application {
         }) {
             return Ok(guide.clone());
         }
-        let assessment = guide_runtime::evaluate(guide, state, progress)?;
+        // Only the evaluation's mode and progress status decide which bindings
+        // apply: read them without a full evaluation (~90 ms on a large guide,
+        // on every HUD and page projection; HUD plan part 2 step 4b).
+        let (mode, status) = crate::guide_prepare::admission(guide, state, progress)?;
         let empty = json!({});
         let bindings =
-            if assessment["mode"] == "live" && assessment["progress_status"] == "accepted" {
+            if mode == "live" && status == "accepted" {
                 &progress["research_bindings"]
             } else {
                 &empty

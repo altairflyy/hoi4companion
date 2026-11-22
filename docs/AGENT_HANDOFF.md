@@ -3,11 +3,11 @@ Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): step 4b, offline per quanto possibile.
-> Consegna dopo un cambio p90 1955 ms, obiettivo < 1.5 s: acquisition p50 790, `app.accept` p50 540, publish p50 333 ms. Profila prima
-> (offline come `native/guides/tests/profile_progress.rs` su copia dello store) cosa fa ancora `app.accept` per ~0.5 s e la publish per
-> ~0.3 s; poi correggi. Test Rust, invariant-reviewer, commit locale, rebuild + restart. Poi step 5 (live con l'utente).
-Live session 2026-11-22 done: numbers in the plan section "Measured 2026-11-22, live session". 3a done; order now: 4b, then step 5 (live).
+> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): step 4b parte 2. Consegna dopo un cambio p90 ~1.81 s,
+> obiettivo < 1.5 s. Parti in `pipeline_ms` (`node scripts/hud-trace-report.cjs`, "Change-to-delivery"): full read `collect` ~0.9-1.1 s,
+> `observe_guides` ~0.35-0.45 s, `publish.project` ~0.23 s. Profila prima la full read (`acquisition::collect`), poi il resto.
+> Test Rust, invariant-reviewer, commit locale, rebuild + restart. Poi step 5 (live con l'utente).
+Step 4b part 1 done (plan, step 4b). Order now: 4b part 2, then step 5 (live). HOI4 may be running: profile read-only, never control it.
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
@@ -19,6 +19,8 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-22 step 4b part 1: fewer evaluation copies (see plan). Live, same game: change-to-delivery p90 2442 -> ~1810 ms, target 1.5 s
+  NOT met. Tests green (guides 112, backend 64 + 120, report 7), reviewer clean. Live: 3a retried a full read once, 0 closes.
 - 2026-11-22 step 3a (`provider.rs` `settle`): full-read consistency failure keeps handle/GUI registry, unknown at once, retry next
   collect, close at the 8th in a row. Backend tests green (lib 64, integration 120), reviewer clean. Live effect NOT measured (step 5).
 - 2026-11-22 live session (1003 s traced, build `603225f`): gap p50 16.8 ms (step 1 ok); geometry max 14 ms after a reopen

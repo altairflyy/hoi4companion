@@ -1,7 +1,7 @@
 //! Pure prepared-v1 adapter. Definition validation is still at the incoming
 //! guide boundary; this module never invents dependencies or strategy.
 use crate::{domain_context, production_context, state};
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 type Result<T> = std::result::Result<T, String>;
@@ -478,6 +478,16 @@ fn keep_guide_provinces(guide: &Value, state: &mut Value) {
         });
     }
 }
+/// The `mode` and `progress_status` an evaluation of these inputs reports,
+/// without preparing the rest: `prepare` passes the same status to the core,
+/// which copies it, and the core derives the mode by the rule of `mode` on the
+/// same normalized state (`country` and `focus.tree` are not filtered by
+/// `keep_guide_provinces`). A failed progress check fails here as there.
+pub fn admission(guide: &Value, input: &Value, record: &Value) -> Result<(&'static str, String)> {
+    let state = state::normalize(input);
+    let result = progress(guide, &state, record)?;
+    Ok((mode(guide, &state), text(&result[0]).to_owned()))
+}
 pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
     let mut state = state::normalize(input);
     keep_guide_provinces(guide, &mut state);
@@ -526,8 +536,8 @@ pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
     } else {
         json!({})
     };
-    let construction = domain_context::construction_context(guide, &context, &baseline_context)?;
-    let production = production_context::context(guide, &construction[0], &baseline_context);
+    let mut construction = domain_context::construction_context(guide, &context, &baseline_context)?;
+    let mut production = production_context::context(guide, &construction[0], &baseline_context);
     let mut selectors = json!({});
     let mut foreign = json!({});
     let mut foreign_parts = json!({});
@@ -556,7 +566,31 @@ pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
             selectors[key]=json!(targets.iter().map(|p|production_context::selector_for(&json!({"action":{"params":p}})).map(|s|json!({"identity":production_context::selector_identity(&s),"category":s["category"]}))).collect::<Vec<_>>());
         }
     }
-    let payload = json!({"schema_version":1,"state":production[0],"original_state":state,"progress_status":status,"run_id":result[1],"checks":checks,"started":started,"set_aside":if status=="accepted"&&!["wrong_country","wrong_tree"].contains(&mode){set_aside(record)}else{json!({})},"explicit_dependencies":explicit,"construction":construction[1],"production":production[1],"research_bindings":if status=="accepted"&&record["research_bindings"].is_object(){record["research_bindings"].clone()}else{json!({})},"research_options":if status=="accepted"{record.get("research_options").cloned().unwrap_or_else(||json!({}))}else{json!({})},"foreign_tokens":foreign,"foreign_part_tokens":foreign_parts,"selectors":selectors});
+    // Built by moving the values in, in this key order: `json!` would copy
+    // each one through the serializer (the two states are ~300 KB each, about
+    // 20 ms per evaluation; HUD plan part 2 step 4b).
+    let mut payload = Map::new();
+    for (key, value) in [
+        ("schema_version", json!(1)),
+        ("state", production[0].take()),
+        ("original_state", state),
+        ("progress_status", json!(status)),
+        ("run_id", result[1].clone()),
+        ("checks", checks),
+        ("started", started),
+        ("set_aside", if status=="accepted"&&!["wrong_country","wrong_tree"].contains(&mode){set_aside(record)}else{json!({})}),
+        ("explicit_dependencies", Value::Array(explicit)),
+        ("construction", construction[1].take()),
+        ("production", production[1].take()),
+        ("research_bindings", if status=="accepted"&&record["research_bindings"].is_object(){record["research_bindings"].clone()}else{json!({})}),
+        ("research_options", if status=="accepted"{record.get("research_options").cloned().unwrap_or_else(||json!({}))}else{json!({})}),
+        ("foreign_tokens", foreign),
+        ("foreign_part_tokens", foreign_parts),
+        ("selectors", selectors),
+    ] {
+        payload.insert(key.into(), value);
+    }
+    let payload = Value::Object(payload);
     let mut definition = json!({});
     for field in ["id", "applies_to", "dependency_policy", "phases", "tracks"] {
         if let Some(v) = guide.get(field) {
@@ -595,5 +629,5 @@ pub fn prepare(guide: &Value, input: &Value, record: &Value) -> Result<Value> {
             }
         }
     }
-    Ok(json!([definition, payload]))
+    Ok(Value::Array(vec![definition, payload]))
 }

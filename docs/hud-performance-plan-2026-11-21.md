@@ -11,7 +11,8 @@ Work that needs no live game first, live checks batched into one session when th
 - done: step 3b, the reason-independent part of step 3 (`provider::gui_lane` no longer waits on the provider lock during a full read);
 - done 2026-11-22: LIVE session (numbers: section "Measured 2026-11-22, live session" below);
 - done 2026-11-22: step 3a (a full-read consistency failure keeps the session and retries the full read);
-- next: step 4b (change-to-delivery still above the target), then step 5 (final live check).
+- 2026-11-22: step 4b part 1 (evaluation copies; p90 2442 -> ~1810 ms in the same game, target NOT met; see step 4b);
+- next: step 4b part 2 (the full read and the per-guide observation), then step 5 (final live check).
 
 ## Steps (one per session; `/clear` between them; the Resume prompt in `docs/AGENT_HANDOFF.md` says which is next)
 1. [x] Overlay cadence (small). Replace the ~15.6 ms timer rounding of `Wake::wait` / `Reads::wait` (`native/overlay/src/wake.rs`,
@@ -68,6 +69,24 @@ Work that needs no live game first, live checks batched into one session when th
    progress (`app.accept`) p50 540 / p95 662, publish p50 333 / p95 478, packet ~2 ms. Profile live first which part of
    `app.accept` still takes ~0.5 s after step 4, and what publish does for 0.3 s; HUD actions (715-941 ms, all ~730) likely wait on
    the same work. Rust tests; rebuild.
+   Part 1 done 2026-11-22 (measured live, read-only, while the game ran; SOV, a later date than the morning session):
+   - Diagnostics: the delivery's `pipeline_ms` now has `acquisition_parts` (locks, `collect` = the full read, monitor),
+     `progress_parts` (`Application::accept` laps: `observe_guides`, `observe_decisions`, ...) and `publish_parts` (`project`,
+     `guides`); `hud-trace-report.cjs` prints "Change-to-delivery" with the parts ranked. Offline profile of one guide:
+     `native/guides/tests/profile_evaluation.rs` (ignored; reads a `/api/guide/projection` saved outside the repository).
+   - Found: one evaluation of the active guide (288 KB, 8815 facts) took ~230 ms, of which guide-core ~7 ms; the rest was JSON
+     plumbing (`prepare` ~175 ms, `Input` deserialization ~40 ms). Each change evaluated it 3 times with the same inputs
+     (`observe` campaign + research, HUD projection) plus once more in `project_definition` just for mode/status.
+   - Fixed: `prepare` moves values into its payload instead of `json!` copies; `evaluate` deserializes the owned payload;
+     `observe` shares one evaluation while the record is unchanged; `project_definition` reads mode/status with
+     `guide_prepare::admission` (test: equal to `evaluate` over 168 combinations). Offline: evaluate 234 -> 164 ms, observe with
+     research 541 -> 231 ms. Not kept: a `state::normalize` memo (live gain ~15 ms).
+   - Live, same game: before p50 2209 / p90 2442 ms (collect 1201, observe_guides 549, project 351, observe_decisions 43);
+     after p50 ~1645 / p90 ~1810-1830 ms (collect 902-912 / p90 1005-1150, observe_guides 335-433, project 227-262,
+     observe_decisions ~50). The full read varies with the game (790 ms p50 in the morning session).
+   - Left for part 2: the full read (`acquisition::collect`, now the largest part); `observe_guides` (active guide ~150 ms,
+     one other guide ~140 ms, three ~20 ms); HUD `project` (projection ~150 ms + HUD projection ~70 ms); the page's own
+     projection requests hold the application lock ~200 ms after each change (`publish.guides` up to 160 ms waiting).
 5. [ ] Live check with the user: play ~10 min with the trace, compare with step 7 of the previous plan, update `docs/native-overlay.md`,
    archive this plan.
 

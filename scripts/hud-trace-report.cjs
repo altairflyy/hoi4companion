@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 const STALL_MS = 250;
+const CHANGE_MS = 100;
 
 function parse(text) {
   const events = [];
@@ -53,6 +54,9 @@ function report(events) {
   // step 2): one event per backend `seq` and time, even if a restarted
   // overlay writes it again.
   const closes = new Map();
+  // Deliveries after a change (acquisition or progress > 100 ms, a full read
+  // or a re-evaluation): their total and where it went (HUD plan part 2 step 4b).
+  const changeTotals = [], changeParts = {};
   for (const e of iterations) {
     branches[e.branch] = (branches[e.branch] || 0) + 1;
     if (e.fg) { foreground++; if (e.fresh === false) unknownForeground++; }
@@ -86,6 +90,14 @@ function report(events) {
     if (d && typeof d === 'object') {
       for (const [key, name] of [['acquisition', 'delivery_acquisition_ms'], ['progress', 'delivery_progress_ms'], ['packet', 'delivery_packet_ms'], ['publish', 'delivery_publish_ms']]) {
         if (Number.isFinite(d[key])) series[name].push(d[key]);
+      }
+      if (d.acquisition > CHANGE_MS || d.progress > CHANGE_MS) {
+        changeTotals.push(['acquisition', 'progress', 'packet', 'publish'].reduce((sum, key) => sum + (Number.isFinite(d[key]) ? d[key] : 0), 0));
+        for (const group of ['acquisition', 'progress', 'publish']) {
+          for (const [key, value] of Object.entries(d[`${group}_parts`] || {})) {
+            if (Number.isFinite(value)) (changeParts[`${group}.${key}`] ||= []).push(value);
+          }
+        }
       }
     }
   }
@@ -147,6 +159,8 @@ function report(events) {
       duration_ms: stats(rebuilds.map(r => r.ms)) },
     unusable_in_foreground: { by_error: unusable, native_errors: nativeErrors },
     session_closes: sessionCloses([...closes.values()]),
+    change_delivery: { threshold_ms: CHANGE_MS, total_ms: stats(changeTotals),
+      parts: Object.fromEntries(Object.entries(changeParts).map(([k, v]) => [k, stats(v)]).sort((a, b) => b[1].p50 - a[1].p50)) },
   };
 }
 
@@ -190,6 +204,11 @@ function format(r) {
   for (const [error, count] of Object.entries(u.by_error).sort((a, b) => b[1] - a[1])) out.push(`  ${count} ${error}`);
   if (Object.keys(u.native_errors).length) out.push('', 'Native geometry errors while HOI4 foreground (iterations):');
   for (const [error, count] of Object.entries(u.native_errors).sort((a, b) => b[1] - a[1])) out.push(`  ${count} ${error}`);
+  const cd = r.change_delivery;
+  if (cd && cd.total_ms.count) {
+    out.push('', `Change-to-delivery (acquisition or progress > ${cd.threshold_ms} ms): ${cd.total_ms.count}, p50 ${n(cd.total_ms.p50)} / p95 ${n(cd.total_ms.p95)} / max ${n(cd.total_ms.max)} ms`);
+    for (const [name, st] of Object.entries(cd.parts).slice(0, 12)) out.push(`  ${name.padEnd(36)} p50 ${n(st.p50).padStart(8)} p95 ${n(st.p95).padStart(8)} max ${n(st.max).padStart(8)}`);
+  }
   const sc = r.session_closes;
   out.push('', `Qualified session closes: ${sc.count} (${sc.with_session} of an open session)${sc.count ? `, by stage: ${Object.entries(sc.by_stage).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''}`);
   for (const c of sc.events.slice(-30)) out.push(`  ${time(c.t)} #${c.seq} ${c.stage}${c.had_session ? '' : ' (no session open)'}: ${c.error}`);
