@@ -420,7 +420,7 @@ dal backend installato in un profilo isolato. Suite, Piano, Tecnologie e catalog
 
 ## Step 8 · Verifica finale desktop
 
-**Stato:** da fare.
+**Stato al 2026-11-22:** piano desktop chiuso. Verifica HUD in partita sospesa.
 
 Con la build corrente ripercorrere avvio, Sala operativa, ricerca in Libreria, Piano, Focus, Tecnologie, riferimenti, importazione e
 stato HUD, con una guida attiva o una fixture isolata. Rimisurare M1-M4 e confrontarle con lo step 1. Eseguire `npm test` e
@@ -428,6 +428,49 @@ stato HUD, con una guida attiva o una fixture isolata. Rimisurare M1-M4 e confro
 
 **Completato quando** ogni criterio degli step 1-7 ha un esito esplicito, il report distingue prove visive e automatiche e il handoff
 conserva la sospensione dei test HUD in partita. Senza riapertura dei test live, il piano desktop si chiude con la verifica live sospesa.
+
+### Esiti sulla build corrente
+
+Launcher e backend da `src/hoi4companion/_native/`, checkout `d06d262` con le modifiche concorrenti a `CLAUDE.md` preservate.
+Avvio osservato nella finestra Companion con WebView2 157, porta locale e directory dati, gioco e documenti sintetiche. HUD disattivato.
+Alla chiusura della finestra sono terminati l'host e il backend isolati. Le directory sintetiche di gioco e documenti erano vuote.
+Prove nel WebView2 del launcher con viewport impostato a 1282 × 832 e, per gli alberi, anche a 820 × 832. Le pagine sono servite
+dal backend corrente. Le fixture riproducono gli stream e le proiezioni Rust. L'importatore usa il backend Rust con archivi sintetici
+e profili separati per lingua. HOI4 è rimasto fuori dalla prova.
+
+| Metrica | Step 1 | Step 8 · WebView2 |
+|---|---|---|
+| M1 · Ripresa | 0 clic, 0 scorrimenti. Primo titolo a circa 599–620 px, sotto le metriche. | **0 clic, 0 scorrimenti.** Primo titolo di «Ora» a 380–401 px in anteprima e 339–360 px con collegamento simulato, sopra le metriche in entrambi i casi. In anteprima i valori di campagna sono «—» e la suite indica che i progressi non vengono contati. |
+| M2 · Azione primaria | 2 / 2 / 2. | **1 / 1 / 1** con guida attiva, libreria popolata e libreria vuota. I clic aprono rispettivamente Piano, Libreria e Importa ZIP. |
+| M3 · Riferimenti | 1 / 1. Titolo, breadcrumb e contesto suite resi coerenti durante lo step 1. | **1 / 1.** Entrambi gli accessi aprono `/importer?view=references&suite=1`, con titolo e breadcrumb «Template e riferimenti» e caricamento concluso. Verificati anche il ritorno a Importa ZIP e Guide salvate. |
+| M4 · Stati della partita | 0/6. | **6/6** secondo l'inventario dello step 3. Ogni stato ha il proprio messaggio e la navigazione prevista. Nazione e albero incompatibili portano alla Libreria, il collegamento apre il Piano. Verificati anche campione obsoleto e checklist incompatibile. |
+
+| Criterio | Esito e percorso della prova |
+|---|---|
+| 1 · Navigazione e tastiera | **Verificato in WebView2.** Sala operativa → Template e riferimenti, Importa ZIP → Template e riferimenti → Importa ZIP e Guide salvate. Configurazione → Invio, ciclo Tab/Maiusc+Tab, contorno da 2 px, ritorno al pulsante con Esc, Annulla e Chiudi, con preferenza chiara e scura. Libreria guide → Cerca una guida, un risultato e zero corrispondenze. `check-1/`. |
+| 2 · Ripresa e Piano | **Verificato in WebView2.** Sala operativa → Ora → focus con albero, guida e ancora conservati. Piano della campagna → Ora e Poi prima di scorciatoie e riferimenti → Piano completo espandibile. `check-2/`. |
+| 3 · Stati e spunte | **Verificato in WebView2.** Sala operativa → Piano → operazione con conferma salvata. Offline compare «Confermato da te», «Avvio non verificabile» e «Verificati in gioco: 0/98». Nel caso collegato i verificati restano 0/98 e i completati sono 1/98. Identiche spunte, selezioni e stati delle righe fra le proiezioni Rust prima/dopo. `check-3/`. |
+| 4 · ZIP e stati vuoti | **Verificato in WebView2, IT/EN.** Importa ZIP → tre scelte → ZIP danneggiato, non supportato, installato con rapporto, revisione e correzione. Provati guida Word, immagine di riferimento e documento avanzato. Libreria, Stato della nazione, Eventi e avvisi Focus con fixture offline. Le cartelle documenti sintetiche sono rimaste vuote. `check-4/`. |
+| 5 · Focus e Tecnologie | **Verificato in WebView2** a entrambe le larghezze. Obiettivo leggibile al 120%, centratura e contorno, apertura dalla proiezione della guida e ritorno con «Mostra». Senza obiettivo, panoramica. Tab, Invio, zoom manuale conservato e «Adatta scheda» verificati tramite input CDP. `check-5/`. |
+| 6 · Sessione e HUD | **Verificato in WebView2, IT/EN.** Sala operativa → Sessione e HUD. Dieci fixture, stato coerente con la home e `Ctrl+Alt+H` leggibile. In partita restano sospesi visibilità, richiamo, leggibilità, ingombro, allineamento e fluidità. `check-6/`, `check-6-en/`. |
+| 7 e 7b · Interfaccia unica | Inventario e decisione registrati sopra. **Verificato in WebView2** il salto all'albero da Focus, Tecnologie e Sala operativa, anche con albero ignoto o campione obsoleto. Verificati ritorno all'istruzione e ritorno generale, stato e ricarica Tecnologie, origine Focus, Piano su `/walkthrough` e assenza del link classico. `check-7b/`. |
+
+**Riscontro R1–R15.** In WebView2 sono stati riscontrati categorie, coppia di badge, rapporto di importazione, titolo composto,
+«Ora» e «Poi», anteprima, ritorno alla stessa istruzione e raggruppamento (R1–R2, R6, R8–R9, R11–R12, R15). Salvata anche una
+lettura personale via Correggi associazioni (R13). Per R3–R5, R7, R10 e per le varianti di R9, R13 e R15, la copertura resta quella
+dei test e delle fixture già registrati nello step 1. La resa di tutti gli avvisi, del glossario e delle varianti grafiche su guide
+reali resta da osservare. R14, il binding reale fuori fixture e la prova HUD in partita restano sospesi.
+
+**Evidenze e regressioni.** Percorsi sopra relativi a `.local/ux-captures/step-8/`. Ogni cartella contiene catture WebView2 e
+`webview2.log`. Ispezionate le catture di anteprima, ricerca, rapporto ZIP, obiettivo Tecnologie a 820 px e pannello HUD offline.
+Gli input e le asserzioni sulla pagina sono via CDP. `replay.log` registra gli esiti, `desktop.log` avvio e chiusura della sessione.
+Nessuna regressione desktop riprodotta nei percorsi provati. I primi tentativi di `check-2` si fermavano in Sala operativa →
+libreria vuota e campagna collegata simulata, poi in Piano → contatore. La riprova ha allineato la fixture e le aspettative al
+contratto dello step 3 (identità del campione, stato campagna, etichette) e alla «—» dello step 4. Log iniziali conservati in
+`check-2/`. Il numero di clic e scorrimenti di M1 resta zero anche con la riga di stato aggiunta dopo la misura dello step 2.
+
+**Test automatici.** `npm test` 517 passati, 3 saltati, 0 errori. I tre skip sono un caso con corpus locale e due prove opt-in
+del ciclo di vita desktop. `node --test tests/test_agent_handoff_size.cjs` 3/3. Log `npm-test.log` e `handoff-size.log`.
 
 **Prompt di ripresa, solo quando l'utente riapre i test live:** «Leggi il handoff e la sezione live del piano UX. Esegui solo la verifica
 HUD con una partita compatibile già aperta dall'utente. Osserva leggibilità, ingombro, allineamento e richiamo della scheda. Registra le

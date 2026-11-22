@@ -2,10 +2,10 @@
 Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `-2026-11-20.md`, `-2026-11-21.md`, `-2026-11-22.md`, `git log`.
 
 ## Next actions
-Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Leggi docs/ux-implementation-plan.md («Esecuzione con Codex») e docs/AGENT_HANDOFF.md. Esegui solo lo step 8.
-> Verifica la build attuale in desktop con una fixture isolata, confronta M1–M4 con lo step 1 ed esegui npm test e tests/test_agent_handoff_size.cjs.
-> Registra esiti e percorsi delle regressioni nel piano e nel handoff. Non avviare o controllare HOI4. Lascia sospesa la verifica HUD in partita e chiudi il piano desktop se tutti i criteri hanno un esito.
+Piano UX desktop chiuso 2026-11-22. Esiti per criterio e percorso in `docs/ux-implementation-plan.md`, step 8.
+Resume prompt, solo su richiesta esplicita di riaprire i test live:
+> Leggi il handoff e lo step 8 del piano UX. Esegui solo la verifica HUD con una partita compatibile già aperta dall'utente.
+> Osserva leggibilità, ingombro, allineamento e richiamo della scheda. Registra le evidenze senza controllare HOI4 o modificare la geometria.
 
 PAUSED 2026-11-22 (user): live HUD quality checks need game data or screenshots. Resume F1 step 2 only on request, per `docs/hud-quality-plan-2026-11-22.md`.
 HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
@@ -20,11 +20,10 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
-- 2026-11-22 UX step 7b: salto all’albero, ritorno all’istruzione, lettore e ricarica Tecnologie, origine Focus verificati in Edge.
-  Link classico rimosso dopo le fixture. `/walkthrough` resta nel Piano. Prove in `.local/ux-captures/step-7b/`. WebView2 allo step 8.
-  Regressione web 516 passati, 3 saltati. Backend e overlay ricompilati dopo `76bf867`, fixture Edge riprovata col backend isolato.
-- 2026-11-22 UX step 5: Focus e Tecnologie verificati in Edge a 1282 × 832 e 820 × 832 con fixture, obiettivo e panoramica.
-  Adatta scheda, zoom manuale e tastiera verificati in Edge. JS mirati 58/58. Catture e limiti nel piano UX. Prova manuale WebView2 aperta.
+- 2026-11-22 UX step 8: launcher e WebView2 isolati. M1 0 clic/0 scroll, M2 1/1/1, M3 1/1, M4 6/6. Verificati Libreria,
+  Piano, Focus, Tecnologie, riferimenti, ZIP IT/EN e Sessione e HUD. Prove in `.local/ux-captures/step-8/`.
+  Nessuna regressione riprodotta. Prime riprove di home vuota/collegata e contatore Piano allineate a fixture e testi correnti, log in
+  `check-2/`. `npm test` 517 passati, 3 saltati. Handoff 3/3. Verifica HUD in partita sospesa.
 - 2026-11-22 HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior
   change. Tests green (live 72, overlay 79, backend 65 + 120, JS 508/511, 3 skipped), invariant-reviewer clean. Live data NOT seen yet.
 - 2026-11-22 HUD plan part 2 step 5 (836 s of play on `0e4b001`): change-to-delivery p50 1166 / p90 1365 ms (target < 1.5 s met;
