@@ -21,7 +21,8 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## Recently verified
 - 2026-11-22 UX step 6: Sessione e HUD con i messaggi dello step 3 e Ctrl+Alt+H. Dieci fixture IT/EN in Edge, 21/21 mirati.
-  Catture e test nel piano UX. Verifica manuale WebView2 e prova reale del richiamo ancora aperte.
+  Rebuild dopo `b619d4c`, launcher isolato senza HUD e riprova Edge sul binario installato riusciti. Evidenze nel piano UX.
+  Verifica manuale WebView2 e prova reale del richiamo ancora aperte.
 - 2026-11-22 UX step 5: Focus e Tecnologie verificati in Edge a 1282 × 832 e 820 × 832 con fixture, obiettivo e panoramica.
   Adatta scheda, zoom manuale e tastiera verificati in Edge. JS mirati 58/58. Catture e limiti nel piano UX. Prova manuale WebView2 aperta.
 - 2026-11-22 HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior

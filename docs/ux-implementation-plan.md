@@ -342,6 +342,10 @@ Test mirati 21/21. Regressione web 515 passati, 3 saltati dal runner. Escluso il
 Revisione invarianti senza rilievi. Resa nella finestra WebView2 e richiamo della scheda in partita da verificare a mano dall’utente.
 La verifica live dell’HUD resta sospesa.
 
+Dopo il commit `b619d4c`, `deliver-build` ha ricompilato backend e overlay. Companion è stato avviato e chiuso con un profilo
+isolato e HUD disattivato. Suite e catalogo incorporato hanno risposto HTTP 200. La riprova Edge sul binario installato
+ha confermato le dieci fixture in entrambe le lingue. Evidenze `installed-*`, `deliver.log` e `desktop.log`.
+
 ## Step 7 · Una sola interfaccia (decisione dell'utente)
 
 **Stato:** da fare.
