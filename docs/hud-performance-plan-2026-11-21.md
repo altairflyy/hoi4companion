@@ -10,8 +10,8 @@ Work that needs no live game first, live checks batched into one session when th
 - done: step 4 (store reads no longer copy the whole progress state);
 - done: step 3b, the reason-independent part of step 3 (`provider::gui_lane` no longer waits on the provider lock during a full read);
 - done 2026-11-22: LIVE session (numbers: section "Measured 2026-11-22, live session" below);
-- next: step 3a (keep the session through a full-read consistency failure), then step 4b (change-to-delivery still above the target),
-  then step 5 (final live check).
+- done 2026-11-22: step 3a (a full-read consistency failure keeps the session and retries the full read);
+- next: step 4b (change-to-delivery still above the target), then step 5 (final live check).
 
 ## Steps (one per session; `/clear` between them; the Resume prompt in `docs/AGENT_HANDOFF.md` says which is next)
 1. [x] Overlay cadence (small). Replace the ~15.6 ms timer rounding of `Wake::wait` / `Reads::wait` (`native/overlay/src/wake.rs`,
@@ -30,7 +30,7 @@ Work that needs no live game first, live checks batched into one session when th
    `error`, `unix_ms`, `had_session`, `repeats` for the same failure again); the delivery and the expired placeholder carry the last
    one as `provider_close`; the trace writes `close_seq`/`close_stage`/`close_error` once; the report has "Qualified session closes".
    PENDING: the user's ~10 min of play and reading the reasons.
-3. [ ] Keep the session through a transient read failure, by the reasons from step 2. Candidates, only where the cause allows it: a failed
+3. [x] Keep the session through a transient read failure, by the reasons from step 2. Candidates, only where the cause allows it: a failed
    integrity audit drops the cached read but keeps the process handle and the GUI registry (same pid and creation time); a probe or full
    read failure retries the full read once before closing. Every failure still makes the delivery unknown at once; only a new complete
    qualified read restores it. Also stop `provider::gui_lane` from waiting on the provider lock during a full read after a reopen
@@ -47,6 +47,13 @@ Work that needs no live game first, live checks batched into one session when th
    delivery unknown at once and retry the full read at the next tick; close only after N consecutive failures or any other error.
    Leave "Paese giocato non identificato con certezza" (seen once, 0.5 s after start while the game loaded) closing as today.
    Not needed: the audit candidate (0 audit failures seen).
+   Done 2026-11-22 (3a, code): `Provider::settle` ends every collect. One of the three texts (exact match) at stage `full_read`
+   with an open session drops the cached read and any audit (generation bumped, so a late audit is never installed), keeps the
+   handle, GUI registry and lane, and still returns the error: the delivery is unknown at once, the next collect (~250 ms) reads in
+   full. The 8th such failure in a row (`FULL_READ_FAILURES`), or any other failure, closes as before; a complete read resets the
+   count. `metrics.full_read_retries` and `metrics.last_retry` (error, streak, time) show retries; they are not closes. Tests
+   `a_transient_full_read_failure_keeps_the_session...`, `transient_full_read_failures_close_after_the_limit...`,
+   `other_failures_and_transient_texts_outside_the_full_read_still_close`. Live effect NOT measured yet: step 5.
 4. [x] Full-read delivery pipeline after a change (p50 2.6 s, p90 3.1 s; 98 expiries in 20 min). Profile first: acquisition, `app.accept`
    (progress), packet, publish. Hypothesis: the 2.0 MB progress payload (2851 runs) is serialized and written whole on each change; if
    so, write only what changed or move the write after the publish. Target: change-to-delivery p90 < 1.5 s. Same effect expected on HUD

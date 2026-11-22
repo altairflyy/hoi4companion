@@ -3,6 +3,8 @@
 //! periodic integrity audit (a full read, ~1-1.5 s) runs on its own thread
 //! while probes keep answering from the cached read, so an audit never stops
 //! the delivery loop; a probe that sees a change still reads in full at once.
+//! A full read that fails because the game changed the state meanwhile keeps
+//! the session and is retried at the next collect (`Provider::settle`).
 use crate::{acquisition, game_process::Game, profile::Profile, watch};
 use serde_json::{Value, json};
 use std::{
@@ -16,8 +18,9 @@ use std::{
     time::{Instant, SystemTime},
 };
 type Result<T> = std::result::Result<T, String>;
-/// A failed collect with the stage it failed in (`Provider::collect` closes
-/// the session on any of them; the stage says why, HUD plan part 2 step 2).
+/// A failed collect with the stage it failed in (`Provider::settle` closes
+/// the session on all but a transient full-read failure; the stage says why,
+/// HUD plan part 2 steps 2 and 3a).
 type Staged<T> = std::result::Result<T, (&'static str, String)>;
 trait At<T> {
     fn at(self, stage: &'static str) -> Staged<T>;
@@ -29,6 +32,19 @@ impl<T, E: Into<String>> At<T> for std::result::Result<T, E> {
 }
 /// Close events kept in `metrics.closes`, newest last.
 const CLOSES_KEPT: usize = 16;
+/// Full-read failures caused by the game changing the state while it was read
+/// (texts from `live_process.rs`, `acquisition.rs` and `live.rs`). Every live
+/// close of 2026-11-22 but one was of these, at stage `full_read`, while the
+/// process and its handle stayed valid (HUD plan part 2 step 3a): the session,
+/// its handle and its GUI registry are kept and the full read is retried at
+/// the next collect. The delivery is unknown at once all the same.
+const TRANSIENT_FULL_READ: [&str; 3] = [
+    "Stato cambiato durante la lettura",
+    "Campione incoerente: riprovare",
+    "Stato ricerca vuoto o duplicato",
+];
+/// Consecutive transient full-read failures that close the session anyway.
+const FULL_READ_FAILURES: u64 = 8;
 struct Cached {
     sample: acquisition::Sample,
     packet: watch::Packet,
@@ -69,6 +85,8 @@ struct Provider {
     /// after a reopen holds it ~1-1.5 s (geometry spikes 878-1516 ms, HUD
     /// plan part 2 step 3b). Set when a session opens, cleared on `close`.
     lane: Arc<Mutex<Option<GuiLane>>>,
+    /// Consecutive transient full-read failures of the open session.
+    full_read_streak: u64,
 }
 impl Provider {
     fn set_political_cost_ids(&mut self,targets:&Value)->Result<()> {
@@ -115,12 +133,14 @@ impl Provider {
             generation: 0,
             audit_job: None,
             open: Arc::new(AtomicBool::new(false)),
-            metrics: json!({"probes":0,"full_reads":0,"audits":0,"changes":0,"last_read_ms":null,"watch_ranges":0,"watch_bytes":0,"probe_read_calls":0,"probe_read_bytes":0,"close_count":0,"closes":[]}),
+            metrics: json!({"probes":0,"full_reads":0,"audits":0,"changes":0,"last_read_ms":null,"watch_ranges":0,"watch_bytes":0,"probe_read_calls":0,"probe_read_bytes":0,"close_count":0,"closes":[],"full_read_retries":0,"last_retry":null}),
             gui: Arc::new(Mutex::new(crate::gui_registry::Registry::deferred())),
             lane: Arc::new(Mutex::new(None)),
+            full_read_streak: 0,
         })
     }
     fn close(&mut self) {
+        self.full_read_streak = 0;
         self.open.store(false, Ordering::Release);
         self.gui = Arc::new(Mutex::new(crate::gui_registry::Registry::deferred()));
         self.game = None;
@@ -283,14 +303,38 @@ impl Provider {
         Ok(sample)
     }
     fn collect(&mut self, now: f64) -> Result<Value> {
-        match self.collect_inner(now) {
-            Ok(value) => Ok(value),
-            Err((stage, error)) => {
-                self.record_close(stage, &error, now);
-                self.close();
-                Err(error)
+        let outcome = self.collect_inner(now);
+        self.settle(outcome, now)
+    }
+    /// Ends a collect. A transient full-read failure (`TRANSIENT_FULL_READ`)
+    /// drops only the cached read and any audit, so the next collect reads in
+    /// full again on the same handle and GUI registry; the error still reaches
+    /// the caller, so the delivery is unknown until a new complete read. Any
+    /// other failure, or the `FULL_READ_FAILURES`-th transient one in a row,
+    /// closes the session as before.
+    fn settle(&mut self, outcome: Staged<Value>, now: f64) -> Result<Value> {
+        let (stage, error) = match outcome {
+            Ok(value) => {
+                self.full_read_streak = 0;
+                return Ok(value);
+            }
+            Err(failure) => failure,
+        };
+        if stage == "full_read" && self.game.is_some() && TRANSIENT_FULL_READ.contains(&error.as_str()) {
+            self.full_read_streak += 1;
+            if self.full_read_streak < FULL_READ_FAILURES {
+                let unix_ms = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0., |d| d.as_secs_f64() * 1000.).round();
+                self.increment("full_read_retries");
+                self.metrics["last_retry"] = json!({"error":error,"at":now,"unix_ms":unix_ms,"streak":self.full_read_streak});
+                self.cached = None;
+                self.audit_job = None;
+                self.generation += 1;
+                return Err(error);
             }
         }
+        self.record_close(stage, &error, now);
+        self.close();
+        Err(error)
     }
     fn geometry(&mut self, args: &Value) -> Result<Value> {
         self.gui_lane()?.geometry(args)
@@ -674,6 +718,67 @@ mod tests {
         let closes=provider.metrics["closes"].as_array().unwrap();
         assert_eq!(closes.len(),CLOSES_KEPT);
         assert_eq!((closes.last().unwrap()["seq"].clone(),provider.metrics["close_count"].clone()),(json!(41),json!(41)));
+    }
+    /// A provider with an open session, its published lane and a cached read
+    /// with an audit in flight.
+    fn open_session()->(Provider,Arc<Game>){
+        let mut p=Provider::new(&json!({"path":"unused","manifest_sha256":"unused"})).unwrap();
+        let game=Game::owned_fixture();
+        p.game=Some(game.clone());p.open=Arc::new(AtomicBool::new(true));p.publish_lane();
+        p.install(read(json!("old")),packet(),1.);
+        let (_send,receive)=mpsc::channel();
+        p.audit_job=Some(Audit{generation:p.generation,started:2.,result:receive});
+        (p,game)
+    }
+    fn failed(stage:&'static str,error:&str)->Staged<Value>{Err((stage,error.into()))}
+    #[test]
+    fn a_transient_full_read_failure_keeps_the_session_and_answers_unknown_at_once() {
+        for error in TRANSIENT_FULL_READ {
+            let (mut p,game)=open_session();
+            let gui=p.gui.clone();let lane=p.gui_lane().unwrap();let generation=p.generation;
+            assert_eq!(p.settle(failed("full_read",error),3.).unwrap_err(),error,"the caller still gets the failure: unknown at once");
+            assert!(p.cached.is_none()&&p.audit_job.is_none(),"no old read is served and the next collect reads in full");
+            assert!(p.generation>generation,"a late audit of the dropped read is never installed");
+            assert!(Arc::ptr_eq(p.game.as_ref().unwrap(),&game),"same process handle");
+            assert!(Arc::ptr_eq(&p.gui,&gui),"same GUI registry");
+            assert!(lane.matches_pid(Some(game.pid as u64))&&gui_lane_of(&p).is_some(),"the GUI lane stays open");
+            assert_eq!(p.metrics["closes"],json!([]),"not a close");
+            assert_eq!((p.metrics["full_read_retries"].clone(),p.metrics["last_retry"]["error"].clone(),p.metrics["last_retry"]["streak"].clone()),
+                (json!(1),json!(error),json!(1)));
+        }
+    }
+    fn gui_lane_of(p:&Provider)->Option<GuiLane>{p.lane.lock().unwrap().clone()}
+    #[test]
+    fn transient_full_read_failures_close_after_the_limit_and_a_complete_read_resets_the_count() {
+        let (mut p,game)=open_session();
+        for _ in 1..FULL_READ_FAILURES {assert!(p.settle(failed("full_read","Campione incoerente: riprovare"),3.).is_err());}
+        assert!(p.game.is_some(),"{} failures in a row keep the session",FULL_READ_FAILURES-1);
+        assert_eq!(p.settle(Ok(json!("sample")),4.).unwrap(),json!("sample"));
+        for _ in 1..FULL_READ_FAILURES {assert!(p.settle(failed("full_read","Stato cambiato durante la lettura"),5.).is_err());}
+        assert!(p.game.is_some(),"a complete read started the count again");
+        let lane=p.gui_lane().unwrap();
+        assert!(p.settle(failed("full_read","Stato ricerca vuoto o duplicato"),6.).is_err());
+        assert!(p.game.is_none()&&!lane.matches_pid(Some(game.pid as u64))&&gui_lane_of(&p).is_none(),"the limit closes the session");
+        let closes=p.metrics["closes"].as_array().unwrap();
+        assert_eq!((closes.len(),closes[0]["stage"].clone(),closes[0]["error"].clone(),closes[0]["had_session"].clone()),
+            (1,json!("full_read"),json!("Stato ricerca vuoto o duplicato"),json!(true)));
+        assert_eq!(p.metrics["full_read_retries"],json!(2*(FULL_READ_FAILURES-1)));
+        assert_eq!(p.full_read_streak,0,"a new session starts with no failures");
+    }
+    #[test]
+    fn other_failures_and_transient_texts_outside_the_full_read_still_close() {
+        for (stage,error) in [("full_read","Paese giocato non identificato con certezza"),("full_read","Memoria del gioco non leggibile"),
+            ("probe","Stato cambiato durante la lettura"),("audit","Campione incoerente: riprovare"),("identity","Sessione di processo cambiata"),
+            ("full_read","Campione incoerente: riprovare (witnesses: 1, ranges: 1, bytes: 8)")] {
+            let (mut p,_game)=open_session();
+            assert_eq!(p.settle(failed(stage,error),3.).unwrap_err(),error);
+            assert!(p.game.is_none()&&p.cached.is_none()&&gui_lane_of(&p).is_none(),"{stage}: {error} closes");
+            assert_eq!(p.metrics["closes"][0]["stage"],stage);
+            assert_eq!(p.metrics["full_read_retries"],0);
+        }
+        let mut p=Provider::new(&json!({"path":"unused","manifest_sha256":"unused"})).unwrap();
+        assert!(p.settle(failed("full_read","Campione incoerente: riprovare"),1.).is_err());
+        assert_eq!(p.metrics["closes"][0]["had_session"],false,"without a session there is nothing to keep");
     }
     #[test]
     fn missing_executable_never_keeps_a_cached_or_usable_session() {

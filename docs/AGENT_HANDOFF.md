@@ -3,11 +3,11 @@ Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): step 3a, offline.
-> Su un errore di coerenza del full read ("Stato cambiato durante la lettura", "Campione incoerente: riprovare", "Stato ricerca vuoto
-> o duplicato") tieni handle e GUI registry, consegna subito unknown, riprova al tick dopo; chiudi solo dopo N fallimenti o altri errori.
-> Test Rust, invariant-reviewer, commit locale, rebuild + restart. Poi step 4b (consegna dopo un cambio p90 1955 ms, obiettivo < 1.5 s).
-Live session 2026-11-22 done: numbers in the plan section "Measured 2026-11-22, live session". Order now: 3a, 4b, then step 5 (live).
+> Piano reattività HUD parte 2 (`docs/hud-performance-plan-2026-11-21.md`): step 4b, offline per quanto possibile.
+> Consegna dopo un cambio p90 1955 ms, obiettivo < 1.5 s: acquisition p50 790, `app.accept` p50 540, publish p50 333 ms. Profila prima
+> (offline come `native/guides/tests/profile_progress.rs` su copia dello store) cosa fa ancora `app.accept` per ~0.5 s e la publish per
+> ~0.3 s; poi correggi. Test Rust, invariant-reviewer, commit locale, rebuild + restart. Poi step 5 (live con l'utente).
+Live session 2026-11-22 done: numbers in the plan section "Measured 2026-11-22, live session". 3a done; order now: 4b, then step 5 (live).
 UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 
 ## In progress
@@ -19,6 +19,8 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-22 step 3a (`provider.rs` `settle`): full-read consistency failure keeps handle/GUI registry, unknown at once, retry next
+  collect, close at the 8th in a row. Backend tests green (lib 64, integration 120), reviewer clean. Live effect NOT measured (step 5).
 - 2026-11-22 live session (1003 s traced, build `603225f`): gap p50 16.8 ms (step 1 ok); geometry max 14 ms after a reopen
   (3b ok); closes all `full_read` consistency errors (step 3a decided); change-to-delivery p90 1955 ms, target 1.5 s NOT met (4b).
 - 2026-11-20 `3ac001a` HUD card: a production step is skipped as current step once a later step of its track is completed (cause:
