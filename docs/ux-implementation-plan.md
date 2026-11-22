@@ -415,6 +415,8 @@ Il Piano della campagna apre ancora `/walkthrough` nella suite.
 Percorsi verificati prima della rimozione e riprovati dopo. Log e catture in `.local/ux-captures/step-7b/`.
 JS mirati 30/30. Regressione web 516 passati e 3 saltati, escluso `test_native_service.cjs` che esercita l’installazione di preset MIO.
 Revisione invarianti senza rilievi. Verifica WebView2 rinviata allo step 8. HOI4 non è stato avviato né controllato.
+Backend e overlay ricompilati dopo `76bf867`. Ripetuta la prova Edge con le risposte API sintetiche e le pagine italiane servite
+dal backend installato in un profilo isolato. Suite, Piano, Tecnologie e catalogo IT hanno risposto HTTP 200 (`installed.log`).
 
 ## Step 8 · Verifica finale desktop
 

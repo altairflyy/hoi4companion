@@ -22,6 +22,7 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 ## Recently verified
 - 2026-11-22 UX step 7b: salto all’albero, ritorno all’istruzione, lettore e ricarica Tecnologie, origine Focus verificati in Edge.
   Link classico rimosso dopo le fixture. `/walkthrough` resta nel Piano. Prove in `.local/ux-captures/step-7b/`. WebView2 allo step 8.
+  Regressione web 516 passati, 3 saltati. Backend e overlay ricompilati dopo `76bf867`, fixture Edge riprovata col backend isolato.
 - 2026-11-22 UX step 5: Focus e Tecnologie verificati in Edge a 1282 × 832 e 820 × 832 con fixture, obiettivo e panoramica.
   Adatta scheda, zoom manuale e tastiera verificati in Edge. JS mirati 58/58. Catture e limiti nel piano UX. Prova manuale WebView2 aperta.
 - 2026-11-22 HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior
