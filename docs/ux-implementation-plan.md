@@ -278,7 +278,7 @@ Evidenze `before-*`, `installed-*`, `installed.log` e `desktop.log` nella cartel
 
 ## Step 5 · Alberi leggibili
 
-**Stato:** da fare.
+**Stato:** implementato e verificato il 2026-11-22 in Edge headless con dati isolati.
 
 Con un obiettivo, Focus e Tecnologie aprono la porzione dell'albero che lo contiene, centrata e a uno zoom leggibile. «Adatta scheda»
 resta per la vista d'insieme. Uno zoom scelto dall'utente non viene più cambiato finché resta nella pagina. Senza obiettivo, vista d'insieme.
@@ -286,6 +286,29 @@ I nodi sono raggiungibili da tastiera e il nodo selezionato ha un contorno visib
 
 **Completato quando** il nodo obiettivo si legge senza correggere lo zoom a 1282 × 832 e a larghezza ridotta, incluso il caso senza
 obiettivo; catture prima e dopo.
+
+### Verifica dello step 5 · 2026-11-22
+
+Suite in italiano, Edge 158 headless, backend Companion con discovery disattivato. Stesse fixture di catalogo prima
+(`131c17c`) e dopo. Verificati i collegamenti diretti e l'apertura sull'obiettivo fornito dalla proiezione Rust della guida.
+Il nome intero compare sopra l'albero anche per i nodi Tecnologia che sulla scheda hanno solo un'icona.
+
+| Vista | 1282 × 832, prima → dopo | 820 × 832, prima → dopo |
+|---|---|---|
+| Focus con obiettivo | 78% → 120% | 78% → 120% |
+| Focus senza obiettivo | 78% con scorrimento → panoramica al 19% | 78% con scorrimento → panoramica al 18% |
+| Tecnologie con obiettivo | 30% → 120% | 25% → 120% |
+| Tecnologie senza obiettivo | 43% → panoramica al 43% | 25% → panoramica al 24% |
+
+Obiettivo centrato e contorno visibile nelle quattro prove con obiettivo. In Edge, Tab e Maiusc+Tab raggiungono i nodi con
+contorno di tastiera e Invio cambia la selezione. Le frecce regolano lo zoom e spostano il focus tra le schede Tecnologia.
+Il 119% scelto da tastiera resta dopo il ridimensionamento e il cambio di albero, scheda, ramo o pannello dettagli.
+Invio su «Adatta scheda» ripristina la panoramica. «Mostra focus» e «Mostra tecnologia» riportano all'obiettivo della guida.
+
+Catture `before-*`, `after-*` e log in `.local/ux-captures/step-5/`. Test JS mirati 58/58. Regressione web 515 passati,
+3 saltati dal runner e 1 test nativo escluso perché esercita la scrittura di preset MIO. Revisione invarianti senza rilievi.
+Il backend installato serve i file web aggiornati al ricaricamento. Verifica manuale nella finestra WebView2 ancora aperta.
+La prova non ha richiesto una partita reale. Verifiche HUD in partita sospese.
 
 ## Step 6 · L'HUD spiegato dalla suite
 

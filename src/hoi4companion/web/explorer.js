@@ -1,6 +1,9 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const state = {overview:null,tree:null,selected:null,goal:null,search:'',zoom:.78,manual:new Set(),poll:false,coords:new Map(),treeRequest:0};
+const state = {overview:null,tree:null,selected:null,goal:null,search:'',manual:new Set(),poll:false,coords:new Map(),treeRequest:0};
+const camera=HoiTreeViewport.create({viewport:$('graphViewport'),world:$('world'),sizer:$('worldSizer'),slider:$('zoom'),output:$('zoomValue'),caption:$('graphTarget'),targetLabel:HoiI18n.t('Target'),hideTooltip});
+const route=new URLSearchParams(location.search);
+let guideTreeInitialised=false;
 const statusLabels={completed:HoiI18n.t("Completed"),active:HoiI18n.t("In progress"),ready:HoiI18n.t("Prerequisites met"),locked:HoiI18n.t("Missing prerequisites"),excluded:HoiI18n.t("Excluded path"),verify:HoiI18n.t("Conditions to verify"),unknown:HoiI18n.t("Unverifiable")};
 let focusLabelContext;
 async function getJson(url,options){const response=await fetch(url,options),data=await response.json();if(!response.ok)throw new Error(data.error||response.statusText);return data;}
@@ -96,21 +99,22 @@ function showTooltip(focus,node){
   const left=rect.right+12+width<innerWidth?rect.right+12:Math.max(10,rect.left-width-12);
   tip.style.left=Math.min(left,innerWidth-width-10)+'px';tip.style.top=Math.max(10,Math.min(rect.top,innerHeight-height-10))+'px';
 }
-function centerFocus(id){
-  const position=state.coords.get(id);if(!position)return;
-  const node=state.geometry.node,viewport=$('graphViewport');viewport.scrollLeft=(position.x+node.width/2)*state.zoom-viewport.clientWidth/2;viewport.scrollTop=(position.y+node.height/2)*state.zoom-viewport.clientHeight/2;
+function focusPoint(id){
+  const position=state.coords.get(id);
+  if(position)return {...position,...state.geometry.node,name:plain(currentFocus(id).name)};
 }
-function selectFocus(id){const keepFocus=Boolean(document.activeElement?.dataset.focusId);state.selected=id;render();$('inspectorContent').scrollTop=0;if(keepFocus){const node=[...$('nodes').children].find(x=>x.dataset.focusId===id);node?.focus({preventScroll:true});}}
+function centerFocus(id){camera.center(focusPoint(id));}
+function selectFocus(id){state.selected=id;render();$('inspectorContent').scrollTop=0;}
 function render(){
   const tree=state.tree;if(!tree)return;hideTooltip();
+  const focusedId=document.activeElement?.dataset.focusId;
   $('sideTree').textContent=tree.id;$('sideCount').textContent=tree.focuses.length+HoiI18n.t(" identified focuses");
   $('graphTitle').textContent=tree.id.toUpperCase();$('graphCounter').textContent=tree.focuses.length+HoiI18n.t(" NODES");
   $('assetInfo').textContent=tree.asset_coverage?HoiI18n.t("Original icons: {0}/{1}{2}",tree.asset_coverage.resolved,tree.asset_coverage.total,tree.asset_coverage.conditional?' · '+tree.asset_coverage.conditional+HoiI18n.t(" conditional"):''):HoiI18n.t("Demo icons");
   const byId=new Map(tree.focuses.map(f=>[f.id,f])),status=statuses();
   const geometry=HoiFocusLayout.layout(tree),{coords,width,height}=geometry;state.geometry=geometry;state.coords=coords;
   $('assetInfo').textContent+=' · '+(geometry.native?HoiI18n.t("Local GUI geometry"):HoiI18n.t("Fallback geometry"));
-  const world=$('world');world.style.width=width+'px';world.style.height=height+'px';world.style.transform=`scale(${state.zoom})`;
-  $('worldSizer').style.width=(width*state.zoom)+'px';$('worldSizer').style.height=(height*state.zoom)+'px';
+  camera.size(width,height);
   const wires=$('wires');clear(wires);wires.setAttribute('viewBox',`0 0 ${width} ${height}`);wires.setAttribute('width',width);wires.setAttribute('height',height);
   const route=state.goal?ancestors(state.goal):null,exclusive=new Set();
   const pathFor=(d,cls)=>{const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',d);path.setAttribute('class',cls);wires.append(path);};
@@ -168,7 +172,7 @@ function render(){
     }
     node.append(emblem,title,el('span','focus-duration',`${Math.round(focus.cost*7)}d*`));
     node.setAttribute('aria-label',`${plain(focus.name)}: ${statusLabels[code]||HoiI18n.t("Unverifiable")}`);
-    node.addEventListener('click',()=>selectFocus(focus.id));node.addEventListener('pointerenter',()=>showTooltip(focus,node));node.addEventListener('pointerleave',hideTooltip);node.addEventListener('focus',()=>showTooltip(focus,node));node.addEventListener('blur',hideTooltip);nodes.append(node);
+    node.addEventListener('click',()=>{guideTreeInitialised=true;selectFocus(focus.id);});node.addEventListener('pointerenter',()=>showTooltip(focus,node));node.addEventListener('pointerleave',hideTooltip);node.addEventListener('focus',()=>showTooltip(focus,node));node.addEventListener('blur',hideTooltip);nodes.append(node);
   }
   // Browser glyphs differ from the game's font. Fit the declared text box.
   if(labels.length&&typeof getComputedStyle==='function'){
@@ -183,6 +187,7 @@ function render(){
   }
   renderInspector(byId,status);
   window.hoiGuideTree?.paint(document.querySelectorAll('.focus-node'),tree.id);
+  if(focusedId)[...nodes.children].find(node=>node.dataset.focusId===focusedId)?.focus({preventScroll:true});
   $('snapshotInfo').textContent=window.hoiLive?.enabled?HoiI18n.t("State from process memory. Dynamic availability is not inferred; manual marks are separate."):tree.snapshot?`Snapshot ${tree.snapshot.source} · ${tree.snapshot.tag}${tree.snapshot.note?' · '+tree.snapshot.note:''}`:tree.snapshot_error?HoiI18n.t("Snapshot not loaded: {0}",tree.snapshot_error):HoiI18n.t("Without a snapshot: manual progress is stored only in the browser, not in the game.");
 }
 function renderInspector(byId,status){
@@ -204,21 +209,52 @@ function renderInspector(byId,status){
   }
   for(const section of focus.tooltip_sections||[])container.append(el('div','minor-heading',section.heading.toUpperCase()),richText(section.text));
   container.append(el('div','minor-heading',HoiI18n.t("ACTIONS")));
-  const goal=el('button','action',HoiI18n.t("◈ Highlight all prerequisites"));goal.addEventListener('click',()=>{state.goal=focus.id;render();});container.append(goal);
+  const goal=el('button','action',HoiI18n.t("◈ Highlight all prerequisites"));goal.addEventListener('click',()=>{guideTreeInitialised=true;state.goal=focus.id;render();camera.showTarget(focusPoint(focus.id));});container.append(goal);
   if(!state.tree.has_snapshot&&!window.hoiLive?.enabled){const done=state.manual.has(focus.id),button=el('button','action secondary',done?HoiI18n.t("↶ Undo manual completion"):HoiI18n.t("✓ Mark as manually completed"));button.addEventListener('click',()=>{if(done)state.manual.delete(focus.id);else state.manual.add(focus.id);syncManual();render();});container.append(button);}
   const source=el('details','asset-details');source.append(el('summary','',HoiI18n.t("Data source")),el('div','muted',focus.source),el('div','muted',focus.sprite?.source||HoiI18n.t("Unresolved icon")));
   if(focus.sprite?.override)source.append(el('div','muted',HoiI18n.t("Texture from a DLC or configured mod.")));container.append(source);
 }
-async function loadTree(id){
+async function loadTree(id,target){
   const request=++state.treeRequest;
-  if(!id){state.tree={id:HoiI18n.t("No compatible trees"),focuses:[]};state.selected=null;state.goal=null;render();$('snapshotInfo').textContent=HoiI18n.t("Check paths and exclusion reasons in the DLC panel.");return;}
-  const old=state.tree?.id,tree=await getJson('/api/tree?id='+encodeURIComponent(id)+(window.hoiLive?.enabled?'&source=live':''));if(request!==state.treeRequest)return;if(tree.error)throw new Error(tree.error);state.tree=tree;setManual();if(state.selected&&!currentFocus(state.selected))state.selected=null;const requestedFocus=!old?new URLSearchParams(location.search).get('focus'):null;if(requestedFocus&&currentFocus(requestedFocus))state.selected=requestedFocus;if(!state.selected)state.selected=state.tree.focuses[0]?.id||null;render();if(old!==id)requestAnimationFrame(()=>centerFocus(state.selected));
+  if(!id){state.tree={id:HoiI18n.t("No compatible trees"),focuses:[]};state.selected=null;state.goal=null;camera.overview();render();$('snapshotInfo').textContent=HoiI18n.t("Check paths and exclusion reasons in the DLC panel.");return;}
+  const old=state.tree?.id,tree=await getJson('/api/tree?id='+encodeURIComponent(id)+(window.hoiLive?.enabled?'&source=live':''));
+  if(request!==state.treeRequest)return;
+  if(tree.error)throw new Error(tree.error);
+  if(old!==id)camera.overview();
+  state.tree=tree;setManual();
+  const requested=target??(!old?route.get('focus'):null);
+  if(requested&&currentFocus(requested))state.selected=requested;
+  else if(!state.selected||!currentFocus(state.selected))state.selected=tree.focuses[0]?.id||null;
+  render();
+  if(requested)camera.showTarget(focusPoint(requested));
 }
 let overviewRequest;
 function loadOverview(){
   return overviewRequest??=getJson('/api/config').finally(()=>{overviewRequest=null;});
 }
-async function reload(all=true){try{if(all){state.overview=await loadOverview();updateOverview();if(!state.tree){const requested=new URLSearchParams(location.search).get('tree')||window.hoiGuide?.value?.guide?.applies_to?.tree_id;if(state.overview.trees.some(t=>t.id===requested))$('treeSelect').value=requested;}}await loadTree($('treeSelect').value||state.overview.settings.tree_id);$('connection').textContent=HoiI18n.t("● Local server");}catch(error){$('connection').textContent=HoiI18n.t("● Connection error");showWarnings(HoiI18n.t('The focus tree could not be loaded.'),error.message);}}
+async function reload(all=true){try{if(all){state.overview=await loadOverview();updateOverview();if(!state.tree){const requested=route.get('tree')||window.hoiGuide?.value?.guide?.applies_to?.tree_id;if(state.overview.trees.some(t=>t.id===requested))$('treeSelect').value=requested;}}await loadTree($('treeSelect').value||state.overview.settings.tree_id);openInitialGuideFocus();$('connection').textContent=HoiI18n.t("● Local server");}catch(error){$('connection').textContent=HoiI18n.t("● Connection error");showWarnings(HoiI18n.t('The focus tree could not be loaded.'),error.message);}}
+
+async function showGuideFocus(row){
+  const id=row.action.entity.scope||window.hoiGuide.value.guide.applies_to.tree_id;
+  if(!state.overview?.trees.some(t=>t.id===id))throw Error(HoiI18n.t("The guide's focus tree is not available in the catalog"));
+  guideTreeInitialised=true;
+  $('treeSelect').value=id;
+  state.search='';$('search').value='';state.goal=null;
+  if(state.tree?.id!==id)await loadTree(id,row.target);
+  else if(currentFocus(row.target)){selectFocus(row.target);camera.showTarget(focusPoint(row.target));}
+}
+function openInitialGuideFocus(){
+  if(guideTreeInitialised||!state.tree||!window.hoiGuide?.value?.view||route.has('focus'))return;
+  const row=window.hoiGuideTree?.target(),guided=window.hoiGuide.value.guide?.applies_to?.tree_id;
+  const scope=row?.action.entity.scope||guided;
+  let navigation;
+  if(row&&scope&&(!route.has('tree')||route.get('tree')===scope))navigation=showGuideFocus(row);
+  else if(!route.has('tree')&&$('treeSelect').value!==guided&&state.overview.trees.some(t=>t.id===guided)){
+    $('treeSelect').value=guided;
+    navigation=loadTree(guided);
+  }
+  navigation?.catch(error=>{$('snapshotInfo').textContent=error.message;});
+}
 async function openSettings(){
   const dialog=$('settingsModal');if(dialog.open)return;
   const fields=$('settingsForm').elements,error=$('formError');
@@ -251,25 +287,24 @@ function init(){
   });
   document.addEventListener('keydown',event=>{if(event.key==='Escape')hideTooltip();});
   $('settingsForm').addEventListener('submit',async event=>{event.preventDefault();try{state.overview=await getJson('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(event.target)))});state.selected=null;state.goal=null;updateOverview();await loadTree(state.overview.settings.tree_id);close();}catch(error){$('formError').hidden=false;$('formError').textContent=error.message;}});
-  $('treeSelect').addEventListener('change',async event=>{state.selected=null;state.goal=null;await loadTree(event.target.value);});
-  let searchTimer;$('search').addEventListener('input',event=>{state.search=event.target.value.trim().toLowerCase();render();clearTimeout(searchTimer);searchTimer=setTimeout(()=>{if(state.search){const focus=state.tree.focuses.find(f=>f.id.toLowerCase().includes(state.search)||plain(f.name).toLowerCase().includes(state.search));if(focus)centerFocus(focus.id);}},100);});
-  $('resetGoal').addEventListener('click',()=>{state.goal=null;render();});$('centerFocus').addEventListener('click',()=>centerFocus(state.selected));
+  $('treeSelect').addEventListener('change',async event=>{guideTreeInitialised=true;state.selected=null;state.goal=null;await loadTree(event.target.value);});
+  let searchTimer;$('search').addEventListener('input',event=>{guideTreeInitialised=true;state.search=event.target.value.trim().toLowerCase();render();clearTimeout(searchTimer);searchTimer=setTimeout(()=>{if(state.search){const focus=state.tree.focuses.find(f=>f.id.toLowerCase().includes(state.search)||plain(f.name).toLowerCase().includes(state.search));if(focus)centerFocus(focus.id);}},100);});
+  $('resetGoal').addEventListener('click',()=>{guideTreeInitialised=true;state.goal=null;render();camera.overview();});
+  $('fit').addEventListener('click',()=>{guideTreeInitialised=true;camera.fit();});
+  $('centerFocus').addEventListener('click',()=>centerFocus(state.selected));
   $('reload').addEventListener('click',async()=>{const button=$('reload');button.disabled=true;try{await getJson('/api/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});await reload(true);}catch(error){showWarnings(HoiI18n.t('The focus tree could not be refreshed.'),error.message);}finally{button.disabled=false;}});
-  $('zoom').addEventListener('input',event=>{state.zoom=Number(event.target.value)/100;$('zoomValue').textContent=event.target.value+'%';render();centerFocus(state.selected);});$('poll').addEventListener('change',event=>state.poll=event.target.checked);
+  $('zoom').addEventListener('input',()=>{guideTreeInitialised=true;camera.manual(focusPoint(state.selected));});$('poll').addEventListener('change',event=>state.poll=event.target.checked);
   const viewport=$('graphViewport');viewport.addEventListener('scroll',()=>{hideTooltip();const node=document.activeElement;if(node?.dataset.focusId)requestAnimationFrame(()=>{const rect=node.getBoundingClientRect(),box=viewport.getBoundingClientRect(),focus=currentFocus(node.dataset.focusId);if(focus&&rect.bottom>box.top&&rect.top<box.bottom&&rect.right>box.left&&rect.left<box.right)showTooltip(focus,node);});});addEventListener('resize',hideTooltip);let drag=null;
   viewport.addEventListener('pointerdown',event=>{if(event.button!==0||event.target.closest('button'))return;drag={x:event.clientX,y:event.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};viewport.setPointerCapture(event.pointerId);viewport.classList.add('dragging');});
   viewport.addEventListener('pointermove',event=>{if(drag){viewport.scrollLeft=drag.left-(event.clientX-drag.x);viewport.scrollTop=drag.top-(event.clientY-drag.y);}});
   const endDrag=()=>{drag=null;viewport.classList.remove('dragging');};viewport.addEventListener('pointerup',endDrag);viewport.addEventListener('pointercancel',endDrag);
-  window.hoiGuideTree?.connect(async row=>{const id=row.action.entity.scope||window.hoiGuide.value.guide.applies_to.tree_id;if(!state.overview?.trees.some(t=>t.id===id))throw Error(HoiI18n.t("The guide's focus tree is not available in the catalog"));$('treeSelect').value=id;state.selected=row.target;state.search='';$('search').value='';state.goal=null;await loadTree(id);centerFocus(row.target);});
-  let guideTreeInitialised=false;
+  window.hoiGuideTree?.connect(showGuideFocus);
   window.addEventListener('hoi-guide-change',()=>{
-    const guided=window.hoiGuide?.value?.guide?.applies_to?.tree_id;
-    if(!guideTreeInitialised&&state.overview&&guided){guideTreeInitialised=true;if(!new URLSearchParams(location.search).has('tree')&&state.overview.trees.some(t=>t.id===guided)&&state.tree?.id!==guided){$('treeSelect').value=guided;loadTree(guided).catch(error=>{$('snapshotInfo').textContent=error.message;});return;}}
-    if(state.tree)render();
+    if(state.tree){render();openInitialGuideFocus();}
   });
   let lastLiveEnabled=window.hoiLive?.enabled;
   window.hoiLive?.subscribe(()=>{const switched=lastLiveEnabled!==window.hoiLive.enabled;lastLiveEnabled=window.hoiLive.enabled;if(state.tree){if(switched)loadTree(state.tree.id).catch(error=>{$('snapshotInfo').textContent=error.message;});else if(!window.hoiGuide)render();}});
-  window.addEventListener('hoi-live-follow',async event=>{const id=event.detail.focus_tree_id;if(!state.overview?.trees.some(t=>t.id===id))return;$('treeSelect').value=id;state.selected=event.detail.current_focus||null;await loadTree(id);});
+  window.addEventListener('hoi-live-follow',async event=>{const id=event.detail.focus_tree_id;if(!state.overview?.trees.some(t=>t.id===id))return;guideTreeInitialised=true;$('treeSelect').value=id;state.selected=null;await loadTree(id,event.detail.current_focus);});
   setInterval(()=>{if(!window.hoiLive?.enabled&&state.poll&&state.overview?.settings.snapshot_path)reload(false);},15000);reload();
 }
 init();

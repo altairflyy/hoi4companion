@@ -7,3 +7,12 @@ a.nav{text-decoration:none}.view-tabs{display:flex;gap:12px;align-items:center}.
 @media(max-width:830px){.workspace-body{height:auto;min-height:0}.graph-area{height:600px}.graph-viewport{min-height:0;height:auto}.inspector{height:auto}.inspector-inner{max-height:65vh}.work-top{gap:10px}.work-top button{flex:1}.hero h1{font-size:30px}}
 .focus-link-unverified{filter:grayscale(1);opacity:.75}.native-focus .guide-node-label{top:-52px}
 .native-focus .focus-name{white-space:nowrap;text-overflow:ellipsis}
+
+/* The scrollable bounds follow the scaled canvas, including its target margins. */
+#worldSizer{overflow:clip}
+#worldSizer > .world{position:absolute;transition:none}
+.graph-target{flex:none;margin:0;padding:8px 16px;border-bottom:1px solid var(--stroke);color:var(--text);background:var(--pane);font-size:14px;font-weight:600;overflow-wrap:anywhere}
+.graph-target[hidden]{display:none}
+#nodes :is(.focus-node,.tech-node).selected{outline:2px solid var(--gold);outline-offset:4px;opacity:1;z-index:6}
+#nodes :is(.focus-node,.tech-node):focus-visible{outline:3px solid var(--blue);outline-offset:4px;opacity:1;z-index:7}
+:is(.focus-page,.technology-page) :is(.work-top,.zoom) :is(button,input,select):focus-visible{outline:2px solid var(--blue);outline-offset:2px}

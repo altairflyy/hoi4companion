@@ -3,9 +3,9 @@ Updated: 2026-11-22. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_siz
 
 ## Next actions
 Resume prompt (user pastes it after /clear, or says "Continua sempre qui"; the agent rewrites it at every step end and shows it in chat):
-> Leggi docs/ux-implementation-plan.md, inclusa «Esecuzione con Codex», e docs/AGENT_HANDOFF.md. Esegui solo lo step 5.
-> Verifica Focus e Tecnologie con e senza obiettivo a 1282 × 832 e a larghezza ridotta. Prova «Adatta scheda», persistenza dello zoom e tastiera. Usa fixture o dati isolati senza avviare o controllare HOI4.
-> Segui il piano per test, catture prima/dopo, revisione e commit locale. Aggiorna piano e handoff e lascia il prompt di ripresa dello step 6.
+> Leggi docs/ux-implementation-plan.md, inclusa «Esecuzione con Codex», e docs/AGENT_HANDOFF.md. Esegui solo lo step 6.
+> Verifica «Sessione e HUD» e la presenza di Ctrl+Alt+H con fixture per gli stati esposti, senza avviare o controllare HOI4. Usa i segnali dello step 3 e conserva geometria, acquisizione e validità HUD.
+> Segui il piano per test, catture prima/dopo, revisione e commit locale. Aggiorna piano e handoff e lascia il prompt di ripresa dello step 7.
 
 PAUSED 2026-11-22 (user): live HUD quality checks need game data or screenshots. Resume F1 step 2 only on request, per `docs/hud-quality-plan-2026-11-22.md`.
 HUD responsiveness plan part 2 closed 2026-11-22 (step 5, target met). Optional leftovers (full read, HUD `project`): plan step 4b.
@@ -20,6 +20,8 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 2026-11-22 UX step 5: Focus e Tecnologie verificati in Edge a 1282 × 832 e 820 × 832 con fixture, obiettivo e panoramica.
+  Adatta scheda, zoom manuale e tastiera verificati in Edge. JS mirati 58/58. Catture e limiti nel piano UX. Prova manuale WebView2 aperta.
 - 2026-11-22 UX step 4: ZIP, rapporto, due percorsi di correzione, stati senza dati e avvisi Focus verificati in Edge IT/EN.
   ZIP sintetici e backend isolato. JS mirati 103/103. Catture, altri test e limiti nel piano UX. Verifica manuale WebView2 aperta.
   Backend e overlay ricompilati dopo `663bb41`. Launcher isolato con HUD disattivato e HTTP 200. Riprova Edge del binario installato riuscita.

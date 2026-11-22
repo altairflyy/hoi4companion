@@ -7,3 +7,14 @@ html.suite-embedded .topbar{min-height:0;height:auto;justify-content:flex-end;pa
 html.suite-embedded .topbar:not(:has(.top-actions)){display:none}
 html.suite-embedded .content{padding-top:20px}
 html.suite-embedded .hero{margin-top:0}
+
+html.suite-embedded .focus-page .hero:not(:has(.demo-banner:not(.hidden))),
+html.suite-embedded .focus-page .hero > :first-child{display:none}
+html.suite-embedded .focus-page .hero{margin-bottom:8px}
+html.suite-embedded .focus-page .topbar{padding:4px 16px}
+html.suite-embedded .focus-page .content{padding-top:8px}
+html.suite-embedded .focus-page .workspace-body{height:clamp(260px,56vh,680px);min-height:0}
+@media(max-width:830px){
+ html.suite-embedded .focus-page .workspace-body{height:auto}
+ html.suite-embedded .focus-page .graph-area{height:clamp(260px,56vh,680px)}
+}

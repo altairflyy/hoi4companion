@@ -18,6 +18,7 @@ test('focus view composes GUI art, preserves guide targets and replaces nodes wh
     national_focus_exclusive_item:{position:{x:-5,y:28},children:{mid:{sprite:asset('mid')},link1:{sprite:asset('line'),position:{x:16,y:10}},link2:{sprite:asset('line'),position:{x:16,y:10}}}}}}};
  let painted=0;
  const context={fixture,HoiFocusLayout:require('../src/hoi4companion/web/focus-layout.js'),
+  HoiTreeViewport:require('../src/hoi4companion/web/tree-viewport.js'),location:{search:''},URLSearchParams,
   window:{hoiLive:{enabled:true},hoiGuideTree:{paint(nodes,id){painted++;assert.equal(nodes.length,2);assert.equal(id,'tree');}}},
   document:{getElementById:get,createElement:tag=>new Element(tag),createElementNS:(ns,tag)=>new Element(tag),querySelectorAll:()=>get('nodes').children},
   fetch(){throw Error('Rendering must not request more data');}};

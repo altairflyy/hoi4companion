@@ -16,6 +16,11 @@
   if(r.value===null)parent.append(el('p','guide-assist-note',HoiI18n.t('Some focus requirements are not observable yet; this is the guide target, not verified availability.')));
  }
  function marker(id,scope){return value?.view?.lanes[lane].markers.find(m=>m.id===id&&(!m.scope||m.scope===scope));}
+ function target(){
+  const plan=value?.view?.lanes[lane];
+  if(!plan||value.view.mode.startsWith('wrong_'))return;
+  return plan.markers.find(m=>m.tone!=='active')?.row||plan.next;
+ }
  function paint(nodes,scope){for(const node of nodes){
   const id=node.dataset.focusId||node.dataset.techId,m=marker(id,scope);
   for(const tone of Object.keys(labels))node.classList.toggle('guide-'+tone,m?.tone===tone);
@@ -61,7 +66,8 @@
   else status.textContent=plan.markers.length?HoiI18n.t("Guide step in progress"):HoiI18n.t("No further items prescribed by this guide");
   if(lane==='focus'&&plan.next?.focus_readiness?.value===false)status.textContent=HoiI18n.t('Main focus waiting: {0}',plan.next.name||plan.next.target);
   summary.append(status);
-  if(first||plan.next){const button=el('button','line-button',first?.tone==='alternative'?HoiI18n.t('Show alternative'):HoiI18n.t("Show ")+(lane==='focus'?'focus':HoiI18n.t("research")));button.type='button';button.addEventListener('click',()=>{const row=first?.row||plan.next;if(navigate)Promise.resolve(navigate(row)).catch(e=>{status.textContent=e.message;});else if(row.href)location.assign(window.hoiGuide.withGuide(row.href));});summary.append(button);}
+  const row=first?.row||plan.next;
+  if(row){const button=el('button','line-button',first?.tone==='alternative'?HoiI18n.t('Show alternative'):HoiI18n.t("Show ")+(lane==='focus'?'focus':HoiI18n.t("research")));button.type='button';button.addEventListener('click',()=>{if(navigate)Promise.resolve(navigate(row)).catch(e=>{status.textContent=e.message;});else if(row.href)location.assign(window.hoiGuide.withGuide(row.href));});summary.append(button);}
   if(plan.blocker){const a=el('a','',HoiI18n.t("Check this step"));a.href=window.hoiGuide.withGuide('/walkthrough#operation-'+plan.blocker.key);summary.append(a);}
   host.append(summary);
   if(lane==='focus'){criteria(host,plan.next);if(first?.tone==='alternative')host.append(el('p','guide-assist-note',HoiI18n.t('Optional alternative from this guide. The main focus keeps its priority and returns when its requirements are met.')));}
@@ -72,6 +78,6 @@
    else host.append(el('p','guide-assist-error',value.error));
   }
  }
- window.hoiGuideTree={paint,details,marker,connect(fn){navigate=fn;}};
+ window.hoiGuideTree={paint,details,marker,target,connect(fn){navigate=fn;}};
  window.hoiGuide.subscribe(next=>{value=next;render();window.dispatchEvent(new CustomEvent('hoi-guide-change'));});
 })();
