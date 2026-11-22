@@ -22,8 +22,7 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 ## Recently verified
 - 2026-11-22 UX step 3: Edge headless con fixture isolate, M4 6/6. Spunta salvata, «Avvio non verificabile» e 0/98 nel Piano. Catture e log in `.local/ux-captures/step-3/`.
   JS mirati 35/35, npm 514 passati e 3 saltati. Rust backend 69 + 120 passati, live 72 passati. Esiti e inventario nel piano UX. Verifiche WebView2 manuale e in partita aperte.
-- 2026-11-22 UX step 2: «Ora» prima delle metriche, «Ora / Poi» prima di scorciatoie e riferimenti. Edge headless 1282 × 832 con fixture isolate: M1 0/0, M2 1/1/1, anteprima 0/2 nel Piano.
-  Test mirati 74/74, npm test 513 passati, 3 saltati. Backend e overlay ricompilati, Companion su 8766. Catture in `.local/ux-captures/step-2/`. Verifica in WebView2 e in partita reale aperta.
+  Backend e overlay ricompilati dopo `1b3c779`, Companion su 8766, HTTP 200 e riprova Edge isolata con il binario installato riuscita.
 - 2026-11-22 HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior
   change. Tests green (live 72, overlay 79, backend 65 + 120, JS 508/511, 3 skipped), invariant-reviewer clean. Live data NOT seen yet.
 - 2026-11-22 HUD plan part 2 step 5 (836 s of play on `0e4b001`): change-to-delivery p50 1166 / p90 1365 ms (target < 1.5 s met;

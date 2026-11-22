@@ -229,6 +229,11 @@ Test mirati 35/35. Backend Rust 69 unit test passati, 2 ignorati, e 120 test di 
 `npm test`: 514 passati, 3 saltati. Revisione invarianti senza rilievi. Verifica nella finestra WebView2 da fare a mano.
 Verifica in partita reale e HUD sospese.
 
+Dopo il commit `1b3c779`, rebuild di backend e overlay e riavvio di Companion. L'arresto automatico non ha riconosciuto la finestra.
+La chiusura diretta della finestra del processo Companion verificato ha permesso alla consegna di proseguire.
+Suite, Piano, modulo di stato e traduzioni serviti con HTTP 200 sulla porta 8766. Il test del servizio nativo e la riprova Edge
+con il binario installato e dati isolati confermano i risultati. Catture e log `installed-*` nella stessa cartella.
+
 ## Step 4 · Importazione e schermate d'attesa
 
 **Stato:** da fare. **Si basa su** R6 (`interpretationOverview`) e R15 (libreria raggruppata).

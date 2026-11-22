@@ -3,6 +3,8 @@
 Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/hud-performance-plan-2026-11-21.md`.
 
 ## Recently verified (moved)
+- 2026-11-22 UX step 2: «Ora» prima delle metriche, «Ora / Poi» prima di scorciatoie e riferimenti. Edge headless 1282 × 832 con fixture isolate: M1 0/0, M2 1/1/1, anteprima 0/2 nel Piano.
+  Test mirati 74/74, npm test 513 passati, 3 saltati. Backend e overlay ricompilati, Companion su 8766. Catture in `.local/ux-captures/step-2/`. Verifica in WebView2 e in partita reale aperta.
 - 2026-11-22 UX step 1: embedded reference navigation and Settings keyboard loop pass in Edge headless and desktop WebView2. M1 0/0, M2 2/2/2, M3 1/1 with synchronized titles after fix, M4 0/6.
   Codex reran baseline and current checkout at 1282 × 832 with fixtures. Enter activates both reference links, Import ZIPs and Saved guides. Targeted tests 68/68, npm test 510 passed, 3 skipped.
   Evidence and capture logs are linked from `docs/ux-implementation-plan.md`.
