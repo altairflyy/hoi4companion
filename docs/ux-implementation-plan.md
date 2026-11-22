@@ -348,13 +348,47 @@ ha confermato le dieci fixture in entrambe le lingue. Evidenze `installed-*`, `d
 
 ## Step 7 · Una sola interfaccia (decisione dell'utente)
 
-**Stato:** da fare.
+**Stato al 2026-11-22:** inventario verificato. Decisione dell’utente in attesa. Il link «Apri interfaccia classica» resta disponibile.
 
 La barra laterale offre ancora «Apri interfaccia classica» (`/walkthrough`). Inventariare cosa fa la vista classica che la suite non fa,
 con il percorso che lo mostra. Proporre all'utente una scelta: portare quelle funzioni nella suite e togliere il link, oppure tenerla con
 un'etichetta che dica a cosa serve. **Nessuna rimozione senza il sì dell'utente in chat.** Se l'utente decide, la migrazione è uno step a sé.
 
 **Completato quando** l'inventario e la decisione dell'utente sono scritti qui.
+
+### Inventario
+
+I percorsi classici partono da «Apri interfaccia classica» nella barra laterale della suite, che apre `/walkthrough` in una scheda
+separata nel browser. Da lì si usano le voci della barra superiore.
+
+| Funzione o informazione | Percorso nella classica | Riscontro nella suite |
+|---|---|---|
+| Aprire direttamente l’albero della nazione osservata | Focus nazionali → pannello di lettura → «Apri l’albero della nazione rilevata». Anche Tecnologie → «Stato partita» → stesso comando. Richiede un campione con albero noto. | I pannelli degli alberi condividono il lettore della suite. Il comando compare in Sala operativa → Sessione e HUD → Dettagli del lettore, ma lì il clic non apre l’albero. Si può aprire Focus nazionali e selezionare manualmente l’albero. |
+| Tornare alla stessa istruzione dopo una correzione | Walkthrough → scheda di un passo correggibile → «Non è questo?» o «Cosa significa?» → «Torna alla guida». Il link conserva guida e ancora `#operation-…`. | Piano della campagna → stessa scheda → Correggi associazioni. L’editor è raggiungibile e utilizzabile, ma l’intestazione con «Torna alla guida» è nascosta. «Piano della campagna» riapre la vista senza l’ancora del passo. |
+| Rileggere i file e aggiornare subito la scheda Tecnologia in uso | Tecnologie → «Rileggi i file» nella barra in alto. | La barra di Tecnologie è nascosta. Focus nazionali → «Ricarica» invoca lo stesso `POST /api/refresh`; bisogna poi riaprire Tecnologie. |
+| Consultare lo stato del lettore dentro la pagina Tecnologia | Tecnologie → «Stato partita» per espandere il pannello, con dati e slot di ricerca quando disponibili. | Sala operativa → Sessione e HUD → Dettagli del lettore mostra i dettagli del lettore condiviso. Manca l’accesso dalla pagina Tecnologia. |
+| Leggere a colpo d’occhio l’origine del catalogo e il riepilogo Focus | Focus nazionali → barra sinistra → «Albero selezionato» (ID, numero di focus) e «Dati» (demo o file locali). | ID e conteggio restano nell’intestazione del grafico e il banner demo resta disponibile. Il riepilogo laterale e l’indicatore positivo dei file locali sono nascosti. |
+
+Il Piano della campagna incorpora la stessa pagina `/walkthrough`. Da lì restano accessibili il selettore della guida, le modalità
+Guidata e Avanzata, le checklist salvate, il piano completo, le fonti, i riferimenti e «Correggi associazioni». «Diagnostica» apre
+la stessa «Analisi script» della classica. Gli strumenti per YouTube, web, Word e JSON si trovano in Importa ZIP → Altri strumenti
+di importazione e correzioni delle singole guide, raggiungibili anche dal collegamento di importazione nel Piano della campagna.
+Il selettore della lingua è nella barra laterale della suite. Il link classico offre anche un accesso autonomo se la cornice della suite
+non si carica.
+
+**Verifica.** Codice di `suite-model.js`, `suite.js`, `suite-embedded.css`, `guide.html`, `associations.js`, `technologies.js`,
+`explorer.js` e `live-state.js`. Edge headless a 1282 × 832 con i file web del checkout e risposte sintetiche su loopback. Verificati
+visibilità dei controlli, ancora di ritorno, salto dalla Tecnologia classica all’albero sintetico e richiesta di refresh simulata.
+Catture e log in `.local/ux-captures/step-7/`. Test JS mirati 86/86. Nessuna prova WebView2 o con una partita reale.
+
+### Scelta da registrare
+
+1. **Portare i comandi mancanti nella suite e poi togliere il link.** Opzione proposta. Ripristinare il salto all’albero rilevato e il
+   ritorno al passo. Rendere accessibili aggiornamento e dettagli da Tecnologie e conservare l’indicatore della fonte del catalogo.
+   Verificare i percorsi nella suite prima di togliere il link. La migrazione è uno step separato.
+2. **Tenere il link con un’etichetta esplicita.** Proposta di testo «Vista classica · strumenti degli alberi e ritorno al passo».
+
+**Decisione dell’utente:** in attesa di una risposta in chat. Proseguire con lo step 7 per registrarla prima di cambiare il link.
 
 ## Step 8 · Verifica finale desktop
 
