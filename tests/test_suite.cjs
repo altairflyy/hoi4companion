@@ -17,6 +17,25 @@ test('an empty guide collection does not show an error',async()=>{
  assert.equal(h.element('suiteError').hidden,true);
  assert.equal(h.element('activeGuideTitle').textContent,'Choose a guide to begin');
 });
+test('home has one primary action with a destination for each guide state',async()=>{
+ const html=fs.readFileSync(require.resolve('../src/hoi4companion/web/suite.html'),'utf8');
+ const overview=html.slice(html.indexOf('id="overviewView"'),html.indexOf('id="libraryView"'));
+ assert.equal((overview.match(/class="primary"/g)||[]).length,1);
+ assert.ok(overview.indexOf('id="nowRoute"')<overview.indexOf('class="campaign-metrics"'));
+ const states=[
+  [false,[], 'Continue the plan','walkthrough'],
+  [true,[{id:'a'}], 'Choose a guide','library'],
+  [true,[], 'Import a ZIP','importer']
+ ];
+ for(const [noActive,library,label,destination] of states){
+  const h=suiteHarness([],noActive,null,library);await h.settled();await h.flush();
+  const button=h.element('overviewAction');
+  assert.equal(button.hidden,false);
+  assert.equal(button.textContent,label);
+  assert.equal(button.dataset.view,destination);
+  assert.equal(h.element('suiteError').hidden,true);
+ }
+});
 test('sidebar marks settings and diagnostics as current when navigating',()=>{
  const button=view=>({dataset:{view},current:false,setAttribute(name,value){if(name==='aria-current')this.current=value;},removeAttribute(name){if(name==='aria-current')this.current=false;}});
  const buttons=['overview','settings','analysis'].map(button),h=suiteHarness(buttons);
@@ -139,7 +158,8 @@ test('embedded views share the stream and release subscriptions without owning a
 // UX R11: the home previews the first steps from the Rust preview evaluation only.
 const cases=require('./fixtures/presentation-cases.json'),evaluations=require('./fixtures/presentation-evaluations.json');
 function previewProjection(id='a'){const guide=structuredClone(cases.find(c=>c.name==='model: offline plan').guide);guide.id=id;
- return {schema_version:1,engine:'rust-guide-core',guide_id:id,guide,evaluation:{...structuredClone(evaluations['model: offline plan']),guide_id:id},progress:{guide_id:id},state:{usable:false}};}
+ const evaluation={...structuredClone(evaluations['model: offline plan']),guide_id:id};
+ return {schema_version:1,engine:'rust-guide-core',guide_id:id,guide,evaluation,progress:{guide_id:id,run_id:evaluation.run_id},state:{usable:false}};}
 const keys=groups=>groups.map(g=>[g.track,g.items.map(i=>i.key+':'+i.status)]);
 test('home preview lists the first open steps of each track from the Rust preview evaluation',()=>{
  const p=previewProjection();
@@ -154,14 +174,30 @@ test('home preview rejects live, foreign or non-Rust evaluations',()=>{
  for(const change of [p=>p.evaluation.mode='live',p=>p.evaluation.mode='wrong_country',p=>p.engine='js',p=>p.guide_id='b',p=>p.evaluation.guide_id='b',p=>delete p.evaluation.steps]){const p=previewProjection();change(p);assert.equal(model.preview(p,'a'),null);}
  assert.equal(model.preview(previewProjection(),''),null);assert.equal(model.preview(null,'a'),null);
 });
+test('Now displays only the steps nominated by Rust for the matching run',()=>{
+ const p=previewProjection();
+ assert.deepEqual(model.nextSteps(p,'a','preview').map(i=>i.key),['f1','r1']);
+ p.evaluation.tracks.focus.next=null;
+ p.evaluation.tracks.research.next='r4';
+ assert.deepEqual(model.nextSteps(p,'a','preview').map(i=>i.key),['r4']);
+ p.evaluation.steps.find(r=>r.key==='r4').status='completed';
+ assert.deepEqual(model.nextSteps(p,'a','preview'),[]);
+ for(const change of [p=>p.progress.run_id='previous',p=>p.guide.id='other',p=>p.evaluation.mode='live']){
+  const invalid=previewProjection();change(invalid);
+  assert.deepEqual(model.nextSteps(invalid,'a','preview'),[]);
+ }
+});
 test('suite home without the game shows the Rust preview and drops it once the game is readable',async()=>{
  const h=suiteHarness([],false,previewProjection());await h.settled();await h.flush();
  assert.ok(h.calls.some(p=>p.startsWith('/api/guide/projection?id=a&live=0')));assert.ok(!h.calls.some(p=>p.includes('live=1')));
  assert.equal(h.element('routeStatus').textContent,'Preview without the game');
- const items=h.element('routeItems').children;assert.equal(items.length,6);
+ const items=h.element('nowItems').children;assert.equal(items.length,2);
  const text=item=>item.children[1].children.map(c=>c.textContent);
- assert.deepEqual(text(items[0]).slice(0,2),['National focuses · To check in game','f1']);assert.equal(items[3].href,'/technologies');
+ assert.deepEqual(text(items[0]).slice(0,2),['National focuses · To check in game','f1']);assert.equal(items[1].href,'/technologies');
+ assert.equal(h.element('routeItems').children.length,4);
+ assert.equal(h.element('nowNotice').textContent,'Preview: no progress is counted until the game is linked.');
  h.send({usable:true,active_guide_id:'a',sample:{country:'POL'}});await h.settled();await h.flush();
  assert.ok(h.calls.some(p=>p.includes('live=1')));
  assert.equal(h.element('routeStatus').textContent,'Waiting for current game data');assert.equal(h.element('routeItems').children.length,0);
+ assert.equal(h.element('nowRoute').hidden,true);assert.equal(h.element('nowItems').children.length,0);
 });

@@ -1,5 +1,13 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+test('campaign plan puts the guided view before shortcuts and references and keeps the full plan collapsible',()=>{
+ const html=fs.readFileSync(require.resolve('../src/hoi4companion/web/guide.html'),'utf8');
+ const guided=html.indexOf('<section id="guidedPlan"');
+ assert.ok(guided>=0);
+ for(const selector of ['<a id="sourceLink"','<nav class="tree-shortcuts"','<nav id="guideQuickReferences"','<details id="operationsPlan">']){
+  assert.ok(html.indexOf(selector)>guided,selector);
+ }
+});
 test('walkthrough renders only operational instructions, preserves conditions, runs and undo',async()=>{
  class Node{
   constructor(){this.children=[];this.dataset={};this.hidden=false;this.text='';this.style={};}

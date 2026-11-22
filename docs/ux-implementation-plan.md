@@ -116,7 +116,8 @@ Modifiche web caricate in Edge e WebView2 senza rebuild. La campagna reale e le 
 
 ## Step 2 · La prossima azione al primo posto
 
-**Stato:** da fare. **Si basa su** R9 (modalità guidata) e R11 (anteprima senza gioco).
+**Stato:** implementato e verificato il 2026-11-22 con fixture isolate in Edge 158 headless. **Si basa su** R9 (modalità guidata)
+e R11 (anteprima senza gioco).
 
 Sala operativa, una sola azione primaria per stato:
 
@@ -134,6 +135,29 @@ linked.»). Nel Piano della campagna «Ora / Poi» viene prima di scorciatoie e 
 
 **Completato quando** M1 e M2 raggiungono l'obiettivo e l'anteprima non attribuisce progressi. Test della suite e del piano per i tre
 stati; catture della home e del piano in desktop.
+
+### Verifica dello step 2 · 2026-11-22
+
+Edge 158 headless, viewport 1282 × 832, lingua italiana. Backend Companion con dati isolati e discovery disattivato.
+Stessa serie di fixture prima e dopo, con proiezioni Rust da `presentation-evaluations.json`.
+
+| Metrica | Prima | Dopo |
+|---|---|---|
+| M1 · Ripresa in anteprima | 0 clic, 0 scorrimenti. Primo titolo a 599–620 px, sotto le metriche. | **0 clic, 0 scorrimenti.** Primo titolo a 349–370 px, sopra le metriche. |
+| M1 · Partita collegata simulata | La prima voce del riepilogo era sotto le metriche. | **0 clic, 0 scorrimenti.** Primo titolo di «Ora» a 308–329 px, sopra le metriche. |
+| M2 · Azione primaria | 2 / 2 / 2. | **1 / 1 / 1.** Verificate le destinazioni Piano della campagna, Libreria guide e Importa ZIP. |
+
+«Ora» mostra la chiave `next` indicata da Rust per ciascun percorso che ha un passo da presentare. In anteprima la Sala operativa
+mostra l'avviso sui progressi e quattro metriche sconosciute. Nel Piano, «Ora / Poi» precede le scorciatoie e i riferimenti. La fixture
+di anteprima resta a 0/2 e «Piano completo» si apre dal riepilogo.
+
+Catture `before-*.png` / `installed-*.png` e log in `.local/ux-captures/step-2/`. Test mirati 74/74.
+`npm test`: 513 passati, 3 saltati, 0 errori. Revisione invarianti senza rilievi.
+
+Dopo il commit, `deliver-build` ha ricompilato backend e overlay per caricare le traduzioni e avviato Companion sulla porta 8766.
+La suite e il catalogo aggiornato rispondono HTTP 200. La riprova isolata con il backend ricompilato conferma M1, M2, l'anteprima
+e un link di «Ora» con albero e ancora preservati nella suite. La tastiera nella finestra WebView2 resta da verificare a mano.
+Il riscontro con una partita reale e i test live HUD restano sospesi.
 
 ## Step 3 · Stato della partita e avanzamento
 

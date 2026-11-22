@@ -39,3 +39,9 @@
  .suite-frame-view{height:calc(100vh - 240px);min-height:320px}
 }
 .suite-sidebar :is(a,button,select):focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.now-route{margin-bottom:24px}
+.now-route .section-heading{margin-bottom:8px}
+.now-route p:empty{display:none}
+#nowItems{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:0 24px}
+#nowItems .route-item{padding:12px 0 0}
+#overviewAction[hidden],#activeRouteActions[hidden]{display:none}

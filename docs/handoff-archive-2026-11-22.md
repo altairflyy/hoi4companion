@@ -3,6 +3,9 @@
 Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/hud-performance-plan-2026-11-21.md`.
 
 ## Recently verified (moved)
+- 2026-11-22 UX step 1: embedded reference navigation and Settings keyboard loop pass in Edge headless and desktop WebView2. M1 0/0, M2 2/2/2, M3 1/1 with synchronized titles after fix, M4 0/6.
+  Codex reran baseline and current checkout at 1282 × 832 with fixtures. Enter activates both reference links, Import ZIPs and Saved guides. Targeted tests 68/68, npm test 510 passed, 3 skipped.
+  Evidence and capture logs are linked from `docs/ux-implementation-plan.md`.
 - 2026-11-21 part 2 step 3b: HUD geometry no longer waits on the provider lock nor the HTTP provider owner during a full read (lane slot +
   `provider_handle`). Backend 61+120 green, new lock test, invariant-reviewer clean. Live spikes NOT measured: LIVE session.
 - 2026-11-21 part 2 step 4: progress store reads no longer clone the whole state (offline: 54 `get` 420 -> 0.4 ms; a write ~70 ms, so

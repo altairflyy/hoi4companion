@@ -36,22 +36,45 @@
  // read only from a Rust evaluation in preview mode (its order, next step and
  // status). Nothing is evaluated or completed here; completed, not applicable
  // and unknown statuses are left out rather than guessed.
- const previewTracks=[['operations','Guide actions'],['focus','National focuses'],['research','Technology research']];
- const previewStatuses=new Set(['ready','active','waiting','unverifiable']);
+ const displayTracks=[['operations','Guide actions'],['focus','National focuses'],['research','Technology research']];
+ const openStatuses=new Set(['ready','active','waiting','unverifiable']);
+ function matchingEvaluation(projection,guideId,mode){
+  const e=projection?.evaluation;
+  if(!guideId||projection?.schema_version!==1||projection.engine!=='rust-guide-core'||
+    projection.guide_id!==guideId||projection.guide?.id!==guideId||e?.guide_id!==guideId||
+    e.mode!==mode||projection.progress?.guide_id!==guideId||
+    (e.run_id!=null&&e.run_id!==projection.progress.run_id)||
+    !Array.isArray(e.steps)||!e.tracks||!projection.guide.tracks)return null;
+  return e;
+ }
+ // Rust nominates the next step independently for each track. A missing
+ // nomination is left empty, even when the track contains other visible rows.
+ function nextSteps(projection,guideId,mode){
+  const e=matchingEvaluation(projection,guideId,mode);
+  if(!e)return [];
+  return displayTracks.flatMap(([track,label])=>{
+   const key=e.tracks?.[track]?.next;
+   if(typeof key!=='string')return [];
+   const step=projection.guide.tracks[track]?.find(s=>s.key===key),row=e.steps.find(r=>r.key===key);
+   return step&&step.tracking!=='reminder'&&row&&!row.set_aside&&openStatuses.has(row.status)?
+    [{key,track,label,step,status:row.status,reason:row.reason}]:[];
+  });
+ }
  function preview(projection,guideId,perTrack=3){
-  const e=projection?.evaluation,guide=projection?.guide;
-  if(!guideId||projection?.engine!=='rust-guide-core'||projection.guide_id!==guideId||e?.guide_id!==guideId||e.mode!=='preview'||!Array.isArray(e.steps)||!e.tracks||!guide?.tracks)return null;
+  const e=matchingEvaluation(projection,guideId,'preview');
+  if(!e)return null;
+  const guide=projection.guide;
   const definitions=new Map(Object.values(guide.tracks).flat().filter(s=>s&&typeof s.key==='string').map(s=>[s.key,s])),rows=new Map(e.steps.map(r=>[r.key,r]));
   const groups=[];
-  for(const [track,label] of previewTracks){const order=e.tracks[track]?.order,next=e.tracks[track]?.next;
+  for(const [track,label] of displayTracks){const order=e.tracks[track]?.order,next=e.tracks[track]?.next;
    const start=Array.isArray(order)&&typeof next==='string'?order.indexOf(next):-1;if(start<0)continue;
    const items=[];
    for(const key of order.slice(start)){if(items.length>=perTrack)break;const step=definitions.get(key),row=rows.get(key);
-    if(!step||!row||step.tracking==='reminder'||!previewStatuses.has(row.status))continue;
+    if(!step||!row||step.tracking==='reminder'||!openStatuses.has(row.status))continue;
     items.push({key,track,status:row.status,reason:typeof row.reason==='string'?row.reason:'',step});}
    if(items.length)groups.push({track,label,items});
   }
   return groups;
  }
- const api={routes,title,metrics,library,libraryGroups,selectable,currentProjection,projectionKey,preview};if(typeof module==='object'&&module.exports)module.exports=api;else root.HoiSuiteModel=api;
+ const api={routes,title,metrics,library,libraryGroups,selectable,currentProjection,projectionKey,preview,nextSteps};if(typeof module==='object'&&module.exports)module.exports=api;else root.HoiSuiteModel=api;
 })(typeof window==='object'?window:globalThis);

@@ -16,6 +16,10 @@
     "research_choice_waiting": "an earlier research choice is not completed yet"
   },
   "messages": {
+    "Continue the plan": "Continua il piano",
+    "Choose a guide": "Scegli una guida",
+    "Import a ZIP": "Importa uno ZIP",
+    "Preview: no progress is counted until the game is linked.": "Anteprima: nessun progresso viene contato finché la partita non è collegata.",
     "Updating…": "Aggiornamento…",
     "Waiting for a current qualified game observation": "In attesa di una lettura valida della partita",
     "No reply from Companion: the step may or may not have changed.": "Nessuna risposta da Companion: il passo potrebbe essere cambiato o no.",
