@@ -22,6 +22,7 @@ UX steps 1-9 (2026-11-19): archived, step 9 live checks still pending.
 ## Recently verified
 - 2026-11-22 UX step 4: ZIP, rapporto, due percorsi di correzione, stati senza dati e avvisi Focus verificati in Edge IT/EN.
   ZIP sintetici e backend isolato. JS mirati 103/103. Catture, altri test e limiti nel piano UX. Verifica manuale WebView2 aperta.
+  Backend e overlay ricompilati dopo `663bb41`. Launcher isolato con HUD disattivato e HTTP 200. Riprova Edge del binario installato riuscita.
 - 2026-11-22 HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior
   change. Tests green (live 72, overlay 79, backend 65 + 120, JS 508/511, 3 skipped), invariant-reviewer clean. Live data NOT seen yet.
 - 2026-11-22 HUD plan part 2 step 5 (836 s of play on `0e4b001`): change-to-delivery p50 1166 / p90 1365 ms (target < 1.5 s met;

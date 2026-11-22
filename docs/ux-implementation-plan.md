@@ -271,6 +271,11 @@ Test web mirati 103/103. `npm test`: 514 passati, 3 saltati dal runner e un test
 scrittura dei preset MIO. Rust: backend 69 passati e 2 ignorati, model 7 passati, rapporto di interpretazione 1 passato.
 Revisione invarianti senza rilievi.
 
+Dopo il commit `663bb41`, backend e overlay ricompilati con `deliver-build`. Il launcher desktop ha avviato Companion con profilo
+isolato, cartelle di gioco e documenti sintetiche e HUD disattivato. Suite e importatore hanno risposto HTTP 200. La sessione
+isolata è stata chiusa dopo la prova e il profilo abituale è rimasto chiuso. La riprova Edge completa ha usato il binario installato.
+Evidenze `before-*`, `installed-*`, `installed.log` e `desktop.log` nella cartella dello step.
+
 ## Step 5 · Alberi leggibili
 
 **Stato:** da fare.
