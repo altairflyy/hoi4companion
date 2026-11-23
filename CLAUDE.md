@@ -3,10 +3,9 @@
 This file provides permanent project instructions for coding agents working in this repository.
 
 ## Shared handoff
-- At the start or resumption of development, read `docs/AGENT_HANDOFF.md` and inspect `git status` and relevant diffs before editing; never overwrite, discard, commit or push unrelated work.
-- Update that handoff incrementally after each meaningful milestone, before switching tasks and at session end; do not wait until a long task finishes. Replace outdated state and link to evidence rather than copying it. Hard cap: 6 KB, lines of at most 300 characters (enforced by `tests/test_agent_handoff_size.cjs`). Move finished history to a dated `docs/handoff-archive-*.md`, never into the handoff.
-- Keep its section order: `Next actions`, `In progress`, `Recently verified`, `Open questions / hypotheses`, `Working boundaries`, so a reader can stop after the first sections.
-- Separate verified results, hypotheses and pending work; record actual test outcomes and exact next actions. This repository file is shared across agents and requires no memory plugin or conversation history.
+- Before editing when starting or resuming development, read `docs/AGENT_HANDOFF.md` and inspect `git status` and relevant diffs. Never overwrite, discard, commit or push unrelated work.
+- Update the handoff after each meaningful milestone, before switching tasks and at session end. Replace outdated state and link to evidence. Move finished history to dated `docs/handoff-archive-*.md` files; never put finished history in the handoff. Limit the handoff to 6 KB and 300 characters per line (`tests/test_agent_handoff_size.cjs`).
+- Keep the shared handoff self-contained and in this order: `Next actions`, `In progress`, `Recently verified`, `Open questions / hypotheses`, `Working boundaries`. Separate verified results, hypotheses and pending work; record exact next actions and actual test outcomes in their sections.
 
 ## Invariants
 - **Read-only toward the game:** never click, inject code, write process memory, or modify game or mod files.

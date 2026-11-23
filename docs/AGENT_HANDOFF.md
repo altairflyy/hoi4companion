@@ -1,5 +1,5 @@
 # Shared agent handoff
-Updated: 2026-11-23. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `-2026-11-20.md`, `-2026-11-21.md`, `-2026-11-22.md`, `git log`.
+Updated: 2026-11-23. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `-2026-11-20.md`, `-2026-11-21.md`, `-2026-11-22.md`, `-2026-11-23.md`, `git log`.
 
 ## Next actions
 Piano UX chiuso. F1 riaperta su SOV. In attesa delle catture H3.
@@ -16,24 +16,8 @@ Optional HUD responsiveness work (full read, HUD `project`): plan 2026-11-21 ste
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
-- 23 novembre, riapertura F1: i sei bersagli «Reverse Barbarossa» hanno coordinate di punti vittoria. Artefatti in `.local/hud-quality-f1/h3-h4/`. Nessuna misura al bordo o su un edificio. Vedi piano HUD F1.
-- 2026-11-23 F2 passo 5: progetti inattivi e comandanti in Stato della nazione. WebView2 157 a 1282 × 832 e 740 × 560, DPR 1, tastiera e ritorno alla home. Fixture osservate, vuote, indisponibili e obsolete. Test web 517 passati, 3 saltati.
-- Catture prima/dopo e `installed-replay.log` in `.local/ux-captures/f2-step-5/`. Riprova riuscita sul backend installato, profilo isolato chiuso. Acquisizione live e comportamento in gioco fuori prova.
-- 2026-11-23 F2 passo 4: WebView2 157, 1282 × 832 e 740 × 560, DPR 1. Corretti focus e visibilità del primo titolo di «Ora». Test web 89/89.
-- HUD fittizio a 96 DPI: 360 × 283 e 311 × 304 px, Produzione leggibile, prova 1/1. Catture e log in `.local/ux-captures/f2-step-4/`. Dettagli nei piani UX e HUD.
-- 2026-11-23 F1 scheda JAP: 360 × 466–483 px nel client 2560 × 1440, leggibile e libera dai controlli visibili in Produzione.
-  L'utente conferma nascondi/richiama con `Ctrl+Alt+H`. Evidenze `.local/hud-quality-f1/card-proof.png`, `card-windows.jsonl`, `card-trace.jsonl`.
-- F1 scheda SOV: posizione salvata a y=43 px, sovrapposizione alla fila notifiche quando è popolata. `.local/hud-quality-f1/map-proof-1.png`.
-- 2026-11-23 F1 marker SOV: baseline 300 s, H2 in 9 cambi di camera; con `0a6a820` 0 su 7 comparabili (60 s). Overlay 80/80.
-  H1: cinque lampeggi da lettura incoerente; con `d82c1f6` 0 errori camera in 1386 iterazioni in movimento (60 s), live 73/73.
-  `.local/hud-quality-f1/map-baseline-report.txt`, `map-retest-report.txt`, `map-final-report.txt`, `map-proof-1.png`. H3–H4 pendenti.
-- 2026-11-20 `3ac001a` HUD card: a production step is skipped as current step once a later step of its track is completed (cause:
-  layouts stop matching when lines change or read briefly unknown). Production list behind a toggle (`production_open` in overlay-card.json).
-  Rust unit tests green, rebuilt, app restarted. NOT seen in game.
-- 2026-11-20 `8bfbdc5` reload bug: a save reload (tick < bound tick) made a `timeline_rewind` run with no set_aside and no checks
-  (seen: run `fa0f389e` 3 aside/21 checks -> `f58745bb` empty). Checks now get `checked_at` (campaign tick, bound runs only, new
-  confirmations only); rewind keeps set_aside + checks dated <= loaded tick. Storage/backend/guides tests green; rebuilt, restarted,
-  API loads. NOT checked with a real reload. Old undated checks are not recoverable automatically.
+- 2026-11-23 pubblicazione: verificati pre-push 83 commit su `main`. Audit sicurezza e contenuti sensibili pulito (0 segreti, 0 dati personali, guide terzi escluse in `.local/`). Test passati: `npm test` 518/518 (3 skip), `test-native.cjs --ci` 100% OK. Tag v0.2.0 verificato su origin.
+- 23 novembre, riapertura F1: i sei bersagli «Reverse Barbarossa» hanno coordinate di punti vittoria. Artefatti in `.local/hud-quality-f1/h3-h4/`. Nessuna misura al bordo o su un edificio. Vedi piano HUD F1. Dettagli archiviati in `docs/handoff-archive-2026-11-23.md`.
 
 ## Open questions / hypotheses
 - HUD production highlights look narrow (user, 2026-11-20). Box = row container size from memory (`gui_production.rs`, row+0x17AC/0x17B0
