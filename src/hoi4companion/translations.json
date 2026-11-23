@@ -16,6 +16,10 @@
     "research_choice_waiting": "an earlier research choice is not completed yet"
   },
   "messages": {
+    "Commander roster": "Elenco comandanti",
+    "Inactive special projects": "Progetti speciali inattivi",
+    "Characters with an observed commander role. Unit assignments are outside this list.": "Personaggi con ruolo di comandante rilevato. Le assegnazioni alle unità sono fuori da questo elenco.",
+    "Inactive projects in the sample. Eligibility to start is unverified.": "Progetti inattivi nel campione. La possibilità di avviarli resta da verificare.",
     "Workspace unavailable. Reload Companion to try again.": "Spazio di lavoro non disponibile. Ricarica Companion per riprovare.",
     "The HUD highlights verified guide targets in a linked game.": "Quando la partita è collegata, l’HUD evidenzia gli obiettivi verificati della guida.",
     "During the game, press Ctrl+Alt+H to show or hide the step card.": "Durante la partita, premi Ctrl+Alt+H per mostrare o nascondere la scheda del passo.",

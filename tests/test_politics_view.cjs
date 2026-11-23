@@ -5,7 +5,7 @@ function countryView(language='italian'){
  const html=fs.readFileSync('src/hoi4companion/web/country.html','utf8'),nodes=new Map([...html.matchAll(/id="([^"]+)"/g)].map(m=>[m[1],new Node()]));nodes.get('stateSearch').value='';
  const get=id=>{assert.ok(nodes.has(id),'Missing element '+id);return nodes.get(id);};let render;
  const window={HoiCountryModel:require('../src/hoi4companion/web/country-model.js'),hoiLive:{enabled:true,subscribe(fn){render=fn;}}};
- const document={getElementById:get,createElement:()=>new Node(),body:new Node()};
+ const document={getElementById:id=>nodes.get(id)||null,createElement:()=>new Node(),body:new Node()};
  runLocalized(fs.readFileSync('src/hoi4companion/web/country.js','utf8'),{window,document,Intl,Date,Number},undefined,language);
  return {render,get};
 }
@@ -26,6 +26,43 @@ test('country view displays zero and fractional military experience plus war and
   assert.equal(get('diplomacyWar').textContent,language==='italian'?'In pace':'At peace');
   render({...current,usable:false});
   for(const id of ['experienceArmy','experienceNavy','experienceAir','diplomacyWar'])assert.equal(get(id).textContent,'—');
+ }
+});
+
+test('inactive projects and commander roster distinguish observed, empty and unavailable data',()=>{
+ const {render,get}=countryView('english');
+ const inactive={id:'test_inactive_project',active:false,completed:false};
+ const commander={id:'test_commander',name:'Test commander',unit_leader:true,country_leader:false,advisor:false,scientist:false};
+ const advisor={...commander,id:'test_advisor',name:'Test advisor',unit_leader:false,advisor:true};
+ const projects={status:'observed',items:[inactive,{...inactive,id:'test_active_project',active:true},{...inactive,id:'test_finished_project',completed:true}]};
+ const characters={status:'observed',source:'native_character_status_roles',items:[advisor,commander]};
+ const country_overview={country:'TST',projects,politics:{status:'partial',characters}};
+ const packet={usable:true,sample:{country:'TST',country_overview}};
+ render(packet);
+ assert.equal(get('projectsStatus').textContent,'Observed');
+ assert.equal(get('projectsItems').textContent,inactive.id);
+ assert.equal(get('commandersStatus').textContent,'Observed');
+ assert.equal(get('commandersItems').textContent,commander.name);
+ projects.items.shift();characters.items.pop();render(packet);
+ for(const key of ['projects','commanders']){
+  assert.equal(get(key+'Status').textContent,'Observed');
+  assert.equal(get(key+'Items').children.length,0);
+  assert.equal(get(key+'Empty').textContent,'No entries in the observed sample.');
+ }
+ projects.items.push(inactive);characters.items.push(commander);
+ for(const scenario of ['missing','malformed','foreign','stale','unavailable']){
+  const value=structuredClone(packet),overview=value.sample.country_overview;
+  if(scenario==='missing'){delete overview.projects;delete overview.politics.characters;}
+  if(scenario==='malformed'){delete overview.projects.items[0].active;delete overview.politics.characters.items[0].unit_leader;}
+  if(scenario==='foreign')overview.country='OTH';
+  if(scenario==='stale')value.usable=false;
+  if(scenario==='unavailable')overview.projects.status=overview.politics.characters.status='unavailable';
+  render(value);
+  for(const key of ['projects','commanders']){
+   assert.equal(get(key+'Status').textContent,'Unavailable',scenario);
+   assert.equal(get(key+'Items').children.length,0,scenario);
+   assert.equal(get(key+'Empty').textContent,'Waiting for current data for this section.',scenario);
+  }
  }
 });
 

@@ -23,12 +23,23 @@
  function header(key){
   const s=view.sections[key],el=$(key+'Status');el.className='status '+s.status;
   el.textContent={observed:HoiI18n.t("Observed"),partial:HoiI18n.t("Partial"),unavailable:HoiI18n.t("Unavailable")}[s.status];
-  $(key+'Reason').textContent=text(s.reason,'');return s;
+  const reason=$(key+'Reason');if(reason)reason.textContent=text(s.reason,'');return s;
  }
  function rows(target,items,draw){const tbody=$(target);tbody.replaceChildren();for(const item of list(items)){const row=document.createElement('tr');draw(row,item);tbody.append(row);}return tbody.children.length;}
  function empty(key,count,sourceCount=count){
   const s=view.sections[key];
   $(key+'Empty').textContent=count?'':s.status==='unavailable'?HoiI18n.t("Waiting for current data for this section."):sourceCount?HoiI18n.t("No entries match your search."):s.status==='partial'?HoiI18n.t("No readable entries in this sample."):HoiI18n.t("No entries in the observed sample.");
+ }
+ function renderObservedList(key){
+  const section=header(key),target=$(key+'Items');
+  target.replaceChildren();
+  for(const item of list(section.items)){
+   const entry=document.createElement('li');
+   entry.textContent=text(item.name,item.id);
+   target.append(entry);
+  }
+  target.hidden=!target.children.length;
+  empty(key,target.children.length);
  }
  function renderStates(){
   const s=view.sections.states,all=list(s.items),query=$('stateSearch').value.trim().toLocaleLowerCase('it');
@@ -73,6 +84,8 @@
   // HOI4 1.20 runtime high command roles have no script token: shown by slot, never as an advisor id.
   const runtimeRoles=list(advisors?.status==='observed'?advisors.generated_items:[]).map(x=>({name:HoiI18n.t('{0} (runtime role)',String(x.slot_type).replaceAll('_',' ')),character_name:x.character_name}));
   rows('politicsAdvisorRows',advisors?.status==='observed'?[...advisors.items,...runtimeRoles]:[],(r,x)=>{nameCell(r,x);cell(r,x.character_name??x.character_id);});
+  renderObservedList('commanders');
+  renderObservedList('projects');
   const events=header('events');$('visibleEvents').replaceChildren();
   for(const event of list(events.visible)){const article=document.createElement('article'),title=document.createElement('h3');title.textContent=event.name||event.event_id;article.append(title);const id=document.createElement('p');id.textContent=event.event_id;article.append(id);for(const option of list(event.options)){const p=document.createElement('p');p.textContent=(option.name||option.id)+' · '+option.id;article.append(p);}$('visibleEvents').append(article);}empty('events',list(events.visible).length);
   const decisions=header('decisions'),history=decisions.execution_history;

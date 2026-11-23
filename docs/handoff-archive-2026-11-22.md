@@ -46,3 +46,6 @@ Finished history moved out of `AGENT_HANDOFF.md`. Details per step: `docs/hud-pe
   `check-2/`. `npm test` 517 passati, 3 saltati. Handoff 3/3. La verifica in partita è ripresa il 23 novembre in F1.
 - HUD quality plan F1 step 1 (`1677f08`): map marker diagnostics + trace fields + report "Map markers", no behavior change.
   Tests passed (live 72, overlay 79, backend 65 + 120, JS 508/511, 3 skipped), invariant-reviewer clean. First live data in F1 step 2.
+- HUD plan part 2 step 5 (836 s of play on `0e4b001`): change-to-delivery p50 1166 / p90 1365 ms (target < 1.5 s met;
+  was 2634 / 3103 on 2026-11-21), no delivery past 3 s, 0 session closes in play, 2 full-read retries (~1.5 s unknown each), gap p50
+  16.9 ms, geometry max 26.9 ms. HUD actions NOT measured (none done). Plan archived; numbers in its "Measured 2026-11-22, step 5".

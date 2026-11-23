@@ -488,7 +488,14 @@ dialogo, Esc, salto al contenuto e ricerca. Riprova prima/dopo e test web 89/89.
 Scheda HUD Direct2D renderizzata su due client fittizi delle stesse dimensioni a 96 DPI, con Produzione espansa e contenuto leggibile.
 Configurazioni, misure, limiti e comandi di riproduzione nella [sezione F2 del piano HUD](hud-quality-plan-2026-11-22.md#f2--step-4--2026-11-23).
 Catture e log in `.local/ux-captures/f2-step-4/`. DPI di sistema diversi e comportamento rispetto a una partita restano da verificare.
-Il passo 5 è riservato a una chat separata.
+
+**Verifica offline F2, passo 5 · 2026-11-23.** In WebView2 157, in italiano, a 1282 × 832 e 740 × 560 CSS px con profilo isolato.
+Stato della nazione ora espone «Progetti speciali inattivi» ed «Elenco comandanti» come sezioni raggiungibili con Tab e Invio.
+Verificati gerarchia, etichette, contorni di focus, ritorno a Sala operativa e differenza tra elenco osservato vuoto, indisponibile
+e obsoleto. Le fixture hanno confermato l'esclusione dei progetti attivi o completati e dei personaggi privi del ruolo di comandante.
+Regressione web 517 passati e 3 saltati, escluso il test del servizio nativo che esercita l’installazione di preset MIO.
+Catture e log in `.local/ux-captures/f2-step-5/`. HOI4 e la partita reale sono rimasti fuori dalla prova.
+[Esiti, riproduzione e limiti nel piano HUD](hud-quality-plan-2026-11-22.md#f2--passo-5--2026-11-23).
 
 ## Prompt iniziale
 

@@ -93,6 +93,15 @@
   }
   return [...keys].sort((a,b)=>{const left=Array.from(a,c=>c.codePointAt(0)),right=Array.from(b,c=>c.codePointAt(0));for(let i=0;i<Math.min(left.length,right.length);i++)if(left[i]!==right[i])return left[i]-right[i];return left.length-right.length;});
  }
+ const politicalId=value=>typeof value==='string'&&value.length>0&&value.length<=160&&/^[A-Za-z0-9_.-]+$/.test(value);
+ function observedProjects(projects){
+  const items=projects?.items;
+  return projects?.status==='observed'&&Array.isArray(items)&&items.length<=1024&&items.every(row=>row&&typeof row.id==='string'&&row.id&&typeof row.active==='boolean'&&typeof row.completed==='boolean'&&!(row.active&&row.completed))&&new Set(items.map(row=>row.id)).size===items.length?items:null;
+ }
+ function observedCharacterRoles(politics){
+  const characters=politics?.characters,items=characters?.items;
+  return ['observed','partial'].includes(politics?.status)&&characters?.status==='observed'&&characters.source==='native_character_status_roles'&&Array.isArray(items)&&items.length<=4096&&items.every(row=>row&&politicalId(row.id)&&['country_leader','advisor','unit_leader','scientist'].every(key=>typeof row[key]==='boolean'))&&new Set(items.map(row=>row.id)).size===items.length?items:null;
+ }
  function state(value){
   if(value?.schema_version!==undefined){
    if(value.schema_version!==VERSION||value.usable!==true||!value.facts||typeof value.facts!=='object'||Array.isArray(value.facts))return {schema_version:VERSION,usable:false,session_id:null,facts:{}};
@@ -121,8 +130,8 @@
   f['construction.queued']=queued===null?unknown("Coda costruzioni non qualificata"):known(queued,'construction_adapter',true);
   const queuedKnown=typeof s.country==='string'&&s.country&&overview.country===s.country?queuedConstruction(overview.construction,true):null;
   f['construction.queued_known']=queuedKnown===null?unknown("Coda costruzioni non qualificata"):known(queuedKnown,'construction_adapter',true);
-  const projects=overview.projects,items=projects?.items,projectsKnown=Boolean(s.country)&&overview.country===s.country&&projects?.status==='observed'&&Array.isArray(items)&&items.length<=1024&&items.every(row=>row&&typeof row.id==='string'&&row.id&&typeof row.active==='boolean'&&typeof row.completed==='boolean'&&!(row.active&&row.completed))&&new Set(items.map(row=>row.id)).size===items.length;
-  for(const field of ['active','completed'])f['projects.'+field]=projectsKnown?known(items.filter(row=>row[field]).map(row=>row.id),'projects_adapter',true):unknown("Progetti speciali non qualificati");
+  const projects=overview.projects,items=s.country&&overview.country===s.country?observedProjects(projects):null;
+  for(const field of ['active','completed'])f['projects.'+field]=items?known(items.filter(row=>row[field]).map(row=>row.id),'projects_adapter',true):unknown("Progetti speciali non qualificati");
   const points=projects?.breakthroughs?.items;
   if(Boolean(s.country)&&overview.country===s.country&&projects?.breakthroughs?.status==='observed'&&Array.isArray(points)&&points.length<=64&&points.every(row=>row&&typeof row.id==='string'&&row.id&&Number.isInteger(row.available)&&row.available>=0&&row.available<=100000)&&new Set(points.map(row=>row.id)).size===points.length)for(const row of points)f['projects.points.'+row.id]=known(row.available,'breakthrough_points_adapter',true);
   const power=overview.politics?.power;
@@ -179,18 +188,18 @@
  }
  function politicalFacts(overview){
   const result=Object.fromEntries(['doctrines.selected','politics.ideas','politics.advisors','politics.characters','politics.unit_leaders','politics.scientists','events.visible','events.visible_options','decisions.listed','decisions.executed','decisions.active','decisions.completed'].map(key=>[key,unknown("Sezione politica non qualificata")]));
-  const id=value=>typeof value==='string'&&value.length>0&&value.length<=160&&/^[A-Za-z0-9_.-]+$/.test(value);
+  const id=politicalId;
   const character=row=>id(row.character_id)||(row.character_id===null&&row.character_identity_status==='unavailable'&&typeof row.character_name==='string'&&[...row.character_name].length>0&&[...row.character_name].length<=512&&!/[\x00-\x1f\x7f-\x9f]/.test(row.character_name));
   const publish=(key,values)=>result[key]=known([...new Set(values)].sort(),'politics_adapter',true),p=overview.politics;
   const selected=overview.doctrines?.status==='observed'?overview.doctrines.items:null;
-  const chars=p?.characters,characters=chars?.items;
+  const characters=observedCharacterRoles(p);
   const assignment=p?.commander_assignments,assigned=assignment?.items;
   for(const key of ['politics.commanders.assigned','politics.commander_assignments'])result[key]=unknown('Commander assignments not qualified');
   if(p&&['observed','partial'].includes(p.status)&&assignment?.schema_version===1&&assignment.status==='observed'&&assignment.source==='native_reciprocal_commander_assignments'&&Array.isArray(assigned)&&assigned.length<=4096&&assigned.every(r=>r&&['role','commander_id','target_kind','instance_id'].every(k=>typeof r[k]==='string')&&typeof r.name==='string'&&r.name.length<=512&&!/[\x00-\x1f\x7f-\x9f]/.test(r.name)&&validCommanderFact('politics.commander_assignments',[r.role+':'+r.commander_id+':'+r.target_kind+':'+r.instance_id]))&&new Set(assigned.map(r=>r.commander_id)).size===assigned.length&&new Set(assigned.map(r=>r.instance_id)).size===assigned.length){
    result['politics.commanders.assigned']=known(assigned.map(r=>r.role+':'+r.commander_id).sort(),'native_commander_assignment_adapter',true);
    result['politics.commander_assignments']=known(assigned.map(r=>r.role+':'+r.commander_id+':'+r.target_kind+':'+r.instance_id).sort(),'native_commander_assignment_adapter',true);
   }
-  if(p&&['observed','partial'].includes(p.status)&&chars?.status==='observed'&&chars.source==='native_character_status_roles'&&Array.isArray(characters)&&characters.length<=4096&&characters.every(r=>r&&id(r.id)&&['country_leader','advisor','unit_leader','scientist'].every(k=>typeof r[k]==='boolean'))&&new Set(characters.map(r=>r.id)).size===characters.length)for(const [key,role]of [['politics.characters',null],['politics.unit_leaders','unit_leader'],['politics.scientists','scientist']])result[key]=known(characters.filter(r=>!role||r[role]).map(r=>r.id).sort(),'native_character_role_adapter',true);
+  if(characters)for(const [key,role]of [['politics.characters',null],['politics.unit_leaders','unit_leader'],['politics.scientists','scientist']])result[key]=known(characters.filter(r=>!role||r[role]).map(r=>r.id).sort(),'native_character_role_adapter',true);
   if(Array.isArray(selected)&&selected.length<=4096&&selected.every(row=>row&&id(row.id))&&new Set(selected.map(row=>row.id)).size===selected.length)publish('doctrines.selected',selected.map(row=>row.id));
   if(p&&['observed','partial'].includes(p.status))for(const part of ['ideas','advisors']){
    const section=p[part],rows=section?.status==='observed'?section.items:null;
@@ -396,6 +405,6 @@
   if(node?.arg)checkKeys(node.arg,result);
   return [...result];
  }
- const api={VERSION,state,fact,guide,checkKeys,decisionToken,validLogistics};
+ const api={VERSION,state,fact,guide,checkKeys,decisionToken,validLogistics,observedProjects,observedCharacterRoles};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HoiContracts=api;
 })(typeof window!=='undefined'?window:globalThis);

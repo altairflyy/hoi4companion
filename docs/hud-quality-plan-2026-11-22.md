@@ -60,7 +60,7 @@ Live qualification of HOI4 readers, camera geometry, UI scaling and HUD placemen
 - [x] Step 4 · DPI and layout. Compare the same Companion views at two scales or viewport sizes. Check readability, footprint,
   clipping, alignment and keyboard focus in WebView2. Cover the HUD card through isolated rendering or existing fixtures where
   available. Results below for desktop WebView2 and a synthetic native HUD target.
-- [ ] Step 5 · Inactive projects and commander roster. Use fixtures for observed, empty and unavailable data. Check labels,
+- [x] Step 5 · Inactive projects and commander roster. Use fixtures for observed, empty and unavailable data. Check labels,
   hierarchy, navigation and whether the UI clearly distinguishes unavailable data from an empty list.
 ## Measured
 
@@ -85,7 +85,36 @@ per il renderer nativo. La build della prova HUD usa una copia locale del sorgen
 
 Test web mirati **89/89** (`suite`, `action_plan`, `guide_view`, `importer_view`, `focus_loading`) e prova nativa **1/1**.
 Confronto prima/dopo ripetuto sull'app isolata. Restano aperti DPI di sistema diversi, scorciatoia globale della scheda,
-interazioni native e sovrapposizione ai controlli in gioco, qualificazione live e H3/H4. Il passo 5 resta aperto per una chat separata.
+interazioni native e sovrapposizione ai controlli in gioco, qualificazione live e H3/H4.
+
+### F2 · Passo 5 · 2026-11-23
+
+WebView2 **157.0.4341.60**, italiano, **1282 × 832** e **740 × 560 CSS px**, DPR 1. Launcher Companion con profilo e directory
+gioco e documenti nuovi, backend su loopback senza provider, HUD disattivato. Un server locale invia fixture SSE sintetiche e
+sola lettura. Baseline `5492e0d`. HOI4 e la partita reale sono rimasti fuori dalle prove.
+
+| Caso | Progetti speciali inattivi | Elenco comandanti |
+|---|---|---|
+| Osservato | Un progetto inattivo, per ID come nel pacchetto nativo. Il confronto include un progetto attivo e uno completato, entrambi esclusi. Il testo precisa che l'avviabilità resta da verificare. | Due personaggi con il ruolo di comandante, uno solo con assegnazione nella fixture. Il consigliere resta in «Ruoli dei personaggi». |
+| Vuoto osservato | «Osservato» e «Nessuna voce nel campione rilevato.» quando restano soltanto progetti attivi o completati. | Stesso messaggio quando rimane soltanto il consigliere. |
+| Indisponibile o obsoleto | «Non disponibile» e «In attesa di dati correnti per questa sezione.» Nessuna voce precedente visibile. Le voci ricompaiono all'arrivo di un campione osservato. | Stesso esito. Una fixture con un'assegnazione ancora osservata e ruoli indisponibili lascia indisponibile l'elenco dei comandanti. |
+
+**Difetti riprodotti e corretti.** Stato della nazione ometteva i progetti inattivi. Per trovare i comandanti bisognava aprire
+Leggi e incarichi → Ruoli dei personaggi e cercarli fra gli altri ruoli, senza esito esplicito per l'elenco vuoto. I due pannelli
+hanno ora un titolo di secondo livello, uno stato autonomo e un link diretto nella navigazione della nazione. Nella prima riprova
+a 740 × 560 il bordo inferiore del pannello e parte del contorno del link risultavano tagliati. I margini di scorrimento corretti
+tengono entrambi i contorni visibili. Tab e Invio aprono Stato della nazione, raggiungono ciascun link e spostano il focus sul
+pannello. Verificato anche il ritorno a Sala operativa con clic. Nessuno scorrimento orizzontale nel frame.
+
+**Evidenze.** `.local/ux-captures/f2-step-5/` contiene `before/` (6 PNG), `after/` (20 PNG), log delle due prove, `fixtures.json`
+e `replay.cjs`. Dalla radice, con il backend aggiornato, `node .local/ux-captures/f2-step-5/replay.cjs after`. Il replay accetta
+`F2_TEST_BACKEND` per scegliere un binario compilato a parte. La baseline è stata catturata prima di modificare i file web.
+Test web **517 passati, 3 saltati** con il test del servizio nativo escluso perché esercita l'installazione di preset MIO.
+Backend e overlay ricompilati e installati per caricare le traduzioni. La riprova sul binario installato è passata (`installed-replay.log`).
+Alla chiusura del profilo isolato non risultavano processi Companion attivi. Revisione invarianti senza rilievi.
+
+**Limiti.** Misurata la resa in WebView2 con input CDP e fixture SSE. Lettore, assegnazioni native, disponibilità di avvio dei
+progetti e geometria in partita restano da verificare. I due viewport usano la stessa scala. H3/H4 restano aperti.
 
 ### F1 · 2026-11-23
 

@@ -17,10 +17,15 @@
    result.sections[key]=status==='unavailable'?{status,reason:sample?(section?.reason||uiText("This data is not available from the reader yet.")):null}:{...section,status};
   }
   const equipment=result.sections.equipment;
-  const logisticsCountry=typeof sample?.country==='string'&&/^[A-Z0-9]{3}$/.test(sample.country)&&overview?.country===sample.country;
-  if(overview?.equipment?.logistics&&(!logisticsCountry||!contracts.validLogistics(equipment.logistics)))equipment.logistics={status:'unavailable',items:[],reason:uiText('National logistics formula not qualified')};
+  const qualifiedCountry=typeof sample?.country==='string'&&/^[A-Z0-9]{3}$/.test(sample.country)&&overview?.country===sample.country;
+  if(overview?.equipment?.logistics&&(!qualifiedCountry||!contracts.validLogistics(equipment.logistics)))equipment.logistics={status:'unavailable',items:[],reason:uiText('National logistics formula not qualified')};
+  const projects=qualifiedCountry?contracts.observedProjects(overview.projects):null;
+  const characters=qualifiedCountry?contracts.observedCharacterRoles(overview.politics):null;
+  result.sections.projects=observedList(projects?.filter(project=>!project.active&&!project.completed));
+  result.sections.commanders=observedList(characters?.filter(character=>character.unit_leader));
   return result;
  }
+ function observedList(items){return items?{status:'observed',items}:{status:'unavailable'};}
  function number(value,{integer=false,signed=false}={}){
   return typeof value==='number'&&Number.isFinite(value)&&(signed||value>=0)&&(!integer||Number.isInteger(value))?(value===0?0:value):null;
  }

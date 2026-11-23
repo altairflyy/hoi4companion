@@ -5,3 +5,8 @@
 .country-current .live-panel>p,.live-panel>ul,.live-panel>button{display:none}.live-panel{padding:12px 18px}
 
 .country-current .live-panel>ul,.country-current .live-panel>button{display:none}.materials-grid{grid-template-columns:1fr}
+.observed-list{padding-inline-start:22px;margin:12px 0 0;overflow-wrap:anywhere}
+.observed-list li+li{margin-top:6px}
+.section-nav :is([href="#commanders"],[href="#projects"]){scroll-margin-block:6px}
+#commanders,#projects{scroll-margin-top:12px}
+#commanders:focus-visible,#projects:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
