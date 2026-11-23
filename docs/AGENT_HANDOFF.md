@@ -2,10 +2,9 @@
 Updated: 2026-11-23. Cap 6 KB, lines <= 300 chars (`tests/test_agent_handoff_size.cjs`). History: `docs/handoff-archive-2026-11-19.md`, `-2026-11-20.md`, `-2026-11-21.md`, `-2026-11-22.md`, `git log`.
 
 ## Next actions
-Piano UX desktop chiuso. F2 passi 4 e 5 verificati offline. H3/H4 restano pendenti e richiedono una riapertura esplicita delle prove in partita.
+Piano UX chiuso. F1 riaperta su SOV. In attesa delle catture H3.
 Resume prompt:
-> Quando riapro le prove in partita, leggi docs/AGENT_HANDOFF.md e F1 in docs/hud-quality-plan-2026-11-22.md. Verifica solo H3/H4 con una partita compatibile e bersagli di costruzione confermati. Lascia a me ogni azione in HOI4.
-> Usa le mie catture e le tracce per verificare il margine al bordo e l'allineamento ai singoli edifici. Correggi solo gli scostamenti documentati, testa e riprova. Aggiorna il piano HUD e il handoff con evidenze e limiti.
+> Riprendi F1 in docs/hud-quality-plan-2026-11-22.md. H3: confronta catture al bordo e traccia. H4: verifica a due zoom solo un edificio identificato. L'utente controlla HOI4. Correggi solo scostamenti misurati, testa, riprova e aggiorna piano e handoff.
 Optional HUD responsiveness work (full read, HUD `project`): plan 2026-11-21 step 4b.
 
 ## In progress
@@ -17,6 +16,7 @@ Optional HUD responsiveness work (full read, HUD `project`): plan 2026-11-21 ste
   old commits stay reachable by SHA until GitHub Support purges them. Never commit or push third-party guide content.
 
 ## Recently verified
+- 23 novembre, riapertura F1: i sei bersagli «Reverse Barbarossa» hanno coordinate di punti vittoria. Artefatti in `.local/hud-quality-f1/h3-h4/`. Nessuna misura al bordo o su un edificio. Vedi piano HUD F1.
 - 2026-11-23 F2 passo 5: progetti inattivi e comandanti in Stato della nazione. WebView2 157 a 1282 × 832 e 740 × 560, DPR 1, tastiera e ritorno alla home. Fixture osservate, vuote, indisponibili e obsolete. Test web 517 passati, 3 saltati.
 - Catture prima/dopo e `installed-replay.log` in `.local/ux-captures/f2-step-5/`. Riprova riuscita sul backend installato, profilo isolato chiuso. Acquisizione live e comportamento in gioco fuori prova.
 - 2026-11-23 F2 passo 4: WebView2 157, 1282 × 832 e 740 × 560, DPR 1. Corretti focus e visibilità del primo titolo di «Ora». Test web 89/89.

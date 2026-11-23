@@ -146,6 +146,9 @@ progetti e geometria in partita restano da verificare. I due viewport usano la s
     Chita e Buriazia nella zona attesa. Entrambi i marker sono interni al viewport. La cattura non individua l'icona dello
     specifico edificio usato come ancora. L'utente ha chiuso la raccolta dopo questa immagine, quindi manca il confronto
     a più zoom e sul bordo.
+- **Riapertura H3/H4, 23 novembre.** Partita SOV, lettura utilizzabile, gruppo costruzioni qualificato. «Reverse Barbarossa» propone sei stati al passo `word-0001`. La traccia salvata include campioni con sei marker proiettati e disegnati.
+  Mosca, Kharkov, Krasnodar, Odessa, Vinnytsia e Minsk hanno coordinate identiche ai rispettivi punti vittoria (tipo 38 di unitstacks.txt). Nessuna coincide con una riga di buildings.txt del gioco base installato. La proposta identifica lo stato e non specifica un edificio.
+  H4 resta non verificabile su questi sei bersagli. Per H3 servono catture al bordo correlate alla traccia. Nessuna correzione geometrica. Evidenze in `.local/hud-quality-f1/h3-h4/` (preflight.json, proposals.json, anchors.json, preflight-trace.jsonl).
 - **Correzione H2.** `0a6a820`: i marker escono immediatamente quando il campione corrente non li conferma. Test di
   regressione riprodotto prima della modifica, suite overlay 80/80 dopo, report 8/8. Build overlay Dev reinstallata e
   riavviata. Log `overlay-test-before.log`, `overlay-test-after.log`, `overlay-build.log`.
